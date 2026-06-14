@@ -1,0 +1,57 @@
+import { useState } from 'react';
+import { View, TextInput, TouchableOpacity, Text, StyleSheet } from 'react-native';
+
+const PRIMARY = '#2e7d32';
+
+/**
+ * Password field with a show/hide eye toggle (Issue 4).
+ *
+ * Drop-in replacement for a `<TextInput secureTextEntry />`. Pass the same
+ * `style` you used on the original input — extra right padding is added so the
+ * eye button never overlaps the text. Any other TextInput props pass through.
+ */
+export default function PasswordInput({
+  style,
+  value,
+  onChangeText,
+  placeholder,
+  editable = true,
+  autoCapitalize = 'none',
+  ...rest
+}) {
+  const [show, setShow] = useState(false);
+
+  return (
+    <View style={styles.wrap}>
+      <TextInput
+        style={[style, styles.input]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        secureTextEntry={!show}
+        autoCapitalize={autoCapitalize}
+        editable={editable}
+        {...rest}
+      />
+      <TouchableOpacity
+        style={styles.eyeBtn}
+        onPress={() => setShow((s) => !s)}
+        disabled={!editable}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        activeOpacity={0.6}
+      >
+        <Text style={styles.eye}>{show ? '🙈' : '👁️'}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: { position: 'relative', justifyContent: 'center' },
+  // Reserve room on the right for the eye button.
+  input: { paddingRight: 46 },
+  // Pinned near the top so it lines up with the input's first text line
+  // regardless of the marginBottom baked into each screen's `styles.input`.
+  eyeBtn: { position: 'absolute', right: 12, top: 12, padding: 2 },
+  eye: { fontSize: 18, color: PRIMARY },
+});
