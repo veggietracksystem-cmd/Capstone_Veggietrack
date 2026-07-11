@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
-import { setAuthToken, setUnauthorizedHandler } from '../api/client';
+import { setAuthToken, setUnauthorizedHandler, setTokenRefreshedHandler } from '../api/client';
 import { clearAll } from '../offline/db';
 
 // Cross-platform secure storage: expo-secure-store on native (throws on web),
@@ -52,6 +52,14 @@ export function AuthProvider({ children }) {
       clearAll(); // drop cached offline data for the signed-out user
     });
   }, []);
+
+  // Update context state when a silent token refresh occurs in the API client.
+  useEffect(() => {
+    setTokenRefreshedHandler((newToken) => {
+      setToken(newToken);
+    });
+  }, []);
+
 
   // Restore a saved session on app start.
   useEffect(() => {

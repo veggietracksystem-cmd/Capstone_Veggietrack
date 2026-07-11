@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { showAlert } from '../lib/ui';
 import { normalizePhone, isValidPhone, PHONE_HINT } from '../lib/phone';
 import PasswordInput from '../components/PasswordInput';
+import MapPinningModal from '../components/MapPinningModal';
 
 const PRIMARY = '#2e7d32';
 
@@ -30,6 +31,9 @@ export default function RegisterScreen({ navigation }) {
   const [role, setRole] = useState('farmer');
   const [email, setEmail] = useState('');
   const [location, setLocation] = useState('');
+  const [mapModalVisible, setMapModalVisible] = useState(false);
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
   // Password is optional. If set, it's validated locally (match + min length)
   // and sent to the backend, which stores a bcrypt hash for password+OTP login.
   const [password, setPassword] = useState('');
@@ -78,7 +82,7 @@ export default function RegisterScreen({ navigation }) {
     }
 
     // Issue 14: build the payload once and log exactly what's sent, including
-    // the role-specific location key (farm_location/warehouse_location/etc.).
+    // the role-specific location key (farm_location/warehouse_location/etc.) and coords.
     const payload = {
       phone: trimmedPhone,
       full_name: trimmedName,
@@ -88,6 +92,8 @@ export default function RegisterScreen({ navigation }) {
       // Optional: if left blank the account works via OTP only.
       password: password || undefined,
       [roleConfig.locationKey]: location.trim() || undefined,
+      latitude: latitude || undefined,
+      longitude: longitude || undefined,
     };
     console.log('[register] locationKey:', roleConfig.locationKey);
     console.log('[register] payload:', JSON.stringify({ ...payload, password: password ? '***' : undefined }));
@@ -105,6 +111,13 @@ export default function RegisterScreen({ navigation }) {
     }
   };
 
+  const handleMapConfirm = ({ latitude, longitude, address }) => {
+    setLatitude(latitude);
+    setLongitude(longitude);
+    setLocation(address);
+    setMapModalVisible(false);
+  };
+
   const verifyRegistration = async () => {
     const trimmedOtp = otp.trim();
     if (trimmedOtp.length !== 6) {
@@ -114,15 +127,13 @@ export default function RegisterScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const data = await api.post('/api/auth/verify-registration', {
+      await api.post('/api/auth/verify-registration', {
         phone: normalizePhone(phone),
         otp: trimmedOtp,
       });
-      // Issue 14: confirm the saved user (incl. location field) came back.
-      console.log('[verify-registration] saved user:', JSON.stringify(data.user));
-      // signIn saves token+user and flips the navigator to the right dashboard.
-      // Map full_name -> name so dashboard headers (which read user.name) work.
-      await signIn(data.token, { ...data.user, name: data.user.full_name });
+      showAlert('Registration Successful', 'Your account has been verified. Please log in to proceed.', () => {
+        navigation.navigate('Login');
+      });
     } catch (err) {
       showAlert('Error', err.message);
     } finally {
@@ -217,13 +228,29 @@ export default function RegisterScreen({ navigation }) {
               />
 
               <Text style={styles.fieldLabel}>{roleConfig.locationLabel}</Text>
-              <TextInput
-                style={styles.input}
-                placeholder={roleConfig.locationLabel}
-                value={location}
-                onChangeText={setLocation}
-                editable={!loading}
-              />
+              <View style={styles.locationInputRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                  placeholder={roleConfig.locationLabel}
+                  value={location}
+                  onChangeText={setLocation}
+                  editable={!loading}
+                />
+                {role !== 'delivery_personnel' && (
+                  <TouchableOpacity
+                    style={styles.pinBtn}
+                    onPress={() => setMapModalVisible(true)}
+                    disabled={loading}
+                  >
+                    <Text style={styles.pinBtnText}>📍 Pin Map</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {latitude && longitude ? (
+                <Text style={styles.coordsLabel}>
+                  ✓ Coordinates pinned: {Number(latitude).toFixed(4)}, {Number(longitude).toFixed(4)}
+                </Text>
+              ) : null}
 
               {/* Password (optional) — stored as a bcrypt hash for password+OTP
                   login. Leave blank to use OTP-only login. */}
@@ -299,6 +326,11 @@ export default function RegisterScreen({ navigation }) {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+      <MapPinningModal
+        visible={mapModalVisible}
+        onConfirm={handleMapConfirm}
+        onClose={() => setMapModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -321,4 +353,8 @@ const styles = StyleSheet.create({
   resendBtn: { marginTop: 16 },
   link: { textAlign: 'center', marginTop: 16, color: PRIMARY, fontSize: 14 },
   linkDisabled: { color: '#999' },
+  locationInputRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 16 },
+  pinBtn: { paddingVertical: 12, paddingHorizontal: 16, backgroundColor: PRIMARY, borderRadius: 8 },
+  pinBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  coordsLabel: { color: PRIMARY, fontSize: 13, fontWeight: '600', marginTop: -12, marginBottom: 16 },
 });

@@ -50,6 +50,49 @@ export default function MessagesButton() {
     return () => { mounted.current = false; clearInterval(id); };
   }, [loadUnread]);
 
+  // Poll the active thread when open (real-time FIFO sync).
+  useEffect(() => {
+    if (!open || view !== 'thread' || !active) return undefined;
+    let activeMounted = true;
+    const fetchThread = async () => {
+      try {
+        const data = await api.get(`/api/messages/${active.id}`);
+        if (activeMounted) {
+          setThread(Array.isArray(data) ? data : []);
+          loadUnread();
+        }
+      } catch (err) {
+        // silent
+      }
+    };
+    const intervalId = setInterval(fetchThread, 3000);
+    return () => {
+      activeMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [open, view, active, loadUnread]);
+
+  // Poll contacts list when open (unread count highlights).
+  useEffect(() => {
+    if (!open || view !== 'contacts') return undefined;
+    let contactsMounted = true;
+    const fetchContacts = async () => {
+      try {
+        const data = await api.get('/api/messages/contacts');
+        if (contactsMounted) {
+          setContacts(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        // silent
+      }
+    };
+    const intervalId = setInterval(fetchContacts, 5000);
+    return () => {
+      contactsMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [open, view]);
+
   const openModal = async () => {
     setOpen(true);
     setView('contacts');
@@ -144,6 +187,11 @@ export default function MessagesButton() {
                         <Text style={styles.contactName}>{c.full_name || 'Unknown'}</Text>
                         <Text style={styles.contactRole}>{roleLabel(c.role)}</Text>
                       </View>
+                      {c.unread_count > 0 && (
+                        <View style={styles.contactBadge}>
+                          <Text style={styles.contactBadgeText}>{c.unread_count}</Text>
+                        </View>
+                      )}
                       <Text style={styles.chevron}>›</Text>
                     </TouchableOpacity>
                   ))}
@@ -231,4 +279,6 @@ const styles = StyleSheet.create({
   input: { flex: 1, backgroundColor: '#fafafa', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, borderWidth: 1, borderColor: '#ddd' },
   sendBtn: { backgroundColor: PRIMARY, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
   sendText: { color: '#fff', fontWeight: '700' },
+  contactBadge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, marginRight: 4 },
+  contactBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 });

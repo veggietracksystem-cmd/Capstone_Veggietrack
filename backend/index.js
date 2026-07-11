@@ -93,13 +93,17 @@ function generateToken(userId, phone, role) {
 }
 
 // ========== HELPER: CREATE NOTIFICATION ==========
-async function createNotification(userId, title, message, type = 'info') {
-  await supabaseAdmin.from('notifications').insert({
+async function createNotification(userId, title, message, type = 'info', itemId = null) {
+  const insertData = {
     user_id: userId,
     title,
     message,
     type
-  });
+  };
+  if (itemId) {
+    insertData.item_id = itemId;
+  }
+  await supabaseAdmin.from('notifications').insert(insertData);
 }
 
 // Auth middleware
@@ -123,9 +127,19 @@ function verifyToken(req, res, next) {
 // Returns { valid: true } so the client can proceed to /api/auth/send-otp.
 app.post('/api/auth/login', async (req, res) => {
   const { phone, password } = req.body || {};
+  
+  // ========== DEBUG LOGS ==========
+  console.log('🔍 LOGIN ATTEMPT - Phone:', phone);
+  console.log('🔍 LOGIN ATTEMPT - Password length:', password?.length);
+  // ================================
+  
   if (!phone || !password) {
     return res.status(400).json({ error: 'Phone and password are required' });
   }
+
+  // ========== DEBUG LOG ==========
+  console.log('📊 Querying users table for phone:', phone);
+  // ===============================
 
   const { data: user, error } = await supabaseAdmin
     .from('users')
@@ -133,9 +147,18 @@ app.post('/api/auth/login', async (req, res) => {
     .eq('phone', phone)
     .single();
 
+  // ========== DEBUG LOG ==========
+  console.log('📊 Query result:');
+  console.log('  - data:', user);
+  console.log('  - error:', error?.message || 'null');
+  // ===============================
+
   if (error || !user) {
+    console.log('❌ User not found - error:', error?.message);
     return res.status(404).json({ error: 'No account found with this phone number' });
   }
+
+  console.log('✅ User found:', user.phone);
 
   // Legacy accounts (no real password set) skip the password check so existing
   // users aren't locked out. They still complete login via OTP.
@@ -172,7 +195,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
     sendOtpLimits.set(phone, { count: 1, firstAttemptTime: nowTs });
   }
 
-  const { data: user, error } = await supabasePublic
+  const { data: user, error } = await supabaseAdmin
     .from('users')
     .select('id, phone, role')
     .eq('phone', phone)
@@ -212,7 +235,8 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   otpStore.delete(phone);
     otpAttempts.delete(phone);
 
-  const { data: user, error } = await supabasePublic
+  const { data: user, error } = await supabaseAdmin
+
     .from('users')
     .select('id, full_name, phone, role, email, farm_location, warehouse_location, store_location, service_area')
     .eq('phone', phone)
@@ -429,7 +453,8 @@ app.post('/api/pickup-requests', verifyToken, async (req, res) => {
       d.id,
       'Pickup Requested',
       `${farmer?.full_name || 'A farmer'} requested a pickup for ${label}.`,
-      'pickup'
+      'pickup',
+      request.id
     );
   }
 
@@ -439,7 +464,7 @@ app.post('/api/pickup-requests', verifyToken, async (req, res) => {
 app.get('/api/pickup-requests', verifyToken, async (req, res) => {
   const role = req.user.role;
 
-  // Farmer: only their own requests (unchanged).
+  // Farmer: only their own requests.
   if (role === 'farmer') {
     const { data, error } = await supabaseAdmin
       .from('pickup_requests')
@@ -450,9 +475,7 @@ app.get('/api/pickup-requests', verifyToken, async (req, res) => {
     return res.json(data);
   }
 
-  // Issue 5: distributor sees ALL requests (the HarvestReceiving screen filters
-  // to status === 'requested'). Farmer names are attached without relying on an
-  // embed relationship so this is robust regardless of FK constraint naming.
+  // Distributor sees ALL requests. Farmer names are attached.
   if (role === 'distributor') {
     const { data, error } = await supabaseAdmin
       .from('pickup_requests')
@@ -470,7 +493,37 @@ app.get('/api/pickup-requests', verifyToken, async (req, res) => {
     const list = (data || []).map((r) => ({
       ...r,
       farmer_name: nameById[r.farmer_id] || null,
-      created_at: r.requested_at, // alias so the UI's date label renders
+      created_at: r.requested_at,
+    }));
+    return res.json(list);
+  }
+
+  // Delivery personnel (rider): only requests assigned to them.
+  if (role === 'delivery_personnel') {
+    const { data, error } = await supabaseAdmin
+      .from('pickup_requests')
+      .select('id, farmer_id, harvest_id, note, status, requested_at, harvests (vegetable_name, quantity_kg)')
+      .eq('delivery_personnel_id', req.user.userId)
+      .order('requested_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+
+    const farmerIds = [...new Set((data || []).map((r) => r.farmer_id).filter(Boolean))];
+    let nameById = {};
+    let coordsById = {};
+    let addressById = {};
+    if (farmerIds.length) {
+      const { data: farmers } = await supabaseAdmin
+        .from('users').select('id, full_name, farm_location, latitude, longitude').in('id', farmerIds);
+      nameById = Object.fromEntries((farmers || []).map((f) => [f.id, f.full_name]));
+      coordsById = Object.fromEntries((farmers || []).map((f) => [f.id, { latitude: f.latitude, longitude: f.longitude }]));
+      addressById = Object.fromEntries((farmers || []).map((f) => [f.id, f.farm_location]));
+    }
+    const list = (data || []).map((r) => ({
+      ...r,
+      farmer_name: nameById[r.farmer_id] || null,
+      farmer_coords: coordsById[r.farmer_id] || null,
+      farmer_address: addressById[r.farmer_id] || null,
+      created_at: r.requested_at,
     }));
     return res.json(list);
   }
@@ -478,25 +531,98 @@ app.get('/api/pickup-requests', verifyToken, async (req, res) => {
   return res.status(403).json({ error: 'Not allowed' });
 });
 
-// Issue 5: distributor confirms receipt of a pickup → mark it received and fold
-// the harvest quantity into the distributor's product inventory (creating the
-// product if it doesn't exist yet). An optional price_per_kg seeds a new product.
-app.post('/api/pickup-requests/:id/receive', verifyToken, async (req, res) => {
+app.put('/api/pickup-requests/:id/assign', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
-    return res.status(403).json({ error: 'Only distributors can receive pickups' });
+    return res.status(403).json({ error: 'Only distributors can assign riders to pickup requests' });
   }
   const { id } = req.params;
-  const distributorId = req.user.userId;
-  const { price_per_kg } = req.body || {};
+  const { delivery_personnel_id, price_per_kg } = req.body;
 
-  const { data: request, error: reqErr } = await supabaseAdmin
+  if (!delivery_personnel_id) {
+    return res.status(400).json({ error: 'delivery_personnel_id is required' });
+  }
+
+  const { data: request, error: fetchErr } = await supabaseAdmin
     .from('pickup_requests')
-    .select('id, status, harvest_id, harvests (vegetable_name, quantity_kg)')
+    .select('id, status, farmer_id, harvest_id')
     .eq('id', id)
     .single();
-  if (reqErr || !request) return res.status(404).json({ error: 'Pickup request not found' });
+
+  if (fetchErr || !request) return res.status(404).json({ error: 'Pickup request not found' });
   if (request.status !== 'requested') {
-    return res.status(400).json({ error: `Request already ${request.status}` });
+    return res.status(400).json({ error: `Pickup request is already ${request.status}` });
+  }
+
+  const { data: updated, error: updErr } = await supabaseAdmin
+    .from('pickup_requests')
+    .update({
+      status: 'assigned',
+      delivery_personnel_id,
+      amount: price_per_kg ? Number(price_per_kg) : null,
+      received_by: req.user.userId
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (updErr) return res.status(500).json({ error: updErr.message });
+
+  await createNotification(
+    request.farmer_id,
+    'Pickup Assigned',
+    `A rider has been assigned to collect your vegetables.`,
+    'pickup',
+    id
+  );
+
+  await createNotification(
+    delivery_personnel_id,
+    'New Pickup Assignment',
+    `You have been assigned to collect vegetables from a farmer.`,
+    'pickup',
+    id
+  );
+
+  res.json({ message: 'Rider assigned to pickup request', request: updated });
+});
+
+app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
+  if (req.user.role !== 'delivery_personnel') {
+    return res.status(403).json({ error: 'Only riders can mark pickups as completed' });
+  }
+  const { id } = req.params;
+
+  const { data: request, error: fetchErr } = await supabaseAdmin
+    .from('pickup_requests')
+    .select(`
+      id, status, farmer_id, harvest_id, amount, received_by,
+      harvests (vegetable_name, quantity_kg, recorded_at)
+    `)
+    .eq('id', id)
+    .single();
+
+  if (fetchErr || !request) return res.status(404).json({ error: 'Pickup request not found' });
+  if (request.status !== 'assigned') {
+    return res.status(400).json({ error: `Pickup request cannot be picked up (status: ${request.status})` });
+  }
+
+  const { data: updated, error: updErr } = await supabaseAdmin
+    .from('pickup_requests')
+    .update({
+      status: 'picked_up',
+      received_at: new Date()
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (updErr) return res.status(500).json({ error: updErr.message });
+
+  if (request.harvest_id) {
+    await supabaseAdmin
+      .from('harvests')
+      .update({ status: 'picked_up' })
+      .eq('id', request.harvest_id);
   }
 
   const harvest = request.harvests;
@@ -504,40 +630,35 @@ app.post('/api/pickup-requests/:id/receive', verifyToken, async (req, res) => {
   const vegName = harvest?.vegetable_name;
 
   if (vegName && qty > 0) {
-    const { data: existingProduct } = await supabaseAdmin
-      .from('products')
-      .select('id, stock_kg')
-      .eq('distributor_id', distributorId)
-      .eq('vegetable_name', vegName)
-      .maybeSingle();
+    const harvestDate = harvest.recorded_at || new Date();
+    const pricePerKg = request.amount ? Number(request.amount) : 0;
 
-    if (existingProduct) {
-      await supabaseAdmin.from('products')
-        .update({ stock_kg: Number(existingProduct.stock_kg) + qty, updated_at: new Date() })
-        .eq('id', existingProduct.id);
-    } else {
-      await supabaseAdmin.from('products').insert({
-        distributor_id: distributorId,
-        vegetable_name: vegName,
-        price_per_kg: price_per_kg != null ? price_per_kg : 0,
-        stock_kg: qty,
-      });
-    }
+    await supabaseAdmin.from('products').insert({
+      distributor_id: request.received_by,
+      vegetable_name: vegName,
+      price_per_kg: pricePerKg,
+      stock_kg: qty,
+      harvest_date: harvestDate
+    });
   }
 
-  if (request.harvest_id) {
-    await supabaseAdmin.from('harvests').update({ status: 'received' }).eq('id', request.harvest_id);
-  }
+  await createNotification(
+    request.farmer_id,
+    'Vegetables Picked Up',
+    `Your vegetables have been picked up by the rider.`,
+    'pickup',
+    id
+  );
 
-  const { data: updated, error: updErr } = await supabaseAdmin
-    .from('pickup_requests')
-    .update({ status: 'received' })
-    .eq('id', id)
-    .select()
-    .single();
-  if (updErr) return res.status(500).json({ error: updErr.message });
+  await createNotification(
+    request.received_by,
+    'Pickup Collected',
+    `The rider has picked up the vegetables from the farmer.`,
+    'pickup',
+    id
+  );
 
-  res.json({ message: 'Pickup received and inventory updated', request: updated });
+  res.json({ message: 'Pickup completed successfully and inventory updated', request: updated });
 });
 
 // B5: DISABLED — this debug route let any authenticated user enumerate every
@@ -664,8 +785,9 @@ app.delete('/api/products/:id', verifyToken, async (req, res) => {
 app.get('/api/products/available', async (req, res) => {
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('id, vegetable_name, price_per_kg, stock_kg')
-    .gt('stock_kg', 0);
+    .select('id, vegetable_name, price_per_kg, stock_kg, harvest_date')
+    .gt('stock_kg', 0)
+    .order('harvest_date', { ascending: true });
 
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
@@ -856,11 +978,14 @@ app.get('/api/orders/pending', verifyToken, async (req, res) => {
       *,
       order_items (vegetable_name, quantity_kg, price_at_order)
     `)
-    .eq('status', 'pending')
+    .in('status', ['pending', 'approved'])
     .order('created_at', { ascending: true });
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  
+  // Keep pending orders + approved orders that do not have a rider assigned yet
+  const list = (data || []).filter(o => o.status === 'pending' || !o.delivery_personnel_id);
+  res.json(list);
 });
 
 // UNPAID ORDERS (specific, before /:id)
@@ -909,7 +1034,7 @@ app.get('/api/orders/active', verifyToken, async (req, res) => {
       deliveries (id, status, delivery_personnel_id)
     `)
     .eq('distributor_id', req.user.userId)
-    .in('status', ['approved', 'picked_up', 'in_transit'])
+    .in('status', ['approved', 'picked_up', 'in_transit', 'delivered', 'cancelled'])
     .order('created_at', { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });
@@ -953,6 +1078,101 @@ else {
   if (!data) return res.status(404).json({ error: 'Order not found' });
   res.json(data);
 });
+
+// Cancel/Reject Order (Retailer or Distributor)
+app.put('/api/orders/:id/cancel', verifyToken, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.userId;
+  const role = req.user.role;
+
+  try {
+    const { data: order, error: orderErr } = await supabaseAdmin
+      .from('orders')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (orderErr || !order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Only the retailer who placed the order or the distributor can cancel/reject it.
+    if (role === 'retailer' && order.retailer_id !== userId) {
+      return res.status(403).json({ error: 'You can only cancel your own orders' });
+    }
+    if (role !== 'retailer' && role !== 'distributor') {
+      return res.status(403).json({ error: 'Unauthorized to cancel this order' });
+    }
+
+    // Can only cancel pending orders
+    if (order.status !== 'pending') {
+      return res.status(400).json({ error: `Cannot cancel order with status '${order.status}'` });
+    }
+
+    const { data: items, error: itemsErr } = await supabaseAdmin
+      .from('order_items')
+      .select('vegetable_name, quantity_kg')
+      .eq('order_id', id);
+
+    if (itemsErr) {
+      return res.status(500).json({ error: 'Failed to retrieve order items' });
+    }
+
+    const { data: updatedOrder, error: updateErr } = await supabaseAdmin
+      .from('orders')
+      .update({ status: 'cancelled' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateErr) {
+      return res.status(500).json({ error: updateErr.message });
+    }
+
+    // Restore stock to products
+    if (items && items.length > 0) {
+      for (const item of items) {
+        const { data: product } = await supabaseAdmin
+          .from('products')
+          .select('id, stock_kg')
+          .eq('distributor_id', order.distributor_id)
+          .eq('vegetable_name', item.vegetable_name)
+          .maybeSingle();
+
+        if (product) {
+          await supabaseAdmin
+            .from('products')
+            .update({ stock_kg: Number(product.stock_kg) + Number(item.quantity_kg), updated_at: new Date() })
+            .eq('id', product.id);
+        }
+      }
+    }
+
+    // Notify the counterpart
+    if (role === 'retailer') {
+      await createNotification(
+        order.distributor_id,
+        'Order Cancelled',
+        `Order ${id.slice(0, 8)} has been cancelled by the retailer.`,
+        'order',
+        id
+      );
+    } else {
+      await createNotification(
+        order.retailer_id,
+        'Order Cancelled',
+        `Your order ${id.slice(0, 8)} has been rejected/cancelled by the distributor.`,
+        'order',
+        id
+      );
+    }
+
+    res.json({ message: 'Order cancelled successfully', order: updatedOrder });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // Approve order
 app.put('/api/orders/:id/approve', verifyToken, async (req, res) => {
@@ -1000,7 +1220,7 @@ app.put('/api/orders/:id/approve', verifyToken, async (req, res) => {
     return res.status(500).json({ error: 'Failed to create delivery record' });
   }
 
-  await createNotification(order.retailer_id, 'Order Approved', `Your order ${id.slice(0,8)} has been approved and will be delivered soon.`, 'order');
+  await createNotification(order.retailer_id, 'Order Approved', `Your order ${id.slice(0,8)} has been approved and will be delivered soon.`, 'order', id);
 
   res.json({ message: 'Order approved successfully', order: updatedOrder });
 });
@@ -1059,8 +1279,8 @@ app.put('/api/orders/:id/assign', verifyToken, async (req, res) => {
 
   if (updateDeliveryError) return res.status(500).json({ error: updateDeliveryError.message });
 
-  await createNotification(delivery_personnel_id, 'New Delivery Assignment', `You have been assigned to deliver order ${id.slice(0,8)}. Please check the order details.`, 'delivery');
-  await createNotification(order.retailer_id, 'Delivery Assigned', `A delivery person has been assigned to your order ${id.slice(0,8)}.`, 'delivery');
+  await createNotification(delivery_personnel_id, 'New Delivery Assignment', `You have been assigned to deliver order ${id.slice(0,8)}. Please check the order details.`, 'delivery', id);
+  await createNotification(order.retailer_id, 'Delivery Assigned', `A delivery person has been assigned to your order ${id.slice(0,8)}.`, 'delivery', id);
 
   res.json({ message: 'Delivery personnel assigned successfully' });
 });
@@ -1069,7 +1289,7 @@ app.get('/api/delivery/orders', verifyToken, async (req, res) => {
   if (req.user.role !== 'delivery_personnel') {
     return res.status(403).json({ error: 'Access denied' });
   }
-  const { data, error } = await supabaseAdmin
+  const { data: orders, error } = await supabaseAdmin
     .from('orders')
     .select(`
       id,
@@ -1078,6 +1298,8 @@ app.get('/api/delivery/orders', verifyToken, async (req, res) => {
       delivery_address,
       preferred_schedule,
       created_at,
+      retailer_id,
+      distributor_id,
       order_items (vegetable_name, quantity_kg, price_at_order),
       deliveries (id, status)
     `)
@@ -1085,7 +1307,48 @@ app.get('/api/delivery/orders', verifyToken, async (req, res) => {
     .order('created_at', { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+
+  try {
+    const userIds = [
+      ...new Set([
+        ...(orders || []).map((o) => o.retailer_id),
+        ...(orders || []).map((o) => o.distributor_id)
+      ])
+    ].filter(Boolean);
+
+    let usersInfo = {};
+    if (userIds.length) {
+      const { data: users, error: usersErr } = await supabaseAdmin
+        .from('users')
+        .select('id, full_name, store_location, warehouse_location, latitude, longitude')
+        .in('id', userIds);
+
+      if (usersErr) throw usersErr;
+
+      users.forEach((u) => {
+        usersInfo[u.id] = u;
+      });
+    }
+
+    const list = (orders || []).map((o) => {
+      const ret = usersInfo[o.retailer_id] || {};
+      const dist = usersInfo[o.distributor_id] || {};
+
+      return {
+        ...o,
+        retailer_name: ret.full_name || 'Retailer',
+        retailer_address: o.delivery_address || ret.store_location || 'Retailer address',
+        retailer_coords: ret.latitude && ret.longitude ? { latitude: ret.latitude, longitude: ret.longitude } : null,
+        distributor_name: dist.full_name || 'Distributor',
+        distributor_address: dist.warehouse_location || 'Distributor warehouse',
+        distributor_coords: dist.latitude && dist.longitude ? { latitude: dist.latitude, longitude: dist.longitude } : null,
+      };
+    });
+
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ========== FINANCIAL TRACKING ==========
@@ -1135,7 +1398,7 @@ app.post('/api/payments', verifyToken, async (req, res) => {
 
   if (insertError) return res.status(500).json({ error: insertError.message });
 
-  await createNotification(order.retailer_id, 'Payment Received', `Your payment of ₱${amount} for order ${order_id.slice(0,8)} has been recorded.`, 'payment');
+  await createNotification(order.retailer_id, 'Payment Received', `Your payment of ₱${amount} for order ${order_id.slice(0,8)} has been recorded.`, 'payment', order_id);
 
   res.status(201).json({ message: 'Payment recorded', payment });
 });
@@ -1224,7 +1487,32 @@ app.get('/api/messages/contacts', verifyToken, async (req, res) => {
 
   const { data, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+
+  try {
+    const { data: unreadMsgs, error: unreadErr } = await supabaseAdmin
+      .from('messages')
+      .select('sender_id')
+      .eq('recipient_id', req.user.userId)
+      .eq('is_read', false);
+
+    if (unreadErr) throw unreadErr;
+
+    const unreadMap = {};
+    if (unreadMsgs) {
+      unreadMsgs.forEach(m => {
+        unreadMap[m.sender_id] = (unreadMap[m.sender_id] || 0) + 1;
+      });
+    }
+
+    const formattedData = data.map(c => ({
+      ...c,
+      unread_count: unreadMap[c.id] || 0
+    }));
+
+    res.json(formattedData);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/messages/unread-count', verifyToken, async (req, res) => {
@@ -1309,7 +1597,8 @@ app.put('/api/deliveries/:id/status', verifyToken, async (req, res) => {
       order.retailer_id,
       'Delivery Update',
       `Your order ${delivery.order_id.slice(0, 8)} has been ${label}.`,
-      'delivery'
+      'delivery',
+      delivery.order_id
     );
   }
   res.json({ message: `Delivery marked ${status}` });
@@ -1357,8 +1646,8 @@ app.put('/api/deliveries/:id/complete', verifyToken, async (req, res) => {
     .single();
 
   const orderIdShort = delivery.order_id.slice(0,8);
-  await createNotification(order.retailer_id, 'Order Delivered', `Your order ${orderIdShort} has been delivered. Thank you!`, 'delivery');
-  await createNotification(order.distributor_id, 'Order Completed', `Order ${orderIdShort} was delivered successfully.`, 'delivery');
+  await createNotification(order.retailer_id, 'Order Delivered', `Your order ${orderIdShort} has been delivered. Thank you!`, 'delivery', delivery.order_id);
+  await createNotification(order.distributor_id, 'Order Completed', `Order ${orderIdShort} was delivered successfully.`, 'delivery', delivery.order_id);
 
   res.json({ message: 'Delivery marked as completed' });
 });
@@ -1402,7 +1691,7 @@ app.get('/api/distributor/weekly-report', verifyToken, async (req, res) => {
 
 // ========== REGISTRATION ROUTES ==========
 app.post('/api/auth/register', async (req, res) => {
-  const { phone, full_name, role, email, password, farm_location, warehouse_location, store_location, service_area } = req.body;
+  const { phone, full_name, role, email, password, farm_location, warehouse_location, store_location, service_area, latitude, longitude } = req.body;
 
   if (!phone || !full_name || !role) {
     return res.status(400).json({ error: 'Phone, full name, and role are required' });
@@ -1448,6 +1737,8 @@ app.post('/api/auth/register', async (req, res) => {
     warehouse_location,
     store_location,
     service_area,
+    latitude: latitude || null,
+    longitude: longitude || null,
     createdAt: Date.now()
   });
 
@@ -1504,7 +1795,9 @@ app.post('/api/auth/verify-registration', async (req, res) => {
     phone,
     role: pending.role,
     email: pending.email || null,
-    password_hash
+    password_hash,
+    latitude: pending.latitude || null,
+    longitude: pending.longitude || null
   };
   if (pending.role === 'farmer') newUser.farm_location = pending.farm_location || null;
   if (pending.role === 'distributor') newUser.warehouse_location = pending.warehouse_location || null;
@@ -1517,7 +1810,12 @@ app.post('/api/auth/verify-registration', async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+    console.log('🔍 Insert result:', { data: user, error });
+
+  if (error) {
+    console.log('❌ Insert error details:', error);
+    return res.status(500).json({ error: error.message });
+  }
 
   pendingRegistrations.delete(phone);
   otpStore.delete(phone);
@@ -1673,8 +1971,8 @@ app.delete('/api/users/:id', verifyToken, async (req, res) => {
   res.json({ message: 'Account deleted successfully.' });
 });
 
-// ========== PASSWORD RESET (Forgot Password via OTP) ==========
-// Step 1: verify the account exists and send a reset OTP.
+// ========== PASSWORD RESET (Forgot Password via OTP / Email) ==========
+// 1. Phone OTP Flow (Legacy / Mobile Native)
 app.post('/api/auth/forgot-password', async (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'Phone number required' });
@@ -1688,18 +1986,16 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
   const otp = generateOTP();
   otpStore.set(phone, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
-  await deliverOtp(phone, otp, 'password reset'); // Issue 2: real SMS (falls back to console)
+  await deliverOtp(phone, otp, 'password reset');
   res.json({ message: 'OTP sent to reset password.', phone });
 });
 
-// Step 2: verify the OTP and set the new password.
 app.post('/api/auth/reset-password', async (req, res) => {
   const { phone, otp, new_password } = req.body;
   if (!phone || !otp || !new_password) {
     return res.status(400).json({ error: 'All fields required' });
   }
 
-  // B3: brute-force guard (same logic as verify-otp).
   if (otpAttemptsExceeded(phone)) {
     return res.status(429).json({ error: 'Too many failed attempts. Try again later.' });
   }
@@ -1709,7 +2005,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
     recordFailedOtp(phone);
     return res.status(401).json({ error: 'Invalid or expired OTP' });
   }
-  otpAttempts.delete(phone); // success — clear the counter
+  otpAttempts.delete(phone);
 
   const hashed = await bcrypt.hash(new_password, 10);
   const { error } = await supabaseAdmin
@@ -1720,6 +2016,322 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
   otpStore.delete(phone);
   res.json({ message: 'Password reset successful. You can now log in.' });
+});
+
+// 2. Email Reset Link Flow (New Features)
+app.post('/api/auth/forgot-password-email', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email address is required' });
+  }
+
+  try {
+    const { data: user, error } = await supabaseAdmin
+      .from('users')
+      .select('id, full_name, email')
+      .eq('email', email.trim().toLowerCase())
+      .maybeSingle();
+
+    if (error || !user) {
+      // Mock success for security to prevent user enumeration
+      return res.json({ message: 'If the email is registered, a password reset link has been sent.' });
+    }
+
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(20).toString('hex');
+    const expires = new Date(Date.now() + 3600000); // 1 hour
+
+    const { error: updateErr } = await supabaseAdmin
+      .from('users')
+      .update({
+        reset_password_token: token,
+        reset_password_expires: expires.toISOString()
+      })
+      .eq('id', user.id);
+
+    if (updateErr) {
+      return res.status(500).json({ error: updateErr.message });
+    }
+
+    const resetUrl = `http://localhost:${port}/api/auth/reset-password-web?token=${token}`;
+    console.log('\n==================================================');
+    console.log(`✉️  EMAIL OUTBOX: PASSWORD RESET REQUEST`);
+    console.log(`TO: ${user.email} (${user.full_name})`);
+    console.log(`LINK: ${resetUrl}`);
+    console.log(`EXPIRY: 1 Hour`);
+    console.log('==================================================\n');
+
+    res.json({ message: 'If the email is registered, a password reset link has been sent.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/auth/reset-password-web', async (req, res) => {
+  const { token } = req.query;
+  if (!token) {
+    return res.status(400).send('<h1>Invalid Request</h1><p>Reset token is missing.</p>');
+  }
+
+  try {
+    const { data: user, error } = await supabaseAdmin
+      .from('users')
+      .select('id, reset_password_expires')
+      .eq('reset_password_token', token)
+      .maybeSingle();
+
+    if (error || !user) {
+      return res.status(400).send('<h1>Link Invalid</h1><p>This password reset link is invalid or has already been used.</p>');
+    }
+
+    if (new Date(user.reset_password_expires) < new Date()) {
+      return res.status(400).send('<h1>Link Expired</h1><p>This password reset link has expired. Please request a new one.</p>');
+    }
+
+    res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Password - VeggieTrack</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #2e7d32;
+      --primary-hover: #1b5e20;
+      --bg: #f4f7f5;
+      --card-bg: #ffffff;
+      --text: #2c3e2e;
+      --text-muted: #607362;
+      --error: #d32f2f;
+      --success: #388e3c;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .card {
+      background: var(--card-bg);
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+      animation: fadeIn 0.5s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(15px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .logo { font-size: 48px; margin-bottom: 12px; display: inline-block; }
+    h1 { font-size: 24px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+    p { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; }
+    .form-group { text-align: left; margin-bottom: 20px; }
+    label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; display: block; }
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid #c8d6c9;
+      font-family: inherit;
+      font-size: 15px;
+      transition: all 0.2s;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(46,125,50,0.15);
+    }
+    .btn {
+      width: 100%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 14px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 10px;
+    }
+    .btn:hover { background: var(--primary-hover); }
+    .error-msg { color: var(--error); font-size: 13px; margin-top: 8px; text-align: left; display: none; }
+    .success-card { display: none; }
+    .success-icon { font-size: 48px; color: var(--success); margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card" id="form-card">
+    <span class="logo">🥬</span>
+    <h1>Reset Password</h1>
+    <p>Please enter your new password below.</p>
+    <form id="reset-form">
+      <input type="hidden" name="token" id="token-input">
+      <div class="form-group">
+        <label for="password">New Password</label>
+        <input type="password" id="password" required minlength="6" placeholder="At least 6 characters">
+      </div>
+      <div class="form-group">
+        <label for="confirm-password">Confirm Password</label>
+        <input type="password" id="confirm-password" required minlength="6" placeholder="Repeat new password">
+        <div class="error-msg" id="match-error">Passwords do not match.</div>
+      </div>
+      <button type="submit" class="btn" id="submit-btn">Reset Password</button>
+    </form>
+  </div>
+
+  <div class="card success-card" id="success-card">
+    <div class="success-icon">✓</div>
+    <h1>Password Reset Successful</h1>
+    <p>Your password has been successfully updated. You can now return to the VeggieTrack app and log in with your new credentials.</p>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    document.getElementById('token-input').value = token;
+
+    const form = document.getElementById('reset-form');
+    const passwordInput = document.getElementById('password');
+    const confirmInput = document.getElementById('confirm-password');
+    const matchError = document.getElementById('match-error');
+    const formCard = document.getElementById('form-card');
+    const successCard = document.getElementById('success-card');
+    const submitBtn = document.getElementById('submit-btn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      matchError.style.display = 'none';
+
+      if (passwordInput.value !== confirmInput.value) {
+        matchError.style.display = 'block';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Resetting...';
+
+      try {
+        const response = await fetch('/api/auth/reset-password-web', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: token,
+            password: passwordInput.value
+          })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          formCard.style.display = 'none';
+          successCard.style.display = 'block';
+        } else {
+          alert(data.error || 'Failed to reset password. Please request a new reset link.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Reset Password';
+        }
+      } catch (err) {
+        alert('An error occurred. Please check your internet connection.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Reset Password';
+      }
+    });
+  </script>
+</body>
+</html>
+    `);
+  } catch (err) {
+    res.status(500).send('<h1>Server Error</h1><p>' + err.message + '</p>');
+  }
+});
+
+app.post('/api/auth/reset-password-web', async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) {
+    return res.status(400).json({ error: 'Token and password are required' });
+  }
+
+  try {
+    const { data: user, error: fetchError } = await supabaseAdmin
+      .from('users')
+      .select('id, reset_password_expires')
+      .eq('reset_password_token', token)
+      .maybeSingle();
+
+    if (fetchError || !user) {
+      return res.status(400).json({ error: 'Invalid reset token' });
+    }
+
+    if (new Date(user.reset_password_expires) < new Date()) {
+      return res.status(400).json({ error: 'Reset token has expired' });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+    const { error: updateError } = await supabaseAdmin
+      .from('users')
+      .update({
+        password_hash: hashed,
+        reset_password_token: null,
+        reset_password_expires: null
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      return res.status(500).json({ error: 'Failed to reset password: ' + updateError.message });
+    }
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== DEBUG ENDPOINTS ==========
+// Debug: List all users (temporary)
+app.get('/api/debug/users', async (req, res) => {
+  console.log('🔍 DEBUG: Fetching all users...');
+  
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .select('id, phone, full_name, role, email');
+  
+  if (error) {
+    console.log('❌ Debug error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+  
+  console.log(`✅ Found ${data?.length || 0} users`);
+  res.json({ users: data, count: data?.length || 0 });
+});
+
+// Debug: Check specific phone number
+app.get('/api/debug/user/:phone', async (req, res) => {
+  const { phone } = req.params;
+  console.log(`🔍 DEBUG: Looking for user with phone: ${phone}`);
+  
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .select('*')
+    .eq('phone', phone)
+    .single();
+  
+  if (error) {
+    console.log('❌ User not found:', error.message);
+    return res.json({ exists: false, error: error.message });
+  }
+  
+  console.log('✅ User found:', data);
+  res.json({ exists: true, user: data });
 });
 
 app.listen(port, () => {

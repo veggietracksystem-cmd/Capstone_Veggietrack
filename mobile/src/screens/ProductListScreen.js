@@ -64,11 +64,19 @@ export default function ProductListScreen({ navigation }) {
 
   const renderItem = ({ item: p }) => {
     const busy = busyId === p.id;
+    const isOutOfStock = Number(p.stock_kg || 0) <= 0;
     return (
       <View style={styles.rowCard}>
         <View style={{ flex: 1 }}>
           <Text style={styles.rowTitle}>{p.vegetable_name}</Text>
-          <Text style={styles.rowMeta}>{peso(p.price_per_kg)} / kg · {p.stock_kg} kg in stock</Text>
+          <Text style={styles.rowMeta}>
+            {peso(p.price_per_kg)} / kg · {isOutOfStock ? (
+              <Text style={{ color: '#c62828', fontWeight: '700' }}>Out of Stock</Text>
+            ) : (
+              `${p.stock_kg} kg in stock`
+            )}
+            {p.harvest_date ? `\n📅 Harvested: ${new Date(p.harvest_date).toLocaleDateString()}` : ''}
+          </Text>
         </View>
         <View style={styles.rowActions}>
           <TouchableOpacity style={styles.smallBtn} onPress={() => editProduct(p)} disabled={busy}>

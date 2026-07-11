@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Text, View, ScrollView, TextInput, TouchableOpacity, Image,
-  ActivityIndicator, StyleSheet, Platform, RefreshControl,
+  ActivityIndicator, StyleSheet, Platform, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import NetInfo from '@react-native-community/netinfo';
@@ -31,9 +31,15 @@ function statusColor(status) {
   }
 }
 
-export default function RetailerDashboard({ navigation }) {
+export default function RetailerDashboard({ navigation, route }) {
   const { user } = useAuth();
   const [tab, setTab] = useState('shop'); // 'shop' | 'orders'
+
+  useEffect(() => {
+    if (route.params?.tab) {
+      setTab(route.params.tab);
+    }
+  }, [route.params?.tab]);
 
   // ----- Products + cart -----
   const [products, setProducts] = useState([]);
@@ -213,6 +219,34 @@ export default function RetailerDashboard({ navigation }) {
     }
   };
 
+  const cancelOrder = async (orderId) => {
+    const confirm = await new Promise((resolve) => {
+      if (Platform.OS === 'web') {
+        resolve(window.confirm('Are you sure you want to cancel this order?'));
+      } else {
+        Alert.alert(
+          'Cancel Order',
+          'Are you sure you want to cancel this order?',
+          [
+            { text: 'No', onPress: () => resolve(false), style: 'cancel' },
+            { text: 'Yes, Cancel', onPress: () => resolve(true), style: 'destructive' },
+          ]
+        );
+      }
+    });
+
+    if (!confirm) return;
+
+    try {
+      await api.put(`/api/orders/${orderId}/cancel`);
+      showAlert('Success', 'Order cancelled successfully.');
+      await loadOrders(); // Refresh order list
+    } catch (err) {
+      showAlert('Error', err.message);
+    }
+  };
+
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -281,6 +315,7 @@ export default function RetailerDashboard({ navigation }) {
               deliveryAddress: o.delivery_address,
               orderStatus: o.status,
             })}
+            onCancel={cancelOrder}
           />
         )}
       </ScrollView>
@@ -343,7 +378,10 @@ function ShopTab({
           <View key={p.id} style={styles.rowCard}>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>{p.vegetable_name}</Text>
-              <Text style={styles.rowMeta}>{peso(p.price_per_kg)} / kg · {p.stock_kg} kg available</Text>
+              <Text style={styles.rowMeta}>
+                {peso(p.price_per_kg)} / kg · {p.stock_kg} kg available
+                {p.harvest_date ? `\n📅 Harvested: ${new Date(p.harvest_date).toLocaleDateString()}` : ''}
+              </Text>
             </View>
             <TouchableOpacity style={styles.smallBtnFilled} onPress={() => onAdd(p)}>
               <Text style={styles.smallBtnFilledText}>Add to Cart</Text>
@@ -421,7 +459,7 @@ function getProofUrl(order) {
   return delivery?.proof_photo_url || null;
 }
 
-function OrdersTab({ loading, orders, onViewProof, onTrack }) {
+function OrdersTab({ loading, orders, onViewProof, onTrack, onCancel }) {
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
   if (orders.length === 0) {
@@ -482,14 +520,27 @@ function OrdersTab({ loading, orders, onViewProof, onTrack }) {
             </TouchableOpacity>
           )}
 
+          {/* Cancel Order - only for pending status */}
+          {o.status === 'pending' && (
+            <TouchableOpacity
+              style={[styles.trackBtn, styles.cancelBtn]}
+              onPress={() => onCancel(o.id)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.cancelBtnText}>❌ Cancel Order</Text>
+            </TouchableOpacity>
+          )}
+
           {/* Track Order — opens the map tracking screen for this order. */}
-          <TouchableOpacity
-            style={styles.trackBtn}
-            onPress={() => onTrack(o)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.trackBtnText}>🗺️  Track Order</Text>
-          </TouchableOpacity>
+          {o.status !== 'pending' && o.status !== 'cancelled' && (
+            <TouchableOpacity
+              style={styles.trackBtn}
+              onPress={() => onTrack(o)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.trackBtnText}>🗺️  Track Order</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ))}
     </View>
@@ -562,4 +613,6 @@ const styles = StyleSheet.create({
   proofText: { fontSize: 13, color: PRIMARY, fontWeight: '600' },
   trackBtn: { marginTop: 10, paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: PRIMARY },
   trackBtnText: { color: PRIMARY, fontWeight: '700', fontSize: 14 },
+  cancelBtn: { borderColor: '#c62828', backgroundColor: '#fff' },
+  cancelBtnText: { color: '#c62828', fontWeight: '700', fontSize: 14 },
 });

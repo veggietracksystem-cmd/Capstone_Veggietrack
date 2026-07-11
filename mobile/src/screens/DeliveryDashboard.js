@@ -63,10 +63,12 @@ function matchesFilter(order, filter) {
   return s !== 'delivered' && s !== 'cancelled';
 }
 
-export default function DeliveryDashboard() {
+export default function DeliveryDashboard({ navigation, route }) {
   const { user } = useAuth();
 
   const [orders, setOrders] = useState([]);
+  const [pickups, setPickups] = useState([]);
+  const [mode, setMode] = useState('deliveries'); // 'deliveries' | 'pickups'
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
@@ -74,30 +76,59 @@ export default function DeliveryDashboard() {
   const [confirmOrder, setConfirmOrder] = useState(null); // order shown in the confirm-delivery modal
   const [offline, setOffline] = useState(false);
   const [mapAddress, setMapAddress] = useState(null); // address shown in the map modal
+  const [mapCoords, setMapCoords] = useState(null); // coordinates shown in the map modal
   const [filter, setFilter] = useState('active'); // summary-card filter (default: active work)
+
+  useEffect(() => {
+    if (route.params?.filter) {
+      setFilter(route.params.filter);
+    }
+  }, [route.params?.filter]);
+
+  const loadPickups = useCallback(async () => {
+    try {
+      const data = await api.get('/api/pickup-requests');
+      setPickups(Array.isArray(data) ? data : []);
+    } catch {
+      // silent
+    }
+  }, []);
 
   const loadOrders = useCallback(async () => {
     const { list, source } = await readThrough('delivery_orders_cache', () =>
       api.get('/api/delivery/orders')
     );
-    // Keep the full list so the summary cards can count delivered/cancelled too;
-    // the visible list is filtered below by the selected summary card.
     setOrders(list);
     setOffline(source === 'cache');
   }, []);
 
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([loadOrders(), loadPickups()]);
+    setLoading(false);
+  }, [loadOrders, loadPickups]);
+
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await loadOrders();
-      setLoading(false);
-    })();
-  }, [loadOrders]);
+    loadAll();
+  }, [loadAll]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadOrders();
+    await Promise.all([loadOrders(), loadPickups()]);
     setRefreshing(false);
+  };
+
+  const handleMarkPickedUp = async (pickupId) => {
+    setBusyId(pickupId);
+    try {
+      await api.post(`/api/pickup-requests/${pickupId}/pickup`);
+      await Promise.all([loadOrders(), loadPickups()]);
+      showAlert('Success', 'Vegetables marked as Picked Up.');
+    } catch (err) {
+      showAlert('Error', err.message);
+    } finally {
+      setBusyId(null);
+    }
   };
 
   // Capture proof of delivery: camera on native, file/library picker on web.
@@ -221,141 +252,248 @@ export default function DeliveryDashboard() {
       >
         <OfflineBanner offline={offline} />
 
-        {/* Order summary cards — tap to filter the list below */}
-        <View style={styles.summaryRow}>
-          {FILTERS.map((f) => {
-            const selected = filter === f.key;
-            return (
-              <TouchableOpacity
-                key={f.key}
-                style={[styles.summaryCard, selected && styles.summaryCardActive]}
-                onPress={() => setFilter(f.key)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.summaryCount, selected && styles.summaryTextActive]}>
-                  {counts[f.key]}
-                </Text>
-                <Text style={[styles.summaryLabel, selected && styles.summaryTextActive]}>
-                  {f.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        {/* Mode Segmented Controls */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tabButton, mode === 'deliveries' && styles.tabButtonActive]}
+            onPress={() => setMode('deliveries')}
+          >
+            <Text style={[styles.tabButtonText, mode === 'deliveries' && styles.tabButtonTextActive]}>
+              📦 Deliveries
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, mode === 'pickups' && styles.tabButtonActive]}
+            onPress={() => setMode('pickups')}
+          >
+            <Text style={[styles.tabButtonText, mode === 'pickups' && styles.tabButtonTextActive]}>
+              🚜 Farmer Pickups
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>My Deliveries</Text>
-
-        {loading ? (
-          <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
-        ) : visibleOrders.length === 0 ? (
-          <EmptyState
-            icon="🚚"
-            title={`No ${filter === 'all' ? '' : `${filter} `}deliveries`}
-            message="Assigned deliveries will appear here. Pull down to refresh."
-          />
-        ) : (
-          visibleOrders.map((order) => {
-            const delivery = getDelivery(order);
-            const busy = busyId === order.id;
-            const items = order.order_items || [];
-            const rank = STATUS_RANK[effectiveStatus(order)] ?? 0;
-            const finished = effectiveStatus(order) === 'delivered' || effectiveStatus(order) === 'cancelled';
-
-            return (
-              <View key={order.id} style={styles.orderCard}>
-                <View style={styles.orderHeader}>
-                  <Text style={styles.orderId}>Order #{shortId(order.id)}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: statusColor(delivery?.status || order.status) }]}>
-                    <Text style={styles.statusBadgeText}>{delivery?.status || order.status}</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
-                {order.delivery_address ? (
-                  <View style={styles.addressRow}>
-                    <Text style={[styles.rowMeta, { flex: 1 }]}>📍 {order.delivery_address}</Text>
-                    <TouchableOpacity
-                      style={styles.routeBtn}
-                      onPress={() => setMapAddress(order.delivery_address)}
-                    >
-                      <Text style={styles.routeBtnText}>View Route</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-                {order.preferred_schedule ? (
-                  <Text style={styles.rowMeta}>Schedule: {order.preferred_schedule}</Text>
-                ) : null}
-
-                {/* ETA + live status. ETA is a placeholder until a routing API
-                    (e.g. OSRM) is wired up; status reflects the current order state. */}
-                {effectiveStatus(order) !== 'delivered' && effectiveStatus(order) !== 'cancelled' ? (
-                  <View style={styles.trackRow}>
-                    <Text style={styles.etaText}>🕒 ETA: 10–15 mins</Text>
-                    <View style={[styles.liveDot, { backgroundColor: statusColor(effectiveStatus(order)) }]} />
-                    <Text style={[styles.liveStatus, { color: statusColor(effectiveStatus(order)) }]}>
-                      {effectiveStatus(order) === 'in_transit' ? 'In Transit' : 'Live'}
+        {mode === 'deliveries' && (
+          <View>
+            {/* Order summary cards — tap to filter the list below */}
+            <View style={styles.summaryRow}>
+              {FILTERS.map((f) => {
+                const selected = filter === f.key;
+                return (
+                  <TouchableOpacity
+                    key={f.key}
+                    style={[styles.summaryCard, selected && styles.summaryCardActive]}
+                    onPress={() => setFilter(f.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.summaryCount, selected && styles.summaryTextActive]}>
+                      {counts[f.key]}
                     </Text>
-                  </View>
-                ) : null}
+                    <Text style={[styles.summaryLabel, selected && styles.summaryTextActive]}>
+                      {f.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-                <View style={styles.itemsBox}>
-                  {items.length === 0 ? (
-                    <Text style={styles.rowMeta}>No item details.</Text>
-                  ) : (
-                    items.map((it, i) => (
-                      <Text key={i} style={styles.itemLine}>
-                        • {it.vegetable_name} — {it.quantity_kg}kg @ {peso(it.price_at_order)}
-                      </Text>
-                    ))
-                  )}
-                </View>
+            <Text style={styles.sectionTitle}>My Deliveries</Text>
 
-                {/* Issue 10: progress stepper buttons. Each is disabled once the
-                    delivery has reached/passed that stage. */}
-                {!finished && (
-                  <View style={styles.progressRow}>
+            {loading ? (
+              <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
+            ) : visibleOrders.length === 0 ? (
+              <EmptyState
+                icon="🚚"
+                title={`No ${filter === 'all' ? '' : `${filter} `}deliveries`}
+                message="Assigned deliveries will appear here. Pull down to refresh."
+              />
+            ) : (
+              visibleOrders.map((order) => {
+                const delivery = getDelivery(order);
+                const busy = busyId === order.id;
+                const items = order.order_items || [];
+                const rank = STATUS_RANK[effectiveStatus(order)] ?? 0;
+                const finished = effectiveStatus(order) === 'delivered' || effectiveStatus(order) === 'cancelled';
+
+                return (
+                  <View key={order.id} style={styles.orderCard}>
+                    <View style={styles.orderHeader}>
+                      <Text style={styles.orderId}>Order #{shortId(order.id)}</Text>
+                      <View style={[styles.statusBadge, { backgroundColor: statusColor(delivery?.status || order.status) }]}>
+                        <Text style={styles.statusBadgeText}>{delivery?.status || order.status}</Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
+
+                    <Text style={[styles.rowMeta, { fontWeight: '700', marginTop: 6 }]}>1. Pickup from Warehouse:</Text>
+                    <View style={styles.addressRow}>
+                      <Text style={[styles.rowMeta, { flex: 1 }]}>🏢 {order.distributor_address}</Text>
+                      <TouchableOpacity
+                        style={styles.routeBtn}
+                        onPress={() => {
+                          setMapAddress(order.distributor_address);
+                          setMapCoords(order.distributor_coords);
+                        }}
+                      >
+                        <Text style={styles.routeBtnText}>View Route</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={[styles.rowMeta, { fontWeight: '700', marginTop: 6 }]}>2. Deliver to Retailer:</Text>
+                    <View style={styles.addressRow}>
+                      <Text style={[styles.rowMeta, { flex: 1 }]}>📍 {order.retailer_address}</Text>
+                      <TouchableOpacity
+                        style={styles.routeBtn}
+                        onPress={() => {
+                          setMapAddress(order.retailer_address);
+                          setMapCoords(order.retailer_coords);
+                        }}
+                      >
+                        <Text style={styles.routeBtnText}>View Route</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {order.preferred_schedule ? (
+                      <Text style={styles.rowMeta}>Schedule: {order.preferred_schedule}</Text>
+                    ) : null}
+
+                    {effectiveStatus(order) !== 'delivered' && effectiveStatus(order) !== 'cancelled' ? (
+                      <View style={styles.trackRow}>
+                        <Text style={styles.etaText}>🕒 ETA: 10–15 mins</Text>
+                        <View style={[styles.liveDot, { backgroundColor: statusColor(effectiveStatus(order)) }]} />
+                        <Text style={[styles.liveStatus, { color: statusColor(effectiveStatus(order)) }]}>
+                          {effectiveStatus(order) === 'in_transit' ? 'In Transit' : 'Live'}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    <View style={styles.itemsBox}>
+                      {items.length === 0 ? (
+                        <Text style={styles.rowMeta}>No item details.</Text>
+                      ) : (
+                        items.map((it, i) => (
+                          <Text key={i} style={styles.itemLine}>
+                            • {it.vegetable_name} — {it.quantity_kg}kg @ {peso(it.price_at_order)}
+                          </Text>
+                        ))
+                      )}
+                    </View>
+
+                    {!finished && (
+                      <View style={styles.progressRow}>
+                        <TouchableOpacity
+                          style={[styles.progressBtn, rank >= 1 && styles.progressBtnDone, (busy || rank >= 1) && styles.buttonDisabled]}
+                          onPress={() => updateDeliveryStatus(order, 'picked_up')}
+                          disabled={busy || rank >= 1}
+                        >
+                          <Text style={[styles.progressBtnText, rank >= 1 && styles.progressBtnTextDone]}>
+                            {rank >= 1 ? '✓ Picked Up' : '📦 Picked Up'}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.progressBtn, rank >= 2 && styles.progressBtnDone, (busy || rank >= 2 || rank < 1) && styles.buttonDisabled]}
+                          onPress={() => updateDeliveryStatus(order, 'in_transit')}
+                          disabled={busy || rank >= 2 || rank < 1}
+                        >
+                          <Text style={[styles.progressBtnText, rank >= 2 && styles.progressBtnTextDone]}>
+                            {rank >= 2 ? '✓ In Transit' : '🚚 In Transit'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
                     <TouchableOpacity
-                      style={[styles.progressBtn, rank >= 1 && styles.progressBtnDone, (busy || rank >= 1) && styles.buttonDisabled]}
-                      onPress={() => updateDeliveryStatus(order, 'picked_up')}
-                      disabled={busy || rank >= 1}
+                      style={[styles.button, styles.buttonPrimary, busy && styles.buttonDisabled]}
+                      onPress={() => setConfirmOrder(order)}
+                      disabled={busy}
                     >
-                      <Text style={[styles.progressBtnText, rank >= 1 && styles.progressBtnTextDone]}>
-                        {rank >= 1 ? '✓ Picked Up' : '📦 Picked Up'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.progressBtn, rank >= 2 && styles.progressBtnDone, (busy || rank >= 2 || rank < 1) && styles.buttonDisabled]}
-                      onPress={() => updateDeliveryStatus(order, 'in_transit')}
-                      disabled={busy || rank >= 2 || rank < 1}
-                    >
-                      <Text style={[styles.progressBtnText, rank >= 2 && styles.progressBtnTextDone]}>
-                        {rank >= 2 ? '✓ In Transit' : '🚚 In Transit'}
-                      </Text>
+                      {busy
+                        ? <ActivityIndicator color="#fff" />
+                        : <Text style={styles.buttonPrimaryText}>Mark Delivered</Text>}
                     </TouchableOpacity>
                   </View>
-                )}
+                );
+              })
+            )}
+          </View>
+        )}
 
-                {/* Opens the confirm-delivery modal where the driver can attach a
-                    proof photo and preview it before it's uploaded. */}
-                <TouchableOpacity
-                  style={[styles.button, styles.buttonPrimary, busy && styles.buttonDisabled]}
-                  onPress={() => setConfirmOrder(order)}
-                  disabled={busy}
-                >
-                  {busy
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={styles.buttonPrimaryText}>Mark Delivered</Text>}
-                </TouchableOpacity>
-              </View>
-            );
-          })
+        {mode === 'pickups' && (
+          <View>
+            <Text style={styles.sectionTitle}>Farmer Pickups</Text>
+            {loading ? (
+              <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
+            ) : pickups.length === 0 ? (
+              <EmptyState
+                icon="🚜"
+                title="No assigned pickups"
+                message="Farmer pickups assigned to you will appear here."
+              />
+            ) : (
+              pickups.map((pickup) => {
+                const harvest = pickup.harvests;
+                const isAssigned = pickup.status === 'assigned';
+                const busy = busyId === pickup.id;
+
+                return (
+                  <View key={pickup.id} style={styles.orderCard}>
+                    <View style={styles.orderHeader}>
+                      <Text style={styles.orderId}>Pickup #{shortId(pickup.id)}</Text>
+                      <View style={[styles.statusBadge, { backgroundColor: isAssigned ? '#1976d2' : '#2e7d32' }]}>
+                        <Text style={styles.statusBadgeText}>{pickup.status}</Text>
+                      </View>
+                    </View>
+
+                    <Text style={[styles.rowMeta, { fontWeight: '700', marginTop: 4 }]}>Farmer Details:</Text>
+                    <Text style={styles.rowMeta}>👨‍🌾 {pickup.farmer_name || 'Farmer'}</Text>
+                    <Text style={styles.rowMeta}>
+                      🌾 {harvest?.vegetable_name || 'Vegetables'} — {harvest?.quantity_kg || 0} kg
+                    </Text>
+
+                    {pickup.farmer_address ? (
+                      <View style={styles.addressRow}>
+                        <Text style={[styles.rowMeta, { flex: 1 }]}>📍 {pickup.farmer_address}</Text>
+                        <TouchableOpacity
+                          style={styles.routeBtn}
+                          onPress={() => {
+                            setMapAddress(pickup.farmer_address);
+                            setMapCoords(pickup.farmer_coords);
+                          }}
+                        >
+                          <Text style={styles.routeBtnText}>View Route</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+
+                    {isAssigned && (
+                      <TouchableOpacity
+                        style={[styles.button, styles.buttonPrimary, { marginTop: 12 }, busy && styles.buttonDisabled]}
+                        onPress={() => handleMarkPickedUp(pickup.id)}
+                        disabled={busy}
+                      >
+                        {busy ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <Text style={styles.buttonPrimaryText}>Mark as Picked Up</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })
+            )}
+          </View>
         )}
       </ScrollView>
 
       <DeliveryMapModal
         visible={!!mapAddress}
         address={mapAddress}
-        onClose={() => setMapAddress(null)}
+        coords={mapCoords}
+        onClose={() => {
+          setMapAddress(null);
+          setMapCoords(null);
+        }}
       />
 
       <ProofPreviewModal
@@ -423,4 +561,9 @@ const styles = StyleSheet.create({
   buttonPrimary: { backgroundColor: PRIMARY },
   buttonPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   buttonDisabled: { opacity: 0.6 },
+  tabContainer: { flexDirection: 'row', backgroundColor: '#e0e0e0', borderRadius: 8, padding: 4, marginBottom: 16 },
+  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 6 },
+  tabButtonActive: { backgroundColor: '#fff', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1 },
+  tabButtonText: { color: '#666', fontWeight: '600', fontSize: 14 },
+  tabButtonTextActive: { color: PRIMARY, fontWeight: '700' },
 });

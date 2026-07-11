@@ -38,9 +38,16 @@ export default function DistributorDashboard({ navigation, route }) {
   const { user } = useAuth();
   const [tab, setTab] = useState('products'); // 'products' | 'pickups' | 'orders' | 'payments'
 
+  useEffect(() => {
+    if (route.params?.tab) {
+      setTab(route.params.tab);
+    }
+  }, [route.params?.tab]);
+
   // ----- Pickup requests (from farmers) + the receive (approve) modal -----
   const [pickupRequests, setPickupRequests] = useState([]);
   const [receiveReq, setReceiveReq] = useState(null); // request currently in the modal
+  const [selectedRiderForPickup, setSelectedRiderForPickup] = useState(null);
   const [priceInput, setPriceInput] = useState('');   // optional price per kg
   const [receiveBusyId, setReceiveBusyId] = useState(null);
 
@@ -357,10 +364,10 @@ export default function DistributorDashboard({ navigation, route }) {
   const openReceive = (req) => {
     setReceiveReq(req);
     setPriceInput('');
+    setSelectedRiderForPickup(null);
   };
 
-  // Approve & receive: folds the harvest quantity into inventory at the chosen
-  // price (POST /api/pickup-requests/:id/receive), then refreshes the lists.
+  // Approve & receive: assigns rider (PUT /api/pickup-requests/:id/assign), then refreshes lists.
   const confirmReceive = async () => {
     const req = receiveReq;
     if (!req) return;
@@ -369,16 +376,22 @@ export default function DistributorDashboard({ navigation, route }) {
       showAlert('Error', 'Enter a valid price per kg (or leave blank).');
       return;
     }
+    if (!selectedRiderForPickup) {
+      showAlert('Error', 'Please select a delivery personnel to assign.');
+      return;
+    }
     setReceiveBusyId(req.id);
     try {
-      await api.post(`/api/pickup-requests/${req.id}/receive`,
-        priceInput ? { price_per_kg: price } : {});
+      await api.put(`/api/pickup-requests/${req.id}/assign`, {
+        delivery_personnel_id: selectedRiderForPickup,
+        price_per_kg: priceInput ? price : null
+      });
       setReceiveReq(null);
-      // Refresh so the request leaves the list and the new stock shows in Products.
+      // Refresh so the request leaves the list.
       await Promise.all([loadPickupRequests(), loadProducts()]);
-      showAlert('Stock received', 'Inventory has been updated.');
+      showAlert('Rider Assigned', 'Delivery personnel has been assigned to the pickup request.');
     } catch (err) {
-      showAlert('Error', `Could not confirm receipt: ${err.message}`);
+      showAlert('Error', `Could not assign rider: ${err.message}`);
     } finally {
       setReceiveBusyId(null);
     }
@@ -524,11 +537,10 @@ export default function DistributorDashboard({ navigation, route }) {
         )}
       </ScrollView>
 
-      {/* Approve & Receive modal — set a selling price before folding the
-          harvest into inventory (POST /api/pickup-requests/:id/receive). */}
+      {/* Approve & Assign modal — set a selling price and assign a rider (PUT /api/pickup-requests/:id/assign). */}
       <CustomModal
         visible={!!receiveReq}
-        title="Approve & Receive Stock"
+        title="Approve & Assign Rider"
         confirmLabel={receiveBusyId === receiveReq?.id ? 'Saving…' : 'Confirm'}
         onConfirm={confirmReceive}
         cancelLabel="Cancel"
@@ -556,6 +568,29 @@ export default function DistributorDashboard({ navigation, route }) {
               placeholder="e.g., 45"
               editable={receiveBusyId !== receiveReq.id}
             />
+
+            <Text style={[styles.fieldLabel, { marginTop: 15 }]}>Assign Delivery Personnel</Text>
+            {personnel.length === 0 ? (
+              <Text style={styles.modalHint}>No delivery personnel available.</Text>
+            ) : (
+              <View style={styles.personnelWrap}>
+                {personnel.map((dp) => {
+                  const selected = selectedRiderForPickup === dp.id;
+                  return (
+                    <TouchableOpacity
+                      key={dp.id}
+                      style={[styles.personChip, selected && styles.personChipActive]}
+                      onPress={() => setSelectedRiderForPickup(dp.id)}
+                      disabled={receiveBusyId === receiveReq.id}
+                    >
+                      <Text style={[styles.personChipText, selected && styles.personChipTextActive]}>
+                        {dp.full_name || shortId(dp.id)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </>
         ) : null}
       </CustomModal>
@@ -603,7 +638,7 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
               >
                 {busy
                   ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.primaryBtnText}>Approve & Record Payment</Text>}
+                  : <Text style={styles.primaryBtnText}>Approve & Assign Rider</Text>}
               </TouchableOpacity>
             </View>
           );
@@ -699,6 +734,18 @@ function ProductsTab({
   );
 }
 
+// The embedded deliveries relation comes back as an array; take the first record.
+function getDelivery(order) {
+  if (Array.isArray(order.deliveries)) return order.deliveries[0] || null;
+  return order.deliveries || null;
+}
+
+// Effective status prefers the delivery record's status, falling back to the order's.
+function effectiveStatus(order) {
+  const d = getDelivery(order);
+  return d?.status || order.status || 'pending';
+}
+
 // ================= Orders tab =================
 function OrdersTab({
   loading, orders, activeOrders = [], personnel, selectedPersonnel, setSelectedPersonnel,
@@ -748,7 +795,7 @@ function OrdersTab({
               )}
             </View>
 
-            {order.delivery_address ? (
+            {order.delivery_address && order.status !== 'pending' && order.status !== 'cancelled' ? (
               <TouchableOpacity
                 style={styles.trackBtn}
                 onPress={() => onTrack(order)}
@@ -809,47 +856,52 @@ function OrdersTab({
         );
       })}
 
-      {/* Issue 9: orders already approved/assigned/in-transit stay visible here
-          instead of vanishing after a rider is assigned. */}
+      {/* Issue 9 & History: orders approved/assigned/in-transit/delivered/cancelled stay visible here in history. */}
       {inProgress.length > 0 && (
         <View style={{ marginTop: 18 }}>
-          <Text style={styles.sectionTitle}>In Progress ({inProgress.length})</Text>
-          {inProgress.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
-              <View style={styles.orderHeader}>
-                <Text style={styles.orderId}>Order #{shortId(order.id)}</Text>
-                <View style={[styles.statusPill, { backgroundColor: ACTIVE_STATUS_COLOR[order.status] || '#607d8b' }]}>
-                  <Text style={styles.statusPillText}>{String(order.status).replace(/_/g, ' ')}</Text>
+          <Text style={styles.sectionTitle}>Order History ({inProgress.length})</Text>
+          {inProgress.map((order) => {
+            const status = effectiveStatus(order);
+            return (
+              <View key={order.id} style={styles.orderCard}>
+                <View style={styles.orderHeader}>
+                  <Text style={styles.orderId}>Order #{shortId(order.id)}</Text>
+                  <View style={[styles.statusPill, { backgroundColor: ACTIVE_STATUS_COLOR[status] || '#607d8b' }]}>
+                    <Text style={styles.statusPillText}>{status.replace(/_/g, ' ')}</Text>
+                  </View>
                 </View>
+                <Text style={styles.rowMeta}>Total: {peso(order.total_amount)}</Text>
+                <Text style={styles.rowMeta}>
+                  {order.delivery_personnel_name
+                    ? `Rider: ${order.delivery_personnel_name}`
+                    : 'Awaiting rider assignment'}
+                </Text>
+                {order.delivery_address && order.status !== 'pending' && order.status !== 'cancelled' ? (
+                  <TouchableOpacity
+                    style={[styles.trackBtn, { marginTop: 10, marginBottom: 0 }]}
+                    onPress={() => onTrack(order)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.trackBtnText}>🗺️  Track Delivery</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
-              <Text style={styles.rowMeta}>Total: {peso(order.total_amount)}</Text>
-              <Text style={styles.rowMeta}>
-                {order.delivery_personnel_name
-                  ? `Rider: ${order.delivery_personnel_name}`
-                  : 'Awaiting rider assignment'}
-              </Text>
-              {order.delivery_address ? (
-                <TouchableOpacity
-                  style={[styles.trackBtn, { marginTop: 10, marginBottom: 0 }]}
-                  onPress={() => onTrack(order)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.trackBtnText}>🗺️  Track Delivery</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
     </View>
   );
 }
 
-// Status badge colours for the "In Progress" list.
+// Status badge colours for the "History" list.
 const ACTIVE_STATUS_COLOR = {
   approved: '#1976d2',
+  assigned: '#1565c0',
   picked_up: '#00897b',
   in_transit: '#7b1fa2',
+  delivered: '#2e7d32',
+  cancelled: '#c62828',
 };
 
 // ================= Payments tab =================

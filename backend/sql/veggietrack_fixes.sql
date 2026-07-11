@@ -48,3 +48,35 @@ create unique index if not exists one_distributor_only
 --   order by created_at desc;
 -- If rows exist here but the app showed an empty list, the cause was the
 -- embedded join (now fixed in GET /api/orders) — just pull-to-refresh.
+
+------------------------------------------------------------------------------
+-- SCHEMA UPGRADE FOR FIXES & IMPROVEMENTS (July 2026)
+------------------------------------------------------------------------------
+-- Add item_id to notifications for deep linking
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS item_id UUID;
+
+-- Add reset token columns to users for forgot password email flow
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_token TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_expires TIMESTAMP WITH TIME ZONE;
+
+-- Add location coordinates to users
+ALTER TABLE users ADD COLUMN IF NOT EXISTS latitude NUMERIC;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS longitude NUMERIC;
+
+-- Add harvest_date to products for FIFO tracking
+ALTER TABLE products ADD COLUMN IF NOT EXISTS harvest_date TIMESTAMP WITH TIME ZONE;
+
+-- Add delivery_personnel_id to pickup_requests
+ALTER TABLE pickup_requests ADD COLUMN IF NOT EXISTS delivery_personnel_id UUID REFERENCES users(id) ON DELETE SET NULL;
+
+-- ENUM UPGRADES: If your database uses PostgreSQL ENUM types for statuses, add the new values:
+ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'cancelled';
+ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'picked_up';
+ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'in_transit';
+
+ALTER TYPE delivery_status ADD VALUE IF NOT EXISTS 'assigned';
+ALTER TYPE delivery_status ADD VALUE IF NOT EXISTS 'picked_up';
+ALTER TYPE delivery_status ADD VALUE IF NOT EXISTS 'in_transit';
+
+ALTER TYPE pickup_status ADD VALUE IF NOT EXISTS 'assigned';
+ALTER TYPE pickup_status ADD VALUE IF NOT EXISTS 'picked_up';

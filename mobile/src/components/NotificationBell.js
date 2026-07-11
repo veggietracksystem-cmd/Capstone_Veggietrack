@@ -3,6 +3,8 @@ import {
   Text, View, TouchableOpacity, Modal, ScrollView,
   ActivityIndicator, StyleSheet, Platform, Alert, RefreshControl,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 
 const PRIMARY = '#2e7d32';
@@ -43,6 +45,8 @@ function typeColor(type) {
 }
 
 export default function NotificationBell() {
+  const navigation = useNavigation();
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -87,14 +91,31 @@ export default function NotificationBell() {
 
   const markRead = async (n) => {
     if (n.is_read) return;
-    // Optimistic update.
     setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, is_read: true } : x)));
     try {
       await api.put(`/api/notifications/${n.id}/read`);
     } catch (err) {
-      // Revert on failure.
       setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, is_read: false } : x)));
       showAlert('Error', err.message);
+    }
+  };
+
+  const handlePress = async (n) => {
+    await markRead(n);
+    setOpen(false);
+
+    if (n.item_id) {
+      if (n.type === 'pickup') {
+        navigation.navigate('DistributorDashboard', { tab: 'pickups' });
+      } else if (['order', 'delivery', 'payment'].includes(n.type)) {
+        if (user?.role === 'retailer') {
+          navigation.navigate('OrderTracking', { orderId: n.item_id });
+        } else if (user?.role === 'distributor') {
+          navigation.navigate('DistributorDashboard', { tab: 'orders' });
+        } else if (user?.role === 'delivery_personnel') {
+          navigation.navigate('DeliveryDashboard', { filter: 'active' });
+        }
+      }
     }
   };
 
@@ -149,7 +170,7 @@ export default function NotificationBell() {
                   <TouchableOpacity
                     key={n.id}
                     style={[styles.item, !n.is_read && styles.itemUnread]}
-                    onPress={() => markRead(n)}
+                    onPress={() => handlePress(n)}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.typeDot, { backgroundColor: typeColor(n.type) }]} />

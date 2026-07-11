@@ -4,12 +4,13 @@ import { Platform, Alert } from 'react-native';
 // Previously these were copy-pasted into every screen; keep the single source here.
 
 // react-native's Alert.alert is a no-op on react-native-web, so use window.alert there.
-export function showAlert(title, message) {
+export function showAlert(title, message, onPress) {
   if (Platform.OS === 'web') {
     // eslint-disable-next-line no-alert
     window.alert(`${title}\n\n${message}`);
+    if (onPress) onPress();
   } else {
-    Alert.alert(title, message);
+    Alert.alert(title, message, onPress ? [{ text: 'OK', onPress }] : undefined);
   }
 }
 

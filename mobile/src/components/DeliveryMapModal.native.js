@@ -9,7 +9,7 @@ const PRIMARY = '#2e7d32';
 // Default region (Metro Manila) used until we have the courier's position.
 const FALLBACK = { latitude: 14.5995, longitude: 120.9842, latitudeDelta: 0.3, longitudeDelta: 0.3 };
 
-export default function DeliveryMapModal({ visible, address, onClose }) {
+export default function DeliveryMapModal({ visible, address, coords, onClose }) {
   const [loading, setLoading] = useState(true);
   const [courier, setCourier] = useState(null);
   const [destination, setDestination] = useState(null);
@@ -33,8 +33,10 @@ export default function DeliveryMapModal({ visible, address, onClose }) {
           if (!cancelled) setCourier({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
         }
 
-        // Best-effort geocode of the free-text delivery address.
-        if (address) {
+        if (coords && coords.latitude && coords.longitude) {
+          if (!cancelled) setDestination({ latitude: Number(coords.latitude), longitude: Number(coords.longitude) });
+        } else if (address) {
+          // Best-effort geocode of the free-text delivery address.
           try {
             const geo = await Location.geocodeAsync(address);
             if (!cancelled && geo && geo[0]) {
@@ -52,7 +54,7 @@ export default function DeliveryMapModal({ visible, address, onClose }) {
     })();
 
     return () => { cancelled = true; };
-  }, [visible, address]);
+  }, [visible, address, coords]);
 
   const anchor = courier || destination;
   const region = anchor

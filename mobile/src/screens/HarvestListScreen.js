@@ -107,9 +107,11 @@ export default function HarvestListScreen({ navigation }) {
           <TouchableOpacity style={styles.smallBtn} onPress={() => editHarvest(h)} disabled={busy}>
             <Text style={styles.smallBtnText}>Edit</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.smallBtn} onPress={() => requestPickup(h)} disabled={busy}>
-            <Text style={styles.smallBtnText}>Request Pickup</Text>
-          </TouchableOpacity>
+          {h.status === 'available' && (
+            <TouchableOpacity style={styles.smallBtn} onPress={() => requestPickup(h)} disabled={busy}>
+              <Text style={styles.smallBtnText}>Request Pickup</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={[styles.smallBtn, styles.deleteBtn]} onPress={() => deleteHarvest(h)} disabled={busy}>
             {busy
               ? <ActivityIndicator color="#c62828" size="small" />

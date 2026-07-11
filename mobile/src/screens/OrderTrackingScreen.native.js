@@ -39,8 +39,9 @@ function mockEta(status) {
 
 // Reachable via navigation.navigate('OrderTracking', { orderId, deliveryAddress, orderStatus }).
 export default function OrderTrackingScreen({ route, navigation }) {
-  const { orderId, deliveryAddress, orderStatus = 'pending' } = route.params || {};
+  const { orderId, deliveryAddress: initialAddress, orderStatus = 'pending' } = route.params || {};
 
+  const [address, setAddress] = useState(initialAddress || '');
   const [loading, setLoading] = useState(true);
   const [destination, setDestination] = useState(null);
   const [geocodeFailed, setGeocodeFailed] = useState(false);
@@ -55,7 +56,10 @@ export default function OrderTrackingScreen({ route, navigation }) {
     const fetchStatus = async () => {
       try {
         const order = await api.get(`/api/orders/${orderId}`);
-        if (active && order?.status) setStatus(order.status);
+        if (active) {
+          if (order?.status) setStatus(order.status);
+          if (order?.delivery_address) setAddress(order.delivery_address);
+        }
       } catch {
         // Ignore transient errors; keep the last known status.
       }
@@ -71,9 +75,16 @@ export default function OrderTrackingScreen({ route, navigation }) {
       setLoading(true);
       setGeocodeFailed(false);
       try {
-        if (deliveryAddress) {
+        let activeAddr = address;
+        if (!activeAddr && orderId) {
+          const order = await api.get(`/api/orders/${orderId}`);
+          activeAddr = order?.delivery_address;
+          if (activeAddr && !cancelled) setAddress(activeAddr);
+        }
+
+        if (activeAddr) {
           // expo-location's built-in geocoder — no extra dependency or API key.
-          const geo = await Location.geocodeAsync(deliveryAddress);
+          const geo = await Location.geocodeAsync(activeAddr);
           if (!cancelled && geo && geo[0]) {
             setDestination({ latitude: geo[0].latitude, longitude: geo[0].longitude });
           } else if (!cancelled) {
@@ -90,7 +101,7 @@ export default function OrderTrackingScreen({ route, navigation }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [deliveryAddress]);
+  }, [address, orderId]);
 
   const anchor = destination || SAN_PABLO;
   const region = {
@@ -119,7 +130,7 @@ export default function OrderTrackingScreen({ route, navigation }) {
         </View>
         <Text style={styles.eta}>🕒 ETA: {mockEta(status)}</Text>
       </View>
-      {deliveryAddress ? <Text style={styles.addr}>📍 {deliveryAddress}</Text> : null}
+      {address ? <Text style={styles.addr}>📍 {address}</Text> : null}
 
       {/* Issue 11: Shopee-like progress stepper, kept live by the poll above. */}
       {status !== 'cancelled' ? (
