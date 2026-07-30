@@ -10,30 +10,37 @@ import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
 import LogoutButton from '../components/LogoutButton';
 import NotificationBell from '../components/NotificationBell';
-import MessagesButton from '../components/MessagesButton';
-import ProfileButton from '../components/ProfileButton';
-import OfflineBanner from '../components/OfflineBanner';
-import ImageViewerModal from '../components/ImageViewerModal';
-import SchedulePicker from '../components/SchedulePicker';
-import OrderStepIndicator from '../components/OrderStepIndicator';
-import EmptyState from '../components/EmptyState';
-import { showAlert, peso, shortId } from '../lib/ui';
+import BottomNavBar from '../components/BottomNavBar';
 
 const PRIMARY = '#2e7d32';
 
-function statusColor(status) {
-  switch (status) {
-    case 'pending': return '#f9a825';
-    case 'approved': return '#1976d2';
-    case 'in_transit': return '#7b1fa2';
-    case 'delivered': return PRIMARY;
-    default: return '#607d8b';
-  }
-}
+const RETAILER_TABS = [
+  { id: 'home', icon: '🏠', label: 'Home' },
+  { id: 'browse', icon: '🥬', label: 'Browse' },
+  { id: 'orders', icon: '📦', label: 'Orders' },
+  { id: 'track', icon: '🗺️', label: 'Track' },
+  { id: 'profile', icon: '👤', label: 'Profile' },
+];
 
 export default function RetailerDashboard({ navigation, route }) {
   const { user } = useAuth();
   const [tab, setTab] = useState('shop'); // 'shop' | 'orders'
+  const [activeBottomTab, setActiveBottomTab] = useState('home');
+
+  const handleBottomTabPress = (t) => {
+    setActiveBottomTab(t.id);
+    if (t.id === 'profile') {
+      navigation.navigate('Profile');
+    } else if (t.id === 'browse') {
+      setTab('shop');
+    } else if (t.id === 'orders') {
+      setTab('orders');
+    } else if (t.id === 'track') {
+      setTab('orders');
+    } else if (t.id === 'home') {
+      setTab('shop');
+    }
+  };
 
   useEffect(() => {
     if (route.params?.tab) {
@@ -249,21 +256,12 @@ export default function RetailerDashboard({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Retailer</Text>
-          <Text style={styles.subtitle}>Welcome, {user?.name || user?.phone}</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <ProfileButton />
-          <MessagesButton />
-          <NotificationBell />
-          <LogoutButton />
-        </View>
+      {/* Minimal Top Navigation Bar */}
+      <View style={styles.minimalHeader}>
+        <Text style={styles.minimalTitle}>Retailer Store</Text>
+        <NotificationBell />
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabs}>
         <TouchableOpacity
           style={[styles.tab, tab === 'shop' && styles.tabActive]}
@@ -282,7 +280,7 @@ export default function RetailerDashboard({ navigation, route }) {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 90 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Only flag offline when the device is actually disconnected AND we're
@@ -324,6 +322,11 @@ export default function RetailerDashboard({ navigation, route }) {
         uri={proofUri}
         visible={!!proofUri}
         onClose={() => setProofUri(null)}
+      />
+      <BottomNavBar
+        tabs={RETAILER_TABS}
+        activeTab={activeBottomTab}
+        onTabPress={handleBottomTabPress}
       />
     </SafeAreaView>
   );
@@ -548,7 +551,17 @@ function OrdersTab({ loading, orders, onViewProof, onTrack, onCancel }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  minimalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eeeeee',
+  },
+  minimalTitle: { fontSize: 18, fontWeight: '700', color: PRIMARY },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },

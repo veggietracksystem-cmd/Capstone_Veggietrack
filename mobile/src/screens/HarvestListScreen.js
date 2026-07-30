@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Text, View, FlatList, TouchableOpacity,
-  ActivityIndicator, StyleSheet, RefreshControl,
+  Text, View, ScrollView, TextInput, TouchableOpacity,
+  ActivityIndicator, StyleSheet, RefreshControl, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
@@ -10,25 +10,30 @@ import { showAlert, confirmAction } from '../lib/ui';
 
 const PRIMARY = '#2e7d32';
 
-// Emoji "illustration" per vegetable — substring match, falls back to a leafy green.
-const VEG_ICONS = { tomato: '🍅', eggplant: '🍆', squash: '🎃', carrot: '🥕', potato: '🥔', corn: '🌽', pepper: '🌶️', cucumber: '🥒', onion: '🧅', lettuce: '🥬' };
-function getVegetableIcon(name) {
-  const key = String(name || '').toLowerCase();
-  const match = Object.keys(VEG_ICONS).find((k) => key.includes(k));
-  return match ? VEG_ICONS[match] : '🥬';
-}
+// Marketplace vegetable tile colors & icons (aligned with reference design)
+const VEG_TILES = {
+  tomato: { icon: '🍅', bg: '#ffebee' },
+  eggplant: { icon: '🍆', bg: '#f3e5f5' },
+  beans: { icon: '🌿', bg: '#e8f5e9' },
+  squash: { icon: '🎃', bg: '#fff3e0' },
+  carrot: { icon: '🥕', bg: '#fff3e0' },
+  potato: { icon: '🥔', bg: '#fbe9e7' },
+  corn: { icon: '🌽', bg: '#fffde7' },
+  pepper: { icon: '🌶️', bg: '#ffebee' },
+  cucumber: { icon: '🥒', bg: '#e8f5e9' },
+  onion: { icon: '🧅', bg: '#f3e5f5' },
+  lettuce: { icon: '🥬', bg: '#e8f5e9' },
+};
 
-function statusBadgeStyle(status) {
-  switch (status) {
-    case 'available': return { backgroundColor: '#e8f5e9', borderColor: PRIMARY };
-    case 'reserved': return { backgroundColor: '#fff8e1', borderColor: '#f9a825' };
-    case 'picked_up': return { backgroundColor: '#eceff1', borderColor: '#607d8b' };
-    default: return { backgroundColor: '#eee', borderColor: '#aaa' };
-  }
+function getVegetableTile(name) {
+  const key = String(name || '').toLowerCase();
+  const match = Object.keys(VEG_TILES).find((k) => key.includes(k));
+  return match ? VEG_TILES[match] : { icon: '🥬', bg: '#e8f5e9' };
 }
 
 export default function HarvestListScreen({ navigation }) {
   const [harvests, setHarvests] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
@@ -56,7 +61,6 @@ export default function HarvestListScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  // Edit reuses the Farmer dashboard's add/edit form via a navigation param.
   const editHarvest = (harvest) => {
     navigation.navigate('FarmerDashboard', { editHarvest: harvest });
   };
@@ -91,36 +95,10 @@ export default function HarvestListScreen({ navigation }) {
     }
   };
 
-  const renderItem = ({ item: h }) => {
-    const busy = busyId === h.id;
-    return (
-      <View style={styles.recordCard}>
-        <View style={styles.recordInfo}>
-          <Text style={styles.icon}>{getVegetableIcon(h.vegetable_name)}</Text>
-          <Text style={styles.recordVeg}>{h.vegetable_name}</Text>
-          <Text style={styles.recordMeta}>{h.quantity_kg} kg</Text>
-          <View style={[styles.statusBadge, statusBadgeStyle(h.status)]}>
-            <Text style={styles.statusBadgeText}>{h.status}</Text>
-          </View>
-        </View>
-        <View style={styles.recordActions}>
-          <TouchableOpacity style={styles.smallBtn} onPress={() => editHarvest(h)} disabled={busy}>
-            <Text style={styles.smallBtnText}>Edit</Text>
-          </TouchableOpacity>
-          {h.status === 'available' && (
-            <TouchableOpacity style={styles.smallBtn} onPress={() => requestPickup(h)} disabled={busy}>
-              <Text style={styles.smallBtnText}>Request Pickup</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity style={[styles.smallBtn, styles.deleteBtn]} onPress={() => deleteHarvest(h)} disabled={busy}>
-            {busy
-              ? <ActivityIndicator color="#c62828" size="small" />
-              : <Text style={styles.deleteBtnText}>Delete</Text>}
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
+  // Filtered harvest list based on search bar
+  const filteredHarvests = harvests.filter((h) =>
+    h.vegetable_name?.toLowerCase().includes(searchQuery.toLowerCase().trim())
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -129,54 +107,241 @@ export default function HarvestListScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Text style={styles.back}>‹ Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>All Harvests</Text>
+        <Text style={styles.title}>All Crop Harvests</Text>
         <View style={{ width: 50 }} />
       </View>
 
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={PRIMARY} />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        {/* Search Input Bar (Marketplace Style) */}
+        <View style={styles.searchRow}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search crops or vegetables..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery ? (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Text style={styles.searchClear}>✕</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
-      ) : (
-        <FlatList
-          data={harvests}
-          keyExtractor={(h) => String(h.id)}
-          renderItem={renderItem}
-          contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          ListEmptyComponent={
-            <EmptyState
-              icon="🥬"
-              title="No harvests yet"
-              message="Log a harvest from your dashboard so distributors can request a pickup."
-            />
-          }
-        />
-      )}
+
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={PRIMARY} />
+          </View>
+        ) : filteredHarvests.length === 0 ? (
+          <EmptyState
+            icon="🥬"
+            title="No harvests found"
+            message="Log a harvest from your dashboard so distributors can request a pickup."
+          />
+        ) : (
+          /* 2-Column Marketplace Grid Layout */
+          <View style={styles.marketplaceGrid}>
+            {filteredHarvests.map((h) => {
+              const tile = getVegetableTile(h.vegetable_name);
+              const busy = busyId === h.id;
+              return (
+                <View key={String(h.id)} style={styles.productCard}>
+                  {/* Soft Icon Tile */}
+                  <View style={[styles.tileContainer, { backgroundColor: tile.bg }]}>
+                    <Text style={styles.tileIcon}>{tile.icon}</Text>
+                  </View>
+
+                  {/* Title */}
+                  <Text style={styles.cropTitle} numberOfLines={1}>
+                    {h.vegetable_name}
+                  </Text>
+
+                  {/* Stock Pill Badge */}
+                  <View style={styles.stockBadge}>
+                    <Text style={styles.stockBadgeText}>{h.quantity_kg} kg in stock</Text>
+                  </View>
+
+                  {/* Status Pill */}
+                  <Text style={styles.statusLabel}>
+                    {h.status === 'available' ? 'Available' : h.status}
+                  </Text>
+
+                  {/* Action Buttons */}
+                  <View style={styles.actionButtonsCol}>
+                    <TouchableOpacity
+                      style={styles.manageBtn}
+                      onPress={() => editHarvest(h)}
+                      disabled={busy}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.manageBtnText}>✏️ Edit</Text>
+                    </TouchableOpacity>
+
+                    {h.status === 'available' && (
+                      <TouchableOpacity
+                        style={styles.pickupBtn}
+                        onPress={() => requestPickup(h)}
+                        disabled={busy}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.pickupBtnText}>📦 Pickup</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    <TouchableOpacity
+                      style={styles.deleteBtn}
+                      onPress={() => deleteHarvest(h)}
+                      disabled={busy}
+                      activeOpacity={0.85}
+                    >
+                      {busy ? (
+                        <ActivityIndicator color="#c62828" size="small" />
+                      ) : (
+                        <Text style={styles.deleteBtnText}>🗑️ Delete</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#f8faf8' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200 },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
   back: { color: PRIMARY, fontSize: 16, fontWeight: '600', width: 50 },
-  title: { fontSize: 20, fontWeight: 'bold', color: PRIMARY },
+  title: { fontSize: 18, fontWeight: '700', color: PRIMARY },
 
-  recordCard: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#eee' },
-  recordInfo: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  icon: { fontSize: 22 },
-  recordVeg: { fontSize: 16, fontWeight: '700', color: '#222' },
-  recordMeta: { fontSize: 14, color: '#555' },
-  statusBadge: { paddingVertical: 2, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1 },
-  statusBadgeText: { fontSize: 12, color: '#333' },
+  // Search Row
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 14,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  searchIcon: { fontSize: 16, marginRight: 8 },
+  searchInput: {
+    flex: 1,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: 15,
+    color: '#1a1a1a',
+  },
+  searchClear: { fontSize: 16, color: '#999', paddingLeft: 8 },
 
-  recordActions: { flexDirection: 'row', gap: 10, marginTop: 12, flexWrap: 'wrap' },
-  smallBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: PRIMARY },
-  smallBtnText: { color: PRIMARY, fontWeight: '600', fontSize: 13 },
-  deleteBtn: { borderColor: '#c62828' },
-  deleteBtnText: { color: '#c62828', fontWeight: '600', fontSize: 13 },
+  // 2-Column Marketplace Grid
+  marketplaceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 14,
+    marginBottom: 20,
+  },
+  productCard: {
+    width: '48%',
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#edf2ed',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
+    alignItems: 'center',
+  },
+  tileContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  tileIcon: { fontSize: 32 },
+  cropTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  stockBadge: {
+    backgroundColor: '#e8f5e9',
+    borderRadius: 10,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    marginBottom: 6,
+  },
+  stockBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: PRIMARY,
+  },
+  statusLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: PRIMARY,
+    marginBottom: 10,
+  },
+
+  actionButtonsCol: { width: '100%', gap: 6 },
+  manageBtn: {
+    width: '100%',
+    backgroundColor: PRIMARY,
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  manageBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 12 },
+  pickupBtn: {
+    width: '100%',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: PRIMARY,
+    borderRadius: 8,
+    paddingVertical: 7,
+    alignItems: 'center',
+  },
+  pickupBtnText: { color: PRIMARY, fontWeight: '700', fontSize: 12 },
+  deleteBtn: {
+    width: '100%',
+    backgroundColor: '#fff5f5',
+    borderWidth: 1,
+    borderColor: '#ffcdd2',
+    borderRadius: 8,
+    paddingVertical: 7,
+    alignItems: 'center',
+  },
+  deleteBtnText: { color: '#c62828', fontWeight: '700', fontSize: 12 },
 });

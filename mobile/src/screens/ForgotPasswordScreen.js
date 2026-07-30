@@ -6,28 +6,53 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../api/client';
 import { showAlert } from '../lib/ui';
+import { normalizePhone, isValidPhone, PHONE_HINT } from '../lib/phone';
+import PasswordInput from '../components/PasswordInput';
 
 export default function ForgotPasswordScreen({ navigation }) {
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('+63');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [step, setStep] = useState(1); // 1: verify phone, 2: set new password
 
-  const sendResetLink = async () => {
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
-      showAlert('Error', 'Please enter your email address.');
-      return;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      showAlert('Error', 'Please enter a valid email address.');
+  const verifyPhone = async () => {
+    const trimmedPhone = normalizePhone(phone);
+    if (!isValidPhone(trimmedPhone)) {
+      showAlert('Error', PHONE_HINT);
       return;
     }
 
     setLoading(true);
     try {
-      await api.post('/api/auth/forgot-password-email', { email: trimmedEmail });
-      setSent(true);
+      await api.post('/api/auth/forgot-password', { phone: trimmedPhone });
+      setStep(2);
+    } catch (err) {
+      showAlert('Error', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!password || password.length < 6) {
+      showAlert('Error', 'Password must be at least 6 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      showAlert('Error', 'Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await api.post('/api/auth/reset-password', {
+        phone: normalizePhone(phone),
+        new_password: password,
+      });
+      showAlert('Success', 'Password reset successful. Please log in with your new password.', () => {
+        navigation.navigate('Login');
+      });
     } catch (err) {
       showAlert('Error', err.message);
     } finally {
@@ -43,54 +68,59 @@ export default function ForgotPasswordScreen({ navigation }) {
       >
         <Text style={styles.title}>Reset Password</Text>
         
-        {!sent ? (
+        {step === 1 ? (
           <>
             <Text style={styles.subtitle}>
-              Enter your email address to receive a secure link to reset your password.
+              Enter your registered phone number to reset your password.
             </Text>
             <TextInput
               style={styles.input}
-              placeholder="Email address (e.g., user@example.com)"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
+              placeholder="Phone number (e.g., +639171234567)"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
               autoCapitalize="none"
-              autoCorrect={false}
               editable={!loading}
             />
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={sendResetLink}
+              onPress={verifyPhone}
               disabled={loading}
               activeOpacity={0.7}
             >
               {loading
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.buttonText}>Send Reset Link</Text>}
+                : <Text style={styles.buttonText}>Continue</Text>}
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <View style={styles.successBox}>
-              <Text style={styles.successIcon}>✉️</Text>
-              <Text style={styles.successText}>
-                We've sent a password reset link to:
-              </Text>
-              <Text style={styles.successEmail}>{email}</Text>
-              <Text style={styles.successInstructions}>
-                Please check your inbox (and spam folder) and follow the link to set a new password. Once done, you can return here to log in.
-              </Text>
-            </View>
+            <Text style={styles.subtitle}>
+              Set a new password for account: {normalizePhone(phone)}
+            </Text>
+            <PasswordInput
+              style={styles.input}
+              placeholder="New password (min 6 characters)"
+              value={password}
+              onChangeText={setPassword}
+              editable={!loading}
+            />
+            <PasswordInput
+              style={styles.input}
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              editable={!loading}
+            />
             <TouchableOpacity
-              style={styles.button}
-              onPress={() => {
-                setSent(false);
-                setEmail('');
-                navigation.navigate('Login');
-              }}
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={handleResetPassword}
+              disabled={loading}
               activeOpacity={0.7}
             >
-              <Text style={styles.buttonText}>Return to Login</Text>
+              {loading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.buttonText}>Reset Password</Text>}
             </TouchableOpacity>
           </>
         )}
@@ -113,10 +143,4 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
   link: { textAlign: 'center', marginTop: 20, color: '#2e7d32', fontSize: 14, fontWeight: '600' },
-
-  successBox: { alignItems: 'center', marginBottom: 20, backgroundColor: '#fff', padding: 20, borderRadius: 12, borderWidth: 1, borderColor: '#e8f5e9' },
-  successIcon: { fontSize: 48, marginBottom: 10 },
-  successText: { fontSize: 16, color: '#555', textAlign: 'center' },
-  successEmail: { fontSize: 16, fontWeight: '700', color: '#2e7d32', marginVertical: 6 },
-  successInstructions: { fontSize: 14, color: '#666', textAlign: 'center', marginTop: 8, lineHeight: 20 },
 });

@@ -128,42 +128,23 @@ function verifyToken(req, res, next) {
 app.post('/api/auth/login', async (req, res) => {
   const { phone, password } = req.body || {};
   
-  // ========== DEBUG LOGS ==========
-  console.log('🔍 LOGIN ATTEMPT - Phone:', phone);
-  console.log('🔍 LOGIN ATTEMPT - Password length:', password?.length);
-  // ================================
-  
   if (!phone || !password) {
     return res.status(400).json({ error: 'Phone and password are required' });
   }
 
-  // ========== DEBUG LOG ==========
-  console.log('📊 Querying users table for phone:', phone);
-  // ===============================
-
   const { data: user, error } = await supabaseAdmin
     .from('users')
-    .select('id, phone, password_hash')
+    .select('id, full_name, phone, role, email, farm_location, warehouse_location, store_location, service_area, password_hash')
     .eq('phone', phone)
     .single();
 
-  // ========== DEBUG LOG ==========
-  console.log('📊 Query result:');
-  console.log('  - data:', user);
-  console.log('  - error:', error?.message || 'null');
-  // ===============================
-
   if (error || !user) {
-    console.log('❌ User not found - error:', error?.message);
     return res.status(404).json({ error: 'No account found with this phone number' });
   }
 
-  console.log('✅ User found:', user.phone);
-
-  // Legacy accounts (no real password set) skip the password check so existing
-  // users aren't locked out. They still complete login via OTP.
+  // Legacy accounts check (if any exist without hashed password)
   if (!user.password_hash || user.password_hash === LEGACY_PASSWORD_MARKER) {
-    return res.json({ valid: true, password_set: false });
+    return res.status(401).json({ error: 'Please re-register your account password.' });
   }
 
   const ok = await bcrypt.compare(password, user.password_hash);
@@ -171,7 +152,22 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(401).json({ error: 'Incorrect password' });
   }
 
-  return res.json({ valid: true, password_set: true });
+  const token = generateToken(user.id, user.phone, user.role);
+  res.json({
+    message: 'Login successful',
+    token,
+    user: {
+      id: user.id,
+      full_name: user.full_name,
+      phone: user.phone,
+      role: user.role,
+      email: user.email,
+      farm_location: user.farm_location,
+      warehouse_location: user.warehouse_location,
+      store_location: user.store_location,
+      service_area: user.service_area
+    }
+  });
 });
 
 app.post('/api/auth/send-otp', async (req, res) => {
@@ -230,7 +226,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     // B1: record exactly ONE failed attempt (the duplicate counting block that
     // used to live here is gone — it locked users out after ~3 tries, not 5).
     recordFailedOtp(phone);
-    return res.status(401).json({ error: 'Invalid or expired OTP' });
+    return res.status(400).json({ error: 'Invalid or expired OTP' });
   }
   otpStore.delete(phone);
     otpAttempts.delete(phone);
@@ -1691,152 +1687,201 @@ app.get('/api/distributor/weekly-report', verifyToken, async (req, res) => {
 
 // ========== REGISTRATION ROUTES ==========
 app.post('/api/auth/register', async (req, res) => {
-  const { phone, full_name, role, email, password, farm_location, warehouse_location, store_location, service_area, latitude, longitude } = req.body;
+  try {
+    const { phone, full_name, role, password, farm_location, warehouse_location, store_location, service_area, latitude, longitude } = req.body;
 
-  if (!phone || !full_name || !role) {
-    return res.status(400).json({ error: 'Phone, full name, and role are required' });
-  }
+    if (!phone || !full_name || !role) {
+      return res.status(400).json({ error: 'Phone, full name, and role are required' });
+    }
 
-  // Accept any valid international number (+ and 10–15 digits), not just +63.
-  if (!isValidPhone(phone)) {
-    return res.status(400).json({ error: 'Enter a valid phone number with country code, e.g. +639171234567' });
-  }
+    // Accept any valid international number (+ and 10–15 digits), not just +63.
+    if (!isValidPhone(phone)) {
+      return res.status(400).json({ error: 'Enter a valid phone number with country code, e.g. +639171234567' });
+    }
 
-  // Reject if the phone is already registered.
-  const { data: existingUser } = await supabaseAdmin
-    .from('users')
-    .select('id')
-    .eq('phone', phone)
-    .maybeSingle();
-
-  if (existingUser) {
-    return res.status(409).json({ error: 'An account with this phone number already exists' });
-  }
-
-  // Issue 3: fail fast (before sending an OTP) if a distributor already exists.
-  // verify-registration re-checks this as the authoritative guard.
-  if (role === 'distributor') {
-    const { data: existingDistributor } = await supabaseAdmin
+    // Reject if the phone is already registered.
+    const { data: existingUser, error: checkErr } = await supabaseAdmin
       .from('users')
       .select('id')
-      .eq('role', 'distributor')
+      .eq('phone', phone)
       .maybeSingle();
-    if (existingDistributor) {
-      return res.status(409).json({ error: 'Only one distributor account is allowed.' });
+
+    if (checkErr) {
+      console.error('❌ Supabase register check error:', checkErr);
+      return res.status(500).json({ error: `Database error: ${checkErr.message}` });
     }
+
+    if (existingUser) {
+      return res.status(409).json({ error: 'An account with this phone number already exists' });
+    }
+
+    // Fail fast if a distributor already exists.
+    if (role === 'distributor') {
+      const { data: existingDistributor } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('role', 'distributor')
+        .maybeSingle();
+      if (existingDistributor) {
+        return res.status(409).json({ error: 'Only one distributor account is allowed.' });
+      }
+    }
+
+    const password_hash = password
+      ? await bcrypt.hash(password, 10)
+      : LEGACY_PASSWORD_MARKER;
+
+    const newUser = {
+      full_name,
+      phone,
+      role,
+      email: null,
+      password_hash,
+      latitude: latitude || null,
+      longitude: longitude || null
+    };
+    if (role === 'farmer') newUser.farm_location = farm_location || null;
+    if (role === 'distributor') newUser.warehouse_location = warehouse_location || null;
+    if (role === 'retailer') newUser.store_location = store_location || null;
+    if (role === 'delivery_personnel') newUser.service_area = service_area || null;
+
+    const { data: user, error } = await supabaseAdmin
+      .from('users')
+      .insert(newUser)
+      .select()
+      .single();
+
+    if (error) {
+      console.log('❌ Insert error details:', error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    const token = generateToken(user.id, user.phone, user.role);
+    res.status(201).json({
+      message: 'Registration successful',
+      token,
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        phone: user.phone,
+        role: user.role,
+        email: user.email,
+        farm_location: user.farm_location,
+        warehouse_location: user.warehouse_location,
+        store_location: user.store_location,
+        service_area: user.service_area
+      }
+    });
+  } catch (err) {
+    console.error('❌ register error:', err);
+    let msg = err.message || 'Registration failed';
+    if (msg.includes('fetch failed') || err.name === 'TypeError') {
+      msg = 'Database connection failed — please ensure your Supabase project is active and unpaused.';
+    }
+    res.status(500).json({ error: msg });
   }
-
-  const otp = generateOTP();
-  otpStore.set(phone, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
-  pendingRegistrations.set(phone, {
-    full_name,
-    role,
-    email,
-    password, // hashed at verify-registration time (optional)
-    farm_location,
-    warehouse_location,
-    store_location,
-    service_area,
-    latitude: latitude || null,
-    longitude: longitude || null,
-    createdAt: Date.now()
-  });
-
-  await deliverOtp(phone, otp, 'registration'); // Issue 2: real SMS (falls back to console)
-  res.json({ message: 'OTP sent to complete registration.' });
 });
 
 app.post('/api/auth/verify-registration', async (req, res) => {
-  const { phone, otp } = req.body;
-  if (!phone || !otp) return res.status(400).json({ error: 'Phone and OTP required' });
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) return res.status(400).json({ error: 'Phone and OTP required' });
 
-  // B3: brute-force guard (same logic as verify-otp).
-  if (otpAttemptsExceeded(phone)) {
-    return res.status(429).json({ error: 'Too many failed attempts. Try again later.' });
-  }
-
-  const stored = otpStore.get(phone);
-  if (!stored || stored.otp !== otp || stored.expiresAt < Date.now()) {
-    recordFailedOtp(phone);
-    return res.status(401).json({ error: 'Invalid or expired OTP' });
-  }
-  otpAttempts.delete(phone); // success — clear the counter
-
-  const pending = pendingRegistrations.get(phone);
-  if (!pending) {
-    return res.status(400).json({ error: 'No pending registration found for this phone number' });
-  }
-
-  // Issue 3: only one distributor (the hub) may exist. If one is already
-  // registered, block this even though the OTP was valid, and clear the pending
-  // registration so the phone can re-register under a different role.
-  if (pending.role === 'distributor') {
-    const { data: existingDistributor } = await supabaseAdmin
-      .from('users')
-      .select('id')
-      .eq('role', 'distributor')
-      .maybeSingle();
-    if (existingDistributor) {
-      pendingRegistrations.delete(phone);
-      otpStore.delete(phone);
-      return res.status(409).json({ error: 'Only one distributor account is allowed.' });
+    // B3: brute-force guard (same logic as verify-otp).
+    if (otpAttemptsExceeded(phone)) {
+      return res.status(429).json({ error: 'Too many failed attempts. Try again later.' });
     }
-  }
 
-  // Hash the password if one was provided at registration; otherwise fall back
-  // to the legacy marker (account works via OTP only, no password login).
-  const password_hash = pending.password
-    ? await bcrypt.hash(pending.password, 10)
-    : LEGACY_PASSWORD_MARKER;
+    const stored = otpStore.get(phone);
+    if (!stored || stored.otp !== otp || stored.expiresAt < Date.now()) {
+      recordFailedOtp(phone);
+      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+    otpAttempts.delete(phone); // success — clear the counter
 
-  // Build the user record, attaching only the location field for the role.
-  const newUser = {
-    full_name: pending.full_name,
-    phone,
-    role: pending.role,
-    email: pending.email || null,
-    password_hash,
-    latitude: pending.latitude || null,
-    longitude: pending.longitude || null
-  };
-  if (pending.role === 'farmer') newUser.farm_location = pending.farm_location || null;
-  if (pending.role === 'distributor') newUser.warehouse_location = pending.warehouse_location || null;
-  if (pending.role === 'retailer') newUser.store_location = pending.store_location || null;
-  if (pending.role === 'delivery_personnel') newUser.service_area = pending.service_area || null;
+    const pending = pendingRegistrations.get(phone);
+    if (!pending) {
+      return res.status(400).json({ error: 'No pending registration found for this phone number. Please submit registration again.' });
+    }
 
-  const { data: user, error } = await supabaseAdmin
-    .from('users')
-    .insert(newUser)
-    .select()
-    .single();
+    // Issue 3: only one distributor (the hub) may exist. If one is already
+    // registered, block this even though the OTP was valid, and clear the pending
+    // registration so the phone can re-register under a different role.
+    if (pending.role === 'distributor') {
+      const { data: existingDistributor } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('role', 'distributor')
+        .maybeSingle();
+      if (existingDistributor) {
+        pendingRegistrations.delete(phone);
+        otpStore.delete(phone);
+        return res.status(409).json({ error: 'Only one distributor account is allowed.' });
+      }
+    }
+
+    // Hash the password if one was provided at registration; otherwise fall back
+    // to the legacy marker (account works via OTP only, no password login).
+    const password_hash = pending.password
+      ? await bcrypt.hash(pending.password, 10)
+      : LEGACY_PASSWORD_MARKER;
+
+    // Build the user record, attaching only the location field for the role.
+    const newUser = {
+      full_name: pending.full_name,
+      phone,
+      role: pending.role,
+      email: pending.email || null,
+      password_hash,
+      latitude: pending.latitude || null,
+      longitude: pending.longitude || null
+    };
+    if (pending.role === 'farmer') newUser.farm_location = pending.farm_location || null;
+    if (pending.role === 'distributor') newUser.warehouse_location = pending.warehouse_location || null;
+    if (pending.role === 'retailer') newUser.store_location = pending.store_location || null;
+    if (pending.role === 'delivery_personnel') newUser.service_area = pending.service_area || null;
+
+    const { data: user, error } = await supabaseAdmin
+      .from('users')
+      .insert(newUser)
+      .select()
+      .single();
 
     console.log('🔍 Insert result:', { data: user, error });
 
-  if (error) {
-    console.log('❌ Insert error details:', error);
-    return res.status(500).json({ error: error.message });
-  }
-
-  pendingRegistrations.delete(phone);
-  otpStore.delete(phone);
-
-  const token = generateToken(user.id, user.phone, user.role);
-  res.status(201).json({
-    token,
-    // Return the location fields too so the Profile screen is fully seeded
-    // right after registration (the insert .select() returns all columns).
-    user: {
-      id: user.id,
-      full_name: user.full_name,
-      phone: user.phone,
-      role: user.role,
-      email: user.email,
-      farm_location: user.farm_location,
-      warehouse_location: user.warehouse_location,
-      store_location: user.store_location,
-      service_area: user.service_area
+    if (error) {
+      console.log('❌ Insert error details:', error);
+      return res.status(400).json({ error: `Database insertion error: ${error.message}` });
     }
-  });
+
+    pendingRegistrations.delete(phone);
+    otpStore.delete(phone);
+
+    const token = generateToken(user.id, user.phone, user.role);
+    res.status(201).json({
+      token,
+      // Return the location fields too so the Profile screen is fully seeded
+      // right after registration (the insert .select() returns all columns).
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        phone: user.phone,
+        role: user.role,
+        email: user.email,
+        farm_location: user.farm_location,
+        warehouse_location: user.warehouse_location,
+        store_location: user.store_location,
+        service_area: user.service_area
+      }
+    });
+  } catch (err) {
+    console.error('❌ verify-registration error:', err);
+    let msg = err.message || 'Verification failed';
+    if (msg.includes('fetch failed') || err.name === 'TypeError') {
+      msg = 'Database connection failed — please ensure your Supabase project is active and unpaused.';
+    }
+    res.status(500).json({ error: msg });
+  }
 });
 
 app.post('/api/auth/resend-otp', async (req, res) => {
@@ -1971,8 +2016,7 @@ app.delete('/api/users/:id', verifyToken, async (req, res) => {
   res.json({ message: 'Account deleted successfully.' });
 });
 
-// ========== PASSWORD RESET (Forgot Password via OTP / Email) ==========
-// 1. Phone OTP Flow (Legacy / Mobile Native)
+// ========== PASSWORD RESET (Forgot Password via Phone) ==========
 app.post('/api/auth/forgot-password', async (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'Phone number required' });
@@ -1984,37 +2028,24 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     .maybeSingle();
   if (!user) return res.status(404).json({ error: 'No account found with this phone number' });
 
-  const otp = generateOTP();
-  otpStore.set(phone, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
-  await deliverOtp(phone, otp, 'password reset');
-  res.json({ message: 'OTP sent to reset password.', phone });
+  res.json({ message: 'Phone number verified. Proceed to set new password.', phone });
 });
 
 app.post('/api/auth/reset-password', async (req, res) => {
-  const { phone, otp, new_password } = req.body;
-  if (!phone || !otp || !new_password) {
-    return res.status(400).json({ error: 'All fields required' });
+  const { phone, new_password, password } = req.body;
+  const targetPassword = new_password || password;
+  if (!phone || !targetPassword) {
+    return res.status(400).json({ error: 'Phone number and new password required' });
   }
 
-  if (otpAttemptsExceeded(phone)) {
-    return res.status(429).json({ error: 'Too many failed attempts. Try again later.' });
-  }
-
-  const stored = otpStore.get(phone);
-  if (!stored || stored.otp !== otp || stored.expiresAt < Date.now()) {
-    recordFailedOtp(phone);
-    return res.status(401).json({ error: 'Invalid or expired OTP' });
-  }
-  otpAttempts.delete(phone);
-
-  const hashed = await bcrypt.hash(new_password, 10);
+  const hashed = await bcrypt.hash(targetPassword, 10);
   const { error } = await supabaseAdmin
     .from('users')
     .update({ password_hash: hashed })
     .eq('phone', phone);
+
   if (error) return res.status(500).json({ error: error.message });
 
-  otpStore.delete(phone);
   res.json({ message: 'Password reset successful. You can now log in.' });
 });
 

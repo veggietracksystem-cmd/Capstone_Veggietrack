@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import {
   Text, TextInput, TouchableOpacity, ActivityIndicator, View, ScrollView,
-  StyleSheet, Modal,
+  StyleSheet, Modal, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { showAlert, confirmAction } from '../lib/ui';
 import PasswordInput from '../components/PasswordInput';
+import UserGuideModal from '../components/UserGuideModal';
+import ContactUsModal from '../components/ContactUsModal';
 
 const PRIMARY = '#2e7d32';
 
-// Role -> location field key + label (kept in sync with RegisterScreen / backend).
 const ROLE_LOCATION = {
   farmer: { key: 'farm_location', label: 'Farm Location' },
   distributor: { key: 'warehouse_location', label: 'Warehouse Location' },
@@ -24,16 +25,17 @@ export default function ProfileScreen({ navigation }) {
 
   const loc = ROLE_LOCATION[user?.role] || null;
 
-  // Seed from context. Login returns user.name; registration/profile returns
-  // user.full_name — accept either. Location fields are only present after a
-  // profile save (login/registration responses don't include them).
   const [fullName, setFullName] = useState(user?.full_name || user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [location, setLocation] = useState(loc ? (user?.[loc.key] || '') : '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Change-password modal state (Issue 9).
+  // Modals state
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
+
+  // Change-password modal state
   const [pwOpen, setPwOpen] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
@@ -78,8 +80,6 @@ export default function ProfileScreen({ navigation }) {
     setSaving(true);
     try {
       const data = await api.put(`/api/users/${user.id}`, updates);
-      // Backend returns the full user (with full_name + location fields).
-      // Keep `name` in sync so dashboard headers still render correctly.
       await updateUser({ ...data.user, name: data.user.full_name });
       showAlert('Saved', 'Profile updated.');
     } catch (err) {
@@ -97,7 +97,6 @@ export default function ProfileScreen({ navigation }) {
         setDeleting(true);
         try {
           await api.delete(`/api/users/${user.id}`);
-          // signOut flips the navigator back to Login automatically.
           await signOut();
         } catch (err) {
           showAlert('Error', err.message);
@@ -113,126 +112,151 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Text style={styles.back}>‹ Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Profile</Text>
+        <Text style={styles.title}>Account Profile</Text>
         <View style={{ width: 50 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {/* Read-only identity */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoLine}>Phone: {user?.phone || '—'}</Text>
-          <Text style={styles.infoLine}>Role: {user?.role || '—'}</Text>
+        {/* User Card */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>
+              {(fullName || user?.phone || 'U').charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <Text style={styles.userName}>{fullName || user?.phone || 'User'}</Text>
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleBadgeText}>{(user?.role || 'user').toUpperCase()}</Text>
+          </View>
+          <Text style={styles.phoneText}>📞 {user?.phone || '—'}</Text>
         </View>
 
-        <Text style={styles.fieldLabel}>Full name</Text>
-        <TextInput
-          style={styles.input}
-          value={fullName}
-          onChangeText={setFullName}
-          editable={!saving && !deleting}
-        />
+        {/* Account Settings Card */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Profile Details</Text>
 
-        <Text style={styles.fieldLabel}>Email</Text>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          editable={!saving && !deleting}
-        />
+          <Text style={styles.fieldLabel}>Full Name</Text>
+          <TextInput
+            style={styles.input}
+            value={fullName}
+            onChangeText={setFullName}
+            editable={!saving && !deleting}
+          />
 
-        {loc && (
-          <>
-            <Text style={styles.fieldLabel}>{loc.label}</Text>
-            <TextInput
-              style={styles.input}
-              value={location}
-              onChangeText={setLocation}
-              editable={!saving && !deleting}
-            />
-          </>
-        )}
+          <Text style={styles.fieldLabel}>Email Address</Text>
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            editable={!saving && !deleting}
+          />
 
-        <TouchableOpacity
-          style={[styles.button, styles.buttonPrimary, saving && styles.buttonDisabled]}
-          onPress={save}
-          disabled={saving || deleting}
-        >
-          {saving
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.buttonPrimaryText}>Save Changes</Text>}
-        </TouchableOpacity>
+          {loc && (
+            <>
+              <Text style={styles.fieldLabel}>{loc.label}</Text>
+              <TextInput
+                style={styles.input}
+                value={location}
+                onChangeText={setLocation}
+                editable={!saving && !deleting}
+              />
+            </>
+          )}
 
-        <TouchableOpacity
-          style={[styles.button, styles.buttonOutline]}
-          onPress={() => navigation.navigate('SUS')}
-          disabled={saving || deleting}
-        >
-          <Text style={styles.buttonOutlineText}>Usability Survey (SUS)</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, styles.buttonPrimary, saving && styles.buttonDisabled]}
+            onPress={save}
+            disabled={saving || deleting}
+          >
+            {saving
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.buttonPrimaryText}>Save Changes</Text>}
+          </TouchableOpacity>
+        </View>
 
-        {/* Change phone number — out of scope for now (would need a new
-            OTP verify flow against a future backend endpoint). */}
-        <TouchableOpacity
-          style={[styles.button, styles.buttonOutline]}
-          onPress={() => showAlert('Coming soon', 'Changing your phone number will be available in a future update.')}
-          disabled={saving || deleting}
-        >
-          <Text style={styles.buttonOutlineText}>Change Phone Number</Text>
-        </TouchableOpacity>
+        {/* Support & Actions Card */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Help & Support</Text>
 
-        {/* Change Password — opens the modal below (Issue 9). */}
-        <TouchableOpacity
-          style={[styles.button, styles.buttonOutline]}
-          onPress={() => setPwOpen(true)}
-          disabled={saving || deleting}
-        >
-          <Text style={styles.buttonOutlineText}>Change Password</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => setGuideOpen(true)}
+            disabled={saving || deleting}
+          >
+            <Text style={styles.menuItemText}>📖 How VeggieTrack Works (User Guide)</Text>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
 
-        {/* Account Settings — placeholder for a future settings screen. */}
-        <TouchableOpacity
-          style={[styles.button, styles.buttonOutline]}
-          onPress={() => showAlert('Account Settings', 'Notification and privacy settings are coming soon.')}
-          disabled={saving || deleting}
-        >
-          <Text style={styles.buttonOutlineText}>Account Settings</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => setContactOpen(true)}
+            disabled={saving || deleting}
+          >
+            <Text style={styles.menuItemText}>📞 Contact Us & Support</Text>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, styles.buttonOutline]}
-          onPress={logout}
-          disabled={saving || deleting}
-        >
-          <Text style={styles.buttonOutlineText}>Log out</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => navigation.navigate('SUS')}
+            disabled={saving || deleting}
+          >
+            <Text style={styles.menuItemText}>📋 Usability Survey (SUS)</Text>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, styles.buttonDanger, deleting && styles.buttonDisabled]}
-          onPress={deleteAccount}
-          disabled={saving || deleting}
-        >
-          {deleting
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.buttonPrimaryText}>Delete Account</Text>}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => setPwOpen(true)}
+            disabled={saving || deleting}
+          >
+            <Text style={styles.menuItemText}>🔒 Change Password</Text>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Logout & Delete Account Actions */}
+        <View style={styles.dangerSection}>
+          <TouchableOpacity
+            style={[styles.button, styles.buttonOutline]}
+            onPress={logout}
+            disabled={saving || deleting}
+          >
+            <Text style={styles.buttonOutlineText}>Log Out</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.buttonDanger, deleting && styles.buttonDisabled]}
+            onPress={deleteAccount}
+            disabled={saving || deleting}
+          >
+            {deleting
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.buttonDangerText}>Delete Account</Text>}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
-      {/* Change Password modal (Issue 9) */}
+      <UserGuideModal visible={guideOpen} onClose={() => setGuideOpen(false)} />
+      <ContactUsModal visible={contactOpen} onClose={() => setContactOpen(false)} />
+
+      {/* Change Password modal */}
       <Modal visible={pwOpen} transparent animationType="slide" onRequestClose={() => setPwOpen(false)}>
         <View style={styles.pwBackdrop}>
           <View style={styles.pwSheet}>
             <Text style={styles.pwTitle}>Change Password</Text>
             <Text style={styles.pwHint}>
-              Leave “current password” blank if your account doesn’t have one set yet.
+              Enter your current password and your new password below.
             </Text>
 
-            <Text style={styles.fieldLabel}>Current password</Text>
+            <Text style={styles.fieldLabel}>Current Password</Text>
             <PasswordInput
               style={styles.input}
               value={currentPw}
@@ -240,7 +264,7 @@ export default function ProfileScreen({ navigation }) {
               editable={!changingPw}
             />
 
-            <Text style={styles.fieldLabel}>New password</Text>
+            <Text style={styles.fieldLabel}>New Password</Text>
             <PasswordInput
               style={styles.input}
               value={newPw}
@@ -249,7 +273,7 @@ export default function ProfileScreen({ navigation }) {
               editable={!changingPw}
             />
 
-            <Text style={styles.fieldLabel}>Confirm new password</Text>
+            <Text style={styles.fieldLabel}>Confirm New Password</Text>
             <PasswordInput
               style={styles.input}
               value={confirmPw}
@@ -283,27 +307,110 @@ export default function ProfileScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
+  container: { flex: 1, backgroundColor: '#f8faf8' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
   back: { color: PRIMARY, fontSize: 16, fontWeight: '600', width: 50 },
-  title: { fontSize: 20, fontWeight: 'bold', color: PRIMARY },
+  title: { fontSize: 18, fontWeight: '700', color: PRIMARY },
   content: { padding: 16, paddingBottom: 40 },
-  infoCard: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#eee' },
-  infoLine: { fontSize: 15, color: '#333', marginBottom: 4 },
-  fieldLabel: { fontSize: 13, color: '#555', marginBottom: 6, marginTop: 4 },
-  input: { backgroundColor: '#fff', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 16, borderWidth: 1, borderColor: '#ddd' },
-  button: { paddingVertical: 14, borderRadius: 8, alignItems: 'center', marginTop: 8 },
-  buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  buttonOutline: { borderWidth: 1, borderColor: PRIMARY },
-  buttonOutlineText: { color: PRIMARY, fontSize: 16, fontWeight: '600' },
-  buttonDanger: { backgroundColor: '#c62828' },
+
+  // User Profile Card
+  profileCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#edf2ed',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  avatarCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#e8f5e9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: PRIMARY,
+  },
+  avatarText: { fontSize: 28, fontWeight: '800', color: PRIMARY },
+  userName: { fontSize: 18, fontWeight: '800', color: '#1a1a1a', marginBottom: 4 },
+  roleBadge: {
+    backgroundColor: '#e8f5e9',
+    borderRadius: 12,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+    marginBottom: 6,
+  },
+  roleBadgeText: { fontSize: 11, fontWeight: '700', color: PRIMARY, letterSpacing: 0.5 },
+  phoneText: { fontSize: 13, color: '#666' },
+
+  // Section Card
+  sectionCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#edf2ed',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#1a1a1a', marginBottom: 12 },
+  fieldLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginBottom: 6, marginTop: 8 },
+  input: {
+    backgroundColor: '#f8faf8',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 15,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  menuItemText: { fontSize: 14, fontWeight: '600', color: '#333' },
+  chevron: { fontSize: 18, color: '#aaa', fontWeight: '600' },
+
+  dangerSection: { gap: 10 },
+  button: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  buttonPrimary: { backgroundColor: PRIMARY, marginTop: 8 },
+  buttonPrimaryText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
+  buttonOutline: { borderWidth: 1, borderColor: PRIMARY, backgroundColor: '#ffffff' },
+  buttonOutlineText: { color: PRIMARY, fontSize: 15, fontWeight: '700' },
+  buttonDanger: { backgroundColor: '#fff5f5', borderWidth: 1, borderColor: '#ffcdd2' },
+  buttonDangerText: { color: '#c62828', fontSize: 15, fontWeight: '700' },
   buttonDisabled: { opacity: 0.6 },
 
   // Change-password modal
   pwBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  pwSheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 28 },
-  pwTitle: { fontSize: 18, fontWeight: '700', color: '#222', marginBottom: 6 },
-  pwHint: { fontSize: 13, color: '#777', marginBottom: 12 },
+  pwSheet: { backgroundColor: '#ffffff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },
+  pwTitle: { fontSize: 18, fontWeight: '800', color: '#1a1a1a', marginBottom: 6 },
+  pwHint: { fontSize: 13, color: '#666', marginBottom: 12 },
   pwActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
 });

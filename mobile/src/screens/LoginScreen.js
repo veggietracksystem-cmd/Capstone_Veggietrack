@@ -10,6 +10,8 @@ import { useAuth } from '../context/AuthContext';
 import { showAlert } from '../lib/ui';
 import { normalizePhone, isValidPhone, PHONE_HINT } from '../lib/phone';
 import PasswordInput from '../components/PasswordInput';
+import UserGuideModal from '../components/UserGuideModal';
+import ContactUsModal from '../components/ContactUsModal';
 
 const REMEMBER_KEY = 'rememberedPhone'; // AsyncStorage key for the saved phone number
 
@@ -17,11 +19,10 @@ export default function LoginScreen({ navigation }) {
   const { signIn } = useAuth();
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpMode, setOtpMode] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [cooldown, setCooldown] = useState(0); // resend cooldown, seconds remaining
-  const [rememberMe, setRememberMe] = useState(false); // persist phone for next visit
+  const [rememberMe, setRememberMe] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
 
   // Pre-fill the phone number if it was remembered on a previous login.
   useEffect(() => {
@@ -47,19 +48,12 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
-  // Self-service password reset via OTP (ForgotPasswordScreen).
+  // Self-service password reset (ForgotPasswordScreen).
   const forgotPassword = () => {
     navigation.navigate('ForgotPassword');
   };
 
-  // Tick the resend cooldown down to 0.
-  useEffect(() => {
-    if (cooldown <= 0) return undefined;
-    const id = setInterval(() => setCooldown((c) => (c <= 1 ? 0 : c - 1)), 1000);
-    return () => clearInterval(id);
-  }, [cooldown]);
-
-  // Two-step login: validate phone + password first, then send the OTP.
+  // Direct login with phone + password
   const handleLogin = async () => {
     const trimmedPhone = normalizePhone(phone);
     if (!isValidPhone(trimmedPhone)) {
@@ -73,55 +67,14 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
-      // Step 1: verify credentials (rejects a wrong password for accounts that
-      // have one set; legacy OTP-only accounts pass through).
-      await api.post('/api/auth/login', { phone: trimmedPhone, password });
-      // Step 2: credentials OK → send the OTP and switch to OTP entry.
-      await api.post('/api/auth/send-otp', { phone: trimmedPhone });
-      showAlert('Success', 'Password verified. We sent a 6-digit code to your phone.');
-      setOtpMode(true);
-      setCooldown(60); // start the resend cooldown after the first send
-    } catch (err) {
-      showAlert('Error', err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resendOTP = async () => {
-    if (cooldown > 0) return;
-    setLoading(true);
-    try {
-      await api.post('/api/auth/resend-otp', { phone: normalizePhone(phone), purpose: 'login' });
-      showAlert('Success', 'OTP resent to your phone.');
-      setCooldown(60);
-    } catch (err) {
-      showAlert('Error', err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyOTP = async () => {
-    const trimmedOtp = otp.trim();
-    if (trimmedOtp.length !== 6) {
-      showAlert('Error', 'Enter the 6-digit OTP');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const data = await api.post('/api/auth/verify-otp', {
-        phone: normalizePhone(phone),
-        otp: trimmedOtp,
-      });
-      // Save (or clear) the phone for next time based on the Remember Me choice.
+      const data = await api.post('/api/auth/login', { phone: trimmedPhone, password });
+      
       try {
-        if (rememberMe) await AsyncStorage.setItem(REMEMBER_KEY, normalizePhone(phone));
+        if (rememberMe) await AsyncStorage.setItem(REMEMBER_KEY, trimmedPhone);
         else await AsyncStorage.removeItem(REMEMBER_KEY);
       } catch { /* ignore storage errors */ }
-      // signIn saves token+user and flips the navigator to the dashboard — no reload.
-      await signIn(data.token, data.user);
+
+      await signIn(data.token, { ...data.user, name: data.user.full_name });
     } catch (err) {
       showAlert('Error', err.message);
     } finally {
@@ -136,92 +89,72 @@ export default function LoginScreen({ navigation }) {
         style={styles.inner}
       >
         <Text style={styles.title}>VeggieTrack</Text>
-        <Text style={styles.subtitle}>Sign in with your phone, password & OTP</Text>
+        <Text style={styles.subtitle}>Sign in with your phone and password</Text>
 
-        {!otpMode ? (
-          <>
-            <TextInput
-              style={styles.input}
-              placeholder="Phone number (e.g., +639171234567)"
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              autoCapitalize="none"
-              editable={!loading}
-            />
+        <TextInput
+          style={styles.input}
+          placeholder="Phone number (e.g., +639171234567)"
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+          autoCapitalize="none"
+          editable={!loading}
+        />
 
-            <PasswordInput
-              style={styles.input}
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              editable={!loading}
-            />
+        <PasswordInput
+          style={styles.input}
+          placeholder="Password"
+          value={password}
+          onChangeText={setPassword}
+          editable={!loading}
+        />
 
-            {/* Remember Me + Forgot Password row (between password input and Login) */}
-            <View style={styles.optionsRow}>
-              <TouchableOpacity
-                style={styles.rememberWrap}
-                onPress={toggleRememberMe}
-                disabled={loading}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                  {rememberMe && <Text style={styles.checkboxTick}>✓</Text>}
-                </View>
-                <Text style={styles.rememberText}>Remember Me</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={forgotPassword} disabled={loading}>
-                <Text style={styles.forgotText}>Forgot Password?</Text>
-              </TouchableOpacity>
+        {/* Remember Me + Forgot Password row */}
+        <View style={styles.optionsRow}>
+          <TouchableOpacity
+            style={styles.rememberWrap}
+            onPress={toggleRememberMe}
+            disabled={loading}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+              {rememberMe && <Text style={styles.checkboxTick}>✓</Text>}
             </View>
+            <Text style={styles.rememberText}>Remember Me</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={forgotPassword} disabled={loading}>
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </TouchableOpacity>
+        </View>
 
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
-              activeOpacity={0.7}
-            >
-              {loading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.buttonText}>Login</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')} disabled={loading}>
-              <Text style={styles.link}>No account yet? Register</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter 6-digit OTP"
-              value={otp}
-              onChangeText={setOtp}
-              keyboardType="number-pad"
-              maxLength={6}
-              editable={!loading}
-            />
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={verifyOTP}
-              disabled={loading}
-              activeOpacity={0.7}
-            >
-              {loading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.buttonText}>Verify</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={resendOTP} disabled={loading || cooldown > 0}>
-              <Text style={[styles.link, cooldown > 0 && styles.linkDisabled]}>
-                {cooldown > 0 ? `Resend OTP in ${cooldown}s` : 'Resend OTP'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setOtpMode(false)} disabled={loading}>
-              <Text style={styles.link}>Change phone number</Text>
-            </TouchableOpacity>
-          </>
-        )}
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleLogin}
+          disabled={loading}
+          activeOpacity={0.7}
+        >
+          {loading
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.buttonText}>Login</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Register')} disabled={loading}>
+          <Text style={styles.link}>No account yet? Register</Text>
+        </TouchableOpacity>
+
+        {/* User Guide & Contact Us footer links */}
+        <View style={styles.footerHelpRow}>
+          <TouchableOpacity onPress={() => setGuideOpen(true)} disabled={loading}>
+            <Text style={styles.footerHelpLink}>📖 How It Works</Text>
+          </TouchableOpacity>
+          <Text style={styles.footerHelpDot}>•</Text>
+          <TouchableOpacity onPress={() => setContactOpen(true)} disabled={loading}>
+            <Text style={styles.footerHelpLink}>📞 Contact Us</Text>
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
+
+      <UserGuideModal visible={guideOpen} onClose={() => setGuideOpen(false)} />
+      <ContactUsModal visible={contactOpen} onClose={() => setContactOpen(false)} />
     </SafeAreaView>
   );
 }
@@ -236,7 +169,6 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
   link: { textAlign: 'center', marginTop: 20, color: '#2e7d32', fontSize: 14 },
-  linkDisabled: { color: '#999' },
 
   // Remember Me + Forgot Password row
   optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: -8, marginBottom: 20 },
@@ -246,4 +178,8 @@ const styles = StyleSheet.create({
   checkboxTick: { color: '#fff', fontSize: 13, fontWeight: '700', lineHeight: 16 },
   rememberText: { color: '#555', fontSize: 14 },
   forgotText: { color: '#2e7d32', fontSize: 14, fontWeight: '600' },
+
+  footerHelpRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 28 },
+  footerHelpLink: { color: '#555', fontSize: 13, fontWeight: '600' },
+  footerHelpDot: { color: '#aaa', marginHorizontal: 12 },
 });

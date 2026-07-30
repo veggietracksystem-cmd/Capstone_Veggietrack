@@ -17,9 +17,18 @@ import OfflineBanner from '../components/OfflineBanner';
 import DeliveryMapModal from '../components/DeliveryMapModal';
 import EmptyState from '../components/EmptyState';
 import ProofPreviewModal from '../components/ProofPreviewModal';
+import BottomNavBar from '../components/BottomNavBar';
 import { showAlert, peso, shortId } from '../lib/ui';
 
 const PRIMARY = '#2e7d32';
+
+const RIDER_TABS = [
+  { id: 'home', icon: '🏠', label: 'Home' },
+  { id: 'tasks', icon: '📋', label: 'Tasks' },
+  { id: 'map', icon: '🗺️', label: 'Map' },
+  { id: 'history', icon: '📜', label: 'History' },
+  { id: 'profile', icon: '👤', label: 'Profile' },
+];
 
 function statusColor(status) {
   switch (status) {
@@ -230,24 +239,41 @@ export default function DeliveryDashboard({ navigation, route }) {
   };
   const visibleOrders = orders.filter((o) => matchesFilter(o, filter));
 
+  const [activeBottomTab, setActiveBottomTab] = useState('home');
+
+  const handleBottomTabPress = (t) => {
+    setActiveBottomTab(t.id);
+    if (t.id === 'profile') {
+      navigation.navigate('Profile');
+    } else if (t.id === 'tasks') {
+      setFilter('active');
+    } else if (t.id === 'history') {
+      setFilter('completed');
+    } else if (t.id === 'home') {
+      setFilter('all');
+    } else if (t.id === 'map') {
+      if (visibleOrders.length > 0 && visibleOrders[0].delivery_address) {
+        setMapAddress(visibleOrders[0].delivery_address);
+        if (visibleOrders[0].latitude && visibleOrders[0].longitude) {
+          setMapCoords({
+            latitude: Number(visibleOrders[0].latitude),
+            longitude: Number(visibleOrders[0].longitude),
+          });
+        }
+      }
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Delivery</Text>
-          <Text style={styles.subtitle}>Welcome, {user?.name || user?.phone}</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <ProfileButton />
-          <MessagesButton />
-          <NotificationBell />
-          <LogoutButton />
-        </View>
+      {/* Minimal Top Navigation Bar */}
+      <View style={styles.minimalHeader}>
+        <Text style={styles.minimalTitle}>Delivery Dashboard</Text>
+        <NotificationBell />
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 90 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <OfflineBanner offline={offline} />
@@ -505,12 +531,30 @@ export default function DeliveryDashboard({ navigation, route }) {
         onConfirm={() => confirmOrder && markDelivered(confirmOrder)}
         onCancel={() => setConfirmOrder(null)}
       />
+
+      <BottomNavBar
+        tabs={RIDER_TABS}
+        activeTab={activeBottomTab}
+        onTabPress={handleBottomTabPress}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
+
+  minimalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eeeeee',
+  },
+  minimalTitle: { fontSize: 18, fontWeight: '700', color: PRIMARY },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },

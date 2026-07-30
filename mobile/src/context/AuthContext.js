@@ -71,12 +71,20 @@ export function AuthProvider({ children }) {
         const savedUserJson = await storageGet('user');
 
         if (savedToken && savedUserJson && mounted) {
-          // Set the client token imperatively BEFORE state, so any child
-          // screen that mounts on the next render already has a valid token.
-          // (React runs child effects before the parent's token-sync effect.)
-          setAuthToken(savedToken);
-          setToken(savedToken);
-          setUser(JSON.parse(savedUserJson));
+          try {
+            const parsedUser = JSON.parse(savedUserJson);
+            if (parsedUser && parsedUser.role && parsedUser.id) {
+              setAuthToken(savedToken);
+              setToken(savedToken);
+              setUser(parsedUser);
+            } else {
+              await storageDelete('token');
+              await storageDelete('user');
+            }
+          } catch {
+            await storageDelete('token');
+            await storageDelete('user');
+          }
         }
       } catch (err) {
         console.warn('[Auth] Failed to restore session:', err);

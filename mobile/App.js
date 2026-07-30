@@ -42,7 +42,7 @@ function RootNavigator() {
     );
   }
 
-  const roleScreen = user ? ROLE_SCREENS[user.role] : null;
+  const roleScreen = (user && user.role && ROLE_SCREENS[user.role]) ? ROLE_SCREENS[user.role] : null;
 
   return (
     <NavigationContainer>

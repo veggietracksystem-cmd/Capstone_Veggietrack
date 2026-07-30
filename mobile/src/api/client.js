@@ -55,68 +55,75 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   }
 
   if (response.status === 401) {
-    if (authToken && path !== '/api/auth/refresh-token') {
-      try {
-        console.log('[api] Token expired. Attempting silent refresh...');
-        const refreshRes = await fetch(`${BASE_URL}/api/auth/refresh-token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: authToken }),
-        });
+    const isAuthPath = path.startsWith('/api/auth/login') ||
+                       path.startsWith('/api/auth/register') ||
+                       path.startsWith('/api/auth/verify') ||
+                       path.startsWith('/api/auth/reset');
 
-        if (refreshRes.ok) {
-          const refreshData = await refreshRes.json();
-          const newToken = refreshData.token;
+    if (!isAuthPath) {
+      if (authToken && path !== '/api/auth/refresh-token') {
+        try {
+          console.log('[api] Token expired. Attempting silent refresh...');
+          const refreshRes = await fetch(`${BASE_URL}/api/auth/refresh-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: authToken }),
+          });
 
-          if (newToken) {
-            console.log('[api] Token refreshed successfully');
-            authToken = newToken;
+          if (refreshRes.ok) {
+            const refreshData = await refreshRes.json();
+            const newToken = refreshData.token;
 
-            // Persist the new token to storage
-            if (Platform.OS === 'web') {
-              window.localStorage.setItem('token', newToken);
-            } else {
-              const SecureStore = require('expo-secure-store');
-              await SecureStore.setItemAsync('token', newToken);
-            }
+            if (newToken) {
+              console.log('[api] Token refreshed successfully');
+              authToken = newToken;
 
-            // Sync with React state in AuthContext
-            if (onTokenRefreshed) {
-              onTokenRefreshed(newToken);
-            }
-
-            // Retry original request with the new token
-            finalHeaders.Authorization = `Bearer ${newToken}`;
-            const retryRes = await fetch(url, {
-              method,
-              headers: finalHeaders,
-              body: body !== undefined ? JSON.stringify(body) : undefined,
-            });
-
-            let retryData = null;
-            const retryText = await retryRes.text();
-            if (retryText) {
-              try {
-                retryData = JSON.parse(retryText);
-              } catch {
-                retryData = { raw: retryText };
+              // Persist the new token to storage
+              if (Platform.OS === 'web') {
+                window.localStorage.setItem('token', newToken);
+              } else {
+                const SecureStore = require('expo-secure-store');
+                await SecureStore.setItemAsync('token', newToken);
               }
-            }
 
-            if (retryRes.ok) {
-              return retryData;
-            } else if (retryRes.status === 401 && onUnauthorized) {
-              onUnauthorized();
+              // Sync with React state in AuthContext
+              if (onTokenRefreshed) {
+                onTokenRefreshed(newToken);
+              }
+
+              // Retry original request with the new token
+              finalHeaders.Authorization = `Bearer ${newToken}`;
+              const retryRes = await fetch(url, {
+                method,
+                headers: finalHeaders,
+                body: body !== undefined ? JSON.stringify(body) : undefined,
+              });
+
+              let retryData = null;
+              const retryText = await retryRes.text();
+              if (retryText) {
+                try {
+                  retryData = JSON.parse(retryText);
+                } catch {
+                  retryData = { raw: retryText };
+                }
+              }
+
+              if (retryRes.ok) return retryData;
+              const err = new Error(retryData?.error || `HTTP ${retryRes.status}`);
+              err.status = retryRes.status;
+              err.data = retryData;
+              throw err;
             }
           }
+        } catch (refreshErr) {
+          console.warn('[api] Silent refresh failed:', refreshErr.message);
         }
-      } catch (refreshErr) {
-        console.error('[api] Silent token refresh failed:', refreshErr);
       }
-    }
 
-    if (onUnauthorized) {
-      onUnauthorized();
+      if (onUnauthorized) {
+        onUnauthorized();
+      }
     }
   }
 

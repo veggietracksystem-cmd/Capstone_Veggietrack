@@ -11,32 +11,37 @@ import { onReconnect } from '../offline/net';
 import { useAuth } from '../context/AuthContext';
 import LogoutButton from '../components/LogoutButton';
 import NotificationBell from '../components/NotificationBell';
-import MessagesButton from '../components/MessagesButton';
-import ProfileButton from '../components/ProfileButton';
-import OfflineBanner from '../components/OfflineBanner';
-import EmptyState from '../components/EmptyState';
-import CustomModal from '../components/CustomModal';
-import { showAlert, peso, shortId } from '../lib/ui';
+import BottomNavBar from '../components/BottomNavBar';
 
 const PRIMARY = '#2e7d32';
 
-// Pickup requests embed the harvest + (optionally) the farmer. Be defensive
-// about the exact relation key the backend returns.
-function harvestOf(req) {
-  return req.harvests || req.harvest || null;
-}
-function farmerNameOf(req) {
-  return (
-    req.farmer_name ||
-    req.farmer?.full_name ||
-    req.users?.full_name ||
-    `Farmer ${shortId(req.farmer_id)}`
-  );
-}
+const DISTRIBUTOR_TABS = [
+  { id: 'home', icon: '🏠', label: 'Home' },
+  { id: 'orders', icon: '📋', label: 'Orders' },
+  { id: 'inventory', icon: '📦', label: 'Inventory' },
+  { id: 'riders', icon: '🛵', label: 'Riders' },
+  { id: 'profile', icon: '👤', label: 'Profile' },
+];
 
 export default function DistributorDashboard({ navigation, route }) {
   const { user } = useAuth();
-  const [tab, setTab] = useState('products'); // 'products' | 'pickups' | 'orders' | 'payments'
+  const [tab, setTab] = useState('orders'); // 'products' | 'pickups' | 'orders' | 'payments'
+  const [activeBottomTab, setActiveBottomTab] = useState('home');
+
+  const handleBottomTabPress = (t) => {
+    setActiveBottomTab(t.id);
+    if (t.id === 'inventory') {
+      navigation.navigate('ProductList');
+    } else if (t.id === 'profile') {
+      navigation.navigate('Profile');
+    } else if (t.id === 'orders') {
+      setTab('orders');
+    } else if (t.id === 'riders') {
+      setTab('pickups');
+    } else if (t.id === 'home') {
+      setTab('orders');
+    }
+  };
 
   useEffect(() => {
     if (route.params?.tab) {
@@ -403,27 +408,10 @@ export default function DistributorDashboard({ navigation, route }) {
   // ---------- Render ----------
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Distributor</Text>
-          <Text style={styles.subtitle}>Welcome, {user?.name || user?.phone}</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={[styles.smallBtn, loadingReport && styles.buttonDisabled]}
-            onPress={showWeeklyReport}
-            disabled={loadingReport}
-          >
-            {loadingReport
-              ? <ActivityIndicator color={PRIMARY} />
-              : <Text style={styles.smallBtnText}>Weekly Report</Text>}
-          </TouchableOpacity>
-          <ProfileButton />
-          <MessagesButton />
-          <NotificationBell />
-          <LogoutButton />
-        </View>
+      {/* Minimal Top Navigation Bar */}
+      <View style={styles.minimalHeader}>
+        <Text style={styles.minimalTitle}>Distributor Hub</Text>
+        <NotificationBell />
       </View>
 
       {/* Tabs */}
@@ -594,6 +582,12 @@ export default function DistributorDashboard({ navigation, route }) {
           </>
         ) : null}
       </CustomModal>
+
+      <BottomNavBar
+        tabs={DISTRIBUTOR_TABS}
+        activeTab={activeBottomTab}
+        onTabPress={handleBottomTabPress}
+      />
     </SafeAreaView>
   );
 }
@@ -1012,6 +1006,18 @@ function PaymentsTab({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
+
+  minimalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eeeeee',
+  },
+  minimalTitle: { fontSize: 18, fontWeight: '700', color: PRIMARY },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
