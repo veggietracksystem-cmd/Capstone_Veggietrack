@@ -4,12 +4,14 @@
 // frontend/backend runtime boundary — not across routes on this side).
 
 const VEGETABLE_KEYWORDS = [
-  'tomato', 'eggplant', 'okra', 'cabbage', 'lettuce', 'spinach', 'pechay',
-  'kangkong', 'broccoli', 'cauliflower', 'bell pepper', 'chili pepper',
-  'carrot', 'sweet potato', 'potato', 'onion', 'garlic', 'squash',
+  'tomato', 'kamatis', 'eggplant', 'talong', 'okra', 'cabbage', 'repolyo',
+  'lettuce', 'litsugas', 'spinach', 'pechay', 'kangkong', 'water spinach',
+  'broccoli', 'cauliflower', 'bell pepper', 'chili pepper',
+  'carrot', 'karot', 'sweet potato', 'potato', 'onion', 'sibuyas', 'garlic',
+  'bawang', 'squash', 'kalabasa',
   'bitter gourd', 'ampalaya', 'bottle gourd', 'upo', 'sponge gourd', 'patola',
   'chayote', 'sayote', 'string beans', 'sitaw', 'radish', 'cucumber',
-  'celery', 'mustard greens', 'malunggay', 'talbos ng kamote',
+  'celery', 'mustard greens', 'mustasa', 'malunggay', 'talbos ng kamote',
   'basil', 'oregano', 'cilantro', 'mint', 'parsley',
 ];
 
