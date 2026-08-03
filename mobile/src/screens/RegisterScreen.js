@@ -6,23 +6,25 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n/useTranslation';
 import { showAlert } from '../lib/ui';
-import { normalizePhone, isValidPhone, PHONE_HINT } from '../lib/phone';
+import { normalizePhone, isValidPhone } from '../lib/phone';
 import PasswordInput from '../components/PasswordInput';
 import MapPinningModal from '../components/MapPinningModal';
 
 const PRIMARY = '#2e7d32';
 
-// Role -> location field key + label. The backend reads the matching key.
-const ROLES = [
-  { value: 'farmer', label: 'Farmer', locationKey: 'farm_location', locationLabel: 'Farm Location' },
-  { value: 'distributor', label: 'Distributor', locationKey: 'warehouse_location', locationLabel: 'Warehouse Location' },
-  { value: 'retailer', label: 'Retailer', locationKey: 'store_location', locationLabel: 'Store Location' },
-  { value: 'delivery_personnel', label: 'Delivery', locationKey: 'service_area', locationLabel: 'Service Area' },
-];
-
 export default function RegisterScreen({ navigation }) {
   const { signIn } = useAuth();
+  const { t } = useTranslation();
+
+  // Role -> location field key + i18n keys. The backend reads the matching key.
+  const ROLES = [
+    { value: 'farmer', label: t('auth.register.roleFarmer'), locationKey: 'farm_location', locationLabel: t('auth.register.farmLocation') },
+    { value: 'distributor', label: t('auth.register.roleDistributor'), locationKey: 'warehouse_location', locationLabel: t('auth.register.warehouseLocation') },
+    { value: 'retailer', label: t('auth.register.roleRetailer'), locationKey: 'store_location', locationLabel: t('auth.register.storeLocation') },
+    { value: 'delivery_personnel', label: t('auth.register.roleDelivery'), locationKey: 'service_area', locationLabel: t('auth.register.serviceArea') },
+  ];
 
   const [phone, setPhone] = useState('+63');
   const [fullName, setFullName] = useState('');
@@ -43,19 +45,19 @@ export default function RegisterScreen({ navigation }) {
     const trimmedName = fullName.trim();
 
     if (!isValidPhone(trimmedPhone)) {
-      showAlert('Error', PHONE_HINT);
+      showAlert(t('common.error'), t('common.phoneHint'));
       return;
     }
     if (!trimmedName) {
-      showAlert('Error', 'Enter your full name.');
+      showAlert(t('common.error'), t('auth.register.enterFullName'));
       return;
     }
     if (!password || password.length < 6) {
-      showAlert('Error', 'Password must be at least 6 characters.');
+      showAlert(t('common.error'), t('auth.register.passwordTooShort'));
       return;
     }
     if (password !== confirmPassword) {
-      showAlert('Error', 'Passwords do not match.');
+      showAlert(t('common.error'), t('auth.register.passwordsDontMatch'));
       return;
     }
 
@@ -72,11 +74,11 @@ export default function RegisterScreen({ navigation }) {
     setLoading(true);
     try {
       const data = await api.post('/api/auth/register', payload);
-      showAlert('Registration Successful', 'Your account has been created. Please log in to proceed.', () => {
+      showAlert(t('auth.register.successTitle'), t('auth.register.successMessage'), () => {
         navigation.navigate('Login');
       });
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setLoading(false);
     }
@@ -96,10 +98,10 @@ export default function RegisterScreen({ navigation }) {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Register with your phone number</Text>
+          <Text style={styles.title}>{t('auth.register.title')}</Text>
+          <Text style={styles.subtitle}>{t('auth.register.subtitle')}</Text>
 
-          <Text style={styles.fieldLabel}>Phone number</Text>
+          <Text style={styles.fieldLabel}>{t('auth.register.phoneLabel')}</Text>
           <TextInput
             style={styles.input}
             placeholder="+639171234567"
@@ -110,26 +112,26 @@ export default function RegisterScreen({ navigation }) {
             editable={!loading}
           />
 
-          <Text style={styles.fieldLabel}>Full name</Text>
+          <Text style={styles.fieldLabel}>{t('auth.register.fullNameLabel')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="Juan dela Cruz"
+            placeholder={t('auth.register.fullNamePlaceholder')}
             value={fullName}
             onChangeText={setFullName}
             editable={!loading}
           />
 
-          <Text style={styles.fieldLabel}>Username (optional)</Text>
+          <Text style={styles.fieldLabel}>{t('auth.register.usernameLabel')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g., juandc"
+            placeholder={t('auth.register.usernamePlaceholder')}
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
             editable={!loading}
           />
 
-          <Text style={styles.fieldLabel}>Role</Text>
+          <Text style={styles.fieldLabel}>{t('auth.register.roleLabel')}</Text>
           <View style={styles.roleWrap}>
             {ROLES.map((r) => {
               const selected = role === r.value;
@@ -163,29 +165,29 @@ export default function RegisterScreen({ navigation }) {
                 onPress={() => setMapModalVisible(true)}
                 disabled={loading}
               >
-                <Text style={styles.pinBtnText}>📍 Pin Map</Text>
+                <Text style={styles.pinBtnText}>{t('auth.register.pinMap')}</Text>
               </TouchableOpacity>
             )}
           </View>
           {latitude && longitude ? (
             <Text style={styles.coordsLabel}>
-              ✓ Coordinates pinned: {Number(latitude).toFixed(4)}, {Number(longitude).toFixed(4)}
+              {t('auth.register.coordsPinned', { lat: Number(latitude).toFixed(4), lng: Number(longitude).toFixed(4) })}
             </Text>
           ) : null}
 
-          <Text style={styles.fieldLabel}>Password</Text>
+          <Text style={styles.fieldLabel}>{t('auth.register.passwordLabel')}</Text>
           <PasswordInput
             style={styles.input}
-            placeholder="At least 6 characters"
+            placeholder={t('auth.register.passwordPlaceholder')}
             value={password}
             onChangeText={setPassword}
             editable={!loading}
           />
 
-          <Text style={styles.fieldLabel}>Confirm Password</Text>
+          <Text style={styles.fieldLabel}>{t('auth.register.confirmPasswordLabel')}</Text>
           <PasswordInput
             style={styles.input}
-            placeholder="Re-enter password"
+            placeholder={t('auth.register.confirmPasswordPlaceholder')}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             editable={!loading}
@@ -199,11 +201,11 @@ export default function RegisterScreen({ navigation }) {
           >
             {loading
               ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.buttonText}>Register</Text>}
+              : <Text style={styles.buttonText}>{t('auth.register.registerButton')}</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={loading}>
-            <Text style={styles.link}>Already have an account? Sign in</Text>
+            <Text style={styles.link}>{t('auth.register.haveAccount')}</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>

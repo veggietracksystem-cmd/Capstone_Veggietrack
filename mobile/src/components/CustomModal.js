@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, Animated, StyleSheet,
 } from 'react-native';
+import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = '#2e7d32';
 
@@ -25,11 +26,13 @@ export default function CustomModal({
   children,
   confirmLabel,
   onConfirm,
-  cancelLabel = 'Close',
+  cancelLabel,
   onCancel,
   busy = false,
   confirmDisabled = false,
 }) {
+  const { t } = useTranslation();
+  const resolvedCancelLabel = cancelLabel ?? t('common.close');
   const scale = useRef(new Animated.Value(0.9)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -62,7 +65,7 @@ export default function CustomModal({
                 onPress={onCancel}
                 disabled={busy}
               >
-                <Text style={styles.btnOutlineText}>{cancelLabel}</Text>
+                <Text style={styles.btnOutlineText}>{resolvedCancelLabel}</Text>
               </TouchableOpacity>
             ) : null}
             {onConfirm ? (
@@ -71,7 +74,7 @@ export default function CustomModal({
                 onPress={onConfirm}
                 disabled={busy || confirmDisabled}
               >
-                <Text style={styles.btnPrimaryText}>{confirmLabel || 'Confirm'}</Text>
+                <Text style={styles.btnPrimaryText}>{confirmLabel || t('common.confirm')}</Text>
               </TouchableOpacity>
             ) : null}
           </View>

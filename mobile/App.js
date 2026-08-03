@@ -4,13 +4,14 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { LanguageProvider } from './src/i18n/LanguageProvider';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import LandingScreen from './src/screens/LandingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
-import SUSScreen from './src/screens/SUSScreen';
+import EditProfileScreen from './src/screens/EditProfileScreen';
 import FarmerDashboard from './src/screens/FarmerDashboard';
 import DistributorDashboard from './src/screens/DistributorDashboard';
 import RetailerDashboard from './src/screens/RetailerDashboard';
@@ -32,7 +33,7 @@ const ROLE_SCREENS = {
 // Reads auth state from context and renders the right stack. Because this reads
 // context, login/logout re-render it automatically — no manual reload needed.
 function RootNavigator() {
-  const { user, loading } = useAuth();
+  const { user, loading, initialRoute } = useAuth();
 
   if (loading) {
     return (
@@ -46,13 +47,16 @@ function RootNavigator() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        screenOptions={{ headerShown: false }}
+        initialRouteName={roleScreen ? roleScreen.name : initialRoute}
+      >
         {roleScreen ? (
           <>
             <Stack.Screen name={roleScreen.name} component={roleScreen.component} />
-            {/* Reachable from a dashboard via navigation.navigate('Profile'/'SUS'). */}
+            {/* Reachable from a dashboard via navigation.navigate('Profile'). */}
             <Stack.Screen name="Profile" component={ProfileScreen} />
-            <Stack.Screen name="SUS" component={SUSScreen} />
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} />
             {/* Retailer/Distributor: live delivery tracking on a map. */}
             <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
             {/* Farmer: full harvest list (edit/delete/request pickup). */}
@@ -79,9 +83,11 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <AuthProvider>
-          <RootNavigator />
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <RootNavigator />
+          </AuthProvider>
+        </LanguageProvider>
       </ErrorBoundary>
     </SafeAreaProvider>
   );

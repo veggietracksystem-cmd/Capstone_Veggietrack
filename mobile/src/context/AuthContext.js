@@ -35,6 +35,9 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true); // true until startup restore finishes
+  // Which unauthenticated screen to land on after signOut(). Defaults to Landing;
+  // set to 'Login' for flows (like account deletion) that should skip it.
+  const [initialRoute, setInitialRoute] = useState('Landing');
 
   // Keep the API client's token in sync with context state.
   useEffect(() => {
@@ -116,7 +119,8 @@ export function AuthProvider({ children }) {
     await storageSet('user', JSON.stringify(merged));
   };
 
-  const signOut = async () => {
+  const signOut = async (opts = {}) => {
+    setInitialRoute(opts.redirectToLogin ? 'Login' : 'Landing');
     setAuthToken(null);
     setToken(null);
     setUser(null);
@@ -126,7 +130,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, loading, signIn, signOut, updateUser }}>
+    <AuthContext.Provider value={{ token, user, loading, initialRoute, signIn, signOut, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

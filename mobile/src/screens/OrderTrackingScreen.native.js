@@ -7,6 +7,7 @@ import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
 import api from '../api/client';
 import OrderStepIndicator from '../components/OrderStepIndicator';
+import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = '#2e7d32';
 const POLL_MS = 10000; // Issue 11: refresh order status every 10s while visible
@@ -27,18 +28,19 @@ function statusColor(status) {
 }
 
 // Very rough "ETA" placeholder keyed off status (no routing API wired up yet).
-function mockEta(status) {
+function mockEta(status, t) {
   switch (status) {
-    case 'delivered': return 'Delivered';
-    case 'in_transit': return '10–15 mins';
+    case 'delivered': return t('orderTracking.etaDelivered');
+    case 'in_transit': return t('orderTracking.etaInTransit');
     case 'assigned':
-    case 'approved': return '30–45 mins';
-    default: return 'Awaiting dispatch';
+    case 'approved': return t('orderTracking.etaDispatched');
+    default: return t('orderTracking.etaAwaitingDispatch');
   }
 }
 
 // Reachable via navigation.navigate('OrderTracking', { orderId, deliveryAddress, orderStatus }).
 export default function OrderTrackingScreen({ route, navigation }) {
+  const { t } = useTranslation();
   const { orderId, deliveryAddress: initialAddress, orderStatus = 'pending' } = route.params || {};
 
   const [address, setAddress] = useState(initialAddress || '');
@@ -115,10 +117,10 @@ export default function OrderTrackingScreen({ route, navigation }) {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>‹ Back</Text>
+          <Text style={styles.back}>‹ {t('common.back')}</Text>
         </TouchableOpacity>
         <Text style={styles.title} numberOfLines={1}>
-          {orderId ? `Order #${String(orderId).slice(0, 8)}` : 'Order Tracking'}
+          {orderId ? t('orderTracking.orderNumber', { id: String(orderId).slice(0, 8) }) : t('orderTracking.titleFallback')}
         </Text>
         <View style={{ width: 50 }} />
       </View>
@@ -128,7 +130,7 @@ export default function OrderTrackingScreen({ route, navigation }) {
         <View style={[styles.statusBadge, { backgroundColor: statusColor(status) }]}>
           <Text style={styles.statusBadgeText}>{String(status).replace(/_/g, ' ')}</Text>
         </View>
-        <Text style={styles.eta}>🕒 ETA: {mockEta(status)}</Text>
+        <Text style={styles.eta}>{t('orderTracking.etaLabel', { eta: mockEta(status, t) })}</Text>
       </View>
       {address ? <Text style={styles.addr}>📍 {address}</Text> : null}
 
@@ -147,12 +149,12 @@ export default function OrderTrackingScreen({ route, navigation }) {
             {/* OpenStreetMap raster tiles (no API key needed) */}
             <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
             {destination && (
-              <Marker coordinate={destination} title="Delivery address" description={deliveryAddress} pinColor="#d32f2f" />
+              <Marker coordinate={destination} title="Delivery address" description={address} pinColor="#d32f2f" />
             )}
           </MapView>
           {geocodeFailed ? (
             <Text style={styles.note}>
-              Couldn’t pinpoint that address — showing San Pablo City as an approximation.
+              {t('orderTracking.geocodeFailedNative')}
             </Text>
           ) : null}
         </>

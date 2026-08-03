@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const { isVegetable, VEGETABLE_VALIDATION_MESSAGE } = require('./lib/vegetables');
 
 // Legacy marker stored as password_hash for accounts created before password
 // login existed. These accounts have NO real password, so we skip the bcrypt
@@ -273,6 +274,9 @@ app.post('/api/harvests', verifyToken, async (req, res) => {
   if (!vegetable_name || !quantity_kg) {
     return res.status(400).json({ error: 'Vegetable name and quantity required' });
   }
+  if (!isVegetable(vegetable_name)) {
+    return res.status(400).json({ error: VEGETABLE_VALIDATION_MESSAGE });
+  }
 
   const { data, error } = await supabaseAdmin
     .from('harvests')
@@ -355,6 +359,9 @@ app.put('/api/harvests/:id', verifyToken, async (req, res) => {
 
   if (fetchError || !existing) {
     return res.status(404).json({ error: 'Harvest not found or not owned by you' });
+  }
+  if (vegetable_name !== undefined && !isVegetable(vegetable_name)) {
+    return res.status(400).json({ error: VEGETABLE_VALIDATION_MESSAGE });
   }
 
   const updates = {};
@@ -681,6 +688,9 @@ app.post('/api/products', verifyToken, async (req, res) => {
   }
   if (!vegetable_name || !price_per_kg || stock_kg === undefined) {
     return res.status(400).json({ error: 'Vegetable name, price, and stock are required' });
+  }
+  if (!isVegetable(vegetable_name)) {
+    return res.status(400).json({ error: VEGETABLE_VALIDATION_MESSAGE });
   }
 
   const { data, error } = await supabaseAdmin

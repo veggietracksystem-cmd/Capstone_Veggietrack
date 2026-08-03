@@ -1,17 +1,19 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = '#2e7d32';
 
 // First screen for unauthenticated users (Issue 13). Logged-in users never reach
 // this because App.js renders the role dashboard stack instead of the auth stack.
 export default function LandingScreen({ navigation }) {
+  const { t } = useTranslation();
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.hero}>
         <Text style={styles.logo}>🥬</Text>
-        <Text style={styles.appName}>VeggieTrack</Text>
-        <Text style={styles.tagline}>Fresh produce, tracked from farm to store.</Text>
+        <Text style={styles.appName}>{t('landing.appName')}</Text>
+        <Text style={styles.tagline}>{t('landing.tagline')}</Text>
       </View>
 
       <View style={styles.actions}>
@@ -20,11 +22,11 @@ export default function LandingScreen({ navigation }) {
           onPress={() => navigation.navigate('Login')}
           activeOpacity={0.85}
         >
-          <Text style={styles.primaryBtnText}>Get Started</Text>
+          <Text style={styles.primaryBtnText}>{t('landing.getStarted')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.navigate('Register')} activeOpacity={0.7}>
-          <Text style={styles.link}>New here? Create an account</Text>
+          <Text style={styles.link}>{t('landing.createAccount')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

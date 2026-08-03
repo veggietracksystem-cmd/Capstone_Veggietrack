@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
 import { showAlert, confirmAction } from '../lib/ui';
+import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = '#2e7d32';
 
@@ -32,6 +33,7 @@ function getVegetableTile(name) {
 }
 
 export default function HarvestListScreen({ navigation }) {
+  const { t } = useTranslation();
   const [harvests, setHarvests] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,7 @@ export default function HarvestListScreen({ navigation }) {
       const data = await api.get('/api/harvests');
       setHarvests(Array.isArray(data) ? data : []);
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     }
   }, []);
 
@@ -67,15 +69,15 @@ export default function HarvestListScreen({ navigation }) {
 
   const deleteHarvest = (harvest) => {
     confirmAction(
-      'Delete Harvest',
-      `Remove ${harvest.vegetable_name} (${harvest.quantity_kg}kg)? This can’t be undone.`,
+      t('harvestList.deleteConfirmTitle'),
+      t('harvestList.deleteConfirmMessage', { name: harvest.vegetable_name, qty: harvest.quantity_kg }),
       async () => {
         setBusyId(harvest.id);
         try {
           await api.delete(`/api/harvests/${harvest.id}`);
           setHarvests((prev) => prev.filter((h) => h.id !== harvest.id));
         } catch (err) {
-          showAlert('Error', err.message);
+          showAlert(t('common.error'), err.message);
         } finally {
           setBusyId(null);
         }
@@ -87,9 +89,9 @@ export default function HarvestListScreen({ navigation }) {
     setBusyId(harvest.id);
     try {
       await api.post('/api/pickup-requests', { harvest_id: harvest.id, note: null });
-      showAlert('Pickup Requested', `Distributors have been notified for ${harvest.vegetable_name} (${harvest.quantity_kg}kg).`);
+      showAlert(t('harvestList.pickupRequestedTitle'), t('harvestList.pickupRequestedMessage', { name: harvest.vegetable_name, qty: harvest.quantity_kg }));
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setBusyId(null);
     }
@@ -105,9 +107,9 @@ export default function HarvestListScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.back}>‹ Back</Text>
+          <Text style={styles.back}>‹ {t('common.back')}</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>All Crop Harvests</Text>
+        <Text style={styles.title}>{t('harvestList.title')}</Text>
         <View style={{ width: 50 }} />
       </View>
 
@@ -120,7 +122,7 @@ export default function HarvestListScreen({ navigation }) {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search crops or vegetables..."
+            placeholder={t('harvestList.searchPlaceholder')}
             placeholderTextColor="#999"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -139,8 +141,8 @@ export default function HarvestListScreen({ navigation }) {
         ) : filteredHarvests.length === 0 ? (
           <EmptyState
             icon="🥬"
-            title="No harvests found"
-            message="Log a harvest from your dashboard so distributors can request a pickup."
+            title={t('harvestList.emptyTitle')}
+            message={t('harvestList.emptyMessage')}
           />
         ) : (
           /* 2-Column Marketplace Grid Layout */
@@ -162,12 +164,12 @@ export default function HarvestListScreen({ navigation }) {
 
                   {/* Stock Pill Badge */}
                   <View style={styles.stockBadge}>
-                    <Text style={styles.stockBadgeText}>{h.quantity_kg} kg in stock</Text>
+                    <Text style={styles.stockBadgeText}>{t('harvestList.kgInStock', { qty: h.quantity_kg })}</Text>
                   </View>
 
                   {/* Status Pill */}
                   <Text style={styles.statusLabel}>
-                    {h.status === 'available' ? 'Available' : h.status}
+                    {h.status === 'available' ? t('harvestList.statusAvailable') : h.status}
                   </Text>
 
                   {/* Action Buttons */}
@@ -178,7 +180,7 @@ export default function HarvestListScreen({ navigation }) {
                       disabled={busy}
                       activeOpacity={0.85}
                     >
-                      <Text style={styles.manageBtnText}>✏️ Edit</Text>
+                      <Text style={styles.manageBtnText}>{t('harvestList.editBtn')}</Text>
                     </TouchableOpacity>
 
                     {h.status === 'available' && (
@@ -188,7 +190,7 @@ export default function HarvestListScreen({ navigation }) {
                         disabled={busy}
                         activeOpacity={0.85}
                       >
-                        <Text style={styles.pickupBtnText}>📦 Pickup</Text>
+                        <Text style={styles.pickupBtnText}>{t('harvestList.pickupBtn')}</Text>
                       </TouchableOpacity>
                     )}
 
@@ -201,7 +203,7 @@ export default function HarvestListScreen({ navigation }) {
                       {busy ? (
                         <ActivityIndicator color="#c62828" size="small" />
                       ) : (
-                        <Text style={styles.deleteBtnText}>🗑️ Delete</Text>
+                        <Text style={styles.deleteBtnText}>{t('harvestList.deleteBtn')}</Text>
                       )}
                     </TouchableOpacity>
                   </View>

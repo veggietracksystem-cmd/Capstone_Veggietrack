@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = '#2e7d32';
 const POLL_MS = 30000;
@@ -22,6 +23,7 @@ const roleLabel = (r) => (r ? r.replace('_', ' ') : '');
 
 export default function MessagesButton() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState('contacts'); // 'contacts' | 'thread'
   const [contacts, setContacts] = useState([]);
@@ -101,7 +103,7 @@ export default function MessagesButton() {
       const data = await api.get('/api/messages/contacts');
       setContacts(Array.isArray(data) ? data : []);
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setLoading(false);
     }
@@ -116,7 +118,7 @@ export default function MessagesButton() {
       setThread(Array.isArray(data) ? data : []);
       await loadUnread(); // opening marks incoming as read
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setLoading(false);
     }
@@ -131,7 +133,7 @@ export default function MessagesButton() {
       setThread((prev) => [...prev, data]);
       setInput('');
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setSending(false);
     }
@@ -162,7 +164,7 @@ export default function MessagesButton() {
                 </TouchableOpacity>
               ) : <View style={{ width: 50 }} />}
               <Text style={styles.sheetTitle} numberOfLines={1}>
-                {view === 'thread' ? (active?.full_name || 'Chat') : 'Messages'}
+                {view === 'thread' ? (active?.full_name || t('messages.chat')) : t('messages.title')}
               </Text>
               <TouchableOpacity onPress={() => setOpen(false)}>
                 <Text style={styles.close}>✕</Text>
@@ -173,7 +175,7 @@ export default function MessagesButton() {
               <ActivityIndicator size="large" color={PRIMARY} style={{ marginVertical: 40 }} />
             ) : view === 'contacts' ? (
               contacts.length === 0 ? (
-                <Text style={styles.empty}>No contacts available.</Text>
+                <Text style={styles.empty}>{t('messages.noContacts')}</Text>
               ) : (
                 <ScrollView style={styles.list}>
                   {contacts.map((c) => (
@@ -184,7 +186,7 @@ export default function MessagesButton() {
                         </Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.contactName}>{c.full_name || 'Unknown'}</Text>
+                        <Text style={styles.contactName}>{c.full_name || t('messages.unknownContact')}</Text>
                         <Text style={styles.contactRole}>{roleLabel(c.role)}</Text>
                       </View>
                       {c.unread_count > 0 && (
@@ -201,7 +203,7 @@ export default function MessagesButton() {
               <>
                 <ScrollView style={styles.thread} contentContainerStyle={{ paddingVertical: 8 }}>
                   {thread.length === 0 ? (
-                    <Text style={styles.empty}>No messages yet. Say hello 👋</Text>
+                    <Text style={styles.empty}>{t('messages.noMessagesYet')}</Text>
                   ) : (
                     thread.map((m) => {
                       const mine = m.sender_id === user?.id;
@@ -218,7 +220,7 @@ export default function MessagesButton() {
                 <View style={styles.inputRow}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Type a message…"
+                    placeholder={t('messages.typePlaceholder')}
                     value={input}
                     onChangeText={setInput}
                     editable={!sending}
@@ -231,7 +233,7 @@ export default function MessagesButton() {
                   >
                     {sending
                       ? <ActivityIndicator color="#fff" />
-                      : <Text style={styles.sendText}>Send</Text>}
+                      : <Text style={styles.sendText}>{t('messages.send')}</Text>}
                   </TouchableOpacity>
                 </View>
               </>

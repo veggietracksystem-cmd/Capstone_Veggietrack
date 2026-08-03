@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n/useTranslation';
 import api from '../api/client';
 
 const PRIMARY = '#2e7d32';
@@ -20,18 +21,18 @@ function showAlert(title, message) {
 }
 
 // Lightweight relative-time formatter (no date lib needed).
-function timeAgo(iso) {
+function timeAgo(iso, t) {
   if (!iso) return '';
   const then = new Date(iso).getTime();
   if (isNaN(then)) return '';
   const secs = Math.floor((Date.now() - then) / 1000);
-  if (secs < 60) return 'just now';
+  if (secs < 60) return t('notifications.justNow');
   const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return t('notifications.minAgo', { n: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
+  if (hrs < 24) return t('notifications.hourAgo', { n: hrs });
   const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
+  if (days < 7) return t('notifications.dayAgo', { n: days });
   return new Date(iso).toLocaleDateString();
 }
 
@@ -47,6 +48,7 @@ function typeColor(type) {
 export default function NotificationBell() {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -61,7 +63,7 @@ export default function NotificationBell() {
       if (mounted.current) setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       // Silent on background polls; only surface if the modal is open.
-      if (open) showAlert('Error', err.message);
+      if (open) showAlert(t('common.error'), err.message);
     }
   }, [open]);
 
@@ -96,7 +98,7 @@ export default function NotificationBell() {
       await api.put(`/api/notifications/${n.id}/read`);
     } catch (err) {
       setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, is_read: false } : x)));
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     }
   };
 
@@ -127,7 +129,7 @@ export default function NotificationBell() {
       await api.put('/api/notifications/read-all');
     } catch (err) {
       setItems(snapshot); // revert
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     }
   };
 
@@ -149,10 +151,10 @@ export default function NotificationBell() {
 
           <View style={styles.card}>
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>🔔 Notifications</Text>
+              <Text style={styles.sheetTitle}>{t('notifications.title')}</Text>
               {unread > 0 && (
                 <View style={styles.headerBadge}>
-                  <Text style={styles.headerBadgeText}>{unread} new</Text>
+                  <Text style={styles.headerBadgeText}>{t('notifications.newBadge', { count: unread })}</Text>
                 </View>
               )}
             </View>
@@ -160,7 +162,7 @@ export default function NotificationBell() {
             {loading ? (
               <ActivityIndicator size="large" color={PRIMARY} style={{ marginVertical: 40 }} />
             ) : items.length === 0 ? (
-              <Text style={styles.emptyText}>No notifications yet.</Text>
+              <Text style={styles.emptyText}>{t('notifications.empty')}</Text>
             ) : (
               <ScrollView
                 style={styles.list}
@@ -179,7 +181,7 @@ export default function NotificationBell() {
                         <Text style={[styles.itemTitle, !n.is_read && styles.itemTitleUnread]} numberOfLines={1}>
                           {n.title}
                         </Text>
-                        <Text style={styles.itemTime}>{timeAgo(n.created_at)}</Text>
+                        <Text style={styles.itemTime}>{timeAgo(n.created_at, t)}</Text>
                       </View>
                       <Text style={styles.itemMessage}>{n.message}</Text>
                     </View>
@@ -196,10 +198,10 @@ export default function NotificationBell() {
                 onPress={markAllRead}
                 disabled={unread === 0}
               >
-                <Text style={[styles.footerOutlineText, unread === 0 && styles.linkDisabled]}>Mark all read</Text>
+                <Text style={[styles.footerOutlineText, unread === 0 && styles.linkDisabled]}>{t('notifications.markAllRead')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.footerBtn, styles.footerBtnPrimary]} onPress={() => setOpen(false)}>
-                <Text style={styles.footerPrimaryText}>Close</Text>
+                <Text style={styles.footerPrimaryText}>{t('notifications.close')}</Text>
               </TouchableOpacity>
             </View>
           </View>

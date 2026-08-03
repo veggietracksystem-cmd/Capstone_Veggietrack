@@ -8,22 +8,42 @@ import NetInfo from '@react-native-community/netinfo';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
-import LogoutButton from '../components/LogoutButton';
+import { useTranslation } from '../i18n/useTranslation';
+import { showAlert, peso, shortId } from '../lib/ui';
 import NotificationBell from '../components/NotificationBell';
 import BottomNavBar from '../components/BottomNavBar';
+import EmptyState from '../components/EmptyState';
+import ImageViewerModal from '../components/ImageViewerModal';
+import OfflineBanner from '../components/OfflineBanner';
+import SchedulePicker from '../components/SchedulePicker';
+import OrderStepIndicator from '../components/OrderStepIndicator';
+import { CATEGORIES, getCategory } from '../lib/vegetables';
 
 const PRIMARY = '#2e7d32';
 
-const RETAILER_TABS = [
-  { id: 'home', icon: '🏠', label: 'Home' },
-  { id: 'browse', icon: '🥬', label: 'Browse' },
-  { id: 'orders', icon: '📦', label: 'Orders' },
-  { id: 'track', icon: '🗺️', label: 'Track' },
-  { id: 'profile', icon: '👤', label: 'Profile' },
-];
+function statusColor(status) {
+  switch (status) {
+    case 'pending': return '#f9a825';
+    case 'approved':
+    case 'assigned': return '#1976d2';
+    case 'in_transit': return '#7b1fa2';
+    case 'delivered': return PRIMARY;
+    case 'cancelled': return '#c62828';
+    default: return '#607d8b';
+  }
+}
 
 export default function RetailerDashboard({ navigation, route }) {
   const { user } = useAuth();
+  const { t } = useTranslation();
+
+  const RETAILER_TABS = [
+    { id: 'home', icon: '🏠', label: t('dashboards.retailer.tabHome') },
+    { id: 'browse', icon: '🥬', label: t('dashboards.retailer.tabBrowse') },
+    { id: 'orders', icon: '📦', label: t('dashboards.retailer.tabOrders') },
+    { id: 'track', icon: '🗺️', label: t('dashboards.retailer.tabTrack') },
+    { id: 'profile', icon: '👤', label: t('dashboards.retailer.tabProfile') },
+  ];
   const [tab, setTab] = useState('shop'); // 'shop' | 'orders'
   const [activeBottomTab, setActiveBottomTab] = useState('home');
 
@@ -131,14 +151,14 @@ export default function RetailerDashboard({ navigation, route }) {
   // ---------- Cart ----------
   const addToCart = (product) => {
     if (product.stock_kg <= 0) {
-      showAlert('Out of stock', `${product.vegetable_name} is currently unavailable.`);
+      showAlert(t('dashboards.retailer.outOfStockTitle'), t('dashboards.retailer.outOfStockMessage', { name: product.vegetable_name }));
       return;
     }
     setCart((prev) => {
       const existing = prev.find((c) => c.product_id === product.id);
       if (existing) {
         if (existing.quantity >= product.stock_kg) {
-          showAlert('Limit reached', `Only ${product.stock_kg}kg of ${product.vegetable_name} available.`);
+          showAlert(t('dashboards.retailer.limitReachedTitle'), t('dashboards.retailer.limitReachedMessage', { qty: product.stock_kg, name: product.vegetable_name }));
           return prev;
         }
         return prev.map((c) =>
@@ -165,7 +185,7 @@ export default function RetailerDashboard({ navigation, route }) {
         const next = c.quantity + delta;
         if (next <= 0) return []; // remove
         if (next > c.stock) {
-          showAlert('Limit reached', `Only ${c.stock}kg of ${c.name} available.`);
+          showAlert(t('dashboards.retailer.limitReachedTitle'), t('dashboards.retailer.limitReachedMessage', { qty: c.stock, name: c.name }));
           return [c];
         }
         return [{ ...c, quantity: next }];
@@ -183,16 +203,16 @@ export default function RetailerDashboard({ navigation, route }) {
   // ---------- Place order ----------
   const placeOrder = async () => {
     if (cart.length === 0) {
-      showAlert('Empty cart', 'Add at least one product before ordering.');
+      showAlert(t('dashboards.retailer.emptyCartTitle'), t('dashboards.retailer.emptyCartMessage'));
       return;
     }
     if (!address.trim()) {
-      showAlert('Error', 'Enter a delivery address.');
+      showAlert(t('common.error'), t('dashboards.retailer.enterAddress'));
       return;
     }
     // Issue 11: preferred schedule is now required.
     if (!schedule) {
-      showAlert('Error', 'Select a preferred delivery date and time.');
+      showAlert(t('common.error'), t('dashboards.retailer.selectSchedule'));
       return;
     }
 
@@ -215,12 +235,12 @@ export default function RetailerDashboard({ navigation, route }) {
       setAddress(user?.store_location || '');
       setSchedule('');
       await Promise.all([loadOrders(), loadProducts()]); // refresh orders + stock
-      showAlert('Success', 'Your order has been placed.');
+      showAlert(t('dashboards.retailer.orderSuccessTitle'), t('dashboards.retailer.orderSuccessMessage'));
       setTab('orders');
     } catch (err) {
       // Issue 4: surface the exact backend error message.
       console.error('[placeOrder] failed:', err);
-      showAlert('Order failed', err?.message || 'Something went wrong placing your order.');
+      showAlert(t('dashboards.retailer.orderFailedTitle'), err?.message || t('dashboards.retailer.orderFailedFallback'));
     } finally {
       setPlacing(false);
     }
@@ -229,14 +249,14 @@ export default function RetailerDashboard({ navigation, route }) {
   const cancelOrder = async (orderId) => {
     const confirm = await new Promise((resolve) => {
       if (Platform.OS === 'web') {
-        resolve(window.confirm('Are you sure you want to cancel this order?'));
+        resolve(window.confirm(t('dashboards.retailer.cancelOrderMessage')));
       } else {
         Alert.alert(
-          'Cancel Order',
-          'Are you sure you want to cancel this order?',
+          t('dashboards.retailer.cancelOrderTitle'),
+          t('dashboards.retailer.cancelOrderMessage'),
           [
-            { text: 'No', onPress: () => resolve(false), style: 'cancel' },
-            { text: 'Yes, Cancel', onPress: () => resolve(true), style: 'destructive' },
+            { text: t('dashboards.retailer.cancelNo'), onPress: () => resolve(false), style: 'cancel' },
+            { text: t('dashboards.retailer.cancelYes'), onPress: () => resolve(true), style: 'destructive' },
           ]
         );
       }
@@ -246,10 +266,10 @@ export default function RetailerDashboard({ navigation, route }) {
 
     try {
       await api.put(`/api/orders/${orderId}/cancel`);
-      showAlert('Success', 'Order cancelled successfully.');
+      showAlert(t('dashboards.retailer.orderSuccessTitle'), t('dashboards.retailer.orderCancelledMessage'));
       await loadOrders(); // Refresh order list
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     }
   };
 
@@ -258,7 +278,7 @@ export default function RetailerDashboard({ navigation, route }) {
     <SafeAreaView style={styles.container}>
       {/* Minimal Top Navigation Bar */}
       <View style={styles.minimalHeader}>
-        <Text style={styles.minimalTitle}>Retailer Store</Text>
+        <Text style={styles.minimalTitle}>{t('dashboards.retailer.storeTitle')}</Text>
         <NotificationBell />
       </View>
 
@@ -268,14 +288,14 @@ export default function RetailerDashboard({ navigation, route }) {
           onPress={() => setTab('shop')}
         >
           <Text style={[styles.tabText, tab === 'shop' && styles.tabTextActive]}>
-            Shop{totalItems ? ` (${totalItems})` : ''}
+            {t('dashboards.retailer.shopTab')}{totalItems ? ` (${totalItems})` : ''}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, tab === 'orders' && styles.tabActive]}
           onPress={() => setTab('orders')}
         >
-          <Text style={[styles.tabText, tab === 'orders' && styles.tabTextActive]}>My Orders</Text>
+          <Text style={[styles.tabText, tab === 'orders' && styles.tabTextActive]}>{t('dashboards.retailer.myOrdersTab')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -338,13 +358,18 @@ function ShopTab({
   address, setAddress, schedule, setSchedule, placing,
   onAdd, onChangeQty, onRemove, onPlaceOrder,
 }) {
+  const { t } = useTranslation();
+  const [category, setCategory] = useState('All');
+
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
-  // Local, case-insensitive filter by vegetable name.
+  // Local, case-insensitive filter by vegetable name + category.
   const query = searchQuery.trim().toLowerCase();
-  const filteredProducts = query
-    ? products.filter((p) => p.vegetable_name?.toLowerCase().includes(query))
-    : products;
+  const filteredProducts = products.filter((p) => {
+    const matchesQuery = !query || p.vegetable_name?.toLowerCase().includes(query);
+    const matchesCategory = category === 'All' || getCategory(p.vegetable_name) === category;
+    return matchesQuery && matchesCategory;
+  });
 
   return (
     <View>
@@ -353,7 +378,7 @@ function ShopTab({
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search vegetables..."
+          placeholder={t('dashboards.retailer.searchPlaceholder')}
           value={searchQuery}
           onChangeText={setSearchQuery}
           autoCapitalize="none"
@@ -366,28 +391,51 @@ function ShopTab({
         )}
       </View>
 
+      {/* Category filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterChipRow}
+      >
+        {CATEGORIES.map((c) => (
+          <TouchableOpacity
+            key={c}
+            style={[styles.filterChip, category === c && styles.filterChipActive]}
+            onPress={() => setCategory(c)}
+          >
+            <Text style={[styles.filterChipText, category === c && styles.filterChipTextActive]}>
+              {t(`categories.${c}`)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       {/* Products */}
-      <Text style={styles.sectionTitle}>Available Products</Text>
+      <Text style={styles.sectionTitle}>{t('dashboards.retailer.availableProducts')}</Text>
       {products.length === 0 ? (
         <EmptyState
           icon="🥬"
-          title="No products available"
-          message="Check back soon — distributors haven’t listed anything yet."
+          title={t('dashboards.retailer.noProductsTitle')}
+          message={t('dashboards.retailer.noProductsMessage')}
         />
       ) : filteredProducts.length === 0 ? (
-        <Text style={styles.emptyText}>No vegetables match “{searchQuery.trim()}”.</Text>
+        <Text style={styles.emptyText}>
+          {searchQuery.trim()
+            ? t('dashboards.retailer.noMatchQuery', { query: searchQuery.trim() })
+            : t('dashboards.retailer.noMatchCategory', { category: t(`categories.${category}`) })}
+        </Text>
       ) : (
         filteredProducts.map((p) => (
           <View key={p.id} style={styles.rowCard}>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>{p.vegetable_name}</Text>
               <Text style={styles.rowMeta}>
-                {peso(p.price_per_kg)} / kg · {p.stock_kg} kg available
-                {p.harvest_date ? `\n📅 Harvested: ${new Date(p.harvest_date).toLocaleDateString()}` : ''}
+                {peso(p.price_per_kg)} / kg · {t('dashboards.retailer.kgAvailable', { qty: p.stock_kg })}
+                {p.harvest_date ? `\n${t('dashboards.retailer.harvested', { date: new Date(p.harvest_date).toLocaleDateString() })}` : ''}
               </Text>
             </View>
             <TouchableOpacity style={styles.smallBtnFilled} onPress={() => onAdd(p)}>
-              <Text style={styles.smallBtnFilledText}>Add to Cart</Text>
+              <Text style={styles.smallBtnFilledText}>{t('dashboards.retailer.addToCart')}</Text>
             </TouchableOpacity>
           </View>
         ))
@@ -395,17 +443,17 @@ function ShopTab({
 
       {/* Cart */}
       <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
-        Cart {totalItems ? `· ${totalItems} kg` : ''}
+        {t('dashboards.retailer.cart')} {totalItems ? `· ${totalItems} kg` : ''}
       </Text>
       {cart.length === 0 ? (
-        <Text style={styles.emptyText}>Your cart is empty.</Text>
+        <Text style={styles.emptyText}>{t('dashboards.retailer.cartEmpty')}</Text>
       ) : (
         <View>
           {cart.map((c) => (
             <View key={c.product_id} style={styles.cartCard}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>{c.name}</Text>
-                <Text style={styles.rowMeta}>{peso(c.price)} / kg · subtotal {peso(c.price * c.quantity)}</Text>
+                <Text style={styles.rowMeta}>{peso(c.price)} / kg · {t('dashboards.retailer.subtotal', { amount: peso(c.price * c.quantity) })}</Text>
               </View>
               <View style={styles.qtyControls}>
                 <TouchableOpacity style={styles.qtyBtn} onPress={() => onChangeQty(c.product_id, -1)}>
@@ -424,21 +472,21 @@ function ShopTab({
 
           {/* Summary */}
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total ({totalItems} kg)</Text>
+            <Text style={styles.summaryLabel}>{t('dashboards.retailer.total', { qty: totalItems })}</Text>
             <Text style={styles.summaryTotal}>{peso(totalAmount)}</Text>
           </View>
 
           {/* Order form */}
-          <Text style={styles.fieldLabel}>Delivery address * (from your store location — editable)</Text>
+          <Text style={styles.fieldLabel}>{t('dashboards.retailer.deliveryAddressLabel')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g., 123 Market St, Baguio City"
+            placeholder={t('dashboards.retailer.deliveryAddressPlaceholder')}
             value={address}
             onChangeText={setAddress}
             editable={!placing}
             multiline
           />
-          <Text style={styles.fieldLabel}>Preferred delivery time *</Text>
+          <Text style={styles.fieldLabel}>{t('dashboards.retailer.preferredTimeLabel')}</Text>
           <SchedulePicker value={schedule} onChange={setSchedule} disabled={placing} />
 
           <TouchableOpacity
@@ -448,7 +496,7 @@ function ShopTab({
           >
             {placing
               ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.buttonPrimaryText}>Place Order · {peso(totalAmount)}</Text>}
+              : <Text style={styles.buttonPrimaryText}>{t('dashboards.retailer.placeOrder', { amount: peso(totalAmount) })}</Text>}
           </TouchableOpacity>
         </View>
       )}
@@ -463,41 +511,42 @@ function getProofUrl(order) {
 }
 
 function OrdersTab({ loading, orders, onViewProof, onTrack, onCancel }) {
+  const { t } = useTranslation();
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
   if (orders.length === 0) {
     return (
       <EmptyState
         icon="🧾"
-        title="No orders yet"
-        message="Head to the Shop tab to place your first order."
+        title={t('dashboards.retailer.noOrdersTitle')}
+        message={t('dashboards.retailer.noOrdersMessage')}
       />
     );
   }
 
   return (
     <View>
-      <Text style={styles.sectionTitle}>My Orders</Text>
+      <Text style={styles.sectionTitle}>{t('dashboards.retailer.myOrders')}</Text>
       {orders.map((o) => (
         <View key={o.id} style={styles.orderCard}>
           <View style={styles.orderHeader}>
-            <Text style={styles.orderId}>Order #{shortId(o.id)}</Text>
+            <Text style={styles.orderId}>{t('dashboards.retailer.orderNumber', { id: shortId(o.id) })}</Text>
             <View style={[styles.statusBadge, { backgroundColor: statusColor(o.status) }]}>
               <Text style={styles.statusBadgeText}>{o.status}</Text>
             </View>
           </View>
           <Text style={styles.orderTotal}>{peso(o.total_amount)}</Text>
           {o.delivery_address ? (
-            <Text style={styles.rowMeta}>Deliver to: {o.delivery_address}</Text>
+            <Text style={styles.rowMeta}>{t('dashboards.retailer.deliverTo', { address: o.delivery_address })}</Text>
           ) : null}
           {o.preferred_schedule ? (
-            <Text style={styles.rowMeta}>Schedule: {o.preferred_schedule}</Text>
+            <Text style={styles.rowMeta}>{t('dashboards.retailer.schedule', { schedule: o.preferred_schedule })}</Text>
           ) : null}
 
           {/* Issue 16: visual progress (Pending → Approved → Out for Delivery → Delivered).
               Cancelled orders skip the tracker; the status badge above already conveys it. */}
           {o.status === 'cancelled' ? (
-            <Text style={styles.cancelledNote}>This order was cancelled.</Text>
+            <Text style={styles.cancelledNote}>{t('dashboards.retailer.orderCancelledNote')}</Text>
           ) : (
             <OrderStepIndicator status={o.status} />
           )}
@@ -519,7 +568,7 @@ function OrdersTab({ loading, orders, onViewProof, onTrack, onCancel }) {
               activeOpacity={0.8}
             >
               <Image source={{ uri: getProofUrl(o) }} style={styles.proofThumb} />
-              <Text style={styles.proofText}>📷 Proof of delivery — tap to view</Text>
+              <Text style={styles.proofText}>{t('dashboards.retailer.proofOfDelivery')}</Text>
             </TouchableOpacity>
           )}
 
@@ -530,7 +579,7 @@ function OrdersTab({ loading, orders, onViewProof, onTrack, onCancel }) {
               onPress={() => onCancel(o.id)}
               activeOpacity={0.8}
             >
-              <Text style={styles.cancelBtnText}>❌ Cancel Order</Text>
+              <Text style={styles.cancelBtnText}>{t('dashboards.retailer.cancelOrderBtn')}</Text>
             </TouchableOpacity>
           )}
 
@@ -541,7 +590,7 @@ function OrdersTab({ loading, orders, onViewProof, onTrack, onCancel }) {
               onPress={() => onTrack(o)}
               activeOpacity={0.8}
             >
-              <Text style={styles.trackBtnText}>🗺️  Track Order</Text>
+              <Text style={styles.trackBtnText}>{t('dashboards.retailer.trackOrderBtn')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -584,6 +633,13 @@ const styles = StyleSheet.create({
   searchIcon: { fontSize: 16, marginRight: 8 },
   searchInput: { flex: 1, paddingVertical: Platform.OS === 'ios' ? 12 : 8, fontSize: 16, color: '#222' },
   searchClear: { fontSize: 16, color: '#999', paddingLeft: 8 },
+
+  // Category filter chips
+  filterChipRow: { gap: 8, paddingBottom: 16 },
+  filterChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ccc', backgroundColor: '#f8faf8' },
+  filterChipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
+  filterChipText: { color: '#555', fontSize: 13 },
+  filterChipTextActive: { color: '#fff', fontWeight: '600' },
 
   rowCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#eee' },
   rowTitle: { fontSize: 16, fontWeight: '700', color: '#222' },

@@ -8,23 +8,40 @@ import api from '../api/client';
 import { fetchProducts, queueProduct, syncPending, getQueue } from '../offline/productStore';
 import { readThrough } from '../offline/cache';
 import { onReconnect } from '../offline/net';
+import { showAlert, peso, shortId } from '../lib/ui';
+import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n/useTranslation';
 import LogoutButton from '../components/LogoutButton';
 import NotificationBell from '../components/NotificationBell';
 import BottomNavBar from '../components/BottomNavBar';
+import CustomModal from '../components/CustomModal';
+import OfflineBanner from '../components/OfflineBanner';
+import EmptyState from '../components/EmptyState';
 
 const PRIMARY = '#2e7d32';
 
-const DISTRIBUTOR_TABS = [
-  { id: 'home', icon: '🏠', label: 'Home' },
-  { id: 'orders', icon: '📋', label: 'Orders' },
-  { id: 'inventory', icon: '📦', label: 'Inventory' },
-  { id: 'riders', icon: '🛵', label: 'Riders' },
-  { id: 'profile', icon: '👤', label: 'Profile' },
-];
+// Distributor sees the harvest/farmer info embedded on each pickup request by
+// the backend (harvests join + farmer_name lookup — see GET /api/pickup-requests).
+function harvestOf(req) {
+  return req?.harvests || null;
+}
+
+function farmerNameOf(req) {
+  return req?.farmer_name || null;
+}
 
 export default function DistributorDashboard({ navigation, route }) {
   const { user } = useAuth();
+  const { t } = useTranslation();
+
+  const DISTRIBUTOR_TABS = [
+    { id: 'home', icon: '🏠', label: t('dashboards.distributor.tabHome') },
+    { id: 'orders', icon: '📋', label: t('dashboards.distributor.tabOrders') },
+    { id: 'inventory', icon: '📦', label: t('dashboards.distributor.tabInventory') },
+    { id: 'riders', icon: '🛵', label: t('dashboards.distributor.tabRiders') },
+    { id: 'profile', icon: '👤', label: t('dashboards.distributor.tabProfile') },
+  ];
   const [tab, setTab] = useState('orders'); // 'products' | 'pickups' | 'orders' | 'payments'
   const [activeBottomTab, setActiveBottomTab] = useState('home');
 
@@ -210,7 +227,7 @@ export default function DistributorDashboard({ navigation, route }) {
   const recordPayment = async (order) => {
     const amount = parseFloat(amountInput);
     if (isNaN(amount) || amount <= 0) {
-      showAlert('Error', 'Enter a valid payment amount.');
+      showAlert(t('common.error'), t('dashboards.distributor.invalidAmount'));
       return;
     }
     setRecordBusy(true);
@@ -219,9 +236,9 @@ export default function DistributorDashboard({ navigation, route }) {
       setRecordingId(null);
       setAmountInput('');
       await loadPayments(); // refresh unpaid + paid lists
-      showAlert('Payment recorded', `₱${amount.toFixed(2)} recorded for order ${shortId(order.id)}.`);
+      showAlert(t('dashboards.distributor.paymentRecordedTitle'), t('dashboards.distributor.paymentRecordedMessage', { amount: amount.toFixed(2), id: shortId(order.id) }));
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setRecordBusy(false);
     }
@@ -266,15 +283,19 @@ export default function DistributorDashboard({ navigation, route }) {
     const stockNum = parseFloat(stock);
 
     if (!editingProductId && !name) {
-      showAlert('Error', 'Enter a vegetable name.');
+      showAlert(t('common.error'), t('dashboards.distributor.enterVegetableName'));
+      return;
+    }
+    if (!editingProductId && !isVegetable(name)) {
+      showAlert('Invalid Product', VEGETABLE_VALIDATION_MESSAGE);
       return;
     }
     if (isNaN(priceNum) || priceNum < 0) {
-      showAlert('Error', 'Enter a valid price per kg.');
+      showAlert(t('common.error'), t('dashboards.distributor.enterValidPrice'));
       return;
     }
     if (isNaN(stockNum) || stockNum < 0) {
-      showAlert('Error', 'Enter a valid stock in kg.');
+      showAlert(t('common.error'), t('dashboards.distributor.enterValidStock'));
       return;
     }
 
@@ -294,10 +315,10 @@ export default function DistributorDashboard({ navigation, route }) {
       // Try to push now; if offline it stays queued.
       const result = await trySync();
       if (result.offline || result.remaining > 0) {
-        showAlert('Saved offline', 'Your change is saved on this device and will sync when you’re back online.');
+        showAlert(t('dashboards.distributor.savedOfflineTitle'), t('dashboards.distributor.savedOfflineMessage'));
       }
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setSavingProduct(false);
     }
@@ -313,9 +334,9 @@ export default function DistributorDashboard({ navigation, route }) {
         prev.map((o) => (o.id === order.id ? { ...o, status: 'approved' } : o))
       );
       if (personnel.length === 0) await loadPersonnel();
-      showAlert('Approved', `Order ${shortId(order.id)} approved. Now assign a delivery person.`);
+      showAlert(t('dashboards.distributor.orderApprovedTitle'), t('dashboards.distributor.orderApprovedMessage', { id: shortId(order.id) }));
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setBusyOrderId(null);
     }
@@ -324,7 +345,7 @@ export default function DistributorDashboard({ navigation, route }) {
   const assignDelivery = async (order) => {
     const personnelId = selectedPersonnel[order.id];
     if (!personnelId) {
-      showAlert('Error', 'Select a delivery person first.');
+      showAlert(t('common.error'), t('dashboards.distributor.selectDeliveryPerson'));
       return;
     }
     setBusyOrderId(order.id);
@@ -334,9 +355,9 @@ export default function DistributorDashboard({ navigation, route }) {
       // order reappears there as "assigned" instead of disappearing (Issue 9).
       setOrders((prev) => prev.filter((o) => o.id !== order.id));
       await loadActiveOrders();
-      showAlert('Assigned', `Delivery assigned for order ${shortId(order.id)}. See "In Progress" below.`);
+      showAlert(t('dashboards.distributor.deliveryAssignedTitle'), t('dashboards.distributor.deliveryAssignedMessage', { id: shortId(order.id) }));
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setBusyOrderId(null);
     }
@@ -349,16 +370,16 @@ export default function DistributorDashboard({ navigation, route }) {
       const r = await api.get('/api/distributor/weekly-report');
       const inventory = (r.current_inventory || []).length
         ? r.current_inventory.map((p) => `• ${p.vegetable_name} — ${p.stock_kg} kg`).join('\n')
-        : 'No products in inventory.';
+        : t('dashboards.distributor.noInventory');
       const body =
-        `Period: ${r.period}\n` +
-        `Total orders: ${r.total_orders}\n` +
-        `Completed orders: ${r.completed_orders}\n` +
-        `Revenue: ${peso(r.total_revenue)}\n\n` +
-        `Inventory:\n${inventory}`;
-      showAlert('Weekly Report', body);
+        `${t('dashboards.distributor.reportPeriod', { period: r.period })}\n` +
+        `${t('dashboards.distributor.reportTotalOrders', { count: r.total_orders })}\n` +
+        `${t('dashboards.distributor.reportCompletedOrders', { count: r.completed_orders })}\n` +
+        `${t('dashboards.distributor.reportRevenue', { amount: peso(r.total_revenue) })}\n\n` +
+        t('dashboards.distributor.reportInventory', { list: inventory });
+      showAlert(t('dashboards.distributor.weeklyReportTitle'), body);
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setLoadingReport(false);
     }
@@ -378,11 +399,11 @@ export default function DistributorDashboard({ navigation, route }) {
     if (!req) return;
     const price = parseFloat(priceInput);
     if (priceInput && (isNaN(price) || price < 0)) {
-      showAlert('Error', 'Enter a valid price per kg (or leave blank).');
+      showAlert(t('common.error'), t('dashboards.distributor.enterValidPickupPrice'));
       return;
     }
     if (!selectedRiderForPickup) {
-      showAlert('Error', 'Please select a delivery personnel to assign.');
+      showAlert(t('common.error'), t('dashboards.distributor.selectRider'));
       return;
     }
     setReceiveBusyId(req.id);
@@ -394,9 +415,9 @@ export default function DistributorDashboard({ navigation, route }) {
       setReceiveReq(null);
       // Refresh so the request leaves the list.
       await Promise.all([loadPickupRequests(), loadProducts()]);
-      showAlert('Rider Assigned', 'Delivery personnel has been assigned to the pickup request.');
+      showAlert(t('dashboards.distributor.riderAssignedTitle'), t('dashboards.distributor.riderAssignedMessage'));
     } catch (err) {
-      showAlert('Error', `Could not assign rider: ${err.message}`);
+      showAlert(t('common.error'), t('dashboards.distributor.riderAssignFailed', { message: err.message }));
     } finally {
       setReceiveBusyId(null);
     }
@@ -410,7 +431,7 @@ export default function DistributorDashboard({ navigation, route }) {
     <SafeAreaView style={styles.container}>
       {/* Minimal Top Navigation Bar */}
       <View style={styles.minimalHeader}>
-        <Text style={styles.minimalTitle}>Distributor Hub</Text>
+        <Text style={styles.minimalTitle}>{t('dashboards.distributor.hubTitle')}</Text>
         <NotificationBell />
       </View>
 
@@ -420,14 +441,14 @@ export default function DistributorDashboard({ navigation, route }) {
           style={[styles.tab, tab === 'products' && styles.tabActive]}
           onPress={() => setTab('products')}
         >
-          <Text style={[styles.tabText, tab === 'products' && styles.tabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>Products</Text>
+          <Text style={[styles.tabText, tab === 'products' && styles.tabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t('dashboards.distributor.productsTab')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, tab === 'orders' && styles.tabActive]}
           onPress={() => setTab('orders')}
         >
           <Text style={[styles.tabText, tab === 'orders' && styles.tabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-            Orders{orders.length ? ` (${orders.length})` : ''}
+            {t('dashboards.distributor.ordersTab')}{orders.length ? ` (${orders.length})` : ''}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -440,7 +461,7 @@ export default function DistributorDashboard({ navigation, route }) {
             adjustsFontSizeToFit
             minimumFontScale={0.7}
           >
-            Pickup Requests{pendingReceiveCount ? ` (${pendingReceiveCount})` : ''}
+            {t('dashboards.distributor.pickupRequestsTab')}{pendingReceiveCount ? ` (${pendingReceiveCount})` : ''}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -448,7 +469,7 @@ export default function DistributorDashboard({ navigation, route }) {
           onPress={() => setTab('payments')}
         >
           <Text style={[styles.tabText, tab === 'payments' && styles.tabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-            Payments{unpaidOrders.length ? ` (${unpaidOrders.length})` : ''}
+            {t('dashboards.distributor.paymentsTab')}{unpaidOrders.length ? ` (${unpaidOrders.length})` : ''}
           </Text>
         </TouchableOpacity>
       </View>
@@ -528,26 +549,25 @@ export default function DistributorDashboard({ navigation, route }) {
       {/* Approve & Assign modal — set a selling price and assign a rider (PUT /api/pickup-requests/:id/assign). */}
       <CustomModal
         visible={!!receiveReq}
-        title="Approve & Assign Rider"
-        confirmLabel={receiveBusyId === receiveReq?.id ? 'Saving…' : 'Confirm'}
+        title={t('dashboards.distributor.approveAndAssignModalTitle')}
+        confirmLabel={receiveBusyId === receiveReq?.id ? t('dashboards.distributor.saving') : t('common.confirm')}
         onConfirm={confirmReceive}
-        cancelLabel="Cancel"
+        cancelLabel={t('common.cancel')}
         onCancel={() => setReceiveReq(null)}
         busy={receiveBusyId === receiveReq?.id}
       >
         {receiveReq ? (
           <>
             <Text style={styles.modalLine}>
-              {harvestOf(receiveReq)?.vegetable_name || 'Harvest'}
+              {harvestOf(receiveReq)?.vegetable_name || t('dashboards.distributor.unknownHarvest')}
               {harvestOf(receiveReq)?.quantity_kg != null
                 ? ` — ${harvestOf(receiveReq).quantity_kg} kg`
                 : ''}
             </Text>
             <Text style={styles.modalHint}>
-              Set a selling price per kg. Leave blank to add it with ₱0 and price it
-              later in Products.
+              {t('dashboards.distributor.pickupPriceHint')}
             </Text>
-            <Text style={styles.fieldLabel}>Price per kg (₱)</Text>
+            <Text style={styles.fieldLabel}>{t('dashboards.distributor.pricePerKgLabel')}</Text>
             <TextInput
               style={styles.input}
               value={priceInput}
@@ -557,9 +577,9 @@ export default function DistributorDashboard({ navigation, route }) {
               editable={receiveBusyId !== receiveReq.id}
             />
 
-            <Text style={[styles.fieldLabel, { marginTop: 15 }]}>Assign Delivery Personnel</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 15 }]}>{t('dashboards.distributor.assignPersonnelLabel')}</Text>
             {personnel.length === 0 ? (
-              <Text style={styles.modalHint}>No delivery personnel available.</Text>
+              <Text style={styles.modalHint}>{t('dashboards.distributor.noPersonnelAvailable')}</Text>
             ) : (
               <View style={styles.personnelWrap}>
                 {personnel.map((dp) => {
@@ -594,6 +614,7 @@ export default function DistributorDashboard({ navigation, route }) {
 
 // ================= Pickup Requests tab =================
 function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
+  const { t } = useTranslation();
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
   // Only requests still awaiting receipt are actionable.
@@ -601,12 +622,12 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
 
   return (
     <View>
-      <Text style={styles.sectionTitle}>Pickup Requests</Text>
+      <Text style={styles.sectionTitle}>{t('dashboards.distributor.pickupRequests')}</Text>
       {pending.length === 0 ? (
         <EmptyState
           icon="🚜"
-          title="No pending pickup requests"
-          message="When farmers request a pickup, it will appear here for approval."
+          title={t('dashboards.distributor.noPendingPickups')}
+          message={t('dashboards.distributor.noPendingPickupsMessage')}
         />
       ) : (
         pending.map((req) => {
@@ -614,15 +635,15 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
           const busy = busyId === req.id;
           return (
             <View key={req.id} style={styles.pickupCard}>
-              <Text style={styles.pickupFarmer}>👨‍🌾 {farmerNameOf(req)}</Text>
+              <Text style={styles.pickupFarmer}>👨‍🌾 {farmerNameOf(req) || t('dashboards.distributor.unknownFarmer')}</Text>
               <Text style={styles.pickupHarvest}>
-                {harvest?.vegetable_name || 'Harvest'}
+                {harvest?.vegetable_name || t('dashboards.distributor.unknownHarvest')}
                 {harvest?.quantity_kg != null ? ` — ${harvest.quantity_kg} kg` : ''}
               </Text>
-              {req.note ? <Text style={styles.pickupNote}>Note: {req.note}</Text> : null}
+              {req.note ? <Text style={styles.pickupNote}>{t('dashboards.distributor.noteLabel', { note: req.note })}</Text> : null}
               <Text style={styles.pickupMeta}>
-                Status: {req.status}
-                {req.created_at ? ` • Requested ${new Date(req.created_at).toLocaleDateString()}` : ''}
+                {t('dashboards.distributor.statusLabel', { status: req.status })}
+                {req.created_at ? t('dashboards.distributor.requestedOn', { date: new Date(req.created_at).toLocaleDateString() }) : ''}
               </Text>
 
               <TouchableOpacity
@@ -632,7 +653,7 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
               >
                 {busy
                   ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.primaryBtnText}>Approve & Assign Rider</Text>}
+                  : <Text style={styles.primaryBtnText}>{t('dashboards.distributor.approveAndAssign')}</Text>}
               </TouchableOpacity>
             </View>
           );
@@ -648,44 +669,45 @@ function ProductsTab({
   vegName, setVegName, price, setPrice, stock, setStock,
   saving, onAdd, onSave, onCancel, onViewAll,
 }) {
+  const { t } = useTranslation();
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
   return (
     <View>
       <TouchableOpacity style={styles.primaryBtn} onPress={onAdd}>
-        <Text style={styles.primaryBtnText}>+ Add Product</Text>
+        <Text style={styles.primaryBtnText}>{t('dashboards.distributor.addProduct')}</Text>
       </TouchableOpacity>
 
       {showForm && (
         <View style={styles.formCard}>
-          <Text style={styles.formTitle}>{editingProductId ? 'Edit Product' : 'Add Product'}</Text>
+          <Text style={styles.formTitle}>{editingProductId ? t('dashboards.distributor.editProductTitle') : t('dashboards.distributor.addProductTitle')}</Text>
 
-          <Text style={styles.fieldLabel}>Vegetable name</Text>
+          <Text style={styles.fieldLabel}>{t('dashboards.distributor.vegetableNameLabel')}</Text>
           <TextInput
             style={[styles.input, editingProductId && styles.inputDisabled]}
-            placeholder="e.g., Carrot"
+            placeholder={t('dashboards.distributor.vegetableNamePlaceholder')}
             value={vegName}
             onChangeText={setVegName}
             editable={!editingProductId && !saving}
           />
           {editingProductId ? (
-            <Text style={styles.hint}>Name can’t be changed when editing.</Text>
+            <Text style={styles.hint}>{t('dashboards.distributor.nameCantChange')}</Text>
           ) : null}
 
-          <Text style={styles.fieldLabel}>Price per kg (₱)</Text>
+          <Text style={styles.fieldLabel}>{t('dashboards.distributor.priceLabel')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g., 45"
+            placeholder={t('dashboards.distributor.pricePlaceholder')}
             value={price}
             onChangeText={setPrice}
             keyboardType="numeric"
             editable={!saving}
           />
 
-          <Text style={styles.fieldLabel}>Stock (kg)</Text>
+          <Text style={styles.fieldLabel}>{t('dashboards.distributor.stockLabel')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g., 100"
+            placeholder={t('dashboards.distributor.stockPlaceholder')}
             value={stock}
             onChangeText={setStock}
             keyboardType="numeric"
@@ -700,27 +722,27 @@ function ProductsTab({
             >
               {saving
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.buttonPrimaryText}>{editingProductId ? 'Save Changes' : 'Add Product'}</Text>}
+                : <Text style={styles.buttonPrimaryText}>{editingProductId ? t('common.saveChanges') : t('dashboards.distributor.addProductTitle')}</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={[styles.button, styles.buttonOutline]} onPress={onCancel} disabled={saving}>
-              <Text style={styles.buttonOutlineText}>Cancel</Text>
+              <Text style={styles.buttonOutlineText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
-      <Text style={styles.sectionTitle}>My Products</Text>
+      <Text style={styles.sectionTitle}>{t('dashboards.distributor.myProducts')}</Text>
       {products.length === 0 ? (
         <EmptyState
           icon="📦"
-          title="No products yet"
-          message="Add a product to start selling to retailers."
-          actionLabel="Add Product"
+          title={t('dashboards.distributor.noProductsYet')}
+          message={t('dashboards.distributor.noProductsYetMessage')}
+          actionLabel={t('dashboards.distributor.addProductTitle')}
           onAction={onAdd}
         />
       ) : (
         <TouchableOpacity style={styles.viewAllBtn} onPress={onViewAll} activeOpacity={0.85}>
-          <Text style={styles.viewAllText}>View All Products ({products.length})</Text>
+          <Text style={styles.viewAllText}>{t('dashboards.distributor.viewAllProducts', { count: products.length })}</Text>
           <Text style={styles.viewAllChevron}>›</Text>
         </TouchableOpacity>
       )}
@@ -745,6 +767,7 @@ function OrdersTab({
   loading, orders, activeOrders = [], personnel, selectedPersonnel, setSelectedPersonnel,
   busyOrderId, onApprove, onAssign, onTrack,
 }) {
+  const { t } = useTranslation();
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
   // "In Progress" = approved/assigned/in-transit orders not currently being
@@ -754,12 +777,12 @@ function OrdersTab({
 
   return (
     <View>
-      <Text style={styles.sectionTitle}>Pending Orders</Text>
+      <Text style={styles.sectionTitle}>{t('dashboards.distributor.pendingOrders')}</Text>
       {orders.length === 0 ? (
         <EmptyState
           icon="✅"
-          title="No pending orders"
-          message="New retailer orders will appear here for approval."
+          title={t('dashboards.distributor.noPendingOrders')}
+          message={t('dashboards.distributor.noPendingOrdersMessage')}
         />
       ) : orders.map((order) => {
         const busy = busyOrderId === order.id;
@@ -769,17 +792,17 @@ function OrdersTab({
         return (
           <View key={order.id} style={styles.orderCard}>
             <View style={styles.orderHeader}>
-              <Text style={styles.orderId}>Order #{shortId(order.id)}</Text>
+              <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
               <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
             </View>
-            <Text style={styles.rowMeta}>Retailer: {shortId(order.retailer_id)}</Text>
+            <Text style={styles.rowMeta}>{t('dashboards.distributor.retailerLabel', { id: shortId(order.retailer_id) })}</Text>
             {order.delivery_address ? (
-              <Text style={styles.rowMeta}>Deliver to: {order.delivery_address}</Text>
+              <Text style={styles.rowMeta}>{t('dashboards.distributor.deliverTo', { address: order.delivery_address })}</Text>
             ) : null}
 
             <View style={styles.itemsBox}>
               {items.length === 0 ? (
-                <Text style={styles.rowMeta}>No item details.</Text>
+                <Text style={styles.rowMeta}>{t('dashboards.distributor.noItemDetails')}</Text>
               ) : (
                 items.map((it, i) => (
                   <Text key={i} style={styles.itemLine}>
@@ -795,7 +818,7 @@ function OrdersTab({
                 onPress={() => onTrack(order)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.trackBtnText}>🗺️  Track Delivery</Text>
+                <Text style={styles.trackBtnText}>{t('dashboards.distributor.trackDelivery')}</Text>
               </TouchableOpacity>
             ) : null}
 
@@ -807,13 +830,13 @@ function OrdersTab({
               >
                 {busy
                   ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.buttonPrimaryText}>Approve</Text>}
+                  : <Text style={styles.buttonPrimaryText}>{t('dashboards.distributor.approve')}</Text>}
               </TouchableOpacity>
             ) : (
               <View>
-                <Text style={styles.assignLabel}>Assign delivery person:</Text>
+                <Text style={styles.assignLabel}>{t('dashboards.distributor.assignDeliveryPersonLabel')}</Text>
                 {personnel.length === 0 ? (
-                  <Text style={styles.rowMeta}>No delivery personnel available.</Text>
+                  <Text style={styles.rowMeta}>{t('dashboards.distributor.noPersonnelAvailable')}</Text>
                 ) : (
                   <View style={styles.personnelWrap}>
                     {personnel.map((dp) => {
@@ -842,7 +865,7 @@ function OrdersTab({
                 >
                   {busy
                     ? <ActivityIndicator color="#fff" />
-                    : <Text style={styles.buttonPrimaryText}>Assign Delivery</Text>}
+                    : <Text style={styles.buttonPrimaryText}>{t('dashboards.distributor.assignDelivery')}</Text>}
                 </TouchableOpacity>
               </View>
             )}
@@ -853,22 +876,22 @@ function OrdersTab({
       {/* Issue 9 & History: orders approved/assigned/in-transit/delivered/cancelled stay visible here in history. */}
       {inProgress.length > 0 && (
         <View style={{ marginTop: 18 }}>
-          <Text style={styles.sectionTitle}>Order History ({inProgress.length})</Text>
+          <Text style={styles.sectionTitle}>{t('dashboards.distributor.orderHistory', { count: inProgress.length })}</Text>
           {inProgress.map((order) => {
             const status = effectiveStatus(order);
             return (
               <View key={order.id} style={styles.orderCard}>
                 <View style={styles.orderHeader}>
-                  <Text style={styles.orderId}>Order #{shortId(order.id)}</Text>
+                  <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
                   <View style={[styles.statusPill, { backgroundColor: ACTIVE_STATUS_COLOR[status] || '#607d8b' }]}>
                     <Text style={styles.statusPillText}>{status.replace(/_/g, ' ')}</Text>
                   </View>
                 </View>
-                <Text style={styles.rowMeta}>Total: {peso(order.total_amount)}</Text>
+                <Text style={styles.rowMeta}>{t('dashboards.distributor.totalLabel', { amount: peso(order.total_amount) })}</Text>
                 <Text style={styles.rowMeta}>
                   {order.delivery_personnel_name
-                    ? `Rider: ${order.delivery_personnel_name}`
-                    : 'Awaiting rider assignment'}
+                    ? t('dashboards.distributor.riderLabel', { name: order.delivery_personnel_name })
+                    : t('dashboards.distributor.awaitingRider')}
                 </Text>
                 {order.delivery_address && order.status !== 'pending' && order.status !== 'cancelled' ? (
                   <TouchableOpacity
@@ -876,7 +899,7 @@ function OrdersTab({
                     onPress={() => onTrack(order)}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.trackBtnText}>🗺️  Track Delivery</Text>
+                    <Text style={styles.trackBtnText}>{t('dashboards.distributor.trackDelivery')}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -904,6 +927,7 @@ function PaymentsTab({
   recordingId, amountInput, setAmountInput, recordBusy,
   onStartRecord, onCancelRecord, onRecord,
 }) {
+  const { t } = useTranslation();
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
   return (
@@ -915,25 +939,25 @@ function PaymentsTab({
           onPress={() => setSub('unpaid')}
         >
           <Text style={[styles.subTabText, sub === 'unpaid' && styles.subTabTextActive]}>
-            Unpaid{unpaidOrders.length ? ` (${unpaidOrders.length})` : ''}
+            {t('dashboards.distributor.unpaid')}{unpaidOrders.length ? ` (${unpaidOrders.length})` : ''}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.subTab, sub === 'paid' && styles.subTabActive]}
           onPress={() => setSub('paid')}
         >
-          <Text style={[styles.subTabText, sub === 'paid' && styles.subTabTextActive]}>Paid</Text>
+          <Text style={[styles.subTabText, sub === 'paid' && styles.subTabTextActive]}>{t('dashboards.distributor.paid')}</Text>
         </TouchableOpacity>
       </View>
 
       {sub === 'unpaid' ? (
         unpaidOrders.length === 0 ? (
-          <EmptyState icon="🎉" title="All caught up" message="No unpaid orders right now." />
+          <EmptyState icon="🎉" title={t('dashboards.distributor.allCaughtUp')} message={t('dashboards.distributor.noUnpaidOrders')} />
         ) : (
           unpaidOrders.map((o) => (
             <View key={o.id} style={styles.rowCard}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>Order #{shortId(o.id)}</Text>
+                <Text style={styles.rowTitle}>{t('dashboards.distributor.orderNumber', { id: shortId(o.id) })}</Text>
                 <Text style={styles.rowMeta}>{peso(o.total_amount)} · {o.status}</Text>
                 {o.delivery_address ? (
                   <Text style={styles.rowMeta}>{o.delivery_address}</Text>
@@ -941,7 +965,7 @@ function PaymentsTab({
 
                 {recordingId === o.id && (
                   <View style={styles.recordBox}>
-                    <Text style={styles.fieldLabel}>Amount received (₱)</Text>
+                    <Text style={styles.fieldLabel}>{t('dashboards.distributor.amountReceivedLabel')}</Text>
                     <TextInput
                       style={styles.input}
                       value={amountInput}
@@ -957,14 +981,14 @@ function PaymentsTab({
                       >
                         {recordBusy
                           ? <ActivityIndicator color="#fff" />
-                          : <Text style={styles.buttonPrimaryText}>Confirm</Text>}
+                          : <Text style={styles.buttonPrimaryText}>{t('common.confirm')}</Text>}
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.button, styles.buttonOutline]}
                         onPress={onCancelRecord}
                         disabled={recordBusy}
                       >
-                        <Text style={styles.buttonOutlineText}>Cancel</Text>
+                        <Text style={styles.buttonOutlineText}>{t('common.cancel')}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -973,21 +997,21 @@ function PaymentsTab({
 
               {recordingId !== o.id && (
                 <TouchableOpacity style={styles.smallBtn} onPress={() => onStartRecord(o)}>
-                  <Text style={styles.smallBtnText}>Record Payment</Text>
+                  <Text style={styles.smallBtnText}>{t('dashboards.distributor.recordPayment')}</Text>
                 </TouchableOpacity>
               )}
             </View>
           ))
         )
       ) : payments.length === 0 ? (
-        <EmptyState icon="💸" title="No payments yet" message="Recorded payments will show up here." />
+        <EmptyState icon="💸" title={t('dashboards.distributor.noPaymentsYet')} message={t('dashboards.distributor.noPaymentsYetMessage')} />
       ) : (
         payments.map((p) => (
           <View key={p.id} style={styles.rowCard}>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>{peso(p.amount)}</Text>
               <Text style={styles.rowMeta}>
-                Order #{shortId(p.order_id)}
+                {t('dashboards.distributor.orderNumber', { id: shortId(p.order_id) })}
                 {p.orders?.total_amount != null ? ` · total ${peso(p.orders.total_amount)}` : ''}
               </Text>
               {p.recorded_at ? (

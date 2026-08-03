@@ -5,11 +5,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../api/client';
+import { useTranslation } from '../i18n/useTranslation';
 import { showAlert } from '../lib/ui';
-import { normalizePhone, isValidPhone, PHONE_HINT } from '../lib/phone';
+import { normalizePhone, isValidPhone } from '../lib/phone';
 import PasswordInput from '../components/PasswordInput';
 
 export default function ForgotPasswordScreen({ navigation }) {
+  const { t } = useTranslation();
   const [phone, setPhone] = useState('+63');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -19,7 +21,7 @@ export default function ForgotPasswordScreen({ navigation }) {
   const verifyPhone = async () => {
     const trimmedPhone = normalizePhone(phone);
     if (!isValidPhone(trimmedPhone)) {
-      showAlert('Error', PHONE_HINT);
+      showAlert(t('common.error'), t('common.phoneHint'));
       return;
     }
 
@@ -28,7 +30,7 @@ export default function ForgotPasswordScreen({ navigation }) {
       await api.post('/api/auth/forgot-password', { phone: trimmedPhone });
       setStep(2);
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setLoading(false);
     }
@@ -36,11 +38,11 @@ export default function ForgotPasswordScreen({ navigation }) {
 
   const handleResetPassword = async () => {
     if (!password || password.length < 6) {
-      showAlert('Error', 'Password must be at least 6 characters.');
+      showAlert(t('common.error'), t('auth.forgotPassword.passwordTooShort'));
       return;
     }
     if (password !== confirmPassword) {
-      showAlert('Error', 'Passwords do not match.');
+      showAlert(t('common.error'), t('auth.forgotPassword.passwordsDontMatch'));
       return;
     }
 
@@ -50,11 +52,11 @@ export default function ForgotPasswordScreen({ navigation }) {
         phone: normalizePhone(phone),
         new_password: password,
       });
-      showAlert('Success', 'Password reset successful. Please log in with your new password.', () => {
+      showAlert(t('auth.forgotPassword.successTitle'), t('auth.forgotPassword.successMessage'), () => {
         navigation.navigate('Login');
       });
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setLoading(false);
     }
@@ -66,16 +68,16 @@ export default function ForgotPasswordScreen({ navigation }) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.inner}
       >
-        <Text style={styles.title}>Reset Password</Text>
-        
+        <Text style={styles.title}>{t('auth.forgotPassword.title')}</Text>
+
         {step === 1 ? (
           <>
             <Text style={styles.subtitle}>
-              Enter your registered phone number to reset your password.
+              {t('auth.forgotPassword.step1Subtitle')}
             </Text>
             <TextInput
               style={styles.input}
-              placeholder="Phone number (e.g., +639171234567)"
+              placeholder={t('auth.forgotPassword.phonePlaceholder')}
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
@@ -90,24 +92,24 @@ export default function ForgotPasswordScreen({ navigation }) {
             >
               {loading
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.buttonText}>Continue</Text>}
+                : <Text style={styles.buttonText}>{t('auth.forgotPassword.continueButton')}</Text>}
             </TouchableOpacity>
           </>
         ) : (
           <>
             <Text style={styles.subtitle}>
-              Set a new password for account: {normalizePhone(phone)}
+              {t('auth.forgotPassword.step2Subtitle', { phone: normalizePhone(phone) })}
             </Text>
             <PasswordInput
               style={styles.input}
-              placeholder="New password (min 6 characters)"
+              placeholder={t('auth.forgotPassword.newPasswordPlaceholder')}
               value={password}
               onChangeText={setPassword}
               editable={!loading}
             />
             <PasswordInput
               style={styles.input}
-              placeholder="Confirm new password"
+              placeholder={t('auth.forgotPassword.confirmPasswordPlaceholder')}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               editable={!loading}
@@ -120,13 +122,13 @@ export default function ForgotPasswordScreen({ navigation }) {
             >
               {loading
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.buttonText}>Reset Password</Text>}
+                : <Text style={styles.buttonText}>{t('auth.forgotPassword.resetButton')}</Text>}
             </TouchableOpacity>
           </>
         )}
 
         <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={loading}>
-          <Text style={styles.link}>Back to Login</Text>
+          <Text style={styles.link}>{t('auth.forgotPassword.backToLogin')}</Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </SafeAreaView>

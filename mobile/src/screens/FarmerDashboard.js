@@ -13,16 +13,10 @@ import { useAuth } from '../context/AuthContext';
 import NotificationBell from '../components/NotificationBell';
 import BottomNavBar from '../components/BottomNavBar';
 import { showAlert, peso } from '../lib/ui';
+import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
+import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = '#2e7d32';
-
-const FARMER_TABS = [
-  { id: 'home', icon: '🏠', label: 'Home' },
-  { id: 'harvests', icon: '🌾', label: 'Harvests' },
-  { id: 'pickups', icon: '🚚', label: 'Pickups' },
-  { id: 'history', icon: '📜', label: 'History' },
-  { id: 'profile', icon: '👤', label: 'Profile' },
-];
 
 const STATUS_OPTIONS = ['available', 'reserved', 'picked_up'];
 
@@ -49,6 +43,22 @@ function getVegetableTile(name) {
 
 export default function FarmerDashboard({ navigation, route }) {
   const { user } = useAuth();
+  const { t } = useTranslation();
+
+  const FARMER_TABS = [
+    { id: 'home', icon: '🏠', label: t('dashboards.farmer.tabHome') },
+    { id: 'harvests', icon: '🌾', label: t('dashboards.farmer.tabHarvests') },
+    { id: 'pickups', icon: '🚚', label: t('dashboards.farmer.tabPickups') },
+    { id: 'history', icon: '📜', label: t('dashboards.farmer.tabHistory') },
+    { id: 'profile', icon: '👤', label: t('dashboards.farmer.tabProfile') },
+  ];
+
+  const STATUS_LABELS = {
+    available: t('dashboards.farmer.statusAvailable'),
+    reserved: t('dashboards.farmer.statusReserved'),
+    picked_up: t('dashboards.farmer.statusPickedUp'),
+  };
+
   const [activeTab, setActiveTab] = useState('home');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -135,8 +145,8 @@ export default function FarmerDashboard({ navigation, route }) {
     .reduce((sum, h) => sum + Number(h.quantity_kg || 0), 0);
   const pendingPickups = pickupRequests.filter((p) => p.status === 'requested');
   const nextPickup = pendingPickups.length
-    ? (pendingPickups[0].harvests?.vegetable_name || 'Requested')
-    : 'None';
+    ? (pendingPickups[0].harvests?.vegetable_name || t('dashboards.farmer.nextPickupRequested'))
+    : t('dashboards.farmer.nextPickupNone');
   const pendingPickupCount = pendingPickups.length;
   const latestPaymentLabel = latestPayment?.amount != null ? peso(latestPayment.amount) : '—';
 
@@ -174,11 +184,15 @@ export default function FarmerDashboard({ navigation, route }) {
     const qty = parseFloat(quantityKg);
 
     if (!name) {
-      showAlert('Error', 'Enter a vegetable name.');
+      showAlert(t('common.error'), t('dashboards.distributor.enterVegetableName'));
+      return;
+    }
+    if (!isVegetable(name)) {
+      showAlert('Invalid Harvest', VEGETABLE_VALIDATION_MESSAGE);
       return;
     }
     if (isNaN(qty) || qty <= 0) {
-      showAlert('Error', 'Enter a quantity in kg greater than 0.');
+      showAlert(t('common.error'), t('dashboards.farmer.enterQuantity'));
       return;
     }
 
@@ -197,10 +211,10 @@ export default function FarmerDashboard({ navigation, route }) {
 
       const result = await trySync();
       if (result.offline || result.remaining > 0) {
-        showAlert('Saved offline', 'Your change is saved on this device and will sync when you’re back online.');
+        showAlert(t('dashboards.distributor.savedOfflineTitle'), t('dashboards.distributor.savedOfflineMessage'));
       }
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setSubmitting(false);
     }
@@ -209,14 +223,14 @@ export default function FarmerDashboard({ navigation, route }) {
   const requestPickup = async (harvest) => {
     const label = harvest
       ? `${harvest.vegetable_name} (${harvest.quantity_kg}kg)`
-      : 'available harvests';
+      : t('dashboards.farmer.availableHarvestsFallback');
     try {
       const harvest_id = harvest && !String(harvest.id).startsWith('q-') ? harvest.id : null;
       await api.post('/api/pickup-requests', { harvest_id, note: harvest ? null : 'All available harvests' });
       await loadPickupRequests();
-      showAlert('Pickup Requested', `Distributors have been notified for ${label}.`);
+      showAlert(t('dashboards.farmer.requestPickupTitle'), t('dashboards.farmer.requestPickupMessage', { label }));
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     }
   };
 
@@ -228,10 +242,10 @@ export default function FarmerDashboard({ navigation, route }) {
       );
       const body = lines.length
         ? lines.join('\n')
-        : 'No harvests recorded in the last 7 days.';
-      showAlert(`Weekly Report (${report.total_harvests} harvests)`, body);
+        : t('dashboards.farmer.noHarvestsWeek');
+      showAlert(t('dashboards.farmer.weeklyReportTitle', { count: report.total_harvests }), body);
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     }
   };
 
@@ -263,7 +277,7 @@ export default function FarmerDashboard({ navigation, route }) {
     <SafeAreaView style={styles.container}>
       {/* Minimal Top Navigation Header */}
       <View style={styles.minimalHeader}>
-        <Text style={styles.minimalTitle}>Farmer Hub</Text>
+        <Text style={styles.minimalTitle}>{t('dashboards.farmer.hubTitle')}</Text>
         <NotificationBell />
       </View>
 
@@ -276,7 +290,7 @@ export default function FarmerDashboard({ navigation, route }) {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search crops or vegetables..."
+            placeholder={t('dashboards.farmer.searchPlaceholder')}
             placeholderTextColor="#999"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -292,36 +306,36 @@ export default function FarmerDashboard({ navigation, route }) {
         {(offline || pendingCount > 0) && (
           <View style={[styles.banner, offline ? styles.bannerOffline : styles.bannerPending]}>
             <Text style={styles.bannerText}>
-              {offline ? '⚠ Offline — showing saved data. ' : '🔄 '}
+              {offline ? t('dashboards.farmer.offlineBannerPrefix') : t('dashboards.farmer.syncBannerPrefix')}
               {pendingCount > 0
-                ? `${pendingCount} change${pendingCount > 1 ? 's' : ''} waiting to sync.`
-                : 'Will sync automatically when online.'}
+                ? t('dashboards.farmer.changesWaiting', { count: pendingCount, plural: pendingCount > 1 ? 's' : '' })
+                : t('dashboards.farmer.willSyncAuto')}
             </Text>
           </View>
         )}
 
         {/* Section Header */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.marketplaceTitle}>Marketplace Inventory</Text>
-          <Text style={styles.marketplaceSubtitle}>Manage your fresh crops & stock levels</Text>
+          <Text style={styles.marketplaceTitle}>{t('dashboards.farmer.marketplaceTitle')}</Text>
+          <Text style={styles.marketplaceSubtitle}>{t('dashboards.farmer.marketplaceSubtitle')}</Text>
         </View>
 
         {/* Compact KPI Summary Cards */}
         <View style={styles.kpiGrid}>
           <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>Ready Harvest</Text>
+            <Text style={styles.kpiLabel}>{t('dashboards.farmer.kpiReadyHarvest')}</Text>
             <Text style={styles.kpiValue}>{readyHarvestKg} kg</Text>
           </View>
           <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>Next Pickup</Text>
+            <Text style={styles.kpiLabel}>{t('dashboards.farmer.kpiNextPickup')}</Text>
             <Text style={styles.kpiValueSmall} numberOfLines={1}>{nextPickup}</Text>
           </View>
           <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>Pending Pickups</Text>
+            <Text style={styles.kpiLabel}>{t('dashboards.farmer.kpiPendingPickups')}</Text>
             <Text style={styles.kpiValue}>{pendingPickupCount}</Text>
           </View>
           <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>Latest Payment</Text>
+            <Text style={styles.kpiLabel}>{t('dashboards.farmer.kpiLatestPayment')}</Text>
             <Text style={styles.kpiValue}>{latestPaymentLabel}</Text>
           </View>
         </View>
@@ -329,13 +343,13 @@ export default function FarmerDashboard({ navigation, route }) {
         {/* Action Button Row */}
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.primaryActionBtn} onPress={openAddForm} activeOpacity={0.85}>
-            <Text style={styles.primaryActionText}>+ Add Harvest</Text>
+            <Text style={styles.primaryActionText}>{t('dashboards.farmer.addHarvest')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryActionBtn} onPress={() => requestPickup(null)} activeOpacity={0.85}>
-            <Text style={styles.secondaryActionText}>📦 Request Pickup</Text>
+            <Text style={styles.secondaryActionText}>{t('dashboards.farmer.requestPickupBtn')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryActionBtn} onPress={weeklyReport} activeOpacity={0.85}>
-            <Text style={styles.secondaryActionText}>📊 Weekly Report</Text>
+            <Text style={styles.secondaryActionText}>{t('dashboards.farmer.weeklyReportBtn')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -343,29 +357,29 @@ export default function FarmerDashboard({ navigation, route }) {
         {showForm && (
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>
-              {editingId ? '✏️ Edit Harvest' : '🌱 Log New Harvest'}
+              {editingId ? t('dashboards.farmer.editHarvestTitle') : t('dashboards.farmer.logHarvestTitle')}
             </Text>
 
-            <Text style={styles.fieldLabel}>Vegetable Name</Text>
+            <Text style={styles.fieldLabel}>{t('dashboards.farmer.vegetableNameLabel')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g., Beans, Eggplant, Tomato"
+              placeholder={t('dashboards.farmer.vegetableNamePlaceholder')}
               value={vegetableName}
               onChangeText={setVegetableName}
               editable={!submitting}
             />
 
-            <Text style={styles.fieldLabel}>Quantity (kg)</Text>
+            <Text style={styles.fieldLabel}>{t('dashboards.farmer.quantityLabel')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g., 70"
+              placeholder={t('dashboards.farmer.quantityPlaceholder')}
               value={quantityKg}
               onChangeText={setQuantityKg}
               keyboardType="numeric"
               editable={!submitting}
             />
 
-            <Text style={styles.fieldLabel}>Status</Text>
+            <Text style={styles.fieldLabel}>{t('dashboards.farmer.statusLabel')}</Text>
             <View style={styles.statusRow}>
               {STATUS_OPTIONS.map((opt) => (
                 <TouchableOpacity
@@ -375,7 +389,7 @@ export default function FarmerDashboard({ navigation, route }) {
                   disabled={submitting}
                 >
                   <Text style={[styles.chipText, status === opt && styles.chipTextActive]}>
-                    {opt}
+                    {STATUS_LABELS[opt] || opt}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -389,14 +403,14 @@ export default function FarmerDashboard({ navigation, route }) {
               >
                 {submitting
                   ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.buttonPrimaryText}>{editingId ? 'Save Changes' : 'Add Harvest'}</Text>}
+                  : <Text style={styles.buttonPrimaryText}>{editingId ? t('common.saveChanges') : t('dashboards.farmer.saveHarvest')}</Text>}
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.button, styles.buttonOutline]}
                 onPress={() => { resetForm(); setShowForm(false); }}
                 disabled={submitting}
               >
-                <Text style={styles.buttonOutlineText}>Cancel</Text>
+                <Text style={styles.buttonOutlineText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -406,8 +420,8 @@ export default function FarmerDashboard({ navigation, route }) {
         {filteredHarvests.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>🥬</Text>
-            <Text style={styles.emptyTitle}>No harvests found</Text>
-            <Text style={styles.emptySubtitle}>Log your fresh vegetables to manage them here.</Text>
+            <Text style={styles.emptyTitle}>{t('dashboards.farmer.emptyHarvestsTitle')}</Text>
+            <Text style={styles.emptySubtitle}>{t('dashboards.farmer.emptyHarvestsMessage')}</Text>
           </View>
         ) : (
           <View style={styles.marketplaceGrid}>
@@ -427,12 +441,12 @@ export default function FarmerDashboard({ navigation, route }) {
 
                   {/* Stock Pill Badge */}
                   <View style={styles.stockBadge}>
-                    <Text style={styles.stockBadgeText}>{h.quantity_kg} kg in stock</Text>
+                    <Text style={styles.stockBadgeText}>{t('dashboards.farmer.kgInStock', { qty: h.quantity_kg })}</Text>
                   </View>
 
                   {/* Status / Price Label */}
                   <Text style={styles.cropStatusLabel}>
-                    {h.status === 'available' ? 'Available' : h.status}
+                    {h.status === 'available' ? t('dashboards.farmer.statusAvailableLabel') : h.status}
                   </Text>
 
                   {/* Primary Green "Manage" Button */}
@@ -441,7 +455,7 @@ export default function FarmerDashboard({ navigation, route }) {
                     onPress={() => openEditForm(h)}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.manageBtnText}>Manage</Text>
+                    <Text style={styles.manageBtnText}>{t('dashboards.farmer.manage')}</Text>
                   </TouchableOpacity>
                 </View>
               );
@@ -454,8 +468,8 @@ export default function FarmerDashboard({ navigation, route }) {
           <View style={styles.bannerIconBadge}>
             <Text style={styles.bannerIconText}>⚡</Text>
           </View>
-          <Text style={styles.bannerTitle}>More produce additions coming soon</Text>
-          <Text style={styles.bannerSubtitle}>Check back later or log new harvests as your crops mature.</Text>
+          <Text style={styles.bannerTitle}>{t('dashboards.farmer.comingSoonTitle')}</Text>
+          <Text style={styles.bannerSubtitle}>{t('dashboards.farmer.comingSoonSubtitle')}</Text>
         </View>
 
       </ScrollView>

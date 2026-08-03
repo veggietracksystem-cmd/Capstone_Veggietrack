@@ -1,16 +1,17 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = '#2e7d32';
 const GREY = '#cfd8dc';
 const GREY_TEXT = '#90a4ae';
 
 // Order lifecycle, in sequence. `key` matches the backend status string.
-const STEPS = [
-  { key: 'pending', label: 'Pending' },
-  { key: 'approved', label: 'Approved' },
-  { key: 'picked_up', label: 'Picked\nUp' },
-  { key: 'in_transit', label: 'In\nTransit' },
-  { key: 'delivered', label: 'Delivered' },
+const STEP_KEYS = [
+  { key: 'pending', labelKey: 'orderStatus.pending' },
+  { key: 'approved', labelKey: 'orderStatus.approved' },
+  { key: 'picked_up', labelKey: 'orderStatus.pickedUp' },
+  { key: 'in_transit', labelKey: 'orderStatus.inTransit' },
+  { key: 'delivered', labelKey: 'orderStatus.delivered' },
 ];
 
 // Statuses the backend may send that map onto a step above.
@@ -22,7 +23,7 @@ const STATUS_ALIASES = {
 
 function stepIndexFor(status) {
   const normalized = STATUS_ALIASES[status] || status;
-  const i = STEPS.findIndex((s) => s.key === normalized);
+  const i = STEP_KEYS.findIndex((s) => s.key === normalized);
   return i; // -1 if unknown (e.g. cancelled) → nothing highlighted
 }
 
@@ -35,11 +36,12 @@ function stepIndexFor(status) {
  * caller should still render the status badge for context.
  */
 export default function OrderStepIndicator({ status }) {
+  const { t } = useTranslation();
   const current = stepIndexFor(status);
 
   return (
     <View style={styles.row}>
-      {STEPS.map((step, i) => {
+      {STEP_KEYS.map((step, i) => {
         const done = current >= 0 && i <= current;
         const isCurrent = i === current;
         return (
@@ -56,7 +58,7 @@ export default function OrderStepIndicator({ status }) {
             </View>
 
             <Text style={[styles.label, done && styles.labelDone]} numberOfLines={2}>
-              {step.label}
+              {t(step.labelKey)}
             </Text>
           </View>
         );

@@ -19,16 +19,9 @@ import EmptyState from '../components/EmptyState';
 import ProofPreviewModal from '../components/ProofPreviewModal';
 import BottomNavBar from '../components/BottomNavBar';
 import { showAlert, peso, shortId } from '../lib/ui';
+import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = '#2e7d32';
-
-const RIDER_TABS = [
-  { id: 'home', icon: '🏠', label: 'Home' },
-  { id: 'tasks', icon: '📋', label: 'Tasks' },
-  { id: 'map', icon: '🗺️', label: 'Map' },
-  { id: 'history', icon: '📜', label: 'History' },
-  { id: 'profile', icon: '👤', label: 'Profile' },
-];
 
 function statusColor(status) {
   switch (status) {
@@ -56,13 +49,6 @@ function effectiveStatus(order) {
 // (Issue 10): assigned → picked_up → in_transit → delivered.
 const STATUS_RANK = { pending: 0, approved: 0, assigned: 0, picked_up: 1, in_transit: 2, delivered: 3 };
 
-// Summary-card filter buckets.
-const FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'active', label: 'Active' },
-  { key: 'completed', label: 'Completed' },
-  { key: 'cancelled', label: 'Cancelled' },
-];
 function matchesFilter(order, filter) {
   const s = effectiveStatus(order);
   if (filter === 'all') return true;
@@ -74,6 +60,22 @@ function matchesFilter(order, filter) {
 
 export default function DeliveryDashboard({ navigation, route }) {
   const { user } = useAuth();
+  const { t } = useTranslation();
+
+  const RIDER_TABS = [
+    { id: 'home', icon: '🏠', label: t('dashboards.delivery.tabHome') },
+    { id: 'tasks', icon: '📋', label: t('dashboards.delivery.tabTasks') },
+    { id: 'map', icon: '🗺️', label: t('dashboards.delivery.tabMap') },
+    { id: 'history', icon: '📜', label: t('dashboards.delivery.tabHistory') },
+    { id: 'profile', icon: '👤', label: t('dashboards.delivery.tabProfile') },
+  ];
+
+  const FILTERS = [
+    { key: 'all', label: t('dashboards.delivery.filterAll') },
+    { key: 'active', label: t('dashboards.delivery.filterActive') },
+    { key: 'completed', label: t('dashboards.delivery.filterCompleted') },
+    { key: 'cancelled', label: t('dashboards.delivery.filterCancelled') },
+  ];
 
   const [orders, setOrders] = useState([]);
   const [pickups, setPickups] = useState([]);
@@ -132,9 +134,9 @@ export default function DeliveryDashboard({ navigation, route }) {
     try {
       await api.post(`/api/pickup-requests/${pickupId}/pickup`);
       await Promise.all([loadOrders(), loadPickups()]);
-      showAlert('Success', 'Vegetables marked as Picked Up.');
+      showAlert(t('common.success'), t('dashboards.delivery.pickedUpSuccessMessage'));
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setBusyId(null);
     }
@@ -152,7 +154,7 @@ export default function DeliveryDashboard({ navigation, route }) {
       } else {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) {
-          showAlert('Permission needed', 'Camera access is required to take a proof photo.');
+          showAlert(t('dashboards.delivery.permissionNeededTitle'), t('dashboards.delivery.cameraPermissionMessage'));
           return;
         }
         result = await ImagePicker.launchCameraAsync({
@@ -164,7 +166,7 @@ export default function DeliveryDashboard({ navigation, route }) {
         setPhotos((prev) => ({ ...prev, [orderId]: result.assets[0] }));
       }
     } catch (err) {
-      showAlert('Error', err.message || 'Could not open the camera.');
+      showAlert(t('common.error'), err.message || t('dashboards.delivery.cameraErrorFallback'));
     }
   };
 
@@ -181,7 +183,7 @@ export default function DeliveryDashboard({ navigation, route }) {
   const updateDeliveryStatus = async (order, newStatus) => {
     const delivery = getDelivery(order);
     if (!delivery || !delivery.id) {
-      showAlert('Missing delivery record', 'Pull down to refresh and try again.');
+      showAlert(t('dashboards.delivery.missingDeliveryTitle'), t('dashboards.delivery.pullToRefreshRetry'));
       return;
     }
     setBusyId(order.id);
@@ -189,7 +191,7 @@ export default function DeliveryDashboard({ navigation, route }) {
       await api.put(`/api/deliveries/${delivery.id}/status`, { status: newStatus });
       await loadOrders();
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setBusyId(null);
     }
@@ -199,8 +201,8 @@ export default function DeliveryDashboard({ navigation, route }) {
     const delivery = getDelivery(order);
     if (!delivery || !delivery.id) {
       showAlert(
-        'Missing delivery record',
-        'Could not find the delivery ID for this order. Pull down to refresh and try again.'
+        t('dashboards.delivery.missingDeliveryTitle'),
+        t('dashboards.delivery.missingDeliveryIdMessage')
       );
       return;
     }
@@ -222,9 +224,9 @@ export default function DeliveryDashboard({ navigation, route }) {
       setConfirmOrder(null); // close the confirm modal
       // Reload so the order moves into the "Completed" bucket (counts stay accurate).
       await loadOrders();
-      showAlert('Delivered', `Order ${shortId(order.id)} marked as delivered.`);
+      showAlert(t('dashboards.delivery.deliveredTitle'), t('dashboards.delivery.deliveredMessage', { id: shortId(order.id) }));
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), err.message);
     } finally {
       setBusyId(null);
     }
@@ -268,7 +270,7 @@ export default function DeliveryDashboard({ navigation, route }) {
     <SafeAreaView style={styles.container}>
       {/* Minimal Top Navigation Bar */}
       <View style={styles.minimalHeader}>
-        <Text style={styles.minimalTitle}>Delivery Dashboard</Text>
+        <Text style={styles.minimalTitle}>{t('dashboards.delivery.title')}</Text>
         <NotificationBell />
       </View>
 
@@ -285,7 +287,7 @@ export default function DeliveryDashboard({ navigation, route }) {
             onPress={() => setMode('deliveries')}
           >
             <Text style={[styles.tabButtonText, mode === 'deliveries' && styles.tabButtonTextActive]}>
-              📦 Deliveries
+              {t('dashboards.delivery.modeDeliveries')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -293,7 +295,7 @@ export default function DeliveryDashboard({ navigation, route }) {
             onPress={() => setMode('pickups')}
           >
             <Text style={[styles.tabButtonText, mode === 'pickups' && styles.tabButtonTextActive]}>
-              🚜 Farmer Pickups
+              {t('dashboards.delivery.modePickups')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -322,15 +324,15 @@ export default function DeliveryDashboard({ navigation, route }) {
               })}
             </View>
 
-            <Text style={styles.sectionTitle}>My Deliveries</Text>
+            <Text style={styles.sectionTitle}>{t('dashboards.delivery.myDeliveries')}</Text>
 
             {loading ? (
               <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
             ) : visibleOrders.length === 0 ? (
               <EmptyState
                 icon="🚚"
-                title={`No ${filter === 'all' ? '' : `${filter} `}deliveries`}
-                message="Assigned deliveries will appear here. Pull down to refresh."
+                title={t('dashboards.delivery.noDeliveriesTitle', { filter: filter === 'all' ? '' : `${t(`dashboards.delivery.filter${filter.charAt(0).toUpperCase()}${filter.slice(1)}`)} ` })}
+                message={t('dashboards.delivery.noDeliveriesMessage')}
               />
             ) : (
               visibleOrders.map((order) => {
@@ -343,7 +345,7 @@ export default function DeliveryDashboard({ navigation, route }) {
                 return (
                   <View key={order.id} style={styles.orderCard}>
                     <View style={styles.orderHeader}>
-                      <Text style={styles.orderId}>Order #{shortId(order.id)}</Text>
+                      <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
                       <View style={[styles.statusBadge, { backgroundColor: statusColor(delivery?.status || order.status) }]}>
                         <Text style={styles.statusBadgeText}>{delivery?.status || order.status}</Text>
                       </View>
@@ -351,7 +353,7 @@ export default function DeliveryDashboard({ navigation, route }) {
 
                     <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
 
-                    <Text style={[styles.rowMeta, { fontWeight: '700', marginTop: 6 }]}>1. Pickup from Warehouse:</Text>
+                    <Text style={[styles.rowMeta, { fontWeight: '700', marginTop: 6 }]}>{t('dashboards.delivery.pickupFromWarehouse')}</Text>
                     <View style={styles.addressRow}>
                       <Text style={[styles.rowMeta, { flex: 1 }]}>🏢 {order.distributor_address}</Text>
                       <TouchableOpacity
@@ -361,11 +363,11 @@ export default function DeliveryDashboard({ navigation, route }) {
                           setMapCoords(order.distributor_coords);
                         }}
                       >
-                        <Text style={styles.routeBtnText}>View Route</Text>
+                        <Text style={styles.routeBtnText}>{t('dashboards.delivery.viewRoute')}</Text>
                       </TouchableOpacity>
                     </View>
 
-                    <Text style={[styles.rowMeta, { fontWeight: '700', marginTop: 6 }]}>2. Deliver to Retailer:</Text>
+                    <Text style={[styles.rowMeta, { fontWeight: '700', marginTop: 6 }]}>{t('dashboards.delivery.deliverToRetailer')}</Text>
                     <View style={styles.addressRow}>
                       <Text style={[styles.rowMeta, { flex: 1 }]}>📍 {order.retailer_address}</Text>
                       <TouchableOpacity
@@ -375,27 +377,27 @@ export default function DeliveryDashboard({ navigation, route }) {
                           setMapCoords(order.retailer_coords);
                         }}
                       >
-                        <Text style={styles.routeBtnText}>View Route</Text>
+                        <Text style={styles.routeBtnText}>{t('dashboards.delivery.viewRoute')}</Text>
                       </TouchableOpacity>
                     </View>
 
                     {order.preferred_schedule ? (
-                      <Text style={styles.rowMeta}>Schedule: {order.preferred_schedule}</Text>
+                      <Text style={styles.rowMeta}>{t('dashboards.delivery.scheduleLabel', { schedule: order.preferred_schedule })}</Text>
                     ) : null}
 
                     {effectiveStatus(order) !== 'delivered' && effectiveStatus(order) !== 'cancelled' ? (
                       <View style={styles.trackRow}>
-                        <Text style={styles.etaText}>🕒 ETA: 10–15 mins</Text>
+                        <Text style={styles.etaText}>{t('dashboards.delivery.etaText')}</Text>
                         <View style={[styles.liveDot, { backgroundColor: statusColor(effectiveStatus(order)) }]} />
                         <Text style={[styles.liveStatus, { color: statusColor(effectiveStatus(order)) }]}>
-                          {effectiveStatus(order) === 'in_transit' ? 'In Transit' : 'Live'}
+                          {effectiveStatus(order) === 'in_transit' ? t('dashboards.delivery.liveStatusInTransit') : t('dashboards.delivery.liveStatusLive')}
                         </Text>
                       </View>
                     ) : null}
 
                     <View style={styles.itemsBox}>
                       {items.length === 0 ? (
-                        <Text style={styles.rowMeta}>No item details.</Text>
+                        <Text style={styles.rowMeta}>{t('dashboards.delivery.noItemDetails')}</Text>
                       ) : (
                         items.map((it, i) => (
                           <Text key={i} style={styles.itemLine}>
@@ -413,7 +415,7 @@ export default function DeliveryDashboard({ navigation, route }) {
                           disabled={busy || rank >= 1}
                         >
                           <Text style={[styles.progressBtnText, rank >= 1 && styles.progressBtnTextDone]}>
-                            {rank >= 1 ? '✓ Picked Up' : '📦 Picked Up'}
+                            {rank >= 1 ? t('dashboards.delivery.pickedUpDone') : t('dashboards.delivery.pickedUpTodo')}
                           </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -422,7 +424,7 @@ export default function DeliveryDashboard({ navigation, route }) {
                           disabled={busy || rank >= 2 || rank < 1}
                         >
                           <Text style={[styles.progressBtnText, rank >= 2 && styles.progressBtnTextDone]}>
-                            {rank >= 2 ? '✓ In Transit' : '🚚 In Transit'}
+                            {rank >= 2 ? t('dashboards.delivery.inTransitDone') : t('dashboards.delivery.inTransitTodo')}
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -435,7 +437,7 @@ export default function DeliveryDashboard({ navigation, route }) {
                     >
                       {busy
                         ? <ActivityIndicator color="#fff" />
-                        : <Text style={styles.buttonPrimaryText}>Mark Delivered</Text>}
+                        : <Text style={styles.buttonPrimaryText}>{t('dashboards.delivery.markDelivered')}</Text>}
                     </TouchableOpacity>
                   </View>
                 );
@@ -446,14 +448,14 @@ export default function DeliveryDashboard({ navigation, route }) {
 
         {mode === 'pickups' && (
           <View>
-            <Text style={styles.sectionTitle}>Farmer Pickups</Text>
+            <Text style={styles.sectionTitle}>{t('dashboards.delivery.farmerPickups')}</Text>
             {loading ? (
               <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
             ) : pickups.length === 0 ? (
               <EmptyState
                 icon="🚜"
-                title="No assigned pickups"
-                message="Farmer pickups assigned to you will appear here."
+                title={t('dashboards.delivery.noAssignedPickupsTitle')}
+                message={t('dashboards.delivery.noAssignedPickupsMessage')}
               />
             ) : (
               pickups.map((pickup) => {
@@ -464,16 +466,16 @@ export default function DeliveryDashboard({ navigation, route }) {
                 return (
                   <View key={pickup.id} style={styles.orderCard}>
                     <View style={styles.orderHeader}>
-                      <Text style={styles.orderId}>Pickup #{shortId(pickup.id)}</Text>
+                      <Text style={styles.orderId}>{t('dashboards.delivery.pickupNumber', { id: shortId(pickup.id) })}</Text>
                       <View style={[styles.statusBadge, { backgroundColor: isAssigned ? '#1976d2' : '#2e7d32' }]}>
                         <Text style={styles.statusBadgeText}>{pickup.status}</Text>
                       </View>
                     </View>
 
-                    <Text style={[styles.rowMeta, { fontWeight: '700', marginTop: 4 }]}>Farmer Details:</Text>
-                    <Text style={styles.rowMeta}>👨‍🌾 {pickup.farmer_name || 'Farmer'}</Text>
+                    <Text style={[styles.rowMeta, { fontWeight: '700', marginTop: 4 }]}>{t('dashboards.delivery.farmerDetails')}</Text>
+                    <Text style={styles.rowMeta}>👨‍🌾 {pickup.farmer_name || t('dashboards.delivery.farmerFallback')}</Text>
                     <Text style={styles.rowMeta}>
-                      🌾 {harvest?.vegetable_name || 'Vegetables'} — {harvest?.quantity_kg || 0} kg
+                      🌾 {harvest?.vegetable_name || t('dashboards.delivery.vegetablesFallback')} — {harvest?.quantity_kg || 0} kg
                     </Text>
 
                     {pickup.farmer_address ? (
@@ -486,7 +488,7 @@ export default function DeliveryDashboard({ navigation, route }) {
                             setMapCoords(pickup.farmer_coords);
                           }}
                         >
-                          <Text style={styles.routeBtnText}>View Route</Text>
+                          <Text style={styles.routeBtnText}>{t('dashboards.delivery.viewRoute')}</Text>
                         </TouchableOpacity>
                       </View>
                     ) : null}
@@ -500,7 +502,7 @@ export default function DeliveryDashboard({ navigation, route }) {
                         {busy ? (
                           <ActivityIndicator color="#fff" />
                         ) : (
-                          <Text style={styles.buttonPrimaryText}>Mark as Picked Up</Text>
+                          <Text style={styles.buttonPrimaryText}>{t('dashboards.delivery.markPickedUpBtn')}</Text>
                         )}
                       </TouchableOpacity>
                     )}

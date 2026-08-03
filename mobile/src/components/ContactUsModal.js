@@ -4,10 +4,12 @@ import {
   ScrollView, ActivityIndicator,
 } from 'react-native';
 import { showAlert } from '../lib/ui';
+import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = '#2e7d32';
 
 export default function ContactUsModal({ visible, onClose }) {
+  const { t } = useTranslation();
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -17,11 +19,11 @@ export default function ContactUsModal({ visible, onClose }) {
     const m = message.trim();
 
     if (!s) {
-      showAlert('Error', 'Please enter a subject.');
+      showAlert(t('common.error'), t('contactUs.subjectRequired'));
       return;
     }
     if (!m) {
-      showAlert('Error', 'Please enter your message.');
+      showAlert(t('common.error'), t('contactUs.messageRequired'));
       return;
     }
 
@@ -30,7 +32,7 @@ export default function ContactUsModal({ visible, onClose }) {
       setSending(false);
       setSubject('');
       setMessage('');
-      showAlert('Message Sent', 'Thank you for reaching out! Our support team will respond to you shortly.', () => {
+      showAlert(t('contactUs.sentTitle'), t('contactUs.sentMessage'), () => {
         onClose();
       });
     }, 800);
@@ -42,7 +44,7 @@ export default function ContactUsModal({ visible, onClose }) {
         <View style={styles.sheet}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>📞 Contact Us & Support</Text>
+            <Text style={styles.title}>{t('contactUs.title')}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Text style={styles.closeText}>✕</Text>
             </TouchableOpacity>
@@ -51,8 +53,8 @@ export default function ContactUsModal({ visible, onClose }) {
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             {/* Hub Info Card */}
             <View style={styles.infoCard}>
-              <Text style={styles.cardTitle}>San Pablo Central Hub</Text>
-              
+              <Text style={styles.cardTitle}>{t('contactUs.hubName')}</Text>
+
               <View style={styles.infoRow}>
                 <Text style={styles.icon}>📍</Text>
                 <Text style={styles.infoText}>San Pablo City Central Warehouse, Laguna, Philippines</Text>
@@ -70,26 +72,26 @@ export default function ContactUsModal({ visible, onClose }) {
 
               <View style={styles.infoRow}>
                 <Text style={styles.icon}>⏰</Text>
-                <Text style={styles.infoText}>Monday – Saturday: 6:00 AM – 6:00 PM</Text>
+                <Text style={styles.infoText}>{t('contactUs.hours')}</Text>
               </View>
             </View>
 
             {/* Support Form */}
-            <Text style={styles.formTitle}>Send an Inquiry</Text>
+            <Text style={styles.formTitle}>{t('contactUs.sendInquiry')}</Text>
 
-            <Text style={styles.label}>Subject</Text>
+            <Text style={styles.label}>{t('contactUs.subjectLabel')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g., Pickup Delay / Order Issue"
+              placeholder={t('contactUs.subjectPlaceholder')}
               value={subject}
               onChangeText={setSubject}
               editable={!sending}
             />
 
-            <Text style={styles.label}>Message</Text>
+            <Text style={styles.label}>{t('contactUs.messageLabel')}</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Describe your issue or question..."
+              placeholder={t('contactUs.messagePlaceholder')}
               value={message}
               onChangeText={setMessage}
               multiline
@@ -106,7 +108,7 @@ export default function ContactUsModal({ visible, onClose }) {
               {sending ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Send Message</Text>
+                <Text style={styles.buttonText}>{t('contactUs.sendMessage')}</Text>
               )}
             </TouchableOpacity>
           </ScrollView>
