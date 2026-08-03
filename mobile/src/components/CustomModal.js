@@ -2,9 +2,10 @@ import { useEffect, useRef } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, Animated, StyleSheet,
 } from 'react-native';
+import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 
 /**
  * Reusable themed modal (Issue 1): dimmed backdrop, centered rounded card, green
@@ -85,15 +86,15 @@ export default function CustomModal({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 380, backgroundColor: '#fff', borderRadius: 16, padding: 22, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
-  title: { fontSize: 19, fontWeight: '700', color: PRIMARY, marginBottom: 12 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  card: { width: '100%', maxWidth: 380, backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
+  title: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink, marginBottom: 12 },
   body: { marginBottom: 6 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 16 },
-  btn: { flex: 1, paddingVertical: 13, borderRadius: 10, alignItems: 'center' },
+  btn: { flex: 1, paddingVertical: 13, borderRadius: radius.ctrl, alignItems: 'center' },
   btnPrimary: { backgroundColor: PRIMARY },
-  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  btnPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15 },
   btnOutline: { borderWidth: 1.5, borderColor: PRIMARY },
-  btnOutlineText: { color: PRIMARY, fontWeight: '600', fontSize: 15 },
+  btnOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 15 },
   btnDisabled: { opacity: 0.5 },
 });

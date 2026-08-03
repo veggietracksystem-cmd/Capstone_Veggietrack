@@ -4,9 +4,10 @@ import {
   ScrollView, ActivityIndicator,
 } from 'react-native';
 import { showAlert } from '../lib/ui';
+import { colors, fonts, radius } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 
 export default function ContactUsModal({ visible, onClose }) {
   const { t } = useTranslation();
@@ -119,23 +120,23 @@ export default function ContactUsModal({ visible, onClose }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingBottom: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  title: { fontSize: 18, fontWeight: '700', color: PRIMARY },
+  backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: '85%', paddingBottom: 20 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
   closeBtn: { padding: 6 },
-  closeText: { fontSize: 18, color: '#777', fontWeight: 'bold' },
+  closeText: { fontSize: 18, color: colors.inkSoft, fontWeight: 'bold' },
   content: { padding: 20 },
-  infoCard: { backgroundColor: '#f8fdf8', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#c8e6c9', marginBottom: 20 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: PRIMARY, marginBottom: 12 },
+  infoCard: { backgroundColor: colors.leaf50, borderRadius: radius.card, padding: 16, borderWidth: 1, borderColor: colors.leaf100, marginBottom: 20 },
+  cardTitle: { fontFamily: fonts.heading, fontSize: 16, color: colors.ink, marginBottom: 12 },
   infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   icon: { fontSize: 16, marginRight: 10, width: 24, textAlign: 'center' },
-  infoText: { fontSize: 13, color: '#444', flex: 1 },
-  formTitle: { fontSize: 16, fontWeight: '700', color: '#222', marginBottom: 12 },
-  label: { fontSize: 13, color: '#555', marginBottom: 6, marginTop: 4 },
-  input: { backgroundColor: '#fff', borderRadius: 8, padding: 12, fontSize: 14, marginBottom: 14, borderWidth: 1, borderColor: '#ddd' },
+  infoText: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, flex: 1 },
+  formTitle: { fontFamily: fonts.heading, fontSize: 16, color: colors.ink, marginBottom: 12 },
+  label: { fontFamily: fonts.bodySemiBold, fontSize: 12.5, color: colors.inkSoft, marginBottom: 6, marginTop: 4 },
+  input: { backgroundColor: colors.card, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: 14, marginBottom: 14, borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
   textArea: { height: 100, textAlignVertical: 'top' },
-  button: { backgroundColor: PRIMARY, paddingVertical: 14, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  button: { backgroundColor: PRIMARY, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 10 },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  buttonText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15.5 },
 });

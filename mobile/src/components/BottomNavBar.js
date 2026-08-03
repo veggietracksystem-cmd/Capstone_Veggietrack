@@ -1,13 +1,24 @@
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-
-const PRIMARY = '#2e7d32';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { colors, fonts } from '../theme/appTheme';
 
 export default function BottomNavBar({ tabs, activeTab, onTabPress }) {
   if (!tabs || !Array.isArray(tabs)) return null;
   return (
     <View style={styles.container}>
       {tabs.map((tab) => {
+        if (tab.render) {
+          // Custom tab content (e.g. NotificationBell) manages its own
+          // press handling/state, so it's rendered as-is, not wrapped in
+          // another TouchableOpacity.
+          return (
+            <View key={tab.id} style={styles.tabItem}>
+              {tab.render(onTabPress, activeTab)}
+            </View>
+          );
+        }
         const isActive = activeTab === tab.id;
+        const IconComponent = tab.iconSet === 'material' ? MaterialCommunityIcons : Ionicons;
         return (
           <TouchableOpacity
             key={tab.id}
@@ -15,9 +26,11 @@ export default function BottomNavBar({ tabs, activeTab, onTabPress }) {
             onPress={() => onTabPress(tab)}
             activeOpacity={0.7}
           >
-            <Text style={[styles.icon, isActive && styles.iconActive]}>
-              {tab.icon}
-            </Text>
+            <IconComponent
+              name={tab.iconName}
+              size={21}
+              color={isActive ? colors.leaf700 : colors.inkFaint}
+            />
             <Text
               style={[styles.label, isActive && styles.labelActive]}
               numberOfLines={1}
@@ -34,16 +47,12 @@ export default function BottomNavBar({ tabs, activeTab, onTabPress }) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.card,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    paddingVertical: 8,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderTopColor: colors.border,
+    paddingVertical: 10,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+    height: Platform.OS === 'ios' ? 84 : 74,
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -53,22 +62,14 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  icon: {
-    fontSize: 20,
-    marginBottom: 2,
-    color: '#757575',
-  },
-  iconActive: {
-    transform: [{ scale: 1.1 }],
+    gap: 4,
   },
   label: {
+    fontFamily: fonts.bodySemiBold,
     fontSize: 11,
-    fontWeight: '500',
-    color: '#757575',
+    color: colors.inkFaint,
   },
   labelActive: {
-    color: PRIMARY,
-    fontWeight: '700',
+    color: colors.leaf700,
   },
 });

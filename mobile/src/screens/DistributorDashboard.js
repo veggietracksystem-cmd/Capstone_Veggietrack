@@ -8,27 +8,32 @@ import api from '../api/client';
 import { fetchProducts, queueProduct, syncPending, getQueue } from '../offline/productStore';
 import { readThrough } from '../offline/cache';
 import { onReconnect } from '../offline/net';
-import { showAlert, peso, shortId } from '../lib/ui';
-import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 import { useAuth } from '../context/AuthContext';
-import { useTranslation } from '../i18n/useTranslation';
 import LogoutButton from '../components/LogoutButton';
 import NotificationBell from '../components/NotificationBell';
 import BottomNavBar from '../components/BottomNavBar';
-import CustomModal from '../components/CustomModal';
 import OfflineBanner from '../components/OfflineBanner';
 import EmptyState from '../components/EmptyState';
+import CustomModal from '../components/CustomModal';
+import { showAlert, peso, shortId } from '../lib/ui';
+import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { useTranslation } from '../i18n/useTranslation';
+import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 
-// Distributor sees the harvest/farmer info embedded on each pickup request by
-// the backend (harvests join + farmer_name lookup — see GET /api/pickup-requests).
+// Pickup requests embed the harvest + (optionally) the farmer. Be defensive
+// about the exact relation key the backend returns.
 function harvestOf(req) {
-  return req?.harvests || null;
+  return req.harvests || req.harvest || null;
 }
-
 function farmerNameOf(req) {
-  return req?.farmer_name || null;
+  return (
+    req.farmer_name ||
+    req.farmer?.full_name ||
+    req.users?.full_name ||
+    `Farmer ${shortId(req.farmer_id)}`
+  );
 }
 
 export default function DistributorDashboard({ navigation, route }) {
@@ -36,26 +41,26 @@ export default function DistributorDashboard({ navigation, route }) {
   const { t } = useTranslation();
 
   const DISTRIBUTOR_TABS = [
-    { id: 'home', icon: '🏠', label: t('dashboards.distributor.tabHome') },
-    { id: 'orders', icon: '📋', label: t('dashboards.distributor.tabOrders') },
-    { id: 'inventory', icon: '📦', label: t('dashboards.distributor.tabInventory') },
-    { id: 'riders', icon: '🛵', label: t('dashboards.distributor.tabRiders') },
-    { id: 'profile', icon: '👤', label: t('dashboards.distributor.tabProfile') },
+    { id: 'home', iconName: 'home-outline', label: t('dashboards.distributor.tabHome') },
+    { id: 'orders', iconName: 'clipboard-outline', label: t('dashboards.distributor.tabOrders') },
+    { id: 'inventory', iconName: 'cube-outline', label: t('dashboards.distributor.tabInventory') },
+    { id: 'riders', iconName: 'bicycle-outline', label: t('dashboards.distributor.tabRiders') },
+    { id: 'profile', iconName: 'person-outline', label: t('dashboards.distributor.tabProfile') },
   ];
   const [tab, setTab] = useState('orders'); // 'products' | 'pickups' | 'orders' | 'payments'
   const [activeBottomTab, setActiveBottomTab] = useState('home');
 
-  const handleBottomTabPress = (t) => {
-    setActiveBottomTab(t.id);
-    if (t.id === 'inventory') {
+  const handleBottomTabPress = (tab) => {
+    setActiveBottomTab(tab.id);
+    if (tab.id === 'inventory') {
       navigation.navigate('ProductList');
-    } else if (t.id === 'profile') {
+    } else if (tab.id === 'profile') {
       navigation.navigate('Profile');
-    } else if (t.id === 'orders') {
+    } else if (tab.id === 'orders') {
       setTab('orders');
-    } else if (t.id === 'riders') {
+    } else if (tab.id === 'riders') {
       setTab('pickups');
-    } else if (t.id === 'home') {
+    } else if (tab.id === 'home') {
       setTab('orders');
     }
   };
@@ -287,7 +292,7 @@ export default function DistributorDashboard({ navigation, route }) {
       return;
     }
     if (!editingProductId && !isVegetable(name)) {
-      showAlert('Invalid Product', VEGETABLE_VALIDATION_MESSAGE);
+      showAlert(t('common.error'), VEGETABLE_VALIDATION_MESSAGE);
       return;
     }
     if (isNaN(priceNum) || priceNum < 0) {
@@ -573,7 +578,7 @@ export default function DistributorDashboard({ navigation, route }) {
               value={priceInput}
               onChangeText={setPriceInput}
               keyboardType="numeric"
-              placeholder="e.g., 45"
+              placeholder={t('dashboards.distributor.pricePlaceholder')}
               editable={receiveBusyId !== receiveReq.id}
             />
 
@@ -635,7 +640,7 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
           const busy = busyId === req.id;
           return (
             <View key={req.id} style={styles.pickupCard}>
-              <Text style={styles.pickupFarmer}>👨‍🌾 {farmerNameOf(req) || t('dashboards.distributor.unknownFarmer')}</Text>
+              <Text style={styles.pickupFarmer}>👨‍🌾 {farmerNameOf(req)}</Text>
               <Text style={styles.pickupHarvest}>
                 {harvest?.vegetable_name || t('dashboards.distributor.unknownHarvest')}
                 {harvest?.quantity_kg != null ? ` — ${harvest.quantity_kg} kg` : ''}
@@ -917,8 +922,8 @@ const ACTIVE_STATUS_COLOR = {
   assigned: '#1565c0',
   picked_up: '#00897b',
   in_transit: '#7b1fa2',
-  delivered: '#2e7d32',
-  cancelled: '#c62828',
+  delivered: colors.leaf700,
+  cancelled: colors.danger,
 };
 
 // ================= Payments tab =================
@@ -1029,7 +1034,7 @@ function PaymentsTab({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: colors.bgScreen },
 
   minimalHeader: {
     flexDirection: 'row',
@@ -1037,97 +1042,97 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.bgScreen,
     borderBottomWidth: 1,
-    borderBottomColor: '#eeeeee',
+    borderBottomColor: colors.border,
   },
-  minimalTitle: { fontSize: 18, fontWeight: '700', color: PRIMARY },
+  minimalTitle: { fontFamily: fonts.heading, fontSize: 19, color: colors.ink },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontSize: 24, fontWeight: 'bold', color: PRIMARY },
-  subtitle: { fontSize: 14, color: '#555', marginTop: 2 },
+  title: { fontFamily: fonts.heading, fontSize: 22, color: colors.ink },
+  subtitle: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, marginTop: 2 },
 
-  tabs: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, backgroundColor: '#e8f0e9', borderRadius: 10, padding: 4 },
+  tabs: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 4 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   tabActive: { backgroundColor: PRIMARY },
-  tabText: { color: PRIMARY, fontWeight: '600', fontSize: 13 },
+  tabText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 13 },
   tabTextActive: { color: '#fff' },
 
   subTabs: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  subTab: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: PRIMARY },
+  subTab: { flex: 1, paddingVertical: 8, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY },
   subTabActive: { backgroundColor: PRIMARY },
-  subTabText: { color: PRIMARY, fontWeight: '600', fontSize: 14 },
+  subTabText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 14 },
   subTabTextActive: { color: '#fff' },
 
-  recordBox: { marginTop: 10, backgroundColor: '#fafafa', borderRadius: 8, padding: 10 },
+  recordBox: { marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10 },
   recordButtons: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  paidBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12, backgroundColor: '#e8f5e9', borderWidth: 1, borderColor: PRIMARY },
-  paidBadgeText: { fontSize: 12, color: PRIMARY, fontWeight: '600', textTransform: 'capitalize' },
+  paidBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12, backgroundColor: colors.leaf100, borderWidth: 1, borderColor: PRIMARY },
+  paidBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: PRIMARY, textTransform: 'capitalize' },
 
   content: { padding: 16, paddingBottom: 40 },
 
   // Harvest Receiving card
 
-  primaryBtn: { backgroundColor: PRIMARY, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginBottom: 14 },
-  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  primaryBtn: { backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 14, alignItems: 'center', marginBottom: 14 },
+  primaryBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15.5 },
 
-  viewAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderRadius: 10, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderColor: PRIMARY },
-  viewAllText: { color: PRIMARY, fontWeight: '700', fontSize: 15 },
+  viewAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: radius.ctrl, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1.4, borderColor: PRIMARY },
+  viewAllText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 14.5 },
   viewAllChevron: { fontSize: 22, color: PRIMARY },
 
-  formCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#eee' },
-  formTitle: { fontSize: 18, fontWeight: '700', color: PRIMARY, marginBottom: 8 },
-  fieldLabel: { fontSize: 13, color: '#555', marginTop: 8, marginBottom: 6 },
-  input: { backgroundColor: '#fafafa', borderRadius: 8, padding: 12, fontSize: 16, borderWidth: 1, borderColor: '#ddd' },
-  inputDisabled: { backgroundColor: '#f0f0f0', color: '#888' },
-  hint: { fontSize: 12, color: '#999', marginTop: 4 },
+  formCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.border, ...shadowCard },
+  formTitle: { fontFamily: fonts.heading, fontSize: 17, color: colors.ink, marginBottom: 8 },
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12.5, color: colors.inkSoft, marginTop: 8, marginBottom: 6 },
+  input: { backgroundColor: colors.bgScreen, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: 15, borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
+  inputDisabled: { backgroundColor: '#EFEAE2', color: colors.inkFaint },
+  hint: { fontFamily: fonts.body, fontSize: 12, color: colors.inkFaint, marginTop: 4 },
   formButtons: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  button: { flex: 1, paddingVertical: 14, borderRadius: 8, alignItems: 'center' },
+  button: { flex: 1, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center' },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  buttonOutline: { borderWidth: 1, borderColor: PRIMARY },
-  buttonOutlineText: { color: PRIMARY, fontWeight: '600', fontSize: 16 },
+  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15.5 },
+  buttonOutline: { borderWidth: 1.4, borderColor: PRIMARY },
+  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 15.5 },
   buttonDisabled: { opacity: 0.6 },
 
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 10, marginTop: 4 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: 17, color: colors.ink, marginBottom: 10, marginTop: 4 },
 
   // Pickup Requests tab
-  pickupCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#eee' },
-  pickupFarmer: { fontSize: 16, fontWeight: '700', color: '#222' },
-  pickupHarvest: { fontSize: 15, color: PRIMARY, fontWeight: '600', marginTop: 4 },
-  pickupNote: { fontSize: 13, color: '#555', marginTop: 4 },
-  pickupMeta: { fontSize: 12, color: '#999', marginTop: 4 },
+  pickupCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
+  pickupFarmer: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
+  pickupHarvest: { fontFamily: fonts.bodySemiBold, fontSize: 14.5, color: PRIMARY, marginTop: 4 },
+  pickupNote: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, marginTop: 4 },
+  pickupMeta: { fontFamily: fonts.body, fontSize: 12, color: colors.inkFaint, marginTop: 4 },
   // Approve & Receive modal
-  modalLine: { fontSize: 16, fontWeight: '700', color: '#222', marginBottom: 6 },
-  modalHint: { fontSize: 13, color: '#777', marginBottom: 10 },
-  emptyText: { color: '#888', fontStyle: 'italic', marginTop: 8 },
+  modalLine: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink, marginBottom: 6 },
+  modalHint: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, marginBottom: 10 },
+  emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
-  rowCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#eee' },
-  rowTitle: { fontSize: 16, fontWeight: '700', color: '#222' },
+  rowCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, ...shadowCard },
+  rowTitle: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
   rowTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  rowMeta: { fontSize: 14, color: '#555', marginTop: 2 },
-  pendingBadge: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 10, backgroundColor: '#fff3e0', borderWidth: 1, borderColor: '#fb8c00' },
-  pendingBadgeText: { fontSize: 11, color: '#e65100', fontWeight: '600' },
-  smallBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: PRIMARY },
-  smallBtnText: { color: PRIMARY, fontWeight: '600', fontSize: 13 },
+  rowMeta: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, marginTop: 2 },
+  pendingBadge: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 10, backgroundColor: colors.gold100, borderWidth: 1, borderColor: colors.gold500 },
+  pendingBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.gold700 },
+  smallBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY },
+  smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 13 },
 
-  orderCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#eee' },
+  orderCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  orderId: { fontSize: 16, fontWeight: '700', color: '#222' },
-  orderTotal: { fontSize: 16, fontWeight: '700', color: PRIMARY },
+  orderId: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
+  orderTotal: { fontFamily: fonts.bodyBold, fontSize: 15, color: PRIMARY },
   statusPill: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusPillText: { color: '#fff', fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
-  itemsBox: { backgroundColor: '#fafafa', borderRadius: 8, padding: 10, marginVertical: 10 },
-  itemLine: { fontSize: 13, color: '#444', marginBottom: 2 },
+  statusPillText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 12, textTransform: 'capitalize' },
+  itemsBox: { backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10, marginVertical: 10 },
+  itemLine: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, marginBottom: 2 },
 
-  trackBtn: { marginBottom: 10, paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: PRIMARY },
-  trackBtnText: { color: PRIMARY, fontWeight: '700', fontSize: 14 },
+  trackBtn: { marginBottom: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY },
+  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: 13.5 },
 
-  assignLabel: { fontSize: 14, fontWeight: '600', color: '#333', marginTop: 6, marginBottom: 8 },
+  assignLabel: { fontFamily: fonts.bodySemiBold, fontSize: 13.5, color: colors.ink, marginTop: 6, marginBottom: 8 },
   personnelWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  personChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ccc', backgroundColor: '#fafafa' },
+  personChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgScreen },
   personChipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  personChipText: { color: '#555', fontSize: 13 },
-  personChipTextActive: { color: '#fff', fontWeight: '600' },
+  personChipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13 },
+  personChipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
 });

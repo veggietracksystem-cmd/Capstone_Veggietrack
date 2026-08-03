@@ -1,4 +1,5 @@
 import { Modal, View, Image, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { fonts, radius } from '../theme/appTheme';
 
 // Full-screen image viewer. Pass a uri to show; onClose dismisses it.
 export default function ImageViewerModal({ uri, visible, onClose }) {
@@ -19,6 +20,6 @@ export default function ImageViewerModal({ uri, visible, onClose }) {
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' },
   image: { width: '92%', height: '75%' },
-  closeBtn: { position: 'absolute', top: 40, right: 20, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)' },
-  closeText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  closeBtn: { position: 'absolute', top: 40, right: 20, paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, backgroundColor: 'rgba(255,255,255,0.15)' },
+  closeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15 },
 });

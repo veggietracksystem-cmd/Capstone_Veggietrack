@@ -9,8 +9,7 @@ import { confirmAction } from '../lib/ui';
 import UserGuideModal from '../components/UserGuideModal';
 import ContactUsModal from '../components/ContactUsModal';
 import CustomModal from '../components/CustomModal';
-
-const PRIMARY = '#2e7d32';
+import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 
 export default function ProfileScreen({ navigation }) {
   const { user, signOut } = useAuth();
@@ -134,74 +133,63 @@ export default function ProfileScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8faf8' },
+  container: { flex: 1, backgroundColor: colors.bgScreen },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
-  back: { color: PRIMARY, fontSize: 16, fontWeight: '600', width: 50 },
-  title: { fontSize: 18, fontWeight: '700', color: PRIMARY },
+  back: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: 15, width: 50 },
+  title: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
   content: { padding: 16, paddingBottom: 40 },
 
   // User Profile Card
   profileCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 18,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
     padding: 20,
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#edf2ed',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 5,
-    elevation: 2,
+    borderColor: colors.border,
+    ...shadowCard,
   },
   avatarCircle: {
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: '#e8f5e9',
+    backgroundColor: colors.leaf100,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
     borderWidth: 2,
-    borderColor: PRIMARY,
+    borderColor: colors.leaf700,
   },
-  avatarText: { fontSize: 28, fontWeight: '800', color: PRIMARY },
-  userName: { fontSize: 18, fontWeight: '800', color: '#1a1a1a', marginBottom: 4 },
+  avatarText: { fontFamily: fonts.heading, fontSize: 28, color: colors.leaf700 },
+  userName: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink, marginBottom: 4 },
   roleBadge: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: colors.leaf100,
     borderRadius: 12,
     paddingVertical: 3,
     paddingHorizontal: 10,
     marginBottom: 6,
   },
-  roleBadgeText: { fontSize: 11, fontWeight: '700', color: PRIMARY, letterSpacing: 0.5 },
-  phoneText: { fontSize: 13, color: '#666' },
+  roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.leaf700, letterSpacing: 0.5 },
+  phoneText: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft },
 
   // Section Card
   sectionCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#edf2ed',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+    borderColor: colors.border,
+    ...shadowCard,
   },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#1a1a1a', marginBottom: 12 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: 16, color: colors.ink, marginBottom: 12 },
 
   menuItem: {
     flexDirection: 'row',
@@ -209,16 +197,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border,
   },
   menuItemLast: { borderBottomWidth: 0 },
-  menuItemText: { fontSize: 14, fontWeight: '600', color: '#333' },
-  chevron: { fontSize: 18, color: '#aaa', fontWeight: '600' },
+  menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.ink },
+  chevron: { fontSize: 18, color: colors.inkFaint, fontWeight: '600' },
 
   dangerSection: { gap: 10 },
-  button: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  buttonOutline: { borderWidth: 1, borderColor: PRIMARY, backgroundColor: '#ffffff' },
-  buttonOutlineText: { color: PRIMARY, fontSize: 15, fontWeight: '700' },
+  button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
+  buttonOutline: { borderWidth: 1.4, borderColor: colors.leaf700, backgroundColor: colors.card },
+  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: 15 },
 
   // Language modal rows
   langRow: {
@@ -227,8 +215,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border,
   },
-  langRowText: { fontSize: 15, fontWeight: '600', color: '#333' },
-  langCheck: { fontSize: 16, color: PRIMARY, fontWeight: '800' },
+  langRowText: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.ink },
+  langCheck: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.leaf700 },
 });

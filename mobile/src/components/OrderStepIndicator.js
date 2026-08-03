@@ -1,9 +1,10 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { colors, fonts } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
-const PRIMARY = '#2e7d32';
-const GREY = '#cfd8dc';
-const GREY_TEXT = '#90a4ae';
+const PRIMARY = colors.leaf700;
+const GREY = colors.border;
+const GREY_TEXT = colors.inkFaint;
 
 // Order lifecycle, in sequence. `key` matches the backend status string.
 const STEP_KEYS = [
@@ -78,12 +79,12 @@ const styles = StyleSheet.create({
   connector: { position: 'absolute', top: CIRCLE / 2 - 1, left: '-50%', right: '50%', height: 2, backgroundColor: GREY },
   connectorDone: { backgroundColor: PRIMARY },
 
-  circle: { width: CIRCLE, height: CIRCLE, borderRadius: CIRCLE / 2, backgroundColor: '#fff', borderWidth: 2, borderColor: GREY, alignItems: 'center', justifyContent: 'center' },
+  circle: { width: CIRCLE, height: CIRCLE, borderRadius: CIRCLE / 2, backgroundColor: colors.card, borderWidth: 2, borderColor: GREY, alignItems: 'center', justifyContent: 'center' },
   circleDone: { backgroundColor: PRIMARY, borderColor: PRIMARY },
   circleCurrent: { borderColor: PRIMARY },
-  circleText: { fontSize: 13, fontWeight: '700', color: GREY_TEXT },
+  circleText: { fontFamily: fonts.bodyBold, fontSize: 13, color: GREY_TEXT },
   circleTextDone: { color: '#fff' },
 
-  label: { fontSize: 11, color: GREY_TEXT, textAlign: 'center', marginTop: 6, lineHeight: 14 },
-  labelDone: { color: PRIMARY, fontWeight: '600' },
+  label: { fontFamily: fonts.body, fontSize: 11, color: GREY_TEXT, textAlign: 'center', marginTop: 6, lineHeight: 14 },
+  labelDone: { fontFamily: fonts.bodySemiBold, color: PRIMARY },
 });

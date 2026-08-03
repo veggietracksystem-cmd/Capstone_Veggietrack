@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { colors, fonts, radius } from '../theme/appTheme';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 const SAN_PABLO = { latitude: 14.0683, longitude: 121.3256 };
 
 export default function DeliveryMapModal({ visible, address, coords, onClose }) {
@@ -118,11 +119,11 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: colors.bgScreen },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
-  title: { fontSize: 20, fontWeight: '700', color: PRIMARY },
-  close: { color: PRIMARY, fontSize: 16, fontWeight: '600' },
-  addr: { fontSize: 14, color: '#555', paddingHorizontal: 16, marginBottom: 8 },
-  mapContainer: { flex: 1, margin: 16, borderRadius: 12, overflow: 'hidden', backgroundColor: '#f9f9f9', minHeight: 300 },
-  note: { color: '#e65100', fontSize: 12, padding: 10, fontStyle: 'italic', backgroundColor: '#fff3e0', textAlign: 'center' },
+  title: { fontFamily: fonts.heading, fontSize: 19, color: colors.ink },
+  close: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 15 },
+  addr: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, paddingHorizontal: 16, marginBottom: 8 },
+  mapContainer: { flex: 1, margin: 16, borderRadius: radius.card, overflow: 'hidden', backgroundColor: colors.leaf50, minHeight: 300 },
+  note: { fontFamily: fonts.body, color: colors.gold700, fontSize: 12, padding: 10, fontStyle: 'italic', backgroundColor: colors.gold100, textAlign: 'center' },
 });

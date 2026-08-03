@@ -19,16 +19,17 @@ import EmptyState from '../components/EmptyState';
 import ProofPreviewModal from '../components/ProofPreviewModal';
 import BottomNavBar from '../components/BottomNavBar';
 import { showAlert, peso, shortId } from '../lib/ui';
+import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 
 function statusColor(status) {
   switch (status) {
     case 'assigned': return '#1976d2';
     case 'in_transit': return '#7b1fa2';
     case 'delivered': return PRIMARY;
-    case 'pending': return '#f9a825';
+    case 'pending': return colors.gold500;
     default: return '#607d8b';
   }
 }
@@ -63,11 +64,11 @@ export default function DeliveryDashboard({ navigation, route }) {
   const { t } = useTranslation();
 
   const RIDER_TABS = [
-    { id: 'home', icon: '🏠', label: t('dashboards.delivery.tabHome') },
-    { id: 'tasks', icon: '📋', label: t('dashboards.delivery.tabTasks') },
-    { id: 'map', icon: '🗺️', label: t('dashboards.delivery.tabMap') },
-    { id: 'history', icon: '📜', label: t('dashboards.delivery.tabHistory') },
-    { id: 'profile', icon: '👤', label: t('dashboards.delivery.tabProfile') },
+    { id: 'home', iconName: 'home-outline', label: t('dashboards.delivery.tabHome') },
+    { id: 'tasks', iconName: 'clipboard-outline', label: t('dashboards.delivery.tabTasks') },
+    { id: 'map', iconName: 'map-outline', label: t('dashboards.delivery.tabMap') },
+    { id: 'history', iconName: 'time-outline', label: t('dashboards.delivery.tabHistory') },
+    { id: 'profile', iconName: 'person-outline', label: t('dashboards.delivery.tabProfile') },
   ];
 
   const FILTERS = [
@@ -243,17 +244,17 @@ export default function DeliveryDashboard({ navigation, route }) {
 
   const [activeBottomTab, setActiveBottomTab] = useState('home');
 
-  const handleBottomTabPress = (t) => {
-    setActiveBottomTab(t.id);
-    if (t.id === 'profile') {
+  const handleBottomTabPress = (tab) => {
+    setActiveBottomTab(tab.id);
+    if (tab.id === 'profile') {
       navigation.navigate('Profile');
-    } else if (t.id === 'tasks') {
+    } else if (tab.id === 'tasks') {
       setFilter('active');
-    } else if (t.id === 'history') {
+    } else if (tab.id === 'history') {
       setFilter('completed');
-    } else if (t.id === 'home') {
+    } else if (tab.id === 'home') {
       setFilter('all');
-    } else if (t.id === 'map') {
+    } else if (tab.id === 'map') {
       if (visibleOrders.length > 0 && visibleOrders[0].delivery_address) {
         setMapAddress(visibleOrders[0].delivery_address);
         if (visibleOrders[0].latitude && visibleOrders[0].longitude) {
@@ -331,7 +332,7 @@ export default function DeliveryDashboard({ navigation, route }) {
             ) : visibleOrders.length === 0 ? (
               <EmptyState
                 icon="🚚"
-                title={t('dashboards.delivery.noDeliveriesTitle', { filter: filter === 'all' ? '' : `${t(`dashboards.delivery.filter${filter.charAt(0).toUpperCase()}${filter.slice(1)}`)} ` })}
+                title={t('dashboards.delivery.noDeliveriesTitle', { filter: filter === 'all' ? '' : `${FILTERS.find((f) => f.key === filter)?.label} ` })}
                 message={t('dashboards.delivery.noDeliveriesMessage')}
               />
             ) : (
@@ -467,7 +468,7 @@ export default function DeliveryDashboard({ navigation, route }) {
                   <View key={pickup.id} style={styles.orderCard}>
                     <View style={styles.orderHeader}>
                       <Text style={styles.orderId}>{t('dashboards.delivery.pickupNumber', { id: shortId(pickup.id) })}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: isAssigned ? '#1976d2' : '#2e7d32' }]}>
+                      <View style={[styles.statusBadge, { backgroundColor: isAssigned ? '#1976d2' : PRIMARY }]}>
                         <Text style={styles.statusBadgeText}>{pickup.status}</Text>
                       </View>
                     </View>
@@ -544,7 +545,7 @@ export default function DeliveryDashboard({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: colors.bgScreen },
 
   minimalHeader: {
     flexDirection: 'row',
@@ -552,64 +553,64 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.bgScreen,
     borderBottomWidth: 1,
-    borderBottomColor: '#eeeeee',
+    borderBottomColor: colors.border,
   },
-  minimalTitle: { fontSize: 18, fontWeight: '700', color: PRIMARY },
+  minimalTitle: { fontFamily: fonts.heading, fontSize: 19, color: colors.ink },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontSize: 24, fontWeight: 'bold', color: PRIMARY },
-  subtitle: { fontSize: 14, color: '#555', marginTop: 2 },
+  title: { fontFamily: fonts.heading, fontSize: 22, color: colors.ink },
+  subtitle: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, marginTop: 2 },
 
   content: { padding: 16, paddingBottom: 40 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 10 },
-  emptyText: { color: '#888', fontStyle: 'italic', marginTop: 8 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: 17, color: colors.ink, marginBottom: 10 },
+  emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
   // Order summary / filter cards
   summaryRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  summaryCard: { flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#eee' },
+  summaryCard: { flex: 1, backgroundColor: colors.card, borderRadius: radius.ctrl, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.border, ...shadowCard },
   summaryCardActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  summaryCount: { fontSize: 20, fontWeight: '700', color: PRIMARY },
-  summaryLabel: { fontSize: 11, color: '#777', marginTop: 2 },
+  summaryCount: { fontFamily: fonts.heading, fontSize: 19, color: PRIMARY },
+  summaryLabel: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.inkSoft, marginTop: 2 },
   summaryTextActive: { color: '#fff' },
 
   // ETA + live status indicator
   trackRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  etaText: { fontSize: 14, color: '#555', flex: 1 },
+  etaText: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, flex: 1 },
   liveDot: { width: 8, height: 8, borderRadius: 4 },
-  liveStatus: { fontSize: 13, fontWeight: '700', textTransform: 'capitalize' },
+  liveStatus: { fontFamily: fonts.bodyBold, fontSize: 13, textTransform: 'capitalize' },
 
-  orderCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#eee' },
+  orderCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  orderId: { fontSize: 16, fontWeight: '700', color: '#222' },
-  orderTotal: { fontSize: 18, fontWeight: '700', color: PRIMARY, marginBottom: 4 },
-  rowMeta: { fontSize: 14, color: '#555', marginTop: 2 },
+  orderId: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
+  orderTotal: { fontFamily: fonts.heading, fontSize: 17, color: PRIMARY, marginBottom: 4 },
+  rowMeta: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, marginTop: 2 },
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  routeBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: PRIMARY },
-  routeBtnText: { color: PRIMARY, fontWeight: '600', fontSize: 13 },
+  routeBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY },
+  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 13 },
 
   statusBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusBadgeText: { color: '#fff', fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 12, textTransform: 'capitalize' },
 
-  itemsBox: { backgroundColor: '#fafafa', borderRadius: 8, padding: 10, marginVertical: 10 },
-  itemLine: { fontSize: 13, color: '#444', marginBottom: 2 },
+  itemsBox: { backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10, marginVertical: 10 },
+  itemLine: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, marginBottom: 2 },
 
   // Issue 10: progress (picked up / in transit) buttons
   progressRow: { flexDirection: 'row', gap: 10, marginTop: 8, marginBottom: 4 },
-  progressBtn: { flex: 1, paddingVertical: 11, borderRadius: 8, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY, backgroundColor: '#fff' },
-  progressBtnDone: { backgroundColor: '#e8f5e9' },
-  progressBtnText: { color: PRIMARY, fontWeight: '700', fontSize: 14 },
+  progressBtn: { flex: 1, paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY, backgroundColor: colors.card },
+  progressBtnDone: { backgroundColor: colors.leaf100 },
+  progressBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: 13.5 },
   progressBtnTextDone: { color: PRIMARY },
 
-  button: { paddingVertical: 14, borderRadius: 8, alignItems: 'center', marginTop: 4 },
+  button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 4 },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15.5 },
   buttonDisabled: { opacity: 0.6 },
-  tabContainer: { flexDirection: 'row', backgroundColor: '#e0e0e0', borderRadius: 8, padding: 4, marginBottom: 16 },
-  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 6 },
-  tabButtonActive: { backgroundColor: '#fff', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1 },
-  tabButtonText: { color: '#666', fontWeight: '600', fontSize: 14 },
-  tabButtonTextActive: { color: PRIMARY, fontWeight: '700' },
+  tabContainer: { flexDirection: 'row', backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 4, marginBottom: 16 },
+  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
+  tabButtonActive: { backgroundColor: colors.card, ...shadowCard },
+  tabButtonText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: 14 },
+  tabButtonTextActive: { color: PRIMARY },
 });

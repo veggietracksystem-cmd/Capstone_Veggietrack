@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { colors, fonts, radius } from '../theme/appTheme';
 
 // Shows an offline / pending-sync banner. Renders nothing when fully synced & online.
 export default function OfflineBanner({ offline, pendingCount = 0 }) {
@@ -17,8 +18,8 @@ export default function OfflineBanner({ offline, pendingCount = 0 }) {
 }
 
 const styles = StyleSheet.create({
-  banner: { borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 12 },
-  offline: { backgroundColor: '#fff8e1', borderWidth: 1, borderColor: '#f9a825' },
-  pending: { backgroundColor: '#e3f2fd', borderWidth: 1, borderColor: '#1976d2' },
-  text: { fontSize: 13, color: '#444' },
+  banner: { borderRadius: radius.ctrl, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 12 },
+  offline: { backgroundColor: colors.gold100, borderWidth: 1, borderColor: colors.gold500 },
+  pending: { backgroundColor: colors.leaf100, borderWidth: 1, borderColor: colors.leaf500 },
+  text: { fontFamily: fonts.body, fontSize: 13, color: colors.ink },
 });

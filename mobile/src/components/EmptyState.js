@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { colors, fonts, radius } from '../theme/appTheme';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 
 /**
  * Reusable empty-state placeholder for any list that can be empty.
@@ -34,8 +35,8 @@ export default function EmptyState({ icon = '🌱', title, message, actionLabel,
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40, paddingHorizontal: 24 },
   icon: { fontSize: 44, marginBottom: 12 },
-  title: { fontSize: 16, fontWeight: '700', color: '#444', textAlign: 'center' },
-  message: { fontSize: 14, color: '#888', textAlign: 'center', marginTop: 6, lineHeight: 20 },
-  button: { marginTop: 16, backgroundColor: PRIMARY, paddingVertical: 12, paddingHorizontal: 22, borderRadius: 8 },
-  buttonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  title: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.inkSoft, textAlign: 'center' },
+  message: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkFaint, textAlign: 'center', marginTop: 6, lineHeight: 19 },
+  button: { marginTop: 16, backgroundColor: PRIMARY, paddingVertical: 12, paddingHorizontal: 22, borderRadius: radius.ctrl },
+  buttonText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 14 },
 });

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { View, TextInput, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { colors } from '../theme/appTheme';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 
 /**
  * Password field with a show/hide eye toggle (Issue 4).

@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import {
   Text, TextInput, TouchableOpacity, ActivityIndicator, View, ScrollView,
-  StyleSheet, Modal,
+  StyleSheet, Modal, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert, confirmAction } from '../lib/ui';
 import PasswordInput from '../components/PasswordInput';
-
-const PRIMARY = '#2e7d32';
+import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 
 export default function EditProfileScreen({ navigation }) {
   const { user, signOut, updateUser } = useAuth();
@@ -107,11 +107,11 @@ export default function EditProfileScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.back}>‹ {t('common.back')}</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="arrow-back" size={20} color={colors.ink} />
         </TouchableOpacity>
         <Text style={styles.title}>{t('editProfile.title')}</Text>
-        <View style={{ width: 50 }} />
+        <View style={{ width: 20 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -189,7 +189,7 @@ export default function EditProfileScreen({ navigation }) {
       </ScrollView>
 
       {/* Change Password modal */}
-      <Modal visible={pwOpen} transparent animationType="slide" onRequestClose={() => setPwOpen(false)}>
+      <Modal visible={pwOpen} transparent animationType={Platform.OS === 'web' ? 'none' : 'slide'} onRequestClose={() => setPwOpen(false)}>
         <View style={styles.pwBackdrop}>
           <View style={styles.pwSheet}>
             <Text style={styles.pwTitle}>{t('editProfile.changePasswordTitle')}</Text>
@@ -248,45 +248,39 @@ export default function EditProfileScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8faf8' },
+  container: { flex: 1, backgroundColor: colors.bgScreen },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingVertical: 14,
   },
-  back: { color: PRIMARY, fontSize: 16, fontWeight: '600', width: 50 },
-  title: { fontSize: 18, fontWeight: '700', color: PRIMARY },
+  title: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
   content: { padding: 16, paddingBottom: 40 },
 
   // Section Card
   sectionCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#edf2ed',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+    borderColor: colors.border,
+    ...shadowCard,
   },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#1a1a1a', marginBottom: 12 },
-  fieldLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginBottom: 6, marginTop: 8 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: 16, color: colors.ink, marginBottom: 12 },
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12.5, color: colors.inkSoft, marginBottom: 6, marginTop: 8 },
   input: {
-    backgroundColor: '#f8faf8',
-    borderRadius: 10,
+    backgroundColor: '#fff',
+    borderRadius: radius.ctrl,
     padding: 12,
-    fontSize: 15,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    fontFamily: fonts.body,
+    fontSize: 14.5,
+    color: colors.ink,
+    marginBottom: 4,
+    borderWidth: 1.4,
+    borderColor: colors.border,
   },
 
   menuItem: {
@@ -295,26 +289,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border,
   },
   menuItemLast: { borderBottomWidth: 0 },
-  menuItemText: { fontSize: 14, fontWeight: '600', color: '#333' },
-  chevron: { fontSize: 18, color: '#aaa', fontWeight: '600' },
+  menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.ink },
+  chevron: { fontSize: 18, color: colors.inkFaint, fontWeight: '600' },
 
   dangerSection: { gap: 10 },
-  button: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  buttonPrimary: { backgroundColor: PRIMARY, marginTop: 8 },
-  buttonPrimaryText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
-  buttonOutline: { borderWidth: 1, borderColor: PRIMARY, backgroundColor: '#ffffff' },
-  buttonOutlineText: { color: PRIMARY, fontSize: 15, fontWeight: '700' },
+  button: { paddingVertical: 13, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
+  buttonPrimary: { backgroundColor: colors.leaf700, marginTop: 8 },
+  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 14.5 },
+  buttonOutline: { borderWidth: 1.4, borderColor: colors.leaf700, backgroundColor: colors.card },
+  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: 14.5 },
   buttonDanger: { backgroundColor: '#fff5f5', borderWidth: 1, borderColor: '#ffcdd2' },
-  buttonDangerText: { color: '#c62828', fontSize: 15, fontWeight: '700' },
+  buttonDangerText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: 14.5 },
   buttonDisabled: { opacity: 0.6 },
 
   // Change-password modal
-  pwBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  pwSheet: { backgroundColor: '#ffffff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },
-  pwTitle: { fontSize: 18, fontWeight: '800', color: '#1a1a1a', marginBottom: 6 },
-  pwHint: { fontSize: 13, color: '#666', marginBottom: 12 },
+  pwBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end' },
+  pwSheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingBottom: 30 },
+  pwTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink, marginBottom: 6 },
+  pwHint: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, marginBottom: 12 },
   pwActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
 });

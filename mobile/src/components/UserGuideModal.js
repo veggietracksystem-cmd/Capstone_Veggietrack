@@ -2,9 +2,10 @@ import { useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView,
 } from 'react-native';
+import { colors, fonts, radius } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 
 const GUIDE_TAB_IDS = ['farmer', 'distributor', 'retailer', 'rider', 'faq'];
 
@@ -140,28 +141,28 @@ export default function UserGuideModal({ visible, onClose }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingBottom: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  title: { fontSize: 18, fontWeight: '700', color: PRIMARY },
+  backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: '85%', paddingBottom: 20 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
   closeBtn: { padding: 6 },
-  closeText: { fontSize: 18, color: '#777', fontWeight: 'bold' },
+  closeText: { fontSize: 18, color: colors.inkSoft, fontWeight: 'bold' },
   tabBar: { flexDirection: 'row', paddingHorizontal: 16, marginVertical: 10 },
-  tab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: '#f0f0f0', marginRight: 8 },
+  tab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.leaf50, marginRight: 8 },
   tabActive: { backgroundColor: PRIMARY },
-  tabText: { fontSize: 13, color: '#555', fontWeight: '600' },
+  tabText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.inkSoft },
   tabTextActive: { color: '#fff' },
   content: { padding: 16 },
   stepContainer: { gap: 12 },
-  stepCard: { flexDirection: 'row', backgroundColor: '#f8fdf8', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#e8f5e9', alignItems: 'center' },
+  stepCard: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: radius.card, padding: 14, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
   stepNum: { width: 32, height: 32, borderRadius: 16, backgroundColor: PRIMARY, color: '#fff', textAlign: 'center', lineHeight: 32, fontWeight: 'bold', fontSize: 16, marginRight: 12 },
   stepInfo: { flex: 1 },
-  stepTitle: { fontSize: 15, fontWeight: '700', color: '#222', marginBottom: 2 },
-  stepDesc: { fontSize: 13, color: '#555', lineHeight: 18 },
+  stepTitle: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.ink, marginBottom: 2 },
+  stepDesc: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, lineHeight: 18 },
   faqContainer: { gap: 10 },
-  faqCard: { backgroundColor: '#fff', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#e0e0e0' },
+  faqCard: { backgroundColor: colors.card, borderRadius: radius.ctrl, padding: 14, borderWidth: 1, borderColor: colors.border },
   faqHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  faqQuestion: { fontSize: 14, fontWeight: '700', color: '#2e7d32', flex: 1, paddingRight: 8 },
+  faqQuestion: { fontFamily: fonts.bodyBold, fontSize: 14, color: PRIMARY, flex: 1, paddingRight: 8 },
   faqToggle: { fontSize: 18, fontWeight: 'bold', color: PRIMARY },
-  faqAnswer: { marginTop: 8, fontSize: 13, color: '#555', lineHeight: 19 },
+  faqAnswer: { fontFamily: fonts.body, marginTop: 8, fontSize: 13, color: colors.inkSoft, lineHeight: 19 },
 });

@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Modal, View, Text, Image, TouchableOpacity, ActivityIndicator, Animated, StyleSheet } from 'react-native';
+import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 
 /**
  * Confirm-delivery modal with proof-of-delivery preview.
@@ -82,22 +83,22 @@ export default function ProofPreviewModal({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 360, backgroundColor: '#fff', borderRadius: 16, padding: 22, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
-  title: { fontSize: 18, fontWeight: '700', color: PRIMARY },
-  subtitle: { fontSize: 13, color: '#666', marginTop: 2, marginBottom: 14 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  card: { width: '100%', maxWidth: 360, backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
+  title: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
+  subtitle: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, marginTop: 2, marginBottom: 14 },
 
-  preview: { width: '100%', height: 200, borderRadius: 10, backgroundColor: '#eee' },
-  retakeLink: { color: PRIMARY, fontWeight: '600', fontSize: 14, textAlign: 'center', paddingVertical: 12 },
+  preview: { width: '100%', height: 200, borderRadius: radius.ctrl, backgroundColor: colors.border },
+  retakeLink: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 14, textAlign: 'center', paddingVertical: 12 },
 
-  addPhotoBtn: { paddingVertical: 24, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: PRIMARY, borderStyle: 'dashed', marginBottom: 8 },
-  addPhotoText: { color: PRIMARY, fontWeight: '600', fontSize: 15 },
-  optionalText: { color: '#999', fontSize: 12, marginTop: 4 },
+  addPhotoBtn: { paddingVertical: 24, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1, borderColor: PRIMARY, borderStyle: 'dashed', marginBottom: 8 },
+  addPhotoText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 15 },
+  optionalText: { fontFamily: fonts.body, color: colors.inkFaint, fontSize: 12, marginTop: 4 },
 
-  button: { paddingVertical: 14, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 10 },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  buttonOutline: { borderWidth: 1, borderColor: PRIMARY },
-  buttonOutlineText: { color: PRIMARY, fontWeight: '600', fontSize: 16 },
+  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15.5 },
+  buttonOutline: { borderWidth: 1.4, borderColor: PRIMARY },
+  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 15.5 },
   buttonDisabled: { opacity: 0.6 },
 });

@@ -2,6 +2,9 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useFonts } from 'expo-font';
+import { Baloo2_500Medium, Baloo2_600SemiBold, Baloo2_700Bold } from '@expo-google-fonts/baloo-2';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { LanguageProvider } from './src/i18n/LanguageProvider';
@@ -48,18 +51,22 @@ function RootNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        screenOptions={{ headerShown: false }}
+        screenOptions={{ headerShown: false, cardStyle: { flex: 1 } }}
         initialRouteName={roleScreen ? roleScreen.name : initialRoute}
       >
         {roleScreen ? (
           <>
             <Stack.Screen name={roleScreen.name} component={roleScreen.component} />
-            {/* Reachable from a dashboard via navigation.navigate('Profile'). */}
+            {/* Reachable from a dashboard via navigation.navigate('Profile'/'EditProfile'). */}
             <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
             {/* Retailer/Distributor: live delivery tracking on a map. */}
             <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
-            {/* Farmer: full harvest list (edit/delete/request pickup). */}
+            {/* Farmer: full harvest list (edit/delete/request pickup). Currently
+                unreachable via navigation - Messages/Weekly-report/History/
+                Ready-to-sell are now embedded tabs/sheets inside FarmerDashboard
+                per the approved mockup, not pushed screens. Left registered in
+                case it's wired up again later. */}
             <Stack.Screen name="HarvestList" component={HarvestListScreen} />
             {/* Distributor: full product list (edit/delete). */}
             <Stack.Screen name="ProductList" component={ProductListScreen} />
@@ -80,6 +87,24 @@ function RootNavigator() {
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Baloo2_500Medium,
+    Baloo2_600SemiBold,
+    Baloo2_700Bold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2e7d32" />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <ErrorBoundary>

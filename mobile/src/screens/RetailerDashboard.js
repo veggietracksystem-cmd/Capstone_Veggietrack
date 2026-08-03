@@ -8,27 +8,29 @@ import NetInfo from '@react-native-community/netinfo';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
-import { useTranslation } from '../i18n/useTranslation';
-import { showAlert, peso, shortId } from '../lib/ui';
+import LogoutButton from '../components/LogoutButton';
 import NotificationBell from '../components/NotificationBell';
 import BottomNavBar from '../components/BottomNavBar';
-import EmptyState from '../components/EmptyState';
-import ImageViewerModal from '../components/ImageViewerModal';
 import OfflineBanner from '../components/OfflineBanner';
+import ImageViewerModal from '../components/ImageViewerModal';
 import SchedulePicker from '../components/SchedulePicker';
 import OrderStepIndicator from '../components/OrderStepIndicator';
+import EmptyState from '../components/EmptyState';
+import { showAlert, peso, shortId } from '../lib/ui';
+import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { useTranslation } from '../i18n/useTranslation';
 import { CATEGORIES, getCategory } from '../lib/vegetables';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 
 function statusColor(status) {
   switch (status) {
-    case 'pending': return '#f9a825';
+    case 'pending': return colors.gold500;
     case 'approved':
     case 'assigned': return '#1976d2';
     case 'in_transit': return '#7b1fa2';
     case 'delivered': return PRIMARY;
-    case 'cancelled': return '#c62828';
+    case 'cancelled': return colors.danger;
     default: return '#607d8b';
   }
 }
@@ -38,26 +40,26 @@ export default function RetailerDashboard({ navigation, route }) {
   const { t } = useTranslation();
 
   const RETAILER_TABS = [
-    { id: 'home', icon: '🏠', label: t('dashboards.retailer.tabHome') },
-    { id: 'browse', icon: '🥬', label: t('dashboards.retailer.tabBrowse') },
-    { id: 'orders', icon: '📦', label: t('dashboards.retailer.tabOrders') },
-    { id: 'track', icon: '🗺️', label: t('dashboards.retailer.tabTrack') },
-    { id: 'profile', icon: '👤', label: t('dashboards.retailer.tabProfile') },
+    { id: 'home', iconName: 'home-outline', label: t('dashboards.retailer.tabHome') },
+    { id: 'browse', iconName: 'leaf-outline', label: t('dashboards.retailer.tabBrowse') },
+    { id: 'orders', iconName: 'receipt-outline', label: t('dashboards.retailer.tabOrders') },
+    { id: 'track', iconName: 'map-outline', label: t('dashboards.retailer.tabTrack') },
+    { id: 'profile', iconName: 'person-outline', label: t('dashboards.retailer.tabProfile') },
   ];
   const [tab, setTab] = useState('shop'); // 'shop' | 'orders'
   const [activeBottomTab, setActiveBottomTab] = useState('home');
 
-  const handleBottomTabPress = (t) => {
-    setActiveBottomTab(t.id);
-    if (t.id === 'profile') {
+  const handleBottomTabPress = (tab) => {
+    setActiveBottomTab(tab.id);
+    if (tab.id === 'profile') {
       navigation.navigate('Profile');
-    } else if (t.id === 'browse') {
+    } else if (tab.id === 'browse') {
       setTab('shop');
-    } else if (t.id === 'orders') {
+    } else if (tab.id === 'orders') {
       setTab('orders');
-    } else if (t.id === 'track') {
+    } else if (tab.id === 'track') {
       setTab('orders');
-    } else if (t.id === 'home') {
+    } else if (tab.id === 'home') {
       setTab('shop');
     }
   };
@@ -420,7 +422,7 @@ function ShopTab({
         />
       ) : filteredProducts.length === 0 ? (
         <Text style={styles.emptyText}>
-          {searchQuery.trim()
+          {query
             ? t('dashboards.retailer.noMatchQuery', { query: searchQuery.trim() })
             : t('dashboards.retailer.noMatchCategory', { category: t(`categories.${category}`) })}
         </Text>
@@ -512,6 +514,7 @@ function getProofUrl(order) {
 
 function OrdersTab({ loading, orders, onViewProof, onTrack, onCancel }) {
   const { t } = useTranslation();
+
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
   if (orders.length === 0) {
@@ -600,88 +603,89 @@ function OrdersTab({ loading, orders, onViewProof, onTrack, onCancel }) {
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bgScreen },
+
   minimalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.bgScreen,
     borderBottomWidth: 1,
-    borderBottomColor: '#eeeeee',
+    borderBottomColor: colors.border,
   },
-  minimalTitle: { fontSize: 18, fontWeight: '700', color: PRIMARY },
+  minimalTitle: { fontFamily: fonts.heading, fontSize: 19, color: colors.ink },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontSize: 24, fontWeight: 'bold', color: PRIMARY },
-  subtitle: { fontSize: 14, color: '#555', marginTop: 2 },
+  title: { fontFamily: fonts.heading, fontSize: 22, color: colors.ink },
+  subtitle: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, marginTop: 2 },
 
-  tabs: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, backgroundColor: '#e8f0e9', borderRadius: 10, padding: 4 },
+  tabs: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 4 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   tabActive: { backgroundColor: PRIMARY },
-  tabText: { color: PRIMARY, fontWeight: '600' },
+  tabText: { fontFamily: fonts.bodySemiBold, color: PRIMARY },
   tabTextActive: { color: '#fff' },
 
   content: { padding: 16, paddingBottom: 40 },
 
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 10 },
-  emptyText: { color: '#888', fontStyle: 'italic', marginTop: 8 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: 17, color: colors.ink, marginBottom: 10 },
+  emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
   // Search bar
-  searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#ddd', paddingHorizontal: 12, marginBottom: 16 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 16 },
   searchIcon: { fontSize: 16, marginRight: 8 },
-  searchInput: { flex: 1, paddingVertical: Platform.OS === 'ios' ? 12 : 8, fontSize: 16, color: '#222' },
-  searchClear: { fontSize: 16, color: '#999', paddingLeft: 8 },
+  searchInput: { flex: 1, paddingVertical: Platform.OS === 'ios' ? 12 : 8, fontFamily: fonts.body, fontSize: 15, color: colors.ink },
+  searchClear: { fontSize: 16, color: colors.inkFaint, paddingLeft: 8 },
 
-  // Category filter chips
   filterChipRow: { gap: 8, paddingBottom: 16 },
-  filterChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ccc', backgroundColor: '#f8faf8' },
+  filterChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   filterChipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  filterChipText: { color: '#555', fontSize: 13 },
-  filterChipTextActive: { color: '#fff', fontWeight: '600' },
+  filterChipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13 },
+  filterChipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
 
-  rowCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#eee' },
-  rowTitle: { fontSize: 16, fontWeight: '700', color: '#222' },
-  rowMeta: { fontSize: 14, color: '#555', marginTop: 2 },
+  rowCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, ...shadowCard },
+  rowTitle: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink, textTransform: 'capitalize' },
+  rowMeta: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, marginTop: 2 },
 
-  smallBtnFilled: { backgroundColor: PRIMARY, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8 },
-  smallBtnFilledText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  smallBtnFilled: { backgroundColor: PRIMARY, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.ctrl },
+  smallBtnFilledText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 13 },
 
-  cartCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#eee' },
+  cartCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  qtyBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
-  qtyBtnText: { color: PRIMARY, fontSize: 18, fontWeight: '700' },
-  qtyValue: { minWidth: 24, textAlign: 'center', fontSize: 16, fontWeight: '600', color: '#222' },
-  removeBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#fdecea', alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
-  removeBtnText: { color: '#c62828', fontSize: 14, fontWeight: '700' },
+  qtyBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1.4, borderColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
+  qtyBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: 18 },
+  qtyValue: { minWidth: 24, textAlign: 'center', fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.ink },
+  removeBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#FBEAE8', alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
+  removeBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: 14 },
 
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: '#eee' },
-  summaryLabel: { fontSize: 16, color: '#333', fontWeight: '600' },
-  summaryTotal: { fontSize: 20, fontWeight: '700', color: PRIMARY },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: colors.border },
+  summaryLabel: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.ink },
+  summaryTotal: { fontFamily: fonts.heading, fontSize: 19, color: PRIMARY },
 
-  fieldLabel: { fontSize: 13, color: '#555', marginTop: 10, marginBottom: 6 },
-  input: { backgroundColor: '#fff', borderRadius: 8, padding: 12, fontSize: 16, borderWidth: 1, borderColor: '#ddd' },
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12.5, color: colors.inkSoft, marginTop: 10, marginBottom: 6 },
+  input: { backgroundColor: colors.card, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: 15, borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
 
-  button: { paddingVertical: 14, borderRadius: 8, alignItems: 'center' },
+  button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center' },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15.5 },
   buttonDisabled: { opacity: 0.6 },
 
-  orderCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#eee' },
+  orderCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  orderId: { fontSize: 16, fontWeight: '700', color: '#222' },
-  orderTotal: { fontSize: 18, fontWeight: '700', color: PRIMARY, marginBottom: 4 },
+  orderId: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
+  orderTotal: { fontFamily: fonts.heading, fontSize: 17, color: PRIMARY, marginBottom: 4 },
   statusBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusBadgeText: { color: '#fff', fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
-  itemsBox: { backgroundColor: '#fafafa', borderRadius: 8, padding: 10, marginTop: 8 },
-  itemLine: { fontSize: 13, color: '#444', marginBottom: 2 },
-  cancelledNote: { fontSize: 13, color: '#c62828', fontStyle: 'italic', marginTop: 8 },
-  proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: '#f1f8e9', borderRadius: 8, padding: 8 },
-  proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: '#ddd' },
-  proofText: { fontSize: 13, color: PRIMARY, fontWeight: '600' },
-  trackBtn: { marginTop: 10, paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: PRIMARY },
-  trackBtnText: { color: PRIMARY, fontWeight: '700', fontSize: 14 },
-  cancelBtn: { borderColor: '#c62828', backgroundColor: '#fff' },
-  cancelBtnText: { color: '#c62828', fontWeight: '700', fontSize: 14 },
+  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 12, textTransform: 'capitalize' },
+  itemsBox: { backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10, marginTop: 8 },
+  itemLine: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, marginBottom: 2 },
+  cancelledNote: { fontFamily: fonts.body, fontSize: 13, color: colors.danger, fontStyle: 'italic', marginTop: 8 },
+  proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 8 },
+  proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: colors.border },
+  proofText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: PRIMARY },
+  trackBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY },
+  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: 13.5 },
+  cancelBtn: { borderColor: colors.danger, backgroundColor: colors.card },
+  cancelBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: 13.5 },
 });

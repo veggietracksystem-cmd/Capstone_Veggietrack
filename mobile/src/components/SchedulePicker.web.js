@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { colors, fonts, radius } from '../theme/appTheme';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 
 // Local datetime string "YYYY-MM-DDTHH:mm" for the input's min (no past times).
 function nowLocal() {
@@ -24,11 +25,12 @@ export default function SchedulePicker({ value, onChange, disabled }) {
         style={{
           width: '100%',
           padding: 12,
-          fontSize: 16,
-          borderRadius: 8,
-          border: '1px solid #ddd',
-          backgroundColor: '#fff',
-          color: '#222',
+          fontSize: 15,
+          fontFamily: 'Inter_400Regular, sans-serif',
+          borderRadius: radius.ctrl,
+          border: `1.4px solid ${colors.border}`,
+          backgroundColor: colors.card,
+          color: colors.ink,
           boxSizing: 'border-box',
         }}
       />
@@ -39,5 +41,5 @@ export default function SchedulePicker({ value, onChange, disabled }) {
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 4 },
-  hint: { fontSize: 12, color: '#999', marginTop: 4 },
+  hint: { fontFamily: fonts.body, fontSize: 12, color: colors.inkFaint, marginTop: 4 },
 });

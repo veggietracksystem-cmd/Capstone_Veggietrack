@@ -1,82 +1,144 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Text, View, ScrollView, TextInput, TouchableOpacity,
-  ActivityIndicator, StyleSheet, RefreshControl, Platform,
+  ActivityIndicator, StyleSheet, RefreshControl, Platform, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../api/client';
 import {
   fetchHarvests, queueHarvest, syncPending, getQueue, onReconnect,
 } from '../offline/harvestStore';
-import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from '../components/NotificationBell';
 import BottomNavBar from '../components/BottomNavBar';
-import { showAlert, peso } from '../lib/ui';
-import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
+import BottomSheet from '../components/BottomSheet';
+import FarmerProfileTab from './FarmerProfileTab';
+import MessagesScreen from './MessagesScreen';
+import { showAlert, confirmAction } from '../lib/ui';
+import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
+import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 
-const PRIMARY = '#2e7d32';
+const STATUS_OPTIONS = ['available', 'reserved', 'for_pickup', 'picked_up'];
 
-const STATUS_OPTIONS = ['available', 'reserved', 'picked_up'];
-
-// Marketplace vegetable tile colors & icons (aligned with reference design)
 const VEG_TILES = {
-  tomato: { icon: '🍅', bg: '#ffebee' },
-  eggplant: { icon: '🍆', bg: '#f3e5f5' },
-  beans: { icon: '🌿', bg: '#e8f5e9' },
-  squash: { icon: '🎃', bg: '#fff3e0' },
-  carrot: { icon: '🥕', bg: '#fff3e0' },
-  potato: { icon: '🥔', bg: '#fbe9e7' },
-  corn: { icon: '🌽', bg: '#fffde7' },
-  pepper: { icon: '🌶️', bg: '#ffebee' },
-  cucumber: { icon: '🥒', bg: '#e8f5e9' },
-  onion: { icon: '🧅', bg: '#f3e5f5' },
-  lettuce: { icon: '🥬', bg: '#e8f5e9' },
+  tomato: '🍅', eggplant: '🍆', beans: '🫘', squash: '🎃', carrot: '🥕',
+  potato: '🥔', corn: '🌽', pepper: '🌶️', cucumber: '🥒', onion: '🧅',
+  cabbage: '🥬', lettuce: '🥬', okra: '🫛',
 };
-
-function getVegetableTile(name) {
+function getVegEmoji(name) {
   const key = String(name || '').toLowerCase();
   const match = Object.keys(VEG_TILES).find((k) => key.includes(k));
-  return match ? VEG_TILES[match] : { icon: '🥬', bg: '#e8f5e9' };
+  return match ? VEG_TILES[match] : '🥕';
+}
+
+function getStatusPillStyle(status, t) {
+  switch (status) {
+    case 'available': return { label: t('dashboards.farmer.statusAvailable'), bg: '#EAF2FB', color: '#1E5A96' };
+    case 'reserved': return { label: t('dashboards.farmer.statusReserved'), bg: '#EAF2FB', color: '#1E5A96' };
+    case 'for_pickup': return { label: t('dashboards.farmer.statusForPickup'), bg: colors.gold100, color: colors.gold700 };
+    case 'picked_up': return { label: t('dashboards.farmer.statusPickedUp'), bg: colors.leaf100, color: colors.leaf900 || colors.leaf700 };
+    default: return { label: status || t('dashboards.farmer.statusUnknown'), bg: colors.leaf100, color: colors.leaf700 };
+  }
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+// Monday-anchored week key/label helpers (used by the Weekly report + History sheets).
+function weekKeyOf(dateStr) {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  const day = d.getDay();
+  const diffToMonday = (day === 0 ? -6 : 1) - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+  return monday.toISOString().slice(0, 10);
+}
+function weekRangeLabel(mondayKey) {
+  const monday = new Date(mondayKey);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const opts = { month: 'short', day: 'numeric' };
+  return `${monday.toLocaleDateString(undefined, opts)}–${sunday.toLocaleDateString(undefined, { day: 'numeric' })}`;
+}
+function buildWeeklyBuckets(harvests) {
+  const weeks = {};
+  harvests.forEach((h) => {
+    const key = weekKeyOf(h.recorded_at);
+    if (!key) return;
+    if (!weeks[key]) weeks[key] = { key, totalKg: 0, byVeg: {} };
+    const w = weeks[key];
+    const qty = Number(h.quantity_kg) || 0;
+    w.totalKg += qty;
+    const veg = h.vegetable_name || 'Unknown';
+    if (!w.byVeg[veg]) w.byVeg[veg] = { harvestedKg: 0, pickedUpKg: 0 };
+    w.byVeg[veg].harvestedKg += qty;
+    if (h.status === 'picked_up') w.byVeg[veg].pickedUpKg += qty;
+  });
+  return Object.values(weeks).sort((a, b) => b.key.localeCompare(a.key));
 }
 
 export default function FarmerDashboard({ navigation, route }) {
   const { user } = useAuth();
   const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState('home');
 
-  const FARMER_TABS = [
-    { id: 'home', icon: '🏠', label: t('dashboards.farmer.tabHome') },
-    { id: 'harvests', icon: '🌾', label: t('dashboards.farmer.tabHarvests') },
-    { id: 'pickups', icon: '🚚', label: t('dashboards.farmer.tabPickups') },
-    { id: 'history', icon: '📜', label: t('dashboards.farmer.tabHistory') },
-    { id: 'profile', icon: '👤', label: t('dashboards.farmer.tabProfile') },
-  ];
+  const FARMER_TABS = useMemo(() => ([
+    { id: 'home', iconName: 'home-outline', label: t('dashboards.farmer.tabHome') },
+    { id: 'harvest', iconName: 'leaf-outline', label: t('dashboards.farmer.tabHarvestNew') },
+    { id: 'messages', iconName: 'mail-outline', label: t('dashboards.farmer.tabMessagesNew') },
+    { id: 'pickup', iconName: 'truck-outline', iconSet: 'material', label: t('dashboards.farmer.tabPickupNew') },
+    { id: 'profile', iconName: 'person-outline', label: t('dashboards.farmer.tabProfile') },
+  ]), [t]);
 
-  const STATUS_LABELS = {
+  const STATUS_LABELS = useMemo(() => ({
     available: t('dashboards.farmer.statusAvailable'),
     reserved: t('dashboards.farmer.statusReserved'),
+    for_pickup: t('dashboards.farmer.statusForPickup'),
     picked_up: t('dashboards.farmer.statusPickedUp'),
-  };
-
-  const [activeTab, setActiveTab] = useState('home');
-  const [searchQuery, setSearchQuery] = useState('');
+  }), [t]);
 
   const [harvests, setHarvests] = useState([]);
-  const [pickupRequests, setPickupRequests] = useState([]);
-  const [latestPayment, setLatestPayment] = useState(null);
+  const [messagesUnreadCount, setMessagesUnreadCount] = useState(0);
+  const [notifUnreadCount, setNotifUnreadCount] = useState(0);
+  const [distributorName, setDistributorName] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
-  // Form state
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
+  // Add-harvest sheet
+  const [showAddSheet, setShowAddSheet] = useState(false);
   const [vegetableName, setVegetableName] = useState('');
   const [quantityKg, setQuantityKg] = useState('');
   const [status, setStatus] = useState('available');
   const [submitting, setSubmitting] = useState(false);
+
+  // Edit modal (per-row "Edit", separate from the add sheet)
+  const [editHarvestId, setEditHarvestId] = useState(null);
+  const [editVegetableName, setEditVegetableName] = useState('');
+  const [editQuantityKg, setEditQuantityKg] = useState('');
+  const [editStatus, setEditStatus] = useState('available');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+
+  // Weekly report / history sheets (Harvest tab)
+  const [showWeeklySheet, setShowWeeklySheet] = useState(false);
+  const [showHistorySheet, setShowHistorySheet] = useState(false);
+  const [expandedHistoryKey, setExpandedHistoryKey] = useState(null);
+
+  // Pick-up tab: multi-select cart
+  const [cart, setCart] = useState({}); // { [harvestId]: true }
+  const [showCartSheet, setShowCartSheet] = useState(false);
+  const [showConfirmSheet, setShowConfirmSheet] = useState(false);
+  const [submittingPickup, setSubmittingPickup] = useState(false);
 
   const refreshPendingCount = useCallback(async () => {
     setPendingCount((await getQueue()).length);
@@ -89,19 +151,34 @@ export default function FarmerDashboard({ navigation, route }) {
     await refreshPendingCount();
   }, [refreshPendingCount]);
 
-  const loadPickupRequests = useCallback(async () => {
-    const { list } = await readThrough('pickup_requests_cache', () =>
-      api.get('/api/pickup-requests')
-    );
-    setPickupRequests(list);
+  const loadMessagesUnreadCount = useCallback(async () => {
+    try {
+      const { count } = await api.get('/api/messages/unread-count');
+      setMessagesUnreadCount(count || 0);
+    } catch {
+      setMessagesUnreadCount(0);
+    }
   }, []);
 
-  const loadLatestPayment = useCallback(async () => {
+  const loadNotifUnreadCount = useCallback(async () => {
     try {
-      const data = await api.get('/api/farmer/latest-payment');
-      setLatestPayment(data?.payment ?? data ?? null);
+      const data = await api.get('/api/notifications');
+      const list = Array.isArray(data) ? data : [];
+      setNotifUnreadCount(list.filter((n) => !n.is_read).length);
     } catch {
-      setLatestPayment(null);
+      setNotifUnreadCount(0);
+    }
+  }, []);
+
+  // There's only one distributor in the system; used to label the Weekly
+  // report table's "Distributor" column without a dedicated backend join.
+  const loadDistributorName = useCallback(async () => {
+    try {
+      const contacts = await api.get('/api/messages/contacts');
+      const d = Array.isArray(contacts) ? contacts.find((c) => c.role === 'distributor') : null;
+      setDistributorName(d?.full_name || null);
+    } catch {
+      setDistributorName(null);
     }
   }, []);
 
@@ -115,607 +192,823 @@ export default function FarmerDashboard({ navigation, route }) {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await Promise.all([loadHarvests(), loadPickupRequests(), loadLatestPayment()]);
+      await Promise.all([loadHarvests(), loadMessagesUnreadCount(), loadNotifUnreadCount(), loadDistributorName()]);
       await trySync();
       setLoading(false);
     })();
 
     const unsubscribe = onReconnect(() => { trySync(); });
     return unsubscribe;
-  }, [loadHarvests, loadPickupRequests, loadLatestPayment, trySync]);
+  }, [loadHarvests, loadMessagesUnreadCount, loadNotifUnreadCount, loadDistributorName, trySync]);
 
   useEffect(() => {
     if (!navigation?.addListener) return undefined;
     return navigation.addListener('focus', () => {
       loadHarvests();
-      loadPickupRequests();
+      loadMessagesUnreadCount();
+      loadNotifUnreadCount();
     });
-  }, [navigation, loadHarvests, loadPickupRequests]);
+  }, [navigation, loadHarvests, loadMessagesUnreadCount, loadNotifUnreadCount]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadHarvests(), loadPickupRequests(), loadLatestPayment()]);
+    await Promise.all([loadHarvests(), loadMessagesUnreadCount(), loadNotifUnreadCount()]);
     await trySync();
     setRefreshing(false);
-  };
-
-  // KPI Calculations
-  const readyHarvestKg = harvests
-    .filter((h) => h.status === 'available')
-    .reduce((sum, h) => sum + Number(h.quantity_kg || 0), 0);
-  const pendingPickups = pickupRequests.filter((p) => p.status === 'requested');
-  const nextPickup = pendingPickups.length
-    ? (pendingPickups[0].harvests?.vegetable_name || t('dashboards.farmer.nextPickupRequested'))
-    : t('dashboards.farmer.nextPickupNone');
-  const pendingPickupCount = pendingPickups.length;
-  const latestPaymentLabel = latestPayment?.amount != null ? peso(latestPayment.amount) : '—';
-
-  // Form helpers
-  const resetForm = () => {
-    setEditingId(null);
-    setVegetableName('');
-    setQuantityKg('');
-    setStatus('available');
-  };
-
-  const openAddForm = () => {
-    resetForm();
-    setShowForm(true);
-  };
-
-  const openEditForm = (harvest) => {
-    setEditingId(harvest.id);
-    setVegetableName(harvest.vegetable_name);
-    setQuantityKg(String(harvest.quantity_kg));
-    setStatus(harvest.status || 'available');
-    setShowForm(true);
   };
 
   useEffect(() => {
     const h = route?.params?.editHarvest;
     if (h) {
       openEditForm(h);
+      setActiveTab('harvest');
       navigation?.setParams?.({ editHarvest: undefined });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route?.params?.editHarvest]);
 
-  const submitForm = async () => {
+  // ---- KPI calculations ----
+  const thisWeekKey = useMemo(() => weekKeyOf(new Date().toISOString()), []);
+  const lastWeekKey = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return weekKeyOf(d.toISOString());
+  }, []);
+  const weeklyBuckets = useMemo(() => buildWeeklyBuckets(harvests), [harvests]);
+  const thisWeekBucket = weeklyBuckets.find((w) => w.key === thisWeekKey);
+  const lastWeekBucket = weeklyBuckets.find((w) => w.key === lastWeekKey);
+  const thisWeekKg = thisWeekBucket?.totalKg || 0;
+  const lastWeekKg = lastWeekBucket?.totalKg || 0;
+  const weekDelta = thisWeekKg - lastWeekKg;
+  const harvestWeavePct = Math.min(100, Math.round((thisWeekKg / 200) * 100));
+
+  const pendingPickupHarvests = harvests.filter((h) => h.status === 'for_pickup');
+  const pendingPickupKg = pendingPickupHarvests.reduce((s, h) => s + Number(h.quantity_kg || 0), 0);
+  const totalHarvestKg = harvests.reduce((s, h) => s + Number(h.quantity_kg || 0), 0);
+  const pendingWeavePct = totalHarvestKg > 0 ? Math.min(100, Math.round((pendingPickupKg / totalHarvestKg) * 100)) : 0;
+
+  const availableHarvests = useMemo(() => harvests.filter((h) => h.status === 'available'), [harvests]);
+
+  // ---- Add-harvest sheet ----
+  const resetAddForm = () => {
+    setVegetableName('');
+    setQuantityKg('');
+    setStatus('available');
+  };
+  const openAddSheet = () => {
+    resetAddForm();
+    setShowAddSheet(true);
+  };
+  const submitAddForm = async () => {
     const name = vegetableName.trim();
     const qty = parseFloat(quantityKg);
-
-    if (!name) {
-      showAlert(t('common.error'), t('dashboards.distributor.enterVegetableName'));
-      return;
-    }
-    if (!isVegetable(name)) {
-      showAlert('Invalid Harvest', VEGETABLE_VALIDATION_MESSAGE);
-      return;
-    }
-    if (isNaN(qty) || qty <= 0) {
-      showAlert(t('common.error'), t('dashboards.farmer.enterQuantity'));
-      return;
-    }
-
+    if (!name) { showAlert('Error', t('dashboards.farmer.enterVegetableName')); return; }
+    if (!isVegetable(name)) { showAlert('Error', VEGETABLE_VALIDATION_MESSAGE); return; }
+    if (isNaN(qty) || qty <= 0) { showAlert('Error', t('dashboards.farmer.enterValidQuantity')); return; }
     setSubmitting(true);
     try {
-      const payload = { vegetable_name: name, quantity_kg: qty, status };
-      const mutation = editingId
-        ? { type: 'edit', id: editingId, payload }
-        : { type: 'add', payload };
-
-      const optimistic = await queueHarvest(mutation);
+      const optimistic = await queueHarvest({ type: 'add', payload: { vegetable_name: name, quantity_kg: qty, status } });
       setHarvests(optimistic);
       await refreshPendingCount();
-      resetForm();
-      setShowForm(false);
-
+      resetAddForm();
+      setShowAddSheet(false);
       const result = await trySync();
       if (result.offline || result.remaining > 0) {
-        showAlert(t('dashboards.distributor.savedOfflineTitle'), t('dashboards.distributor.savedOfflineMessage'));
+        showAlert(t('dashboards.farmer.savedOfflineTitle'), t('dashboards.farmer.savedOfflineMessage'));
       }
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert('Error', err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const requestPickup = async (harvest) => {
-    const label = harvest
-      ? `${harvest.vegetable_name} (${harvest.quantity_kg}kg)`
-      : t('dashboards.farmer.availableHarvestsFallback');
+  // ---- Edit modal ----
+  const openEditForm = (harvest) => {
+    setEditHarvestId(harvest.id);
+    setEditVegetableName(harvest.vegetable_name);
+    setEditQuantityKg(String(harvest.quantity_kg));
+    setEditStatus(harvest.status || 'available');
+  };
+  const closeEditModal = () => {
+    setEditHarvestId(null);
+    setEditVegetableName('');
+    setEditQuantityKg('');
+    setEditStatus('available');
+  };
+  const decrementEditQty = () => {
+    setEditQuantityKg((prev) => String(Math.max(0, Math.round((parseFloat(prev) || 0) - 1))));
+  };
+  const incrementEditQty = () => {
+    setEditQuantityKg((prev) => String(Math.round((parseFloat(prev) || 0) + 1)));
+  };
+  const submitEditForm = async () => {
+    const name = editVegetableName.trim();
+    const qty = parseFloat(editQuantityKg);
+    if (!name) { showAlert('Error', t('dashboards.farmer.enterVegetableName')); return; }
+    if (!isVegetable(name)) { showAlert('Error', VEGETABLE_VALIDATION_MESSAGE); return; }
+    if (isNaN(qty) || qty <= 0) { showAlert('Error', t('dashboards.farmer.enterValidQuantity')); return; }
+    setEditSubmitting(true);
     try {
-      const harvest_id = harvest && !String(harvest.id).startsWith('q-') ? harvest.id : null;
-      await api.post('/api/pickup-requests', { harvest_id, note: harvest ? null : 'All available harvests' });
-      await loadPickupRequests();
-      showAlert(t('dashboards.farmer.requestPickupTitle'), t('dashboards.farmer.requestPickupMessage', { label }));
+      const payload = { vegetable_name: name, quantity_kg: qty, status: editStatus };
+      const optimistic = await queueHarvest({ type: 'edit', id: editHarvestId, payload });
+      setHarvests(optimistic);
+      await refreshPendingCount();
+      closeEditModal();
+      const result = await trySync();
+      if (result.offline || result.remaining > 0) {
+        showAlert(t('dashboards.farmer.savedOfflineTitle'), t('dashboards.farmer.savedOfflineMessage'));
+      }
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert('Error', err.message);
+    } finally {
+      setEditSubmitting(false);
     }
   };
+  const deleteHarvest = (harvest) => {
+    confirmAction(
+      t('dashboards.farmer.deleteHarvestTitle'),
+      t('dashboards.farmer.deleteHarvestMessage', { name: harvest.vegetable_name, qty: harvest.quantity_kg }),
+      async () => {
+        setBusyId(harvest.id);
+        try {
+          await api.delete(`/api/harvests/${harvest.id}`);
+          setHarvests((prev) => prev.filter((h) => h.id !== harvest.id));
+          closeEditModal();
+        } catch (err) {
+          showAlert('Error', err.message);
+        } finally {
+          setBusyId(null);
+        }
+      }
+    );
+  };
 
-  const weeklyReport = async () => {
+  // ---- Pick-up tab: cart ----
+  const toggleCartItem = (id) => {
+    setCart((prev) => {
+      const next = { ...prev };
+      if (next[id]) delete next[id];
+      else next[id] = true;
+      return next;
+    });
+  };
+  const cartIds = Object.keys(cart);
+  const cartHarvests = availableHarvests.filter((h) => cart[h.id]);
+  const cartTotalKg = cartHarvests.reduce((s, h) => s + Number(h.quantity_kg || 0), 0);
+  const removeFromCart = (id) => {
+    setCart((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+  const submitPickupRequest = async () => {
+    if (cartHarvests.length === 0) { showAlert('Error', t('dashboards.farmer.selectAtLeastOneVeg')); return; }
+    setSubmittingPickup(true);
     try {
-      const report = await api.get('/api/harvests/weekly-report');
-      const lines = Object.entries(report.summary || {}).map(
-        ([veg, info]) => `• ${veg}: ${info.total_kg}kg (${info.count}x)`
-      );
-      const body = lines.length
-        ? lines.join('\n')
-        : t('dashboards.farmer.noHarvestsWeek');
-      showAlert(t('dashboards.farmer.weeklyReportTitle', { count: report.total_harvests }), body);
+      for (const h of cartHarvests) {
+        const payload = { vegetable_name: h.vegetable_name, quantity_kg: h.quantity_kg, status: 'for_pickup' };
+        // eslint-disable-next-line no-await-in-loop
+        const optimistic = await queueHarvest({ type: 'edit', id: h.id, payload });
+        setHarvests(optimistic);
+      }
+      await refreshPendingCount();
+      setCart({});
+      setShowCartSheet(false);
+      await trySync();
+      setShowConfirmSheet(true);
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert('Error', err.message);
+    } finally {
+      setSubmittingPickup(false);
     }
   };
 
-  const handleTabPress = (tab) => {
-    setActiveTab(tab.id);
-    if (tab.id === 'history') {
-      navigation.navigate('HarvestList');
-    } else if (tab.id === 'profile') {
-      navigation.navigate('Profile');
-    } else if (tab.id === 'harvests') {
-      openAddForm();
-    }
-  };
-
-  // Filtered harvest list based on search bar
-  const filteredHarvests = harvests.filter((h) =>
-    h.vegetable_name?.toLowerCase().includes(searchQuery.toLowerCase().trim())
-  );
+  const handleTabPress = (tab) => setActiveTab(tab.id);
 
   if (loading) {
     return (
       <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color={PRIMARY} />
+        <ActivityIndicator size="large" color={colors.leaf700} />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Minimal Top Navigation Header */}
-      <View style={styles.minimalHeader}>
-        <Text style={styles.minimalTitle}>{t('dashboards.farmer.hubTitle')}</Text>
-        <NotificationBell />
+      <View style={styles.bodyFlex}>
+        {activeTab === 'notifications' ? (
+          <View style={styles.bodyFlex}>
+            <View style={styles.topbar}>
+              <TouchableOpacity onPress={() => setActiveTab('home')} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="arrow-back" size={20} color={colors.ink} />
+              </TouchableOpacity>
+              <Text style={styles.notifHeaderTitle}>{t('dashboards.farmer.notificationsTitle')}</Text>
+              <View style={{ width: 20 }} />
+            </View>
+            <NotificationBell fullScreen />
+          </View>
+        ) : activeTab === 'profile' ? (
+          <View style={[styles.bodyFlex, styles.content]}>
+            <View style={styles.topbar}><Text style={styles.pageTitle}>{t('dashboards.farmer.tabProfile')}</Text></View>
+            <FarmerProfileTab navigation={navigation} />
+          </View>
+        ) : activeTab === 'messages' ? (
+          <View style={[styles.bodyFlex, styles.content]}>
+            <MessagesScreen embedded navigation={navigation} />
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={[styles.content, { paddingBottom: 90 }]}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            showsVerticalScrollIndicator={false}
+          >
+            {activeTab === 'pickup' ? (
+              <>
+                <View style={styles.topbar}>
+                  <View>
+                    <Text style={styles.pageTitle}>{t('dashboards.farmer.tabPickupNew')}</Text>
+                    <Text style={styles.pageSubtitle}>{t('dashboards.farmer.selectReadyMsg')}</Text>
+                  </View>
+                </View>
+
+                {availableHarvests.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <MaterialCommunityIcons name="truck-outline" size={40} color={colors.inkFaint} />
+                    <Text style={styles.emptyTitle}>{t('dashboards.farmer.nothingAvailableYetTitle')}</Text>
+                    <Text style={styles.emptySubtitle}>{t('dashboards.farmer.nothingAvailableYetMsg')}</Text>
+                  </View>
+                ) : (
+                  availableHarvests.map((h) => {
+                    const selected = !!cart[h.id];
+                    return (
+                      <View key={String(h.id)} style={styles.vegCard}>
+                        <View style={styles.vegEmoji}><Text style={{ fontSize: 20 }}>{getVegEmoji(h.vegetable_name)}</Text></View>
+                        <View style={styles.vegInfo}>
+                          <Text style={styles.vegName} numberOfLines={1}>{h.vegetable_name}</Text>
+                          <Text style={styles.vegMeta}>{t('dashboards.farmer.harvestedMeta', { qty: h.quantity_kg, date: formatDate(h.recorded_at) })}</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.selectToggle, selected && styles.selectToggleOn]}
+                          onPress={() => toggleCartItem(h.id)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[styles.selectToggleText, selected && styles.selectToggleTextOn]}>
+                            {selected ? t('dashboards.farmer.selectedBtn') : t('dashboards.farmer.selectBtn')}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })
+                )}
+              </>
+            ) : activeTab === 'harvest' ? (
+              <>
+                <View style={styles.topbar}>
+                  <View>
+                    <Text style={styles.pageTitle}>{t('dashboards.farmer.tabHarvestNew')}</Text>
+                    <Text style={styles.pageSubtitle}>{t('dashboards.farmer.yourRecordedHarvests')}</Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity style={styles.btnOutlineBlock} onPress={() => setShowWeeklySheet(true)} activeOpacity={0.8}>
+                  <Ionicons name="calendar-outline" size={16} color={colors.leaf700} />
+                  <Text style={styles.btnOutlineText}>{t('dashboards.farmer.weeklyReportDash', { range: weekRangeLabel(thisWeekKey) })}</Text>
+                </TouchableOpacity>
+
+                <View style={styles.sectionHead}>
+                  <Text style={styles.sectionHeadTitle}>{t('dashboards.farmer.recentRecords')}</Text>
+                </View>
+
+                {harvests.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Ionicons name="leaf-outline" size={40} color={colors.inkFaint} />
+                    <Text style={styles.emptyTitle}>{t('dashboards.farmer.noHarvestsYetTitle')}</Text>
+                    <Text style={styles.emptySubtitle}>{t('dashboards.farmer.noHarvestsYetMsg')}</Text>
+                  </View>
+                ) : (
+                  harvests.map((h) => {
+                    const pill = getStatusPillStyle(h.status, t);
+                    return (
+                      <View key={String(h.id)} style={styles.vegCard}>
+                        <View style={styles.vegEmoji}><Text style={{ fontSize: 20 }}>{getVegEmoji(h.vegetable_name)}</Text></View>
+                        <View style={styles.vegInfo}>
+                          <Text style={styles.vegName} numberOfLines={1}>{h.vegetable_name}</Text>
+                          <Text style={styles.vegMeta}>{t('dashboards.farmer.harvestedMeta', { qty: h.quantity_kg, date: formatDate(h.recorded_at) })}</Text>
+                        </View>
+                        <View style={[styles.pill, { backgroundColor: pill.bg }]}>
+                          <Text style={[styles.pillText, { color: pill.color }]}>{pill.label}</Text>
+                        </View>
+                        <TouchableOpacity style={styles.editIconBtn} onPress={() => openEditForm(h)} activeOpacity={0.7}>
+                          <Ionicons name="pencil-outline" size={15} color={colors.inkSoft} />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })
+                )}
+              </>
+            ) : (
+              <>
+                {/* HOME */}
+                <View style={styles.topbar}>
+                  <View style={[styles.statusBadge, offline ? styles.statusOffline : styles.statusOnline]}>
+                    <View style={[styles.statusDot, offline ? styles.statusDotOffline : styles.statusDotOnline]} />
+                    <Text style={[styles.statusLabel, offline && styles.statusLabelOffline]}>{offline ? t('dashboards.farmer.offlineStatus') : t('dashboards.farmer.onlineStatus')}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.iconBtn} onPress={() => setActiveTab('notifications')} activeOpacity={0.7}>
+                    <Ionicons name="notifications-outline" size={19} color={colors.soil800} />
+                    {notifUnreadCount > 0 && <View style={styles.notifDot} />}
+                  </TouchableOpacity>
+                </View>
+
+                {(offline || pendingCount > 0) && (
+                  <View style={styles.syncBanner}>
+                    <Ionicons name={offline ? 'cloud-offline-outline' : 'sync-outline'} size={15} color={colors.gold700} />
+                    <Text style={styles.syncBannerText}>
+                      {offline ? t('dashboards.farmer.offlinePrefixClean') : ''}
+                      {pendingCount > 0
+                        ? t('dashboards.farmer.changesWaiting', { count: pendingCount, plural: pendingCount > 1 ? 's' : '' })
+                        : t('dashboards.farmer.willSyncAuto')}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.summaryGrid}>
+                  <View style={styles.statCard}>
+                    <View style={styles.statLabelRow}>
+                      <Ionicons name="leaf-outline" size={14} color={colors.inkSoft} />
+                      <Text style={styles.statLabel}>{t('dashboards.farmer.harvestThisWeekLabel')}</Text>
+                    </View>
+                    <Text style={styles.statValue}>{thisWeekKg} kg</Text>
+                    <View style={styles.weave}><View style={[styles.weaveFill, { width: `${harvestWeavePct}%` }]} /></View>
+                    <Text style={styles.statSub}>
+                      {weekDelta === 0
+                        ? t('dashboards.farmer.sameAsLastWeek')
+                        : t('dashboards.farmer.vsLastWeek', { sign: weekDelta > 0 ? '+' : '', delta: weekDelta })}
+                    </Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <View style={styles.statLabelRow}>
+                      <MaterialCommunityIcons name="truck-outline" size={14} color={colors.inkSoft} />
+                      <Text style={styles.statLabel}>{t('dashboards.farmer.pendingPickupLabel')}</Text>
+                    </View>
+                    <Text style={styles.statValue}>{pendingPickupHarvests.length}</Text>
+                    <View style={styles.weave}><View style={[styles.weaveFill, styles.weaveFillGold, { width: `${pendingWeavePct}%` }]} /></View>
+                    <Text style={[styles.statSub, styles.statSubGold]}>{t('dashboards.farmer.kgAwaitingPickup', { kg: pendingPickupKg })}</Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity style={styles.addCta} onPress={openAddSheet} activeOpacity={0.85}>
+                  <Ionicons name="add" size={19} color="#fff" />
+                  <Text style={styles.addCtaText}>{t('dashboards.farmer.addHarvestVegetables')}</Text>
+                </TouchableOpacity>
+
+                <View style={styles.sectionHead}>
+                  <Text style={styles.sectionHeadTitle}>{t('dashboards.farmer.readyForPickup')}</Text>
+                  <TouchableOpacity style={styles.linkBtn} onPress={() => setActiveTab('pickup')} activeOpacity={0.7}>
+                    <Text style={styles.linkBtnText}>{t('dashboards.farmer.seeAll')}</Text>
+                    <Ionicons name="chevron-forward" size={14} color={colors.leaf700} />
+                  </TouchableOpacity>
+                </View>
+
+                {availableHarvests.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Ionicons name="leaf-outline" size={36} color={colors.inkFaint} />
+                    <Text style={styles.emptyTitle}>{t('dashboards.farmer.nothingReadyYet')}</Text>
+                  </View>
+                ) : (
+                  availableHarvests.slice(0, 3).map((h) => (
+                    <View key={String(h.id)} style={styles.vegCard}>
+                      <View style={styles.vegEmoji}><Text style={{ fontSize: 20 }}>{getVegEmoji(h.vegetable_name)}</Text></View>
+                      <View style={styles.vegInfo}>
+                        <Text style={styles.vegName} numberOfLines={1}>{h.vegetable_name}</Text>
+                        <Text style={styles.vegMeta}>{t('dashboards.farmer.availableKg', { kg: h.quantity_kg })}</Text>
+                      </View>
+                      <TouchableOpacity style={styles.btnOutlineSm} onPress={() => setActiveTab('pickup')} activeOpacity={0.8}>
+                        <Text style={styles.btnOutlineSmText}>{t('dashboards.farmer.requestBtn')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </>
+            )}
+          </ScrollView>
+        )}
       </View>
 
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: 90 }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Search Bar (Marketplace Reference Design) */}
-        <View style={styles.searchRow}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder={t('dashboards.farmer.searchPlaceholder')}
-            placeholderTextColor="#999"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery ? (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Text style={styles.searchClear}>✕</Text>
+      <BottomNavBar tabs={FARMER_TABS} activeTab={activeTab} onTabPress={handleTabPress} />
+
+      {/* Cart bar (Pick-up tab only) */}
+      {activeTab === 'pickup' && cartIds.length > 0 && (
+        <View style={styles.cartBar}>
+          <Text style={styles.cartBarText}>
+            {t('dashboards.farmer.itemsSelected', { count: cartIds.length, plural: cartIds.length === 1 ? '' : 's', kg: cartTotalKg })}
+          </Text>
+          <TouchableOpacity style={styles.cartBarBtn} onPress={() => setShowCartSheet(true)} activeOpacity={0.85}>
+            <Text style={styles.cartBarBtnText}>{t('dashboards.farmer.reviewBtn')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Add Harvest sheet */}
+      <BottomSheet visible={showAddSheet} onClose={() => setShowAddSheet(false)} title={t('dashboards.farmer.addHarvestSheetTitle')}>
+        <Text style={styles.fieldLabel}>{t('dashboards.farmer.vegetableNameFieldLabel')}</Text>
+        <TextInput
+          style={styles.input}
+          placeholder={t('dashboards.farmer.vegetableNamePlaceholderNew')}
+          placeholderTextColor={colors.inkFaint}
+          value={vegetableName}
+          onChangeText={setVegetableName}
+          editable={!submitting}
+        />
+        <Text style={styles.fieldLabel}>{t('dashboards.farmer.quantityHarvestedLabel')}</Text>
+        <TextInput
+          style={styles.input}
+          placeholder={t('dashboards.farmer.quantityPlaceholderNew')}
+          placeholderTextColor={colors.inkFaint}
+          value={quantityKg}
+          onChangeText={setQuantityKg}
+          keyboardType="numeric"
+          editable={!submitting}
+        />
+        <Text style={styles.fieldLabel}>{t('dashboards.farmer.statusFieldLabel')}</Text>
+        <View style={styles.statusRow}>
+          {STATUS_OPTIONS.map((opt) => (
+            <TouchableOpacity
+              key={opt}
+              style={[styles.chip, status === opt && styles.chipActive]}
+              onPress={() => setStatus(opt)}
+              disabled={submitting}
+            >
+              <Text style={[styles.chipText, status === opt && styles.chipTextActive]}>{STATUS_LABELS[opt]}</Text>
             </TouchableOpacity>
-          ) : null}
+          ))}
         </View>
+        <TouchableOpacity style={[styles.btnPrimaryBlock, submitting && styles.btnDisabled]} onPress={submitAddForm} disabled={submitting} activeOpacity={0.85}>
+          {submitting ? <ActivityIndicator color="#fff" /> : (
+            <>
+              <Ionicons name="checkmark" size={16} color="#fff" />
+              <Text style={styles.btnPrimaryBlockText}>{t('dashboards.farmer.saveHarvestBtn')}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </BottomSheet>
 
-        {/* Banner for Offline / Pending Sync */}
-        {(offline || pendingCount > 0) && (
-          <View style={[styles.banner, offline ? styles.bannerOffline : styles.bannerPending]}>
-            <Text style={styles.bannerText}>
-              {offline ? t('dashboards.farmer.offlineBannerPrefix') : t('dashboards.farmer.syncBannerPrefix')}
-              {pendingCount > 0
-                ? t('dashboards.farmer.changesWaiting', { count: pendingCount, plural: pendingCount > 1 ? 's' : '' })
-                : t('dashboards.farmer.willSyncAuto')}
-            </Text>
-          </View>
-        )}
+      {/* Edit Harvest modal */}
+      <Modal
+        visible={editHarvestId !== null}
+        transparent
+        animationType={Platform.OS === 'web' ? 'none' : 'slide'}
+        onRequestClose={closeEditModal}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeEditModal} />
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <TouchableOpacity onPress={closeEditModal} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="arrow-back" size={20} color={colors.ink} />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle} numberOfLines={1}>{t('dashboards.farmer.editHarvestModalTitle', { name: editVegetableName })}</Text>
+            </View>
 
-        {/* Section Header */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.marketplaceTitle}>{t('dashboards.farmer.marketplaceTitle')}</Text>
-          <Text style={styles.marketplaceSubtitle}>{t('dashboards.farmer.marketplaceSubtitle')}</Text>
-        </View>
+            <Text style={styles.fieldLabel}>{t('dashboards.farmer.quantityFieldLabel')}</Text>
+            <View style={styles.stepperRow}>
+              <TouchableOpacity style={styles.stepperBtn} onPress={decrementEditQty} disabled={editSubmitting} activeOpacity={0.7}>
+                <Text style={styles.stepperBtnText}>−</Text>
+              </TouchableOpacity>
+              <View style={styles.stepperValueBox}>
+                <Text style={styles.stepperValueText}>{editQuantityKg || '0'} kg</Text>
+              </View>
+              <TouchableOpacity style={styles.stepperBtn} onPress={incrementEditQty} disabled={editSubmitting} activeOpacity={0.7}>
+                <Text style={styles.stepperBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
 
-        {/* Compact KPI Summary Cards */}
-        <View style={styles.kpiGrid}>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>{t('dashboards.farmer.kpiReadyHarvest')}</Text>
-            <Text style={styles.kpiValue}>{readyHarvestKg} kg</Text>
-          </View>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>{t('dashboards.farmer.kpiNextPickup')}</Text>
-            <Text style={styles.kpiValueSmall} numberOfLines={1}>{nextPickup}</Text>
-          </View>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>{t('dashboards.farmer.kpiPendingPickups')}</Text>
-            <Text style={styles.kpiValue}>{pendingPickupCount}</Text>
-          </View>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>{t('dashboards.farmer.kpiLatestPayment')}</Text>
-            <Text style={styles.kpiValue}>{latestPaymentLabel}</Text>
-          </View>
-        </View>
-
-        {/* Action Button Row */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.primaryActionBtn} onPress={openAddForm} activeOpacity={0.85}>
-            <Text style={styles.primaryActionText}>{t('dashboards.farmer.addHarvest')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryActionBtn} onPress={() => requestPickup(null)} activeOpacity={0.85}>
-            <Text style={styles.secondaryActionText}>{t('dashboards.farmer.requestPickupBtn')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryActionBtn} onPress={weeklyReport} activeOpacity={0.85}>
-            <Text style={styles.secondaryActionText}>{t('dashboards.farmer.weeklyReportBtn')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Add / Edit Harvest Form */}
-        {showForm && (
-          <View style={styles.formCard}>
-            <Text style={styles.formTitle}>
-              {editingId ? t('dashboards.farmer.editHarvestTitle') : t('dashboards.farmer.logHarvestTitle')}
-            </Text>
-
-            <Text style={styles.fieldLabel}>{t('dashboards.farmer.vegetableNameLabel')}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={t('dashboards.farmer.vegetableNamePlaceholder')}
-              value={vegetableName}
-              onChangeText={setVegetableName}
-              editable={!submitting}
-            />
-
-            <Text style={styles.fieldLabel}>{t('dashboards.farmer.quantityLabel')}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={t('dashboards.farmer.quantityPlaceholder')}
-              value={quantityKg}
-              onChangeText={setQuantityKg}
-              keyboardType="numeric"
-              editable={!submitting}
-            />
-
-            <Text style={styles.fieldLabel}>{t('dashboards.farmer.statusLabel')}</Text>
+            <Text style={styles.fieldLabel}>{t('dashboards.farmer.statusFieldLabel')}</Text>
             <View style={styles.statusRow}>
               {STATUS_OPTIONS.map((opt) => (
                 <TouchableOpacity
                   key={opt}
-                  style={[styles.chip, status === opt && styles.chipActive]}
-                  onPress={() => setStatus(opt)}
-                  disabled={submitting}
+                  style={[styles.chip, editStatus === opt && styles.chipActive]}
+                  onPress={() => setEditStatus(opt)}
+                  disabled={editSubmitting}
                 >
-                  <Text style={[styles.chipText, status === opt && styles.chipTextActive]}>
-                    {STATUS_LABELS[opt] || opt}
-                  </Text>
+                  <Text style={[styles.chipText, editStatus === opt && styles.chipTextActive]}>{STATUS_LABELS[opt]}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             <View style={styles.formButtons}>
               <TouchableOpacity
-                style={[styles.button, styles.buttonPrimary, submitting && styles.buttonDisabled]}
-                onPress={submitForm}
-                disabled={submitting}
+                style={[styles.btnPrimaryBlock, { flex: 1 }, editSubmitting && styles.btnDisabled]}
+                onPress={submitEditForm}
+                disabled={editSubmitting || busyId === editHarvestId}
               >
-                {submitting
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.buttonPrimaryText}>{editingId ? t('common.saveChanges') : t('dashboards.farmer.saveHarvest')}</Text>}
+                {editSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryBlockText}>{t('dashboards.farmer.saveBtn')}</Text>}
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.button, styles.buttonOutline]}
-                onPress={() => { resetForm(); setShowForm(false); }}
-                disabled={submitting}
+                style={styles.btnDangerBlock}
+                onPress={() => {
+                  const h = harvests.find((x) => x.id === editHarvestId);
+                  if (h) deleteHarvest(h);
+                }}
+                disabled={editSubmitting || busyId === editHarvestId}
               >
-                <Text style={styles.buttonOutlineText}>{t('common.cancel')}</Text>
+                {busyId === editHarvestId ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.btnDangerBlockText}>{t('dashboards.farmer.deleteBtn')}</Text>}
               </TouchableOpacity>
             </View>
           </View>
-        )}
+        </View>
+      </Modal>
 
-        {/* 2-Column Marketplace Grid Layout (Matching Reference Design) */}
-        {filteredHarvests.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🥬</Text>
-            <Text style={styles.emptyTitle}>{t('dashboards.farmer.emptyHarvestsTitle')}</Text>
-            <Text style={styles.emptySubtitle}>{t('dashboards.farmer.emptyHarvestsMessage')}</Text>
+      {/* Weekly report sheet */}
+      <BottomSheet visible={showWeeklySheet} onClose={() => setShowWeeklySheet(false)} title={t('dashboards.farmer.weeklyReportSheetTitle')}>
+        <Text style={styles.sheetHint}>{t('dashboards.farmer.autoGenerated', { range: weekRangeLabel(thisWeekKey) })}</Text>
+        <View style={styles.reportWrap}>
+          <View style={styles.reportHeaderRow}>
+            <Text style={[styles.reportHeaderCell, { flex: 1.3 }]}>{t('dashboards.farmer.tableVegetable')}</Text>
+            <Text style={styles.reportHeaderCell}>{t('dashboards.farmer.tableHarvested')}</Text>
+            <Text style={styles.reportHeaderCell}>{t('dashboards.farmer.tablePickedUp')}</Text>
+            <Text style={styles.reportHeaderCell}>{t('dashboards.farmer.tableStatus')}</Text>
           </View>
-        ) : (
-          <View style={styles.marketplaceGrid}>
-            {filteredHarvests.map((h) => {
-              const tile = getVegetableTile(h.vegetable_name);
+          {Object.entries(thisWeekBucket?.byVeg || {}).length === 0 ? (
+            <Text style={styles.emptySubtitle}>{t('dashboards.farmer.noHarvestsThisWeek')}</Text>
+          ) : (
+            Object.entries(thisWeekBucket.byVeg).map(([veg, info]) => {
+              const done = info.pickedUpKg >= info.harvestedKg && info.harvestedKg > 0;
+              const pill = done ? getStatusPillStyle('picked_up', t) : getStatusPillStyle('for_pickup', t);
               return (
-                <View key={String(h.id)} style={styles.productCard}>
-                  {/* Soft-tinted Icon Tile Container */}
-                  <View style={[styles.tileContainer, { backgroundColor: tile.bg }]}>
-                    <Text style={styles.tileIcon}>{tile.icon}</Text>
+                <View key={veg} style={styles.reportRow}>
+                  <Text style={[styles.reportCell, { flex: 1.3, textTransform: 'capitalize' }]} numberOfLines={1}>{veg}</Text>
+                  <Text style={styles.reportCell}>{info.harvestedKg} kg</Text>
+                  <Text style={styles.reportCell}>{info.pickedUpKg > 0 ? `${info.pickedUpKg} kg` : '—'}</Text>
+                  <View style={[styles.pill, { backgroundColor: pill.bg }]}>
+                    <Text style={[styles.pillText, { color: pill.color }]}>{done ? t('dashboards.farmer.pickedUpStatus') : t('dashboards.farmer.pendingStatus')}</Text>
                   </View>
-
-                  {/* Vegetable Name */}
-                  <Text style={styles.cropTitle} numberOfLines={1}>
-                    {h.vegetable_name}
-                  </Text>
-
-                  {/* Stock Pill Badge */}
-                  <View style={styles.stockBadge}>
-                    <Text style={styles.stockBadgeText}>{t('dashboards.farmer.kgInStock', { qty: h.quantity_kg })}</Text>
-                  </View>
-
-                  {/* Status / Price Label */}
-                  <Text style={styles.cropStatusLabel}>
-                    {h.status === 'available' ? t('dashboards.farmer.statusAvailableLabel') : h.status}
-                  </Text>
-
-                  {/* Primary Green "Manage" Button */}
-                  <TouchableOpacity
-                    style={styles.manageBtn}
-                    onPress={() => openEditForm(h)}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.manageBtnText}>{t('dashboards.farmer.manage')}</Text>
-                  </TouchableOpacity>
                 </View>
               );
-            })}
-          </View>
-        )}
-
-        {/* Marketplace Footer Banner (Matching "More products coming soon" in Screenshot) */}
-        <View style={styles.marketplaceBanner}>
-          <View style={styles.bannerIconBadge}>
-            <Text style={styles.bannerIconText}>⚡</Text>
-          </View>
-          <Text style={styles.bannerTitle}>{t('dashboards.farmer.comingSoonTitle')}</Text>
-          <Text style={styles.bannerSubtitle}>{t('dashboards.farmer.comingSoonSubtitle')}</Text>
+            })
+          )}
         </View>
+        {distributorName && (thisWeekBucket?.byVeg && Object.values(thisWeekBucket.byVeg).some((v) => v.pickedUpKg > 0)) && (
+          <Text style={styles.sheetHint}>{t('dashboards.farmer.distributorLabel', { name: distributorName })}</Text>
+        )}
+        <TouchableOpacity style={styles.linkBtn} onPress={() => { setShowWeeklySheet(false); setShowHistorySheet(true); }} activeOpacity={0.7}>
+          <Ionicons name="time-outline" size={14} color={colors.leaf700} />
+          <Text style={styles.linkBtnText}>{t('dashboards.farmer.viewReportHistory')}</Text>
+        </TouchableOpacity>
+      </BottomSheet>
 
-      </ScrollView>
+      {/* Report history sheet */}
+      <BottomSheet visible={showHistorySheet} onClose={() => setShowHistorySheet(false)} title={t('dashboards.farmer.reportHistoryTitle')}>
+        {weeklyBuckets.filter((w) => w.key !== thisWeekKey).length === 0 ? (
+          <Text style={styles.emptySubtitle}>{t('dashboards.farmer.noPastWeeks')}</Text>
+        ) : (
+          weeklyBuckets.filter((w) => w.key !== thisWeekKey).map((w) => {
+            const expanded = expandedHistoryKey === w.key;
+            return (
+              <TouchableOpacity
+                key={w.key}
+                style={styles.historyRow}
+                onPress={() => setExpandedHistoryKey(expanded ? null : w.key)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View>
+                      <Text style={styles.historyWeek}>{t('dashboards.farmer.weekOf', { range: weekRangeLabel(w.key) })}</Text>
+                      <Text style={styles.historyKg}>{t('dashboards.farmer.kgHarvested', { kg: w.totalKg })}</Text>
+                    </View>
+                    <Ionicons name={expanded ? 'chevron-down' : 'chevron-forward'} size={16} color={colors.inkFaint} />
+                  </View>
+                  {expanded && (
+                    <View style={styles.historyBreakdown}>
+                      {Object.entries(w.byVeg).map(([veg, info]) => (
+                        <View key={veg} style={styles.historyBreakdownRow}>
+                          <Text style={styles.historyBreakdownCrop} numberOfLines={1}>{veg}</Text>
+                          <Text style={styles.historyBreakdownValue}>{info.harvestedKg} kg</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
+      </BottomSheet>
 
-      <BottomNavBar
-        tabs={FARMER_TABS}
-        activeTab={activeTab}
-        onTabPress={handleTabPress}
-      />
+      {/* Cart review sheet (Pick-up tab) */}
+      <BottomSheet visible={showCartSheet} onClose={() => setShowCartSheet(false)} title={t('dashboards.farmer.pickupRequestSheetTitle')}>
+        {cartHarvests.map((h) => (
+          <View key={String(h.id)} style={styles.vegCard}>
+            <View style={styles.vegEmoji}><Text style={{ fontSize: 20 }}>{getVegEmoji(h.vegetable_name)}</Text></View>
+            <View style={styles.vegInfo}>
+              <Text style={styles.vegName} numberOfLines={1}>{h.vegetable_name}</Text>
+              <Text style={styles.vegMeta}>{t('dashboards.farmer.selectedKg', { qty: h.quantity_kg })}</Text>
+            </View>
+            <TouchableOpacity style={styles.trashBtn} onPress={() => removeFromCart(h.id)} activeOpacity={0.7}>
+              <Ionicons name="trash-outline" size={16} color={colors.inkSoft} />
+            </TouchableOpacity>
+          </View>
+        ))}
+        <View style={styles.cartTotalRow}>
+          <Text style={styles.cartTotalLabel}>{t('dashboards.farmer.totalItems')}</Text>
+          <Text style={styles.cartTotalValue}>{cartHarvests.length}</Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.btnPrimaryBlock, submittingPickup && styles.btnDisabled]}
+          onPress={submitPickupRequest}
+          disabled={submittingPickup}
+          activeOpacity={0.85}
+        >
+          {submittingPickup ? <ActivityIndicator color="#fff" /> : (
+            <>
+              <MaterialCommunityIcons name="truck-outline" size={16} color="#fff" />
+              <Text style={styles.btnPrimaryBlockText}>{t('dashboards.farmer.requestPickupBtnNew')}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </BottomSheet>
+
+      {/* Confirmation sheet */}
+      <BottomSheet visible={showConfirmSheet} onClose={() => setShowConfirmSheet(false)} title="" scroll={false}>
+        <View style={styles.confirmWrap}>
+          <View style={styles.confirmBadge}>
+            <Ionicons name="checkmark-circle" size={30} color={colors.leaf700} />
+          </View>
+          <Text style={styles.confirmTitle}>{t('dashboards.farmer.pickupSentTitle')}</Text>
+          <Text style={styles.confirmBody}>
+            {t('dashboards.farmer.pickupSentBody')}
+          </Text>
+          <TouchableOpacity
+            style={styles.btnPrimaryBlock}
+            onPress={() => { setShowConfirmSheet(false); setActiveTab('home'); }}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.btnPrimaryBlockText}>{t('dashboards.farmer.backToDashboard')}</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8faf8' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8faf8' },
+  container: { flex: 1, backgroundColor: colors.bgScreen },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bgScreen },
+  bodyFlex: { flex: 1, minHeight: 0 },
+  scrollArea: { flex: 1, minHeight: 0 },
   content: { padding: 16 },
 
-  minimalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  minimalTitle: { fontSize: 18, fontWeight: '700', color: PRIMARY },
+  topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14 },
+  pageTitle: { fontFamily: fonts.heading, fontSize: 20, color: colors.ink },
+  pageSubtitle: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, marginTop: 2 },
 
-  // Search Row
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    paddingHorizontal: 14,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  searchIcon: { fontSize: 16, marginRight: 8 },
-  searchInput: {
-    flex: 1,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-    fontSize: 15,
-    color: '#1a1a1a',
-  },
-  searchClear: { fontSize: 16, color: '#999', paddingLeft: 8 },
+  notifHeaderTitle: { fontFamily: fonts.heading, fontSize: 20, color: colors.ink },
 
-  // Header Title
-  sectionHeader: { marginBottom: 12 },
-  marketplaceTitle: { fontSize: 22, fontWeight: '800', color: '#1a1a1a' },
-  marketplaceSubtitle: { fontSize: 13, color: '#666', marginTop: 2 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20 },
+  statusOnline: { backgroundColor: colors.leaf100 },
+  statusOffline: { backgroundColor: '#EFEAE2' },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusDotOnline: { backgroundColor: colors.leaf500 },
+  statusDotOffline: { backgroundColor: colors.inkFaint },
+  statusLabel: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.leaf900 || colors.leaf700 },
+  statusLabelOffline: { color: colors.inkSoft },
 
-  // KPI Grid
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
-  kpiCard: {
-    flexGrow: 1,
-    flexBasis: '47%',
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#e8f0e8',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
-    elevation: 1,
+  iconBtn: {
+    width: 38, height: 38, borderRadius: radius.ctrl, backgroundColor: colors.card,
+    borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', position: 'relative',
   },
-  kpiLabel: { fontSize: 12, color: '#666', fontWeight: '500', marginBottom: 4 },
-  kpiValue: { fontSize: 18, fontWeight: '700', color: PRIMARY },
-  kpiValueSmall: { fontSize: 13, fontWeight: '600', color: '#333' },
-
-  // Action Row
-  actionRow: { flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
-  primaryActionBtn: {
-    flex: 1,
-    backgroundColor: PRIMARY,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryActionText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
-  secondaryActionBtn: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: PRIMARY,
-  },
-  secondaryActionText: { color: PRIMARY, fontWeight: '600', fontSize: 13 },
-
-  // Form Card
-  formCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  formTitle: { fontSize: 18, fontWeight: '700', color: PRIMARY, marginBottom: 12 },
-  fieldLabel: { fontSize: 13, color: '#444', fontWeight: '600', marginBottom: 6, marginTop: 8 },
-  input: { backgroundColor: '#f8faf8', borderRadius: 10, padding: 12, fontSize: 15, borderWidth: 1, borderColor: '#ddd' },
-  statusRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ccc', backgroundColor: '#f8faf8' },
-  chipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  chipText: { color: '#555', fontSize: 13 },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
-  formButtons: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  button: { flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
-  buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  buttonOutline: { borderWidth: 1, borderColor: PRIMARY },
-  buttonOutlineText: { color: PRIMARY, fontWeight: '600', fontSize: 15 },
-  buttonDisabled: { opacity: 0.6 },
-
-  // 2-Column Marketplace Grid (Reference Screenshot)
-  marketplaceGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 14,
-    marginBottom: 20,
-  },
-  productCard: {
-    width: '48%',
-    backgroundColor: '#ffffff',
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#edf2ed',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 5,
-    elevation: 2,
-    alignItems: 'center',
-  },
-  tileContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  tileIcon: { fontSize: 36 },
-  cropTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  stockBadge: {
-    backgroundColor: '#e8f5e9',
-    borderRadius: 10,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    marginBottom: 8,
-  },
-  stockBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: PRIMARY,
-  },
-  cropStatusLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: PRIMARY,
-    marginBottom: 12,
-  },
-  manageBtn: {
-    width: '100%',
-    backgroundColor: PRIMARY,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  manageBtnText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 14,
+  notifDot: {
+    position: 'absolute', top: 7, right: 7, width: 7, height: 7, borderRadius: 4,
+    backgroundColor: colors.gold500, borderWidth: 1.5, borderColor: colors.card,
   },
 
-  // Marketplace Banner (Reference Screenshot)
-  marketplaceBanner: {
-    backgroundColor: '#edf7ed',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#c8e6c9',
-    marginTop: 8,
-  },
-  bannerIconBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#a5d6a7',
-  },
-  bannerIconText: { fontSize: 20 },
-  bannerTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: PRIMARY,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  bannerSubtitle: {
-    fontSize: 12,
-    color: '#555',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
+  syncBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.gold100, borderRadius: 12, padding: 10, marginBottom: 14 },
+  syncBannerText: { flex: 1, fontFamily: fonts.body, fontSize: 12, color: colors.gold700 },
 
-  emptyContainer: { padding: 30, alignItems: 'center' },
-  emptyIcon: { fontSize: 40, marginBottom: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: '#333' },
-  emptySubtitle: { fontSize: 13, color: '#777', marginTop: 4, textAlign: 'center' },
+  summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  statCard: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, ...shadowCard },
+  statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.inkSoft },
+  statValue: { fontFamily: fonts.heading, fontSize: 24, marginTop: 6, color: colors.ink },
+  statSub: { fontFamily: fonts.bodySemiBold, fontSize: 11.5, marginTop: 2, color: colors.leaf700 },
+  statSubGold: { color: colors.gold700 },
+  weave: { marginTop: 10, height: 7, borderRadius: 6, backgroundColor: colors.leaf100, overflow: 'hidden' },
+  weaveFill: { height: '100%', borderRadius: 6, backgroundColor: colors.leaf500 },
+  weaveFillGold: { backgroundColor: colors.gold500 },
 
-  banner: { borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 14 },
-  bannerOffline: { backgroundColor: '#fff8e1', borderWidth: 1, borderColor: '#f9a825' },
-  bannerPending: { backgroundColor: '#e3f2fd', borderWidth: 1, borderColor: '#1976d2' },
-  bannerText: { fontSize: 13, color: '#444' },
+  addCta: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.leaf700, borderRadius: 16, paddingVertical: 15, marginBottom: 6,
+  },
+  addCtaText: { fontFamily: fonts.heading, fontSize: 15.5, color: '#fff' },
+
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 14 },
+  sectionHeadTitle: { fontFamily: fonts.heading, fontSize: 16, color: colors.ink },
+  linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  linkBtnText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.leaf700 },
+
+  vegCard: {
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 14,
+    padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 9,
+  },
+  vegEmoji: { width: 42, height: 42, borderRadius: 11, backgroundColor: colors.leaf50, alignItems: 'center', justifyContent: 'center' },
+  vegInfo: { flex: 1, minWidth: 0 },
+  vegName: { fontFamily: fonts.bodySemiBold, fontSize: 14.5, color: colors.ink, textTransform: 'capitalize' },
+  vegMeta: { fontFamily: fonts.body, fontSize: 12, color: colors.inkSoft, marginTop: 2 },
+  pill: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 20 },
+  pillText: { fontFamily: fonts.bodyBold, fontSize: 11 },
+  editIconBtn: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+
+  btnOutlineSm: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.4, borderColor: colors.leaf700 },
+  btnOutlineSmText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.leaf700 },
+
+  btnOutlineBlock: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.card, borderWidth: 1.4, borderColor: colors.leaf700, borderRadius: radius.ctrl,
+    paddingVertical: 13, marginBottom: 14,
+  },
+  btnOutlineText: { fontFamily: fonts.bodySemiBold, fontSize: 14.5, color: colors.leaf700 },
+
+  selectToggle: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.4, borderColor: colors.leaf700, backgroundColor: colors.card },
+  selectToggleOn: { backgroundColor: colors.leaf700 },
+  selectToggleText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.leaf700 },
+  selectToggleTextOn: { color: '#fff' },
+
+  emptyContainer: { alignItems: 'center', paddingVertical: 50, paddingHorizontal: 24, gap: 6 },
+  emptyTitle: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.inkSoft },
+  emptySubtitle: { fontFamily: fonts.body, fontSize: 13, color: colors.inkFaint, textAlign: 'center' },
+
+  cartBar: {
+    position: 'absolute', left: 12, right: 12, bottom: 88, backgroundColor: colors.ink,
+    borderRadius: 16, padding: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 10,
+  },
+  cartBarText: { fontFamily: fonts.body, fontSize: 13, color: '#fff', flexShrink: 1 },
+  cartBarCount: { fontFamily: fonts.bodyBold, color: colors.gold500 },
+  cartBarBtn: { backgroundColor: colors.gold500, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 14 },
+  cartBarBtnText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.soil800 },
+
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12.5, color: colors.inkSoft, marginBottom: 6, marginTop: 8 },
+  input: {
+    backgroundColor: '#fff', borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.border,
+    padding: 11, fontFamily: fonts.body, fontSize: 14.5, color: colors.ink,
+  },
+  statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  chipActive: { backgroundColor: colors.leaf700, borderColor: colors.leaf700 },
+  chipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13 },
+  chipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
+
+  btnPrimaryBlock: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.leaf700, borderRadius: radius.ctrl, paddingVertical: 13, marginTop: 16,
+  },
+  btnPrimaryBlockText: { fontFamily: fonts.bodySemiBold, fontSize: 14.5, color: '#fff' },
+  btnDisabled: { opacity: 0.6 },
+  btnDangerBlock: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.ctrl,
+    paddingVertical: 13, marginTop: 16, backgroundColor: '#fff', borderWidth: 1.4, borderColor: colors.danger,
+  },
+  btnDangerBlockText: { fontFamily: fonts.bodySemiBold, fontSize: 14.5, color: colors.danger },
+  formButtons: { flexDirection: 'row', gap: 10 },
+
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end', zIndex: 9999, elevation: 9999 },
+  modalCard: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, paddingBottom: 30 },
+  modalHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 6 },
+  modalTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink, flexShrink: 1 },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+  stepperBtn: { width: 44, height: 44, borderRadius: radius.ctrl, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  stepperBtnText: { fontFamily: fonts.bodyBold, fontSize: 20, color: colors.leaf700 },
+  stepperValueBox: { flex: 1, backgroundColor: colors.card, borderWidth: 1.4, borderColor: colors.border, borderRadius: radius.ctrl, paddingVertical: 12, alignItems: 'center' },
+  stepperValueText: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.ink },
+
+  sheetHint: { fontFamily: fonts.body, fontSize: 12.5, color: colors.inkSoft, marginBottom: 12, marginTop: -4 },
+  reportWrap: { borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, padding: 6 },
+  reportHeaderRow: { flexDirection: 'row', borderBottomWidth: 1.5, borderBottomColor: colors.border, paddingVertical: 6, paddingHorizontal: 6 },
+  reportHeaderCell: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 10.5, color: colors.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3 },
+  reportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
+  reportCell: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.ink },
+
+  historyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
+  historyWeek: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.ink },
+  historyKg: { fontFamily: fonts.body, fontSize: 12, color: colors.inkSoft, marginTop: 2 },
+  historyBreakdown: { marginTop: 10, gap: 6 },
+  historyBreakdownRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, paddingHorizontal: 10, backgroundColor: colors.leaf50, borderRadius: 10 },
+  historyBreakdownCrop: { fontFamily: fonts.bodySemiBold, fontSize: 12.5, color: colors.ink, flex: 1, marginRight: 8, textTransform: 'capitalize' },
+  historyBreakdownValue: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.leaf700 },
+
+  trashBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  cartTotalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 2, borderTopWidth: 1, borderTopColor: colors.border, marginTop: 6 },
+  cartTotalLabel: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.ink },
+  cartTotalValue: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.ink },
+
+  confirmWrap: { alignItems: 'center', paddingVertical: 20 },
+  confirmBadge: { width: 66, height: 66, borderRadius: 33, backgroundColor: colors.leaf100, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  confirmTitle: { fontFamily: fonts.heading, fontSize: 19, color: colors.ink, marginBottom: 8 },
+  confirmBody: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, textAlign: 'center', maxWidth: 280, lineHeight: 19, marginBottom: 22 },
 });

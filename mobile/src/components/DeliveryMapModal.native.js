@@ -4,8 +4,9 @@ import {
 } from 'react-native';
 import MapView, { Marker, Polyline, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
+import { colors, fonts } from '../theme/appTheme';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 // Default region (Metro Manila) used until we have the courier's position.
 const FALLBACK = { latitude: 14.5995, longitude: 120.9842, latitudeDelta: 0.3, longitudeDelta: 0.3 };
 
@@ -97,12 +98,12 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: colors.bgScreen },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
-  title: { fontSize: 20, fontWeight: '700', color: PRIMARY },
-  close: { color: PRIMARY, fontSize: 16, fontWeight: '600' },
-  addr: { fontSize: 14, color: '#555', paddingHorizontal: 16, marginBottom: 8 },
-  error: { color: '#c62828', paddingHorizontal: 16, marginBottom: 8 },
-  note: { color: '#888', fontSize: 13, padding: 12, fontStyle: 'italic' },
+  title: { fontFamily: fonts.heading, fontSize: 19, color: colors.ink },
+  close: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 15 },
+  addr: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, paddingHorizontal: 16, marginBottom: 8 },
+  error: { fontFamily: fonts.body, color: colors.danger, paddingHorizontal: 16, marginBottom: 8 },
+  note: { fontFamily: fonts.body, color: colors.inkFaint, fontSize: 13, padding: 12, fontStyle: 'italic' },
   map: { flex: 1 },
 });

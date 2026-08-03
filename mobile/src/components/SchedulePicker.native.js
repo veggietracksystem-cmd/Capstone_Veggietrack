@@ -2,8 +2,9 @@ import { useState } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet,
 } from 'react-native';
+import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = colors.leaf700;
 
 // Common delivery time slots (24h). Building a full clock picker would need a
 // native datetime library, which isn't installed — these slots cover the
@@ -122,27 +123,27 @@ export default function SchedulePicker({ value, onChange, disabled }) {
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 4 },
-  trigger: { backgroundColor: '#fff', borderRadius: 8, padding: 14, borderWidth: 1, borderColor: PRIMARY },
-  triggerEmpty: { borderColor: '#ddd' },
-  triggerText: { fontSize: 16, color: '#222', fontWeight: '600' },
-  triggerTextEmpty: { color: '#999', fontWeight: '400' },
+  trigger: { backgroundColor: colors.card, borderRadius: radius.ctrl, padding: 14, borderWidth: 1.4, borderColor: PRIMARY },
+  triggerEmpty: { borderColor: colors.border },
+  triggerText: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.ink },
+  triggerTextEmpty: { fontFamily: fonts.body, color: colors.inkFaint },
 
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 28 },
-  sheetTitle: { fontSize: 18, fontWeight: '700', color: '#222', marginBottom: 12 },
-  label: { fontSize: 13, color: '#555', marginTop: 10, marginBottom: 8, fontWeight: '600' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingBottom: 28 },
+  sheetTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink, marginBottom: 12 },
+  label: { fontFamily: fonts.bodySemiBold, fontSize: 12.5, color: colors.inkSoft, marginTop: 10, marginBottom: 8 },
   chipRow: { gap: 8, paddingRight: 8 },
   timeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ccc', backgroundColor: '#fafafa' },
+  chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   chipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  chipText: { color: '#555', fontSize: 14 },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
+  chipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5 },
+  chipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
 
   actions: { flexDirection: 'row', gap: 12, marginTop: 20 },
-  btn: { flex: 1, paddingVertical: 14, borderRadius: 8, alignItems: 'center' },
+  btn: { flex: 1, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center' },
   btnPrimary: { backgroundColor: PRIMARY },
-  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  btnOutline: { borderWidth: 1, borderColor: PRIMARY },
-  btnOutlineText: { color: PRIMARY, fontWeight: '600', fontSize: 16 },
+  btnPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15.5 },
+  btnOutline: { borderWidth: 1.4, borderColor: PRIMARY },
+  btnOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 15.5 },
   btnDisabled: { opacity: 0.5 },
 });
