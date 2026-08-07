@@ -1,6 +1,8 @@
-import { TouchableOpacity, Text, StyleSheet, Platform, Alert } from 'react-native';
+import { rf } from '../lib/responsive';
+import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n/useTranslation';
+import { confirmAction } from '../lib/ui';
 
 // Calling signOut() clears the token and flips the navigator back to Login
 // automatically (RootNavigator re-renders off context) — no reload needed.
@@ -10,16 +12,7 @@ export default function LogoutButton() {
   const { t } = useTranslation();
 
   const confirmLogout = () => {
-    if (Platform.OS === 'web') {
-      // Alert.alert buttons are a no-op on web; use window.confirm instead.
-      // eslint-disable-next-line no-alert
-      if (window.confirm(t('profile.logoutConfirmMessage'))) signOut();
-      return;
-    }
-    Alert.alert(t('profile.logoutConfirmTitle'), t('profile.logoutConfirmMessage'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('common.logout'), style: 'destructive', onPress: () => signOut() },
-    ]);
+    confirmAction(t('profile.logoutConfirmTitle'), t('profile.logoutConfirmMessage'), () => signOut());
   };
 
   return (
@@ -36,7 +29,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#2e7d32',
+    borderColor: '#1E4E09',
   },
-  text: { color: '#2e7d32', fontSize: 16, fontWeight: '600' },
+  text: { color: '#1E4E09', fontSize: rf(16), fontWeight: '600' },
 });

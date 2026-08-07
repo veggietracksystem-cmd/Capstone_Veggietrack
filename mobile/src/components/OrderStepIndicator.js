@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
@@ -82,9 +83,9 @@ const styles = StyleSheet.create({
   circle: { width: CIRCLE, height: CIRCLE, borderRadius: CIRCLE / 2, backgroundColor: colors.card, borderWidth: 2, borderColor: GREY, alignItems: 'center', justifyContent: 'center' },
   circleDone: { backgroundColor: PRIMARY, borderColor: PRIMARY },
   circleCurrent: { borderColor: PRIMARY },
-  circleText: { fontFamily: fonts.bodyBold, fontSize: 13, color: GREY_TEXT },
+  circleText: { fontFamily: fonts.bodyBold, fontSize: rf(13), color: GREY_TEXT },
   circleTextDone: { color: '#fff' },
 
-  label: { fontFamily: fonts.body, fontSize: 11, color: GREY_TEXT, textAlign: 'center', marginTop: 6, lineHeight: 14 },
+  label: { fontFamily: fonts.body, fontSize: rf(11), color: GREY_TEXT, textAlign: 'center', marginTop: 6, lineHeight: 14 },
   labelDone: { fontFamily: fonts.bodySemiBold, color: PRIMARY },
 });

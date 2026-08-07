@@ -1,24 +1,26 @@
+import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Text, View, ScrollView, TextInput, TouchableOpacity,
+  Text, View, ScrollView, TextInput, TouchableOpacity, Modal, Image,
   ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
-import { fetchProducts, queueProduct, syncPending, getQueue } from '../offline/productStore';
 import { readThrough } from '../offline/cache';
-import { onReconnect } from '../offline/net';
 import { useAuth } from '../context/AuthContext';
 import LogoutButton from '../components/LogoutButton';
 import NotificationBell from '../components/NotificationBell';
+import MessagesIcon from '../components/MessagesIcon';
 import BottomNavBar from '../components/BottomNavBar';
 import OfflineBanner from '../components/OfflineBanner';
 import EmptyState from '../components/EmptyState';
 import CustomModal from '../components/CustomModal';
-import { showAlert, peso, shortId } from '../lib/ui';
+import ImageViewerModal from '../components/ImageViewerModal';
+import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
-import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
+import { getVegetableTile } from '../lib/vegetableIcons';
+import { localizeVegetableName } from '../lib/vegetableNames';
 
 const PRIMARY = colors.leaf700;
 
@@ -38,30 +40,33 @@ function farmerNameOf(req) {
 
 export default function DistributorDashboard({ navigation, route }) {
   const { user } = useAuth();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   const DISTRIBUTOR_TABS = [
     { id: 'home', iconName: 'home-outline', label: t('dashboards.distributor.tabHome') },
     { id: 'orders', iconName: 'clipboard-outline', label: t('dashboards.distributor.tabOrders') },
+    { id: 'stocks', iconName: 'archive-outline', label: t('dashboards.distributor.tabStocks') },
     { id: 'inventory', iconName: 'cube-outline', label: t('dashboards.distributor.tabInventory') },
-    { id: 'riders', iconName: 'bicycle-outline', label: t('dashboards.distributor.tabRiders') },
     { id: 'profile', iconName: 'person-outline', label: t('dashboards.distributor.tabProfile') },
   ];
-  const [tab, setTab] = useState('orders'); // 'products' | 'pickups' | 'orders' | 'payments'
+  const [tab, setTab] = useState('home'); // 'home' | 'orders' | 'pickups' | 'payments'
   const [activeBottomTab, setActiveBottomTab] = useState('home');
 
   const handleBottomTabPress = (tab) => {
     setActiveBottomTab(tab.id);
-    if (tab.id === 'inventory') {
-      navigation.navigate('ProductList');
+    if (tab.id === 'stocks') {
+      navigation.navigate('Stocks');
+    } else if (tab.id === 'inventory') {
+      // Repurposed: this now opens the Inventory + Weekly Report screen
+      // (table layout, History section, PDF export) instead of the old
+      // Product List screen — Product List lives inline on Home now.
+      navigation.navigate('DistributorInventoryReport');
     } else if (tab.id === 'profile') {
       navigation.navigate('Profile');
     } else if (tab.id === 'orders') {
       setTab('orders');
-    } else if (tab.id === 'riders') {
-      setTab('pickups');
     } else if (tab.id === 'home') {
-      setTab('orders');
+      setTab('home');
     }
   };
 
@@ -78,16 +83,6 @@ export default function DistributorDashboard({ navigation, route }) {
   const [priceInput, setPriceInput] = useState('');   // optional price per kg
   const [receiveBusyId, setReceiveBusyId] = useState(null);
 
-  // ----- Products state -----
-  const [products, setProducts] = useState([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
-  const [showProductForm, setShowProductForm] = useState(false);
-  const [editingProductId, setEditingProductId] = useState(null);
-  const [vegName, setVegName] = useState('');
-  const [price, setPrice] = useState('');
-  const [stock, setStock] = useState('');
-  const [savingProduct, setSavingProduct] = useState(false);
-
   // ----- Orders state -----
   const [orders, setOrders] = useState([]);
   // Issue 9: orders that are approved / in delivery. Without this list, an order
@@ -98,7 +93,7 @@ export default function DistributorDashboard({ navigation, route }) {
   const [selectedPersonnel, setSelectedPersonnel] = useState({}); // { [orderId]: personnelId }
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadingReport, setLoadingReport] = useState(false);
+  const [proofUri, setProofUri] = useState(null);
 
   // ----- Payments state -----
   const [paymentsSub, setPaymentsSub] = useState('unpaid'); // 'unpaid' | 'paid'
@@ -110,24 +105,10 @@ export default function DistributorDashboard({ navigation, route }) {
   const [recordBusy, setRecordBusy] = useState(false);
 
   // ----- Offline state -----
-  const [productsOffline, setProductsOffline] = useState(false);
   const [ordersOffline, setOrdersOffline] = useState(false);
   const [paymentsOffline, setPaymentsOffline] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
 
   // ---------- Loaders ----------
-  const refreshPendingCount = useCallback(async () => {
-    setPendingCount((await getQueue()).length);
-  }, []);
-
-  // Products: read-through cache + write queue.
-  const loadProducts = useCallback(async () => {
-    const { list, source } = await fetchProducts();
-    setProducts(list);
-    setProductsOffline(source === 'cache');
-    await refreshPendingCount();
-  }, [refreshPendingCount]);
-
   // Pending orders: read-through cache only (approve/assign stay online).
   const loadOrders = useCallback(async () => {
     const { list, source } = await readThrough('orders_pending_cache', () =>
@@ -173,41 +154,26 @@ export default function DistributorDashboard({ navigation, route }) {
     setPaymentsOffline(unpaidRes.source === 'cache' || paidRes.source === 'cache');
   }, []);
 
-  // Flush queued product writes, then reload.
-  const trySync = useCallback(async () => {
-    const result = await syncPending();
-    if (result.synced > 0) await loadProducts();
-    await refreshPendingCount();
-    return result;
-  }, [loadProducts, refreshPendingCount]);
-
   useEffect(() => {
     (async () => {
-      setLoadingProducts(true);
       setLoadingOrders(true);
       setLoadingPayments(true);
-      await Promise.all([loadProducts(), loadOrders(), loadActiveOrders(), loadPersonnel(), loadPayments(), loadPickupRequests()]);
-      await trySync();
-      setLoadingProducts(false);
+      await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPayments(), loadPickupRequests()]);
       setLoadingOrders(false);
       setLoadingPayments(false);
     })();
+  }, [loadOrders, loadActiveOrders, loadPersonnel, loadPayments, loadPickupRequests]);
 
-    const unsubscribe = onReconnect(() => { trySync(); });
-    return unsubscribe;
-  }, [loadProducts, loadOrders, loadActiveOrders, loadPersonnel, loadPayments, loadPickupRequests, trySync]);
-
-  // Refresh the pickup-request count whenever this screen regains focus
-  // (e.g. returning from another screen after stock changes).
+  // Refresh pickup requests whenever this screen regains focus (e.g.
+  // returning from Stocks after listing a batch).
   useEffect(() => {
     if (!navigation?.addListener) return undefined;
     return navigation.addListener('focus', () => {
       loadPickupRequests();
-      loadProducts();
     });
-  }, [navigation, loadPickupRequests, loadProducts]);
+  }, [navigation, loadPickupRequests]);
 
-  // Issue 10: poll orders every 30s so the "In Progress" statuses (picked up /
+  // Issue 10: poll orders every 30s so the Approved-tab statuses (picked up /
   // in transit / delivered) update without a manual pull-to-refresh.
   useEffect(() => {
     const id = setInterval(() => { loadOrders(); loadActiveOrders(); }, 30000);
@@ -216,10 +182,9 @@ export default function DistributorDashboard({ navigation, route }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    if (tab === 'products') { await loadProducts(); await trySync(); }
-    else if (tab === 'orders') await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPickupRequests()]);
+    if (tab === 'orders') await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPickupRequests()]);
     else if (tab === 'pickups') await loadPickupRequests();
-    else await loadPayments();
+    else if (tab === 'payments') await loadPayments();
     setRefreshing(false);
   };
 
@@ -249,86 +214,6 @@ export default function DistributorDashboard({ navigation, route }) {
     }
   };
 
-  // ---------- Product form ----------
-  const resetProductForm = () => {
-    setEditingProductId(null);
-    setVegName('');
-    setPrice('');
-    setStock('');
-  };
-
-  const openAddProduct = () => {
-    resetProductForm();
-    setShowProductForm(true);
-  };
-
-  const openEditProduct = (p) => {
-    setEditingProductId(p.id);
-    setVegName(p.vegetable_name);
-    setPrice(String(p.price_per_kg));
-    setStock(String(p.stock_kg));
-    setShowProductForm(true);
-  };
-
-  // ProductListScreen's "Edit" action navigates here with an editProduct param.
-  // Switch to the Products tab, open the form pre-filled, then clear the param.
-  useEffect(() => {
-    const p = route?.params?.editProduct;
-    if (p) {
-      setTab('products');
-      openEditProduct(p);
-      navigation?.setParams?.({ editProduct: undefined });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route?.params?.editProduct]);
-
-  const saveProduct = async () => {
-    const name = vegName.trim();
-    const priceNum = parseFloat(price);
-    const stockNum = parseFloat(stock);
-
-    if (!editingProductId && !name) {
-      showAlert(t('common.error'), t('dashboards.distributor.enterVegetableName'));
-      return;
-    }
-    if (!editingProductId && !isVegetable(name)) {
-      showAlert(t('common.error'), VEGETABLE_VALIDATION_MESSAGE);
-      return;
-    }
-    if (isNaN(priceNum) || priceNum < 0) {
-      showAlert(t('common.error'), t('dashboards.distributor.enterValidPrice'));
-      return;
-    }
-    if (isNaN(stockNum) || stockNum < 0) {
-      showAlert(t('common.error'), t('dashboards.distributor.enterValidStock'));
-      return;
-    }
-
-    setSavingProduct(true);
-    try {
-      const mutation = editingProductId
-        ? { type: 'edit', id: editingProductId, payload: { price_per_kg: priceNum, stock_kg: stockNum } }
-        : { type: 'add', payload: { vegetable_name: name, price_per_kg: priceNum, stock_kg: stockNum } };
-
-      // Write locally + update UI immediately (works offline).
-      const optimistic = await queueProduct(mutation);
-      setProducts(optimistic);
-      await refreshPendingCount();
-      resetProductForm();
-      setShowProductForm(false);
-
-      // Try to push now; if offline it stays queued.
-      const result = await trySync();
-      if (result.offline || result.remaining > 0) {
-        showAlert(t('dashboards.distributor.savedOfflineTitle'), t('dashboards.distributor.savedOfflineMessage'));
-      }
-    } catch (err) {
-      showAlert(t('common.error'), err.message);
-    } finally {
-      setSavingProduct(false);
-    }
-  };
-
   // ---------- Order actions ----------
   const approveOrder = async (order) => {
     setBusyOrderId(order.id);
@@ -340,6 +225,20 @@ export default function DistributorDashboard({ navigation, route }) {
       );
       if (personnel.length === 0) await loadPersonnel();
       showAlert(t('dashboards.distributor.orderApprovedTitle'), t('dashboards.distributor.orderApprovedMessage', { id: shortId(order.id) }));
+    } catch (err) {
+      showAlert(t('common.error'), err.message);
+    } finally {
+      setBusyOrderId(null);
+    }
+  };
+
+  const rejectOrder = async (order, reason) => {
+    setBusyOrderId(order.id);
+    try {
+      await api.put(`/api/orders/${order.id}/cancel`, { reason });
+      setOrders((prev) => prev.filter((o) => o.id !== order.id));
+      await loadActiveOrders();
+      showAlert(t('dashboards.distributor.orderRejectedTitle'), t('dashboards.distributor.orderRejectedMessage', { id: shortId(order.id) }));
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
@@ -368,27 +267,6 @@ export default function DistributorDashboard({ navigation, route }) {
     }
   };
 
-  // ---------- Weekly report (online-only) ----------
-  const showWeeklyReport = async () => {
-    setLoadingReport(true);
-    try {
-      const r = await api.get('/api/distributor/weekly-report');
-      const inventory = (r.current_inventory || []).length
-        ? r.current_inventory.map((p) => `• ${p.vegetable_name} — ${p.stock_kg} kg`).join('\n')
-        : t('dashboards.distributor.noInventory');
-      const body =
-        `${t('dashboards.distributor.reportPeriod', { period: r.period })}\n` +
-        `${t('dashboards.distributor.reportTotalOrders', { count: r.total_orders })}\n` +
-        `${t('dashboards.distributor.reportCompletedOrders', { count: r.completed_orders })}\n` +
-        `${t('dashboards.distributor.reportRevenue', { amount: peso(r.total_revenue) })}\n\n` +
-        t('dashboards.distributor.reportInventory', { list: inventory });
-      showAlert(t('dashboards.distributor.weeklyReportTitle'), body);
-    } catch (err) {
-      showAlert(t('common.error'), err.message);
-    } finally {
-      setLoadingReport(false);
-    }
-  };
 
   // ---------- Pickup request actions ----------
   // Open the price-entry / approval modal for a request.
@@ -419,7 +297,7 @@ export default function DistributorDashboard({ navigation, route }) {
       });
       setReceiveReq(null);
       // Refresh so the request leaves the list.
-      await Promise.all([loadPickupRequests(), loadProducts()]);
+      await loadPickupRequests();
       showAlert(t('dashboards.distributor.riderAssignedTitle'), t('dashboards.distributor.riderAssignedMessage'));
     } catch (err) {
       showAlert(t('common.error'), t('dashboards.distributor.riderAssignFailed', { message: err.message }));
@@ -437,46 +315,10 @@ export default function DistributorDashboard({ navigation, route }) {
       {/* Minimal Top Navigation Bar */}
       <View style={styles.minimalHeader}>
         <Text style={styles.minimalTitle}>{t('dashboards.distributor.hubTitle')}</Text>
-        <NotificationBell />
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'products' && styles.tabActive]}
-          onPress={() => setTab('products')}
-        >
-          <Text style={[styles.tabText, tab === 'products' && styles.tabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t('dashboards.distributor.productsTab')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'orders' && styles.tabActive]}
-          onPress={() => setTab('orders')}
-        >
-          <Text style={[styles.tabText, tab === 'orders' && styles.tabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-            {t('dashboards.distributor.ordersTab')}{orders.length ? ` (${orders.length})` : ''}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'pickups' && styles.tabActive]}
-          onPress={() => setTab('pickups')}
-        >
-          <Text
-            style={[styles.tabText, tab === 'pickups' && styles.tabTextActive]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.7}
-          >
-            {t('dashboards.distributor.pickupRequestsTab')}{pendingReceiveCount ? ` (${pendingReceiveCount})` : ''}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'payments' && styles.tabActive]}
-          onPress={() => setTab('payments')}
-        >
-          <Text style={[styles.tabText, tab === 'payments' && styles.tabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-            {t('dashboards.distributor.paymentsTab')}{unpaidOrders.length ? ` (${unpaidOrders.length})` : ''}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.headerIcons}>
+          <MessagesIcon />
+          <NotificationBell />
+        </View>
       </View>
 
       <ScrollView
@@ -484,24 +326,18 @@ export default function DistributorDashboard({ navigation, route }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <OfflineBanner
-          offline={tab === 'products' ? productsOffline : tab === 'orders' ? ordersOffline : tab === 'payments' ? paymentsOffline : false}
-          pendingCount={tab === 'products' ? pendingCount : 0}
+          offline={tab === 'orders' ? ordersOffline : tab === 'payments' ? paymentsOffline : false}
+          pendingCount={0}
         />
 
-        {tab === 'products' && (
-          <ProductsTab
-            loading={loadingProducts}
-            products={products}
-            showForm={showProductForm}
-            editingProductId={editingProductId}
-            vegName={vegName} setVegName={setVegName}
-            price={price} setPrice={setPrice}
-            stock={stock} setStock={setStock}
-            saving={savingProduct}
-            onAdd={openAddProduct}
-            onSave={saveProduct}
-            onCancel={() => { resetProductForm(); setShowProductForm(false); }}
-            onViewAll={() => navigation.navigate('ProductList')}
+        {tab === 'home' && (
+          <HomeTab
+            pendingOrderCount={orders.length}
+            pendingPickupCount={pendingReceiveCount}
+            unpaidCount={unpaidOrders.length}
+            onViewOrders={() => setTab('orders')}
+            onViewPickups={() => setTab('pickups')}
+            onViewPayments={() => setTab('payments')}
           />
         )}
 
@@ -515,12 +351,14 @@ export default function DistributorDashboard({ navigation, route }) {
             setSelectedPersonnel={setSelectedPersonnel}
             busyOrderId={busyOrderId}
             onApprove={approveOrder}
+            onReject={rejectOrder}
             onAssign={assignDelivery}
             onTrack={(o) => navigation.navigate('OrderTracking', {
               orderId: o.id,
               deliveryAddress: o.delivery_address,
               orderStatus: o.status,
             })}
+            onViewProof={setProofUri}
           />
         )}
 
@@ -551,6 +389,12 @@ export default function DistributorDashboard({ navigation, route }) {
         )}
       </ScrollView>
 
+      <ImageViewerModal
+        uri={proofUri}
+        visible={!!proofUri}
+        onClose={() => setProofUri(null)}
+      />
+
       {/* Approve & Assign modal — set a selling price and assign a rider (PUT /api/pickup-requests/:id/assign). */}
       <CustomModal
         visible={!!receiveReq}
@@ -564,7 +408,7 @@ export default function DistributorDashboard({ navigation, route }) {
         {receiveReq ? (
           <>
             <Text style={styles.modalLine}>
-              {harvestOf(receiveReq)?.vegetable_name || t('dashboards.distributor.unknownHarvest')}
+              {harvestOf(receiveReq)?.vegetable_name ? localizeVegetableName(harvestOf(receiveReq).vegetable_name, language) : t('dashboards.distributor.unknownHarvest')}
               {harvestOf(receiveReq)?.quantity_kg != null
                 ? ` — ${harvestOf(receiveReq).quantity_kg} kg`
                 : ''}
@@ -619,7 +463,7 @@ export default function DistributorDashboard({ navigation, route }) {
 
 // ================= Pickup Requests tab =================
 function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
   // Only requests still awaiting receipt are actionable.
@@ -642,7 +486,7 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
             <View key={req.id} style={styles.pickupCard}>
               <Text style={styles.pickupFarmer}>👨‍🌾 {farmerNameOf(req)}</Text>
               <Text style={styles.pickupHarvest}>
-                {harvest?.vegetable_name || t('dashboards.distributor.unknownHarvest')}
+                {harvest?.vegetable_name ? localizeVegetableName(harvest.vegetable_name, language) : t('dashboards.distributor.unknownHarvest')}
                 {harvest?.quantity_kg != null ? ` — ${harvest.quantity_kg} kg` : ''}
               </Text>
               {req.note ? <Text style={styles.pickupNote}>{t('dashboards.distributor.noteLabel', { note: req.note })}</Text> : null}
@@ -668,89 +512,269 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
   );
 }
 
-// ================= Products tab =================
-function ProductsTab({
-  loading, products, showForm, editingProductId,
-  vegName, setVegName, price, setPrice, stock, setStock,
-  saving, onAdd, onSave, onCancel, onViewAll,
+// ================= Home tab =================
+// At-a-glance counts (each a shortcut into the relevant tab/screen), plus the
+// Product List (price editing) embedded inline — it used to be a separate
+// screen reached via a "Product List →" button; it now lives directly here.
+function HomeTab({
+  pendingOrderCount, pendingPickupCount, unpaidCount,
+  onViewOrders, onViewPickups, onViewPayments,
 }) {
   const { t } = useTranslation();
-  if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
+  return (
+    <View>
+      <View style={styles.homeStatsRow}>
+        <TouchableOpacity style={styles.homeStatCard} onPress={onViewOrders} activeOpacity={0.85}>
+          <Text style={styles.homeStatValue}>{pendingOrderCount}</Text>
+          <Text style={styles.homeStatLabel}>{t('dashboards.distributor.pendingOrders')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.homeStatCard} onPress={onViewPickups} activeOpacity={0.85}>
+          <Text style={styles.homeStatValue}>{pendingPickupCount}</Text>
+          <Text style={styles.homeStatLabel}>{t('dashboards.distributor.pickupRequests')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.homeStatCard} onPress={onViewPayments} activeOpacity={0.85}>
+          <Text style={styles.homeStatValue}>{unpaidCount}</Text>
+          <Text style={styles.homeStatLabel}>{t('dashboards.distributor.unpaid')}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={[styles.sectionTitle, { marginTop: 4 }]}>{t('productList.title')}</Text>
+      <ProductListSection />
+    </View>
+  );
+}
+
+// Aggregated product listings, ported from ProductListScreen.js so it can
+// live directly on the Distributor Home tab. Each card shows a single Edit
+// button that opens a centered modal for quantity/price edits and removal.
+function ProductListSection() {
+  const { t, language } = useTranslation();
+  const [listings, setListings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // The listing currently open in the edit modal, addressed by vegetable
+  // name so it always reflects the latest data after a reload.
+  const [activeVeg, setActiveVeg] = useState(null);
+  const [priceInput, setPriceInput] = useState('');
+  const [qtyInput, setQtyInput] = useState('');
+  const [savingPrice, setSavingPrice] = useState(false);
+  const [savingQty, setSavingQty] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  const activeListing = activeVeg ? listings.find((l) => l.vegetable_name === activeVeg) : null;
+
+  const loadListings = useCallback(async () => {
+    try {
+      const data = await api.get('/api/products/listings');
+      setListings(Array.isArray(data) ? data : []);
+    } catch (err) {
+      showAlert(t('common.error'), err.message);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      await loadListings();
+      setLoading(false);
+    })();
+  }, [loadListings]);
+
+  const openEditModal = (listing) => {
+    setActiveVeg(listing.vegetable_name);
+    setPriceInput(String(listing.price_per_kg ?? ''));
+    setQtyInput(String(listing.available_kg ?? ''));
+  };
+
+  const closeEditModal = () => {
+    if (savingPrice || savingQty || removing) return;
+    setActiveVeg(null);
+  };
+
+  const savePrice = async () => {
+    if (!activeListing) return;
+    const priceNum = parseFloat(priceInput);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      showAlert(t('common.error'), t('dashboards.distributor.enterValidPrice'));
+      return;
+    }
+    setSavingPrice(true);
+    try {
+      await api.put(`/api/products/${activeListing.id}`, { price_per_kg: priceNum });
+      await loadListings();
+    } catch (err) {
+      showAlert(t('common.error'), err.message);
+    } finally {
+      setSavingPrice(false);
+    }
+  };
+
+  const saveQty = async () => {
+    if (!activeListing) return;
+    const qtyNum = parseFloat(qtyInput);
+    if (isNaN(qtyNum) || qtyNum < 0) {
+      showAlert(t('common.error'), t('productList.invalidQuantity'));
+      return;
+    }
+    if (qtyNum >= activeListing.available_kg) {
+      showAlert(t('common.error'), t('productList.quantityMustBeLess', { qty: activeListing.available_kg }));
+      return;
+    }
+    setSavingQty(true);
+    try {
+      await api.put(`/api/products/${activeListing.id}/reduce-quantity`, { new_total_kg: qtyNum });
+      await loadListings();
+    } catch (err) {
+      showAlert(t('common.error'), err.message);
+    } finally {
+      setSavingQty(false);
+    }
+  };
+
+  const removeProduct = () => {
+    if (!activeListing) return;
+    // Capture the target and close the edit modal *before* showing the confirm
+    // dialog — stacking two native Modals (this one on top of the edit modal)
+    // is unreliable on Android/iOS and can silently eat the Confirm tap.
+    const target = activeListing;
+    const label = localizeVegetableName(target.vegetable_name, language);
+    setActiveVeg(null);
+    confirmAction(
+      t('productList.removeConfirmTitle'),
+      t('productList.removeConfirmMessage', { name: label }),
+      async () => {
+        setRemoving(true);
+        try {
+          await api.put(`/api/products/${target.id}/unlist`);
+          await loadListings();
+        } catch (err) {
+          showAlert(t('common.error'), err.message || t('productList.removeFailed'));
+        } finally {
+          setRemoving(false);
+        }
+      }
+    );
+  };
+
+  if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginVertical: 20 }} />;
+
+  const modalTile = activeListing ? getVegetableTile(activeListing.vegetable_name) : null;
+  const modalIsSoldOut = activeListing?.status === 'Sold Out';
 
   return (
     <View>
-      <TouchableOpacity style={styles.primaryBtn} onPress={onAdd}>
-        <Text style={styles.primaryBtnText}>{t('dashboards.distributor.addProduct')}</Text>
-      </TouchableOpacity>
-
-      {showForm && (
-        <View style={styles.formCard}>
-          <Text style={styles.formTitle}>{editingProductId ? t('dashboards.distributor.editProductTitle') : t('dashboards.distributor.addProductTitle')}</Text>
-
-          <Text style={styles.fieldLabel}>{t('dashboards.distributor.vegetableNameLabel')}</Text>
-          <TextInput
-            style={[styles.input, editingProductId && styles.inputDisabled]}
-            placeholder={t('dashboards.distributor.vegetableNamePlaceholder')}
-            value={vegName}
-            onChangeText={setVegName}
-            editable={!editingProductId && !saving}
-          />
-          {editingProductId ? (
-            <Text style={styles.hint}>{t('dashboards.distributor.nameCantChange')}</Text>
-          ) : null}
-
-          <Text style={styles.fieldLabel}>{t('dashboards.distributor.priceLabel')}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={t('dashboards.distributor.pricePlaceholder')}
-            value={price}
-            onChangeText={setPrice}
-            keyboardType="numeric"
-            editable={!saving}
-          />
-
-          <Text style={styles.fieldLabel}>{t('dashboards.distributor.stockLabel')}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={t('dashboards.distributor.stockPlaceholder')}
-            value={stock}
-            onChangeText={setStock}
-            keyboardType="numeric"
-            editable={!saving}
-          />
-
-          <View style={styles.formButtons}>
-            <TouchableOpacity
-              style={[styles.button, styles.buttonPrimary, saving && styles.buttonDisabled]}
-              onPress={onSave}
-              disabled={saving}
-            >
-              {saving
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.buttonPrimaryText}>{editingProductId ? t('common.saveChanges') : t('dashboards.distributor.addProductTitle')}</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.button, styles.buttonOutline]} onPress={onCancel} disabled={saving}>
-              <Text style={styles.buttonOutlineText}>{t('common.cancel')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      <Text style={styles.sectionTitle}>{t('dashboards.distributor.myProducts')}</Text>
-      {products.length === 0 ? (
+      {listings.length === 0 ? (
         <EmptyState
           icon="📦"
-          title={t('dashboards.distributor.noProductsYet')}
-          message={t('dashboards.distributor.noProductsYetMessage')}
-          actionLabel={t('dashboards.distributor.addProductTitle')}
-          onAction={onAdd}
+          title={t('productList.emptyTitleNone')}
+          message={t('productList.emptyMessageNoneStocks')}
         />
       ) : (
-        <TouchableOpacity style={styles.viewAllBtn} onPress={onViewAll} activeOpacity={0.85}>
-          <Text style={styles.viewAllText}>{t('dashboards.distributor.viewAllProducts', { count: products.length })}</Text>
-          <Text style={styles.viewAllChevron}>›</Text>
-        </TouchableOpacity>
+        listings.map((l) => {
+          const isSoldOut = l.status === 'Sold Out';
+          const tile = getVegetableTile(l.vegetable_name);
+          return (
+            <View key={l.vegetable_name} style={styles.productRowCard}>
+              <View style={styles.productRowTop}>
+                <View style={[styles.productTile, { backgroundColor: tile.bg }]}>
+                  <Text style={styles.productTileIcon}>{tile.icon}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.productRowTitle}>{localizeVegetableName(l.vegetable_name, language)}</Text>
+                  <Text style={styles.productRowMeta}>
+                    {peso(l.price_per_kg)} / kg · {isSoldOut ? (
+                      <Text style={{ color: colors.danger, fontWeight: '700' }}>{t('productList.outOfStock')}</Text>
+                    ) : (
+                      t('productList.kgInStock', { qty: l.available_kg })
+                    )}
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.smallBtn} onPress={() => openEditModal(l)}>
+                  <Text style={styles.smallBtnText}>{t('productList.editBtn')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })
       )}
+
+      <Modal
+        visible={!!activeListing}
+        transparent
+        animationType="fade"
+        onRequestClose={closeEditModal}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeEditModal} />
+
+          <View style={styles.modalCard}>
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={closeEditModal}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.modalCloseText}>✕</Text>
+            </TouchableOpacity>
+
+            {activeListing ? (
+              <>
+                <View style={styles.modalHeader}>
+                  <View style={[styles.productTile, styles.modalTile, { backgroundColor: modalTile.bg }]}>
+                    <Text style={styles.modalTileIcon}>{modalTile.icon}</Text>
+                  </View>
+                  <Text style={styles.modalVegName}>{localizeVegetableName(activeListing.vegetable_name, language)}</Text>
+                </View>
+
+                <Text style={styles.modalLabel}>{t('productList.newQuantityLabel')}</Text>
+                <View style={styles.editRow}>
+                  <TextInput
+                    style={[styles.priceInput, modalIsSoldOut && styles.modalInputDisabled]}
+                    value={qtyInput}
+                    onChangeText={setQtyInput}
+                    keyboardType="decimal-pad"
+                    editable={!modalIsSoldOut && !savingQty}
+                  />
+                  <TouchableOpacity
+                    style={[styles.smallBtn, (savingQty || modalIsSoldOut) && styles.btnDisabled]}
+                    onPress={saveQty}
+                    disabled={savingQty || modalIsSoldOut}
+                  >
+                    {savingQty ? <ActivityIndicator size="small" color={PRIMARY} /> : <Text style={styles.smallBtnText}>{t('common.save')}</Text>}
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.modalLabel}>{t('productList.priceLabel')}</Text>
+                <View style={styles.editRow}>
+                  <TextInput
+                    style={styles.priceInput}
+                    value={priceInput}
+                    onChangeText={setPriceInput}
+                    keyboardType="decimal-pad"
+                    editable={!savingPrice}
+                  />
+                  <TouchableOpacity
+                    style={[styles.smallBtn, savingPrice && styles.btnDisabled]}
+                    onPress={savePrice}
+                    disabled={savingPrice}
+                  >
+                    {savingPrice ? <ActivityIndicator size="small" color={PRIMARY} /> : <Text style={styles.smallBtnText}>{t('common.save')}</Text>}
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.removeBtnFull, removing && styles.btnDisabled]}
+                  onPress={removeProduct}
+                  disabled={removing}
+                >
+                  {removing
+                    ? <ActivityIndicator size="small" color={colors.danger} />
+                    : <Text style={styles.deleteBtnText}>{t('productList.removeBtn')}</Text>}
+                </TouchableOpacity>
+              </>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -767,164 +791,241 @@ function effectiveStatus(order) {
   return d?.status || order.status || 'pending';
 }
 
+function getProofUrl(order) {
+  return getDelivery(order)?.proof_photo_url || null;
+}
+
 // ================= Orders tab =================
+const ORDER_SUB_TABS = ['pending', 'approved', 'cancelled', 'history'];
+
 function OrdersTab({
   loading, orders, activeOrders = [], personnel, selectedPersonnel, setSelectedPersonnel,
-  busyOrderId, onApprove, onAssign, onTrack,
+  busyOrderId, onApprove, onReject, onAssign, onTrack, onViewProof,
 }) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+  const [sub, setSub] = useState('pending');
+  const [rejectingOrder, setRejectingOrder] = useState(null);
+  const [reasonInput, setReasonInput] = useState('');
+
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
-  // "In Progress" = approved/assigned/in-transit orders not currently being
-  // worked on in the pending list above (Issue 9 — they used to disappear).
-  const pendingIds = new Set(orders.map((o) => o.id));
-  const inProgress = activeOrders.filter((o) => !pendingIds.has(o.id));
+  // A freshly-assigned order has delivery.status === 'assigned' (not yet
+  // picked_up), which effectiveStatus surfaces ahead of the order's own
+  // 'approved' status — include it here too, or the order vanishes from
+  // every tab the instant a rider is assigned instead of moving to Approved.
+  const approved = activeOrders.filter(
+    (o) => ['approved', 'assigned', 'picked_up', 'in_transit'].includes(effectiveStatus(o)) && o.delivery_personnel_id
+  );
+  const cancelled = activeOrders.filter((o) => o.status === 'cancelled');
+  const history = activeOrders.filter((o) => effectiveStatus(o) === 'delivered');
+
+  const submitReject = () => {
+    if (!reasonInput.trim()) return;
+    onReject(rejectingOrder, reasonInput.trim());
+    setRejectingOrder(null);
+    setReasonInput('');
+  };
 
   return (
     <View>
-      <Text style={styles.sectionTitle}>{t('dashboards.distributor.pendingOrders')}</Text>
-      {orders.length === 0 ? (
-        <EmptyState
-          icon="✅"
-          title={t('dashboards.distributor.noPendingOrders')}
-          message={t('dashboards.distributor.noPendingOrdersMessage')}
-        />
-      ) : orders.map((order) => {
-        const busy = busyOrderId === order.id;
-        const isApproved = order.status === 'approved';
-        const items = order.order_items || [];
+      <View style={styles.subTabs}>
+        {ORDER_SUB_TABS.map((s) => (
+          <TouchableOpacity key={s} style={[styles.subTab, sub === s && styles.subTabActive]} onPress={() => setSub(s)}>
+            <Text style={[styles.subTabText, sub === s && styles.subTabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+              {t(`dashboards.distributor.ordersSub.${s}`)}
+              {s === 'pending' && orders.length ? ` (${orders.length})` : ''}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-        return (
+      {sub === 'pending' && (
+        orders.length === 0 ? (
+          <EmptyState icon="✅" title={t('dashboards.distributor.noPendingOrders')} message={t('dashboards.distributor.noPendingOrdersMessage')} />
+        ) : orders.map((order) => {
+          const busy = busyOrderId === order.id;
+          const isApproved = order.status === 'approved';
+          const items = order.order_items || [];
+
+          return (
+            <View key={order.id} style={styles.orderCard}>
+              <View style={styles.orderHeader}>
+                <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
+                <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
+              </View>
+              <Text style={styles.rowMeta}>{t('dashboards.distributor.retailerLabel', { id: shortId(order.retailer_id) })}</Text>
+              {order.delivery_address ? (
+                <Text style={styles.rowMeta}>{t('dashboards.distributor.deliverTo', { address: order.delivery_address })}</Text>
+              ) : null}
+
+              <View style={styles.itemsBox}>
+                {items.length === 0 ? (
+                  <Text style={styles.rowMeta}>{t('dashboards.distributor.noItemDetails')}</Text>
+                ) : (
+                  items.map((it, i) => (
+                    <Text key={i} style={styles.itemLine}>
+                      • {localizeVegetableName(it.vegetable_name, language)} — {it.quantity_kg}kg @ {peso(it.price_at_order)}
+                    </Text>
+                  ))
+                )}
+              </View>
+
+              {!isApproved ? (
+                <View style={styles.pendingActionsRow}>
+                  <TouchableOpacity
+                    style={[styles.button, styles.buttonPrimary, styles.pendingActionBtn, busy && styles.buttonDisabled]}
+                    onPress={() => onApprove(order)}
+                    disabled={busy}
+                  >
+                    {busy
+                      ? <ActivityIndicator color="#fff" />
+                      : <Text style={styles.buttonPrimaryText}>{t('dashboards.distributor.approve')}</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.button, styles.buttonDanger, styles.pendingActionBtn, busy && styles.buttonDisabled]}
+                    onPress={() => { setRejectingOrder(order); setReasonInput(''); }}
+                    disabled={busy}
+                  >
+                    <Text style={styles.buttonDangerText}>{t('dashboards.distributor.reject')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View>
+                  <Text style={styles.assignLabel}>{t('dashboards.distributor.assignDeliveryPersonLabel')}</Text>
+                  {personnel.length === 0 ? (
+                    <Text style={styles.rowMeta}>{t('dashboards.distributor.noPersonnelAvailable')}</Text>
+                  ) : (
+                    <View style={styles.personnelWrap}>
+                      {personnel.map((dp) => {
+                        const selected = selectedPersonnel[order.id] === dp.id;
+                        return (
+                          <TouchableOpacity
+                            key={dp.id}
+                            style={[styles.personChip, selected && styles.personChipActive]}
+                            onPress={() =>
+                              setSelectedPersonnel((prev) => ({ ...prev, [order.id]: dp.id }))
+                            }
+                            disabled={busy}
+                          >
+                            <Text style={[styles.personChipText, selected && styles.personChipTextActive]}>
+                              {dp.full_name || shortId(dp.id)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.button, styles.buttonPrimary, busy && styles.buttonDisabled, { marginTop: 10 }]}
+                    onPress={() => onAssign(order)}
+                    disabled={busy}
+                  >
+                    {busy
+                      ? <ActivityIndicator color="#fff" />
+                      : <Text style={styles.buttonPrimaryText}>{t('dashboards.distributor.assignDelivery')}</Text>}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          );
+        })
+      )}
+
+      {sub === 'approved' && (
+        approved.length === 0 ? (
+          <EmptyState icon="🚚" title={t('dashboards.distributor.noApprovedOrders')} message={t('dashboards.distributor.noApprovedOrdersMessage')} />
+        ) : approved.map((order) => (
           <View key={order.id} style={styles.orderCard}>
             <View style={styles.orderHeader}>
               <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
               <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
             </View>
             <Text style={styles.rowMeta}>{t('dashboards.distributor.retailerLabel', { id: shortId(order.retailer_id) })}</Text>
+            <Text style={styles.rowMeta}>
+              {order.delivery_personnel_name
+                ? t('dashboards.distributor.riderLabel', { name: order.delivery_personnel_name })
+                : t('dashboards.distributor.awaitingRider')}
+            </Text>
             {order.delivery_address ? (
-              <Text style={styles.rowMeta}>{t('dashboards.distributor.deliverTo', { address: order.delivery_address })}</Text>
-            ) : null}
-
-            <View style={styles.itemsBox}>
-              {items.length === 0 ? (
-                <Text style={styles.rowMeta}>{t('dashboards.distributor.noItemDetails')}</Text>
-              ) : (
-                items.map((it, i) => (
-                  <Text key={i} style={styles.itemLine}>
-                    • {it.vegetable_name} — {it.quantity_kg}kg @ {peso(it.price_at_order)}
-                  </Text>
-                ))
-              )}
-            </View>
-
-            {order.delivery_address && order.status !== 'pending' && order.status !== 'cancelled' ? (
-              <TouchableOpacity
-                style={styles.trackBtn}
-                onPress={() => onTrack(order)}
-                activeOpacity={0.8}
-              >
+              <TouchableOpacity style={[styles.trackBtn, { marginTop: 10, marginBottom: 0 }]} onPress={() => onTrack(order)} activeOpacity={0.8}>
                 <Text style={styles.trackBtnText}>{t('dashboards.distributor.trackDelivery')}</Text>
               </TouchableOpacity>
             ) : null}
+          </View>
+        ))
+      )}
 
-            {!isApproved ? (
-              <TouchableOpacity
-                style={[styles.button, styles.buttonPrimary, busy && styles.buttonDisabled]}
-                onPress={() => onApprove(order)}
-                disabled={busy}
-              >
-                {busy
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.buttonPrimaryText}>{t('dashboards.distributor.approve')}</Text>}
-              </TouchableOpacity>
-            ) : (
-              <View>
-                <Text style={styles.assignLabel}>{t('dashboards.distributor.assignDeliveryPersonLabel')}</Text>
-                {personnel.length === 0 ? (
-                  <Text style={styles.rowMeta}>{t('dashboards.distributor.noPersonnelAvailable')}</Text>
-                ) : (
-                  <View style={styles.personnelWrap}>
-                    {personnel.map((dp) => {
-                      const selected = selectedPersonnel[order.id] === dp.id;
-                      return (
-                        <TouchableOpacity
-                          key={dp.id}
-                          style={[styles.personChip, selected && styles.personChipActive]}
-                          onPress={() =>
-                            setSelectedPersonnel((prev) => ({ ...prev, [order.id]: dp.id }))
-                          }
-                          disabled={busy}
-                        >
-                          <Text style={[styles.personChipText, selected && styles.personChipTextActive]}>
-                            {dp.full_name || shortId(dp.id)}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )}
-                <TouchableOpacity
-                  style={[styles.button, styles.buttonPrimary, busy && styles.buttonDisabled, { marginTop: 10 }]}
-                  onPress={() => onAssign(order)}
-                  disabled={busy}
-                >
-                  {busy
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={styles.buttonPrimaryText}>{t('dashboards.distributor.assignDelivery')}</Text>}
-                </TouchableOpacity>
+      {sub === 'cancelled' && (
+        cancelled.length === 0 ? (
+          <EmptyState icon="🚫" title={t('dashboards.distributor.noCancelledOrders')} message={t('dashboards.distributor.noCancelledOrdersMessage')} />
+        ) : cancelled.map((order) => (
+          <View key={order.id} style={styles.orderCard}>
+            <View style={styles.orderHeader}>
+              <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
+              <View style={[styles.statusPill, { backgroundColor: colors.danger }]}>
+                <Text style={styles.statusPillText}>{t('dashboards.distributor.ordersSub.cancelled')}</Text>
               </View>
+            </View>
+            <Text style={styles.rowMeta}>{t('dashboards.distributor.totalLabel', { amount: peso(order.total_amount) })}</Text>
+            <Text style={styles.rowMeta}>
+              {t('dashboards.distributor.cancellationReason', { reason: order.cancellation_reason || t('dashboards.distributor.noReasonGiven') })}
+            </Text>
+          </View>
+        ))
+      )}
+
+      {sub === 'history' && (
+        history.length === 0 ? (
+          <EmptyState icon="📜" title={t('dashboards.distributor.noHistoryOrders')} message={t('dashboards.distributor.noHistoryOrdersMessage')} />
+        ) : history.map((order) => (
+          <View key={order.id} style={styles.orderCard}>
+            <View style={styles.orderHeader}>
+              <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
+              <View style={[styles.statusPill, { backgroundColor: colors.leaf700 }]}>
+                <Text style={styles.statusPillText}>{t('dashboards.distributor.ordersSub.history')}</Text>
+              </View>
+            </View>
+            <Text style={styles.rowMeta}>{t('dashboards.distributor.totalLabel', { amount: peso(order.total_amount) })}</Text>
+            <Text style={styles.rowMeta}>
+              {order.delivery_personnel_name
+                ? t('dashboards.distributor.riderLabel', { name: order.delivery_personnel_name })
+                : ''}
+            </Text>
+            {getProofUrl(order) && (
+              <TouchableOpacity
+                style={styles.proofRow}
+                onPress={() => onViewProof(getProofUrl(order))}
+                activeOpacity={0.8}
+              >
+                <Image source={{ uri: getProofUrl(order) }} style={styles.proofThumb} />
+                <Text style={styles.proofText}>{t('dashboards.distributor.proofOfDelivery')}</Text>
+              </TouchableOpacity>
             )}
           </View>
-        );
-      })}
-
-      {/* Issue 9 & History: orders approved/assigned/in-transit/delivered/cancelled stay visible here in history. */}
-      {inProgress.length > 0 && (
-        <View style={{ marginTop: 18 }}>
-          <Text style={styles.sectionTitle}>{t('dashboards.distributor.orderHistory', { count: inProgress.length })}</Text>
-          {inProgress.map((order) => {
-            const status = effectiveStatus(order);
-            return (
-              <View key={order.id} style={styles.orderCard}>
-                <View style={styles.orderHeader}>
-                  <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
-                  <View style={[styles.statusPill, { backgroundColor: ACTIVE_STATUS_COLOR[status] || '#607d8b' }]}>
-                    <Text style={styles.statusPillText}>{status.replace(/_/g, ' ')}</Text>
-                  </View>
-                </View>
-                <Text style={styles.rowMeta}>{t('dashboards.distributor.totalLabel', { amount: peso(order.total_amount) })}</Text>
-                <Text style={styles.rowMeta}>
-                  {order.delivery_personnel_name
-                    ? t('dashboards.distributor.riderLabel', { name: order.delivery_personnel_name })
-                    : t('dashboards.distributor.awaitingRider')}
-                </Text>
-                {order.delivery_address && order.status !== 'pending' && order.status !== 'cancelled' ? (
-                  <TouchableOpacity
-                    style={[styles.trackBtn, { marginTop: 10, marginBottom: 0 }]}
-                    onPress={() => onTrack(order)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.trackBtnText}>{t('dashboards.distributor.trackDelivery')}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            );
-          })}
-        </View>
+        ))
       )}
+
+      <CustomModal
+        visible={!!rejectingOrder}
+        title={t('dashboards.distributor.rejectModalTitle')}
+        confirmLabel={t('dashboards.distributor.rejectConfirm')}
+        onConfirm={submitReject}
+        cancelLabel={t('common.cancel')}
+        onCancel={() => setRejectingOrder(null)}
+        confirmDisabled={!reasonInput.trim()}
+      >
+        <Text style={styles.fieldLabel}>{t('dashboards.distributor.rejectReasonLabel')}</Text>
+        <TextInput
+          style={styles.input}
+          value={reasonInput}
+          onChangeText={setReasonInput}
+          placeholder={t('dashboards.distributor.rejectReasonPlaceholder')}
+          multiline
+        />
+      </CustomModal>
     </View>
   );
 }
-
-// Status badge colours for the "History" list.
-const ACTIVE_STATUS_COLOR = {
-  approved: '#1976d2',
-  assigned: '#1565c0',
-  picked_up: '#00897b',
-  in_transit: '#7b1fa2',
-  delivered: colors.leaf700,
-  cancelled: colors.danger,
-};
 
 // ================= Payments tab =================
 function PaymentsTab({
@@ -1036,6 +1137,8 @@ function PaymentsTab({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
 
+  headerIcons: { flexDirection: 'row', alignItems: 'center' },
+
   minimalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1046,93 +1149,121 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  minimalTitle: { fontFamily: fonts.heading, fontSize: 19, color: colors.ink },
+  minimalTitle: { fontFamily: fonts.heading, fontSize: rf(19), color: colors.ink },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontFamily: fonts.heading, fontSize: 22, color: colors.ink },
-  subtitle: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, marginTop: 2 },
-
-  tabs: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 4 },
-  tab: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
-  tabActive: { backgroundColor: PRIMARY },
-  tabText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 13 },
-  tabTextActive: { color: '#fff' },
+  title: { fontFamily: fonts.heading, fontSize: rf(22), color: colors.ink },
+  subtitle: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
 
   subTabs: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   subTab: { flex: 1, paddingVertical: 8, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY },
   subTabActive: { backgroundColor: PRIMARY },
-  subTabText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 14 },
+  subTabText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(14) },
   subTabTextActive: { color: '#fff' },
 
   recordBox: { marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10 },
   recordButtons: { flexDirection: 'row', gap: 10, marginTop: 12 },
   paidBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12, backgroundColor: colors.leaf100, borderWidth: 1, borderColor: PRIMARY },
-  paidBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: PRIMARY, textTransform: 'capitalize' },
+  paidBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: rf(12), color: PRIMARY, textTransform: 'capitalize' },
 
   content: { padding: 16, paddingBottom: 40 },
+
+  homeStatsRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  homeStatCard: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, paddingVertical: 16, alignItems: 'center', ...shadowCard },
+  homeStatValue: { fontFamily: fonts.heading, fontSize: rf(24), color: PRIMARY },
+  homeStatLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(11.5), color: colors.inkSoft, marginTop: 4, textAlign: 'center' },
 
   // Harvest Receiving card
 
   primaryBtn: { backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 14, alignItems: 'center', marginBottom: 14 },
-  primaryBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15.5 },
+  primaryBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15.5) },
 
-  viewAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: radius.ctrl, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1.4, borderColor: PRIMARY },
-  viewAllText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 14.5 },
-  viewAllChevron: { fontSize: 22, color: PRIMARY },
+  // Home tab: embedded Product List section
+  productRowCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, ...shadowCard },
+  productRowTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  productTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  productTileIcon: { fontSize: rf(22) },
+  productRowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.ink, textTransform: 'capitalize' },
+  productRowMeta: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
+  editRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  priceInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 10, paddingVertical: 6, fontFamily: fonts.body, fontSize: rf(14), color: colors.ink },
+  deleteBtnText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(13) },
+  btnDisabled: { opacity: 0.5 },
+
+  // Home tab: Product List edit modal (icon + name header, qty/price edit, remove, X close)
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalCard: { width: '100%', maxWidth: 380, backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
+  modalCloseBtn: { position: 'absolute', top: 14, right: 14, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.leaf50, zIndex: 1 },
+  modalCloseText: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.inkSoft },
+  modalHeader: { alignItems: 'center', marginBottom: 18, marginTop: 4 },
+  modalTile: { width: 60, height: 60, borderRadius: 16, marginBottom: 10 },
+  modalTileIcon: { fontSize: rf(30) },
+  modalVegName: { fontFamily: fonts.headingBold, fontSize: rf(18), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
+  modalLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: colors.inkSoft, marginTop: 12, marginBottom: 6 },
+  modalInputDisabled: { opacity: 0.5 },
+  removeBtnFull: { marginTop: 22, borderWidth: 1.4, borderColor: colors.danger, borderRadius: radius.ctrl, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
 
   formCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.border, ...shadowCard },
-  formTitle: { fontFamily: fonts.heading, fontSize: 17, color: colors.ink, marginBottom: 8 },
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12.5, color: colors.inkSoft, marginTop: 8, marginBottom: 6 },
-  input: { backgroundColor: colors.bgScreen, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: 15, borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
+  formTitle: { fontFamily: fonts.heading, fontSize: rf(17), color: colors.ink, marginBottom: 8 },
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(12.5), color: colors.inkSoft, marginTop: 8, marginBottom: 6 },
+  input: { backgroundColor: colors.bgScreen, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: rf(15), borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
   inputDisabled: { backgroundColor: '#EFEAE2', color: colors.inkFaint },
-  hint: { fontFamily: fonts.body, fontSize: 12, color: colors.inkFaint, marginTop: 4 },
+  hint: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkFaint, marginTop: 4 },
   formButtons: { flexDirection: 'row', gap: 10, marginTop: 16 },
   button: { flex: 1, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center' },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15.5 },
+  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15.5) },
   buttonOutline: { borderWidth: 1.4, borderColor: PRIMARY },
-  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 15.5 },
+  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15.5) },
+  buttonDanger: { borderWidth: 1.4, borderColor: colors.danger, backgroundColor: 'transparent' },
+  buttonDangerText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(15.5) },
   buttonDisabled: { opacity: 0.6 },
+  pendingActionsRow: { flexDirection: 'row', gap: 10 },
+  pendingActionBtn: { flex: 1 },
 
-  sectionTitle: { fontFamily: fonts.heading, fontSize: 17, color: colors.ink, marginBottom: 10, marginTop: 4 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(17), color: colors.ink, marginBottom: 10, marginTop: 4 },
 
   // Pickup Requests tab
   pickupCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
-  pickupFarmer: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
-  pickupHarvest: { fontFamily: fonts.bodySemiBold, fontSize: 14.5, color: PRIMARY, marginTop: 4 },
-  pickupNote: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, marginTop: 4 },
-  pickupMeta: { fontFamily: fonts.body, fontSize: 12, color: colors.inkFaint, marginTop: 4 },
+  pickupFarmer: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.ink },
+  pickupHarvest: { fontFamily: fonts.bodySemiBold, fontSize: rf(14.5), color: PRIMARY, marginTop: 4 },
+  pickupNote: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginTop: 4 },
+  pickupMeta: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkFaint, marginTop: 4 },
   // Approve & Receive modal
-  modalLine: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink, marginBottom: 6 },
-  modalHint: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, marginBottom: 10 },
+  modalLine: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.ink, marginBottom: 6 },
+  modalHint: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginBottom: 10 },
   emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
   rowCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, ...shadowCard },
-  rowTitle: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
+  rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.ink },
   rowTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  rowMeta: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, marginTop: 2 },
+  rowMeta: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
   pendingBadge: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 10, backgroundColor: colors.gold100, borderWidth: 1, borderColor: colors.gold500 },
-  pendingBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.gold700 },
+  pendingBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: rf(11), color: colors.gold700 },
   smallBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY },
-  smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 13 },
+  smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(13) },
 
   orderCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  orderId: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
-  orderTotal: { fontFamily: fonts.bodyBold, fontSize: 15, color: PRIMARY },
+  orderId: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.ink },
+  orderTotal: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: PRIMARY },
   statusPill: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusPillText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 12, textTransform: 'capitalize' },
+  statusPillText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(12), textTransform: 'capitalize' },
   itemsBox: { backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10, marginVertical: 10 },
-  itemLine: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft, marginBottom: 2 },
+  itemLine: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginBottom: 2 },
+
+  proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 8 },
+  proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: colors.border },
+  proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: PRIMARY },
 
   trackBtn: { marginBottom: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY },
-  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: 13.5 },
+  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(13.5) },
 
-  assignLabel: { fontFamily: fonts.bodySemiBold, fontSize: 13.5, color: colors.ink, marginTop: 6, marginBottom: 8 },
+  assignLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(13.5), color: colors.ink, marginTop: 6, marginBottom: 8 },
   personnelWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   personChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgScreen },
   personChipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  personChipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13 },
+  personChipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(13) },
   personChipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
 });

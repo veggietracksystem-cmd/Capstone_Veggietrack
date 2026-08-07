@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { useState } from 'react';
 import {
   Text, TouchableOpacity, View, ScrollView, StyleSheet,
@@ -9,13 +10,59 @@ import { confirmAction } from '../lib/ui';
 import UserGuideModal from '../components/UserGuideModal';
 import ContactUsModal from '../components/ContactUsModal';
 import CustomModal from '../components/CustomModal';
+import BottomNavBar from '../components/BottomNavBar';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+
+// Profile is a bottom-tab destination (pushed from the dashboard's "profile"
+// tab) for every role except Farmer, whose profile is an embedded dashboard
+// tab instead. Each role's tab set/icons mirror its dashboard exactly so the
+// bar doesn't visibly change shape when navigating here, matching the same
+// pattern StocksScreen/DistributorInventoryReportScreen already use.
+const TABS_BY_ROLE = {
+  distributor: [
+    { id: 'home', iconName: 'home-outline', labelKey: 'dashboards.distributor.tabHome' },
+    { id: 'orders', iconName: 'clipboard-outline', labelKey: 'dashboards.distributor.tabOrders' },
+    { id: 'stocks', iconName: 'archive-outline', labelKey: 'dashboards.distributor.tabStocks' },
+    { id: 'inventory', iconName: 'cube-outline', labelKey: 'dashboards.distributor.tabInventory' },
+    { id: 'profile', iconName: 'person-outline', labelKey: 'dashboards.distributor.tabProfile' },
+  ],
+  retailer: [
+    { id: 'home', iconName: 'home-outline', labelKey: 'dashboards.retailer.tabHome' },
+    { id: 'cart', iconName: 'cart-outline', labelKey: 'dashboards.retailer.tabCart' },
+    { id: 'orders', iconName: 'receipt-outline', labelKey: 'dashboards.retailer.tabOrders' },
+    { id: 'profile', iconName: 'person-outline', labelKey: 'dashboards.retailer.tabProfile' },
+  ],
+  delivery_personnel: [
+    { id: 'home', iconName: 'home-outline', labelKey: 'dashboards.delivery.tabHome' },
+    { id: 'tasks', iconName: 'clipboard-outline', labelKey: 'dashboards.delivery.tabTasks' },
+    { id: 'history', iconName: 'time-outline', labelKey: 'dashboards.delivery.tabHistory' },
+    { id: 'profile', iconName: 'person-outline', labelKey: 'dashboards.delivery.tabProfile' },
+  ],
+};
 
 export default function ProfileScreen({ navigation }) {
   const { user, signOut } = useAuth();
   const { t, language, setLanguage } = useTranslation();
 
   const fullName = user?.full_name || user?.name || '';
+
+  const roleTabs = TABS_BY_ROLE[user?.role];
+  const bottomTabs = roleTabs ? roleTabs.map((tab) => ({ ...tab, label: t(tab.labelKey) })) : null;
+
+  const handleBottomTabPress = (tab) => {
+    if (tab.id === 'profile') return;
+    if (user?.role === 'distributor') {
+      if (tab.id === 'stocks') navigation.navigate('Stocks');
+      else if (tab.id === 'inventory') navigation.navigate('DistributorInventoryReport');
+      else navigation.navigate('DistributorDashboard', { tab: tab.id });
+    } else if (user?.role === 'retailer') {
+      const RETAILER_TAB_PARAM = { home: 'shop', cart: 'cart', orders: 'orders' };
+      navigation.navigate('RetailerDashboard', { tab: RETAILER_TAB_PARAM[tab.id] });
+    } else if (user?.role === 'delivery_personnel') {
+      const DELIVERY_FILTER_PARAM = { home: 'all', tasks: 'active', history: 'completed' };
+      navigation.navigate('DeliveryDashboard', { filter: DELIVERY_FILTER_PARAM[tab.id] });
+    }
+  };
 
   // Modals state
   const [guideOpen, setGuideOpen] = useState(false);
@@ -47,7 +94,7 @@ export default function ProfileScreen({ navigation }) {
           </View>
           <Text style={styles.userName}>{fullName || user?.phone || 'User'}</Text>
           <View style={styles.roleBadge}>
-            <Text style={styles.roleBadgeText}>{(user?.role || 'user').toUpperCase()}</Text>
+            <Text style={styles.roleBadgeText}>{(user?.role || 'user').replace(/_/g, ' ').toUpperCase()}</Text>
           </View>
           <Text style={styles.phoneText}>📞 {user?.phone || '—'}</Text>
         </View>
@@ -128,6 +175,14 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         ))}
       </CustomModal>
+
+      {bottomTabs && (
+        <BottomNavBar
+          tabs={bottomTabs}
+          activeTab="profile"
+          onTabPress={handleBottomTabPress}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -141,9 +196,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  back: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: 15, width: 50 },
-  title: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
-  content: { padding: 16, paddingBottom: 40 },
+  back: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(15), width: 50 },
+  title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
+  content: { padding: 16, paddingBottom: 100 },
 
   // User Profile Card
   profileCard: {
@@ -167,8 +222,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.leaf700,
   },
-  avatarText: { fontFamily: fonts.heading, fontSize: 28, color: colors.leaf700 },
-  userName: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink, marginBottom: 4 },
+  avatarText: { fontFamily: fonts.heading, fontSize: rf(28), color: colors.leaf700 },
+  userName: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 4 },
   roleBadge: {
     backgroundColor: colors.leaf100,
     borderRadius: 12,
@@ -176,8 +231,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 6,
   },
-  roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.leaf700, letterSpacing: 0.5 },
-  phoneText: { fontFamily: fonts.body, fontSize: 13, color: colors.inkSoft },
+  roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(11), color: colors.leaf700, letterSpacing: 0.5 },
+  phoneText: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft },
 
   // Section Card
   sectionCard: {
@@ -189,7 +244,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadowCard,
   },
-  sectionTitle: { fontFamily: fonts.heading, fontSize: 16, color: colors.ink, marginBottom: 12 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(16), color: colors.ink, marginBottom: 12 },
 
   menuItem: {
     flexDirection: 'row',
@@ -200,13 +255,13 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   menuItemLast: { borderBottomWidth: 0 },
-  menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.ink },
-  chevron: { fontSize: 18, color: colors.inkFaint, fontWeight: '600' },
+  menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(14), color: colors.ink },
+  chevron: { fontSize: rf(18), color: colors.inkFaint, fontWeight: '600' },
 
   dangerSection: { gap: 10 },
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   buttonOutline: { borderWidth: 1.4, borderColor: colors.leaf700, backgroundColor: colors.card },
-  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: 15 },
+  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(15) },
 
   // Language modal rows
   langRow: {
@@ -217,6 +272,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  langRowText: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.ink },
-  langCheck: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.leaf700 },
+  langRowText: { fontFamily: fonts.bodySemiBold, fontSize: rf(15), color: colors.ink },
+  langCheck: { fontFamily: fonts.bodyBold, fontSize: rf(16), color: colors.leaf700 },
 });

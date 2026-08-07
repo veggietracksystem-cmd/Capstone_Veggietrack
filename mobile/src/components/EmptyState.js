@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors, fonts, radius } from '../theme/appTheme';
 
@@ -34,9 +35,9 @@ export default function EmptyState({ icon = '🌱', title, message, actionLabel,
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40, paddingHorizontal: 24 },
-  icon: { fontSize: 44, marginBottom: 12 },
-  title: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.inkSoft, textAlign: 'center' },
-  message: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkFaint, textAlign: 'center', marginTop: 6, lineHeight: 19 },
+  icon: { fontSize: rf(44), marginBottom: 12 },
+  title: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.inkSoft, textAlign: 'center' },
+  message: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkFaint, textAlign: 'center', marginTop: 6, lineHeight: 19 },
   button: { marginTop: 16, backgroundColor: PRIMARY, paddingVertical: 12, paddingHorizontal: 22, borderRadius: radius.ctrl },
-  buttonText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 14 },
+  buttonText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(14) },
 });

@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { useState } from 'react';
 import {
   Text, View, TextInput, TouchableOpacity, ActivityIndicator,
@@ -138,11 +139,11 @@ export default function ForgotPasswordScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 30 },
-  title: { fontSize: 32, fontWeight: 'bold', color: '#2e7d32', textAlign: 'center', marginBottom: 10 },
-  subtitle: { fontSize: 16, color: '#555', textAlign: 'center', marginBottom: 30, lineHeight: 22 },
-  input: { backgroundColor: '#fff', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 20, borderWidth: 1, borderColor: '#ddd' },
-  button: { backgroundColor: '#2e7d32', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  title: { fontSize: rf(32), fontWeight: 'bold', color: '#1E4E09', textAlign: 'center', marginBottom: 10 },
+  subtitle: { fontSize: rf(16), color: '#555', textAlign: 'center', marginBottom: 30, lineHeight: 22 },
+  input: { backgroundColor: '#fff', borderRadius: 8, padding: 12, fontSize: rf(16), marginBottom: 20, borderWidth: 1, borderColor: '#ddd' },
+  button: { backgroundColor: '#1E4E09', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 10 },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
-  link: { textAlign: 'center', marginTop: 20, color: '#2e7d32', fontSize: 14, fontWeight: '600' },
+  buttonText: { color: '#fff', fontSize: rf(18), fontWeight: '600' },
+  link: { textAlign: 'center', marginTop: 20, color: '#1E4E09', fontSize: rf(14), fontWeight: '600' },
 });

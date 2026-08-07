@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { confirmAction } from '../lib/ui';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
@@ -8,20 +7,21 @@ import { useTranslation } from '../i18n/useTranslation';
 import CustomModal from '../components/CustomModal';
 import UserGuideModal from '../components/UserGuideModal';
 import ContactUsModal from '../components/ContactUsModal';
+import { rf } from '../lib/responsive';
 
-// Farmer-only Profile tab matching the mockup's avatar/info-list/action-list
-// layout. "Edit profile" deep-links to the dedicated EditProfileScreen; the
-// Language/User Guide/Contact Us actions are handled inline so farmers never
-// have to leave this tab.
+// Farmer-only Profile tab, restyled to match the shared ProfileScreen design
+// (used by Retailer/Distributor/Delivery Personnel) so all four roles look
+// and feel consistent — same profile card, section cards, and outlined
+// logout button. Still embedded inline inside FarmerDashboard's "profile"
+// tab (not a pushed screen), and still shows farm-specific info (location).
 export default function FarmerProfileTab({ navigation }) {
   const { user, signOut } = useAuth();
   const { t, language, setLanguage } = useTranslation();
-  const name = user?.full_name || user?.name || t('dashboards.farmer.defaultFarmerName');
-  const initials = name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'F';
+  const fullName = user?.full_name || user?.name || t('dashboards.farmer.defaultFarmerName');
 
-  const [langOpen, setLangOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
 
   const logout = () => {
     confirmAction(t('profile.logoutConfirmTitle'), t('profile.logoutConfirmMessage'), () => signOut());
@@ -29,69 +29,83 @@ export default function FarmerProfileTab({ navigation }) {
 
   return (
     <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.head}>
-        <View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.pname} numberOfLines={1}>{name}</Text>
-          <Text style={styles.ploc} numberOfLines={1}>{user?.farm_location || t('dashboards.farmer.profileLocationFallback')}</Text>
+      {/* User Card */}
+      <View style={styles.profileCard}>
+        <View style={styles.avatarCircle}>
+          <Text style={styles.avatarText}>
+            {(fullName || user?.phone || 'F').charAt(0).toUpperCase()}
+          </Text>
         </View>
+        <Text style={styles.userName}>{fullName || user?.phone || 'Farmer'}</Text>
+        <View style={styles.roleBadge}>
+          <Text style={styles.roleBadgeText}>{(user?.role || 'farmer').replace(/_/g, ' ').toUpperCase()}</Text>
+        </View>
+        <Text style={styles.phoneText}>📞 {user?.phone || '—'}</Text>
+        {user?.farm_location ? (
+          <Text style={styles.locationText}>📍 {user.farm_location}</Text>
+        ) : null}
       </View>
 
-      <View style={styles.infoList}>
-        <View style={styles.infoRow}>
-          <Text style={styles.k}>{t('dashboards.farmer.profileContactLabel')}</Text>
-          <Text style={styles.v}>{user?.phone || '—'}</Text>
-        </View>
-        <View style={[styles.infoRow, styles.infoRowLast]}>
-          <Text style={styles.k}>{t('dashboards.farmer.profileEmailLabel')}</Text>
-          <Text style={styles.v} numberOfLines={1}>{user?.email || '—'}</Text>
-        </View>
-      </View>
+      {/* Account Actions Card */}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>{t('profile.account')}</Text>
 
-      <View style={styles.actionList}>
-        <TouchableOpacity style={styles.actionRow} onPress={() => navigation.navigate('EditProfile')} activeOpacity={0.7}>
-          <View style={styles.actionLeft}>
-            <Ionicons name="create-outline" size={18} color={colors.inkSoft} />
-            <Text style={styles.actionText}>{t('dashboards.farmer.profileEditAction')}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => navigation.navigate('EditProfile')}
+        >
+          <Text style={styles.menuItemText}>{t('profile.editProfile')}</Text>
+          <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionRow} onPress={() => setLangOpen(true)} activeOpacity={0.7}>
-          <View style={styles.actionLeft}>
-            <Ionicons name="globe-outline" size={18} color={colors.inkSoft} />
-            <Text style={styles.actionText}>{t('dashboards.farmer.profileLanguageAction')}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionRow} onPress={() => setGuideOpen(true)} activeOpacity={0.7}>
-          <View style={styles.actionLeft}>
-            <Ionicons name="book-outline" size={18} color={colors.inkSoft} />
-            <Text style={styles.actionText}>{t('dashboards.farmer.profileUserGuideAction')}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionRow, styles.actionRowLast]} onPress={() => setContactOpen(true)} activeOpacity={0.7}>
-          <View style={styles.actionLeft}>
-            <Ionicons name="call-outline" size={18} color={colors.inkSoft} />
-            <Text style={styles.actionText}>{t('dashboards.farmer.profileContactUsAction')}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+
+        <TouchableOpacity
+          style={[styles.menuItem, styles.menuItemLast]}
+          onPress={() => setLangOpen(true)}
+        >
+          <Text style={styles.menuItemText}>{t('language.menuLabel')}</Text>
+          <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.actionList, { marginTop: 14 }]}>
-        <TouchableOpacity style={[styles.actionRow, styles.actionRowLast]} onPress={logout} activeOpacity={0.7}>
-          <View style={styles.actionLeft}>
-            <Ionicons name="log-out-outline" size={18} color={colors.danger} />
-            <Text style={[styles.actionText, { color: colors.danger }]}>{t('dashboards.farmer.profileLogoutAction')}</Text>
-          </View>
+      {/* Support & Actions Card */}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>{t('profile.helpSupport')}</Text>
+
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => setGuideOpen(true)}
+        >
+          <Text style={styles.menuItemText}>{t('profile.userGuide')}</Text>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.menuItem, styles.menuItemLast]}
+          onPress={() => setContactOpen(true)}
+        >
+          <Text style={styles.menuItemText}>{t('profile.contactUs')}</Text>
+          <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Logout */}
+      <View style={styles.dangerSection}>
+        <TouchableOpacity
+          style={[styles.button, styles.buttonOutline]}
+          onPress={logout}
+        >
+          <Text style={styles.buttonOutlineText}>{t('profile.logout')}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <UserGuideModal visible={guideOpen} onClose={() => setGuideOpen(false)} />
+      <ContactUsModal visible={contactOpen} onClose={() => setContactOpen(false)} />
 
       <CustomModal
         visible={langOpen}
         title={t('language.modalTitle')}
         onCancel={() => setLangOpen(false)}
+        cancelLabel={t('common.close')}
       >
         {[
           { code: 'en', label: t('language.english') },
@@ -103,13 +117,10 @@ export default function FarmerProfileTab({ navigation }) {
             onPress={() => { setLanguage(opt.code); setLangOpen(false); }}
           >
             <Text style={styles.langRowText}>{opt.label}</Text>
-            {language === opt.code ? <Ionicons name="checkmark" size={18} color={colors.leaf700} /> : null}
+            {language === opt.code ? <Text style={styles.langCheck}>✓</Text> : null}
           </TouchableOpacity>
         ))}
       </CustomModal>
-
-      <UserGuideModal visible={guideOpen} onClose={() => setGuideOpen(false)} />
-      <ContactUsModal visible={contactOpen} onClose={() => setContactOpen(false)} />
     </ScrollView>
   );
 }
@@ -117,42 +128,80 @@ export default function FarmerProfileTab({ navigation }) {
 const styles = StyleSheet.create({
   scrollArea: { flex: 1 },
   content: { paddingBottom: 90 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 8, marginBottom: 18 },
-  avatar: {
-    width: 64, height: 64, borderRadius: 32, backgroundColor: colors.gold500,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { fontFamily: fonts.heading, fontSize: 22, color: '#fff' },
-  pname: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
-  ploc: { fontFamily: fonts.body, fontSize: 12.5, color: colors.inkSoft, marginTop: 2 },
 
-  infoList: {
-    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
-    borderRadius: 14, overflow: 'hidden', marginBottom: 16, ...shadowCard,
+  // User Profile Card
+  profileCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadowCard,
   },
-  infoRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
+  avatarCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: colors.leaf100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: colors.leaf700,
   },
-  infoRowLast: { borderBottomWidth: 0 },
-  k: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, width: 88 },
-  v: { fontFamily: fonts.bodySemiBold, fontSize: 13.5, color: colors.ink, flex: 1 },
+  avatarText: { fontFamily: fonts.heading, fontSize: rf(28), color: colors.leaf700 },
+  userName: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 4 },
+  roleBadge: {
+    backgroundColor: colors.leaf100,
+    borderRadius: 12,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+    marginBottom: 6,
+  },
+  roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(11), color: colors.leaf700, letterSpacing: 0.5 },
+  phoneText: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft },
+  locationText: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginTop: 2 },
 
-  actionList: {
-    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
-    borderRadius: 14, overflow: 'hidden', ...shadowCard,
+  // Section Card
+  sectionCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadowCard,
   },
-  actionRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 14, borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  actionRowLast: { borderBottomWidth: 0 },
-  actionLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  actionText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.ink },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(16), color: colors.ink, marginBottom: 12 },
 
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  menuItemLast: { borderBottomWidth: 0 },
+  menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(14), color: colors.ink },
+  chevron: { fontSize: rf(18), color: colors.inkFaint, fontWeight: '600' },
+
+  dangerSection: { gap: 10 },
+  button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
+  buttonOutline: { borderWidth: 1.4, borderColor: colors.leaf700, backgroundColor: colors.card },
+  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(15) },
+
+  // Language modal rows
   langRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  langRowText: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.ink },
+  langRowText: { fontFamily: fonts.bodySemiBold, fontSize: rf(15), color: colors.ink },
+  langCheck: { fontFamily: fonts.bodyBold, fontSize: rf(16), color: colors.leaf700 },
 });

@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts, radius } from '../theme/appTheme';
 
@@ -21,5 +22,5 @@ const styles = StyleSheet.create({
   banner: { borderRadius: radius.ctrl, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 12 },
   offline: { backgroundColor: colors.gold100, borderWidth: 1, borderColor: colors.gold500 },
   pending: { backgroundColor: colors.leaf100, borderWidth: 1, borderColor: colors.leaf500 },
-  text: { fontFamily: fonts.body, fontSize: 13, color: colors.ink },
+  text: { fontFamily: fonts.body, fontSize: rf(13), color: colors.ink },
 });

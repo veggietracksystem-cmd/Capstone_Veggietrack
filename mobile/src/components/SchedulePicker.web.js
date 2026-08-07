@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts, radius } from '../theme/appTheme';
 
@@ -25,8 +26,8 @@ export default function SchedulePicker({ value, onChange, disabled }) {
         style={{
           width: '100%',
           padding: 12,
-          fontSize: 15,
-          fontFamily: 'Inter_400Regular, sans-serif',
+          fontSize: rf(15),
+          fontFamily: 'Poppins_400Regular, sans-serif',
           borderRadius: radius.ctrl,
           border: `1.4px solid ${colors.border}`,
           backgroundColor: colors.card,
@@ -41,5 +42,5 @@ export default function SchedulePicker({ value, onChange, disabled }) {
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 4 },
-  hint: { fontFamily: fonts.body, fontSize: 12, color: colors.inkFaint, marginTop: 4 },
+  hint: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkFaint, marginTop: 4 },
 });

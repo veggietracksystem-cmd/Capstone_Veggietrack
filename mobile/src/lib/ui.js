@@ -1,30 +1,15 @@
-import { Platform, Alert } from 'react-native';
+import { showAlertModal, confirmActionModal } from '../components/AlertModalHost';
 
 // Shared UI helpers used across screens.
 // Previously these were copy-pasted into every screen; keep the single source here.
-
-// react-native's Alert.alert is a no-op on react-native-web, so use window.alert there.
+// Both delegate to the app-wide branded modal (AlertModalHost) instead of the
+// native/browser Alert/confirm dialogs, so every screen gets the same themed UI.
 export function showAlert(title, message, onPress) {
-  if (Platform.OS === 'web') {
-    // eslint-disable-next-line no-alert
-    window.alert(`${title}\n\n${message}`);
-    if (onPress) onPress();
-  } else {
-    Alert.alert(title, message, onPress ? [{ text: 'OK', onPress }] : undefined);
-  }
+  showAlertModal(title, message, onPress);
 }
 
-// Confirm dialog that also works on web (Alert.alert is a no-op there).
 export function confirmAction(title, message, onConfirm) {
-  if (Platform.OS === 'web') {
-    // eslint-disable-next-line no-alert
-    if (window.confirm(`${title}\n\n${message}`)) onConfirm();
-    return;
-  }
-  Alert.alert(title, message, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Confirm', style: 'destructive', onPress: onConfirm },
-  ]);
+  confirmActionModal(title, message, onConfirm);
 }
 
 // Peso currency formatter, e.g. ₱1,234.50

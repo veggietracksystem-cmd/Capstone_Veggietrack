@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { Text, View, TouchableOpacity, ScrollView, Modal, Platform, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, radius } from '../theme/appTheme';
@@ -20,7 +21,7 @@ export default function BottomSheet({ visible, onClose, title, children, scroll 
           <View style={styles.head}>
             <Text style={styles.title} numberOfLines={1}>{title}</Text>
             <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
-              <Ionicons name="close" size={16} color={colors.soil800} />
+              <Ionicons name="close" size={rf(16)} color={colors.soil800} />
             </TouchableOpacity>
           </View>
           <Body style={scroll ? styles.scrollBody : undefined} contentContainerStyle={scroll ? styles.scrollContent : undefined}>
@@ -62,7 +63,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
-  title: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink, flex: 1 },
+  title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, flex: 1 },
   closeBtn: {
     width: 38,
     height: 38,

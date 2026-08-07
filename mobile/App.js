@@ -3,12 +3,12 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
-import { Baloo2_500Medium, Baloo2_600SemiBold, Baloo2_700Bold } from '@expo-google-fonts/baloo-2';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { LanguageProvider } from './src/i18n/LanguageProvider';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import AlertModalHost from './src/components/AlertModalHost';
 import LandingScreen from './src/screens/LandingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -20,8 +20,15 @@ import DistributorDashboard from './src/screens/DistributorDashboard';
 import RetailerDashboard from './src/screens/RetailerDashboard';
 import DeliveryDashboard from './src/screens/DeliveryDashboard';
 import OrderTrackingScreen from './src/screens/OrderTrackingScreen';
+import OrderConfirmationScreen from './src/screens/OrderConfirmationScreen';
+import OrderHistoryScreen from './src/screens/OrderHistoryScreen';
+import OrderDetailsScreen from './src/screens/OrderDetailsScreen';
 import HarvestListScreen from './src/screens/HarvestListScreen';
 import ProductListScreen from './src/screens/ProductListScreen';
+import StocksScreen from './src/screens/StocksScreen';
+import DistributorInventoryReportScreen from './src/screens/DistributorInventoryReportScreen';
+import DeliveryDetailsScreen from './src/screens/DeliveryDetailsScreen';
+import MessagesScreen from './src/screens/MessagesScreen';
 
 const Stack = createStackNavigator();
 
@@ -41,7 +48,7 @@ function RootNavigator() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2e7d32" />
+        <ActivityIndicator size="large" color="#1E4E09" />
       </View>
     );
   }
@@ -62,14 +69,30 @@ function RootNavigator() {
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
             {/* Retailer/Distributor: live delivery tracking on a map. */}
             <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
+            {/* Retailer: review delivery address/schedule + confirm before submitting an order. */}
+            <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
+            {/* Retailer: orders delivered more than 5 days ago. */}
+            <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} />
+            {/* Retailer: full breakdown of a single order. */}
+            <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
             {/* Farmer: full harvest list (edit/delete/request pickup). Currently
                 unreachable via navigation - Messages/Weekly-report/History/
                 Ready-to-sell are now embedded tabs/sheets inside FarmerDashboard
                 per the approved mockup, not pushed screens. Left registered in
                 case it's wired up again later. */}
             <Stack.Screen name="HarvestList" component={HarvestListScreen} />
-            {/* Distributor: full product list (edit/delete). */}
+            {/* Distributor: aggregated product list (price edit). Kept registered
+                for backward compatibility — Home now embeds this inline. */}
             <Stack.Screen name="ProductList" component={ProductListScreen} />
+            {/* Distributor: received batches (FIFO stocks, add to product list). */}
+            <Stack.Screen name="Stocks" component={StocksScreen} />
+            {/* Distributor: inventory + weekly report, with History + PDF export. */}
+            <Stack.Screen name="DistributorInventoryReport" component={DistributorInventoryReportScreen} />
+            {/* Delivery personnel: full details for one assigned order. */}
+            <Stack.Screen name="DeliveryDetails" component={DeliveryDetailsScreen} />
+            {/* Distributor/Retailer/Delivery: pushed from the header Messages icon.
+                Farmer instead embeds MessagesScreen as a bottom tab. */}
+            <Stack.Screen name="Messages" component={MessagesScreen} />
           </>
         ) : (
           <>
@@ -88,19 +111,16 @@ function RootNavigator() {
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    Baloo2_500Medium,
-    Baloo2_600SemiBold,
-    Baloo2_700Bold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
   });
 
   if (!fontsLoaded) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2e7d32" />
+        <ActivityIndicator size="large" color="#1E4E09" />
       </View>
     );
   }
@@ -111,6 +131,7 @@ export default function App() {
         <LanguageProvider>
           <AuthProvider>
             <RootNavigator />
+            <AlertModalHost />
           </AuthProvider>
         </LanguageProvider>
       </ErrorBoundary>

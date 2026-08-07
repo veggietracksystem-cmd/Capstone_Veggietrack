@@ -1,28 +1,22 @@
+import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Text, View, TouchableOpacity, Modal, ScrollView,
-  ActivityIndicator, StyleSheet, Platform, Alert, RefreshControl,
+  ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
+import CustomModal from './CustomModal';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
+import { showAlert } from '../lib/ui';
 
 const PRIMARY = colors.leaf700;
 const INACTIVE = colors.inkFaint;
 const POLL_MS = 30000; // refresh unread count every 30s
-
-function showAlert(title, message) {
-  if (Platform.OS === 'web') {
-    // eslint-disable-next-line no-alert
-    window.alert(`${title}\n\n${message}`);
-  } else {
-    Alert.alert(title, message);
-  }
-}
 
 // Lightweight relative-time formatter (no date lib needed).
 function timeAgo(iso, t) {
@@ -58,6 +52,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [detailNotification, setDetailNotification] = useState(null); // shown before navigating anywhere
   const mounted = useRef(true);
 
   const unread = items.filter((n) => !n.is_read).length;
@@ -110,23 +105,30 @@ export default function NotificationBell({ asTabItem = false, active = false, on
     }
   };
 
-  const handlePress = async (n) => {
-    await markRead(n);
+  // Where "View Details" on the detail modal actually navigates to — same
+  // routing rules as before, just no longer fired immediately on tap.
+  const goToNotification = (n) => {
+    setDetailNotification(null);
     setOpen(false);
-
-    if (n.item_id) {
-      if (n.type === 'pickup') {
-        navigation.navigate('DistributorDashboard', { tab: 'pickups' });
-      } else if (['order', 'delivery', 'payment'].includes(n.type)) {
-        if (user?.role === 'retailer') {
-          navigation.navigate('OrderTracking', { orderId: n.item_id });
-        } else if (user?.role === 'distributor') {
-          navigation.navigate('DistributorDashboard', { tab: 'orders' });
-        } else if (user?.role === 'delivery_personnel') {
-          navigation.navigate('DeliveryDashboard', { filter: 'active' });
-        }
+    if (!n.item_id) return;
+    if (n.type === 'pickup') {
+      navigation.navigate('DistributorDashboard', { tab: 'pickups' });
+    } else if (['order', 'delivery', 'payment'].includes(n.type)) {
+      if (user?.role === 'retailer') {
+        navigation.navigate('OrderTracking', { orderId: n.item_id });
+      } else if (user?.role === 'distributor') {
+        navigation.navigate('DistributorDashboard', { tab: 'orders' });
+      } else if (user?.role === 'delivery_personnel') {
+        navigation.navigate('DeliveryDashboard', { filter: 'active' });
       }
     }
+  };
+
+  // Tapping a notification opens a detail modal first — it no longer
+  // navigates straight away (requirement: show full details before jumping).
+  const handlePress = async (n) => {
+    await markRead(n);
+    setDetailNotification(n);
   };
 
   const markAllRead = async () => {
@@ -146,7 +148,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
       <SafeAreaView style={styles.screenContainer} edges={['left', 'right', 'bottom']}>
         <View style={styles.screenHeader}>
           <View style={styles.sheetTitleRow}>
-            <Ionicons name="notifications-outline" size={20} color={PRIMARY} />
+            <Ionicons name="notifications-outline" size={rf(20)} color={PRIMARY} />
             <Text style={styles.screenTitle}>{t('notifications.screenTitle')}</Text>
           </View>
           {unread > 0 && (
@@ -166,7 +168,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
             <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
           ) : items.length === 0 ? (
             <View style={styles.emptyWrap}>
-              <Ionicons name="notifications-outline" size={40} color="#c5cbc5" />
+              <Ionicons name="notifications-outline" size={rf(40)} color="#c5cbc5" />
               <Text style={styles.emptyTitle}>{t('notifications.emptyTitle')}</Text>
             </View>
           ) : (
@@ -192,6 +194,20 @@ export default function NotificationBell({ asTabItem = false, active = false, on
             ))
           )}
         </ScrollView>
+
+        <CustomModal
+          visible={!!detailNotification}
+          title={detailNotification?.title}
+          confirmLabel={detailNotification?.item_id ? t('notifications.viewDetails') : undefined}
+          onConfirm={detailNotification?.item_id ? () => goToNotification(detailNotification) : undefined}
+          cancelLabel={t('notifications.close')}
+          onCancel={() => setDetailNotification(null)}
+        >
+          <Text style={styles.detailMessage}>{detailNotification?.message}</Text>
+          <Text style={styles.detailTime}>
+            {detailNotification?.created_at ? new Date(detailNotification.created_at).toLocaleString() : ''}
+          </Text>
+        </CustomModal>
       </SafeAreaView>
     );
   }
@@ -201,7 +217,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
       {asTabItem ? (
         <TouchableOpacity style={styles.tabItemBtn} onPress={onPress || openModal} activeOpacity={0.7}>
           <View style={[styles.tabIconBadge, active && styles.tabIconBadgeActive]}>
-            <Ionicons name="notifications-outline" size={20} color={active ? PRIMARY : INACTIVE} />
+            <Ionicons name="notifications-outline" size={rf(20)} color={active ? PRIMARY : INACTIVE} />
             {unread > 0 && (
               <View style={styles.tabBadge}>
                 <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
@@ -214,7 +230,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
         </TouchableOpacity>
       ) : (
         <TouchableOpacity style={styles.bellBtn} onPress={openModal} activeOpacity={0.7}>
-          <Ionicons name="notifications-outline" size={20} color={colors.soil800} />
+          <Ionicons name="notifications-outline" size={rf(20)} color={colors.soil800} />
           {unread > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
@@ -231,7 +247,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
           <View style={styles.card}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetTitleRow}>
-                <Ionicons name="notifications-outline" size={18} color={PRIMARY} />
+                <Ionicons name="notifications-outline" size={rf(18)} color={PRIMARY} />
                 <Text style={styles.sheetTitle}>{t('notifications.screenTitle')}</Text>
               </View>
               {unread > 0 && (
@@ -290,6 +306,20 @@ export default function NotificationBell({ asTabItem = false, active = false, on
           </View>
         </View>
       </Modal>
+
+      <CustomModal
+        visible={!!detailNotification}
+        title={detailNotification?.title}
+        confirmLabel={detailNotification?.item_id ? t('notifications.viewDetails') : undefined}
+        onConfirm={detailNotification?.item_id ? () => goToNotification(detailNotification) : undefined}
+        cancelLabel={t('notifications.close')}
+        onCancel={() => setDetailNotification(null)}
+      >
+        <Text style={styles.detailMessage}>{detailNotification?.message}</Text>
+        <Text style={styles.detailTime}>
+          {detailNotification?.created_at ? new Date(detailNotification.created_at).toLocaleString() : ''}
+        </Text>
+      </CustomModal>
     </>
   );
 }
@@ -304,12 +334,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14,
     backgroundColor: colors.bgScreen, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  screenTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
-  markAllText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 13 },
+  screenTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
+  markAllText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(13) },
   screenList: { flex: 1, minHeight: 0 },
   screenListContent: { padding: 12, paddingBottom: 100 },
   emptyWrap: { alignItems: 'center', paddingVertical: 60, gap: 10 },
-  emptyTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.inkSoft },
+  emptyTitle: { fontFamily: fonts.bodySemiBold, fontSize: rf(15), color: colors.inkSoft },
 
   // Bottom-nav tab-item variant (matches BottomNavBar's own tab styling)
   tabItemBtn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -322,30 +352,30 @@ const styles = StyleSheet.create({
     position: 'absolute', top: -2, right: 2, minWidth: 16, height: 16, borderRadius: 8,
     backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
   },
-  tabLabel: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.inkFaint },
+  tabLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(11), color: colors.inkFaint },
   tabLabelActive: { color: PRIMARY },
 
   badge: {
     position: 'absolute', top: 0, right: 0, minWidth: 18, height: 18, borderRadius: 9,
     backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
   },
-  badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: 11 },
+  badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(11) },
 
   backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   card: { width: '100%', maxWidth: 420, backgroundColor: colors.bgScreen, borderRadius: radius.card, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16, maxHeight: '80%', ...shadowCard },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sheetTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sheetTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
+  sheetTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
   headerBadge: { backgroundColor: colors.leaf100, borderRadius: 12, paddingVertical: 3, paddingHorizontal: 10, borderWidth: 1, borderColor: PRIMARY },
-  headerBadgeText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: 12 },
+  headerBadgeText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(12) },
   linkDisabled: { color: colors.inkFaint },
 
   footer: { flexDirection: 'row', gap: 12, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   footerBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center' },
   footerBtnOutline: { borderWidth: 1.5, borderColor: PRIMARY },
   footerBtnPrimary: { backgroundColor: PRIMARY },
-  footerOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 14.5 },
-  footerPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 14.5 },
+  footerOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(14.5) },
+  footerPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(14.5) },
   btnDisabled: { opacity: 0.5, borderColor: colors.border },
 
   emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', textAlign: 'center', marginVertical: 30 },
@@ -355,9 +385,12 @@ const styles = StyleSheet.create({
   itemUnread: { backgroundColor: colors.leaf50 },
   typeDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6, marginRight: 10 },
   itemTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  itemTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14.5, color: colors.ink, flex: 1, marginRight: 8 },
+  itemTitle: { fontFamily: fonts.bodySemiBold, fontSize: rf(14.5), color: colors.ink, flex: 1, marginRight: 8 },
   itemTitleUnread: { fontFamily: fonts.bodyBold, color: colors.ink },
-  itemTime: { fontFamily: fonts.body, fontSize: 12, color: colors.inkFaint },
-  itemMessage: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, marginTop: 2 },
+  itemTime: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkFaint },
+  itemMessage: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY, marginLeft: 8, marginTop: 6 },
+
+  detailMessage: { fontFamily: fonts.body, fontSize: rf(14.5), color: colors.ink, lineHeight: 21 },
+  detailTime: { fontFamily: fonts.body, fontSize: rf(12.5), color: colors.inkFaint, marginTop: 10 },
 });

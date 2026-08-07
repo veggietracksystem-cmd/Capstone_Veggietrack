@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { colors, fonts, radius } from '../theme/appTheme';
@@ -121,9 +122,9 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
-  title: { fontFamily: fonts.heading, fontSize: 19, color: colors.ink },
-  close: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 15 },
-  addr: { fontFamily: fonts.body, fontSize: 13.5, color: colors.inkSoft, paddingHorizontal: 16, marginBottom: 8 },
+  title: { fontFamily: fonts.heading, fontSize: rf(19), color: colors.ink },
+  close: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15) },
+  addr: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, paddingHorizontal: 16, marginBottom: 8 },
   mapContainer: { flex: 1, margin: 16, borderRadius: radius.card, overflow: 'hidden', backgroundColor: colors.leaf50, minHeight: 300 },
-  note: { fontFamily: fonts.body, color: colors.gold700, fontSize: 12, padding: 10, fontStyle: 'italic', backgroundColor: colors.gold100, textAlign: 'center' },
+  note: { fontFamily: fonts.body, color: colors.gold700, fontSize: rf(12), padding: 10, fontStyle: 'italic', backgroundColor: colors.gold100, textAlign: 'center' },
 });

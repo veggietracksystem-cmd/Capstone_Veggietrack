@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { rf } from '../lib/responsive';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = '#1E4E09';
 const SAN_PABLO = { latitude: 14.0683, longitude: 121.3256 };
 
-export default function MapPinningModal({ visible, onConfirm, onClose }) {
-  const [pinnedCoords, setPinnedCoords] = useState(SAN_PABLO);
-  const [addressName, setAddressName] = useState('Fetching address...');
+export default function MapPinningModal({ visible, onConfirm, onClose, initialCoords, initialAddress }) {
+  const [pinnedCoords, setPinnedCoords] = useState(initialCoords || SAN_PABLO);
+  const [addressName, setAddressName] = useState(initialAddress || 'Fetching address...');
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const [loadingAddress, setLoadingAddress] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
@@ -19,6 +20,14 @@ export default function MapPinningModal({ visible, onConfirm, onClose }) {
 
   const mapRef = useRef(null);
   const markerRef = useRef(null);
+
+  // 0. Re-seed from the caller's existing pin (e.g. Edit Profile) each time the
+  // modal opens, so re-opening after a cancel doesn't lose the saved location.
+  useEffect(() => {
+    if (!visible || !initialCoords) return;
+    setPinnedCoords(initialCoords);
+    setAddressName(initialAddress || 'Fetching address...');
+  }, [visible]);
 
   // 1. Load Leaflet CDN script dynamically
   useEffect(() => {
@@ -38,9 +47,11 @@ export default function MapPinningModal({ visible, onConfirm, onClose }) {
     document.head.appendChild(script);
   }, [visible]);
 
-  // 2. Auto-detect user current location on modal open
+  // 2. Auto-detect user current location on modal open — skipped when an
+  // existing pin was passed in, so editing a saved location doesn't silently
+  // jump to the device's current GPS position.
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || initialCoords) return;
     handleDetectLocation();
   }, [visible]);
 
@@ -108,8 +119,13 @@ export default function MapPinningModal({ visible, onConfirm, onClose }) {
     const container = document.getElementById('pinning-map-leaflet');
     if (!container) return;
 
+    // Seed from the caller's existing pin (not the possibly-stale `pinnedCoords`
+    // closure) so the map is torn down/recreated fresh each open and always
+    // starts centered on the saved location rather than a leftover unconfirmed one.
+    const seed = initialCoords || pinnedCoords;
+
     const map = window.L.map('pinning-map-leaflet').setView(
-      [pinnedCoords.latitude, pinnedCoords.longitude],
+      [seed.latitude, seed.longitude],
       15
     );
     mapRef.current = map;
@@ -119,7 +135,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose }) {
       attribution: '© OpenStreetMap contributors',
     }).addTo(map);
 
-    let marker = window.L.marker([pinnedCoords.latitude, pinnedCoords.longitude], {
+    let marker = window.L.marker([seed.latitude, seed.longitude], {
       draggable: true,
     }).addTo(map);
     markerRef.current = marker;
@@ -292,16 +308,16 @@ export default function MapPinningModal({ visible, onConfirm, onClose }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
-  title: { fontSize: 20, fontWeight: '700', color: PRIMARY },
-  close: { color: '#c62828', fontSize: 16, fontWeight: '600' },
+  title: { fontSize: rf(20), fontWeight: '700', color: PRIMARY },
+  close: { color: '#c62828', fontSize: rf(16), fontWeight: '600' },
 
   searchContainer: { paddingHorizontal: 16, marginBottom: 8, zIndex: 999 },
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0', borderRadius: 8, paddingHorizontal: 8 },
-  searchInput: { flex: 1, paddingVertical: 10, fontSize: 14, color: '#222' },
+  searchInput: { flex: 1, paddingVertical: 10, fontSize: rf(14), color: '#222' },
   clearBtn: { padding: 8 },
-  clearBtnText: { color: '#888', fontSize: 14, fontWeight: 'bold' },
+  clearBtnText: { color: '#888', fontSize: rf(14), fontWeight: 'bold' },
   searchBtn: { backgroundColor: PRIMARY, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 6, marginLeft: 4 },
-  searchBtnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  searchBtnText: { color: '#fff', fontWeight: '600', fontSize: rf(13) },
 
   resultsDropdown: {
     backgroundColor: '#fff',
@@ -318,16 +334,16 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   resultItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  resultText: { fontSize: 13, color: '#333' },
-  noResults: { padding: 12, fontSize: 13, color: '#888', fontStyle: 'italic', textAlign: 'center' },
+  resultText: { fontSize: rf(13), color: '#333' },
+  noResults: { padding: 12, fontSize: rf(13), color: '#888', fontStyle: 'italic', textAlign: 'center' },
 
   mapContainer: { flex: 1, marginHorizontal: 16, marginBottom: 12, borderRadius: 12, overflow: 'hidden', backgroundColor: '#f9f9f9', minHeight: 280, position: 'relative' },
   locateBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ddd', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3, zIndex: 1000 },
-  locateBtnText: { color: PRIMARY, fontWeight: '700', fontSize: 13 },
+  locateBtnText: { color: PRIMARY, fontWeight: '700', fontSize: rf(13) },
 
   footer: { padding: 16, borderTopWidth: 1, borderColor: '#eee', backgroundColor: '#fafafa' },
-  addressLabel: { fontSize: 13, fontWeight: '700', color: '#555' },
-  addressText: { fontSize: 14, color: '#222', marginVertical: 6, lineHeight: 20 },
+  addressLabel: { fontSize: rf(13), fontWeight: '700', color: '#555' },
+  addressText: { fontSize: rf(14), color: '#222', marginVertical: 6, lineHeight: 20 },
   btn: { backgroundColor: PRIMARY, paddingVertical: 14, borderRadius: 8, alignItems: 'center', marginTop: 8 },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  btnText: { color: '#fff', fontWeight: '700', fontSize: rf(16) },
 });

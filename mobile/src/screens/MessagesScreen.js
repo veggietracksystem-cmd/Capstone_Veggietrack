@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Text, View, TextInput, TouchableOpacity, ScrollView,
@@ -116,7 +117,7 @@ export default function MessagesScreen({ navigation, embedded }) {
       <View style={styles.header}>
         {(view === 'thread' || !embedded) ? (
           <TouchableOpacity onPress={handleBack} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="arrow-back" size={20} color={colors.ink} />
+            <Ionicons name="arrow-back" size={rf(20)} color={colors.ink} />
           </TouchableOpacity>
         ) : <View style={{ width: 20 }} />}
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -126,7 +127,8 @@ export default function MessagesScreen({ navigation, embedded }) {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         style={styles.bodyFlex}
       >
         {loading ? (
@@ -139,7 +141,7 @@ export default function MessagesScreen({ navigation, embedded }) {
           >
             {contacts.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Ionicons name="mail-outline" size={40} color={colors.inkFaint} style={styles.emptyIcon} />
+                <Ionicons name="mail-outline" size={rf(40)} color={colors.inkFaint} style={styles.emptyIcon} />
                 <Text style={styles.emptyTitle}>{t('messages.noContactsTitle')}</Text>
                 <Text style={styles.emptySubtitle}>{t('messages.noContactsSubtitle')}</Text>
               </View>
@@ -176,7 +178,7 @@ export default function MessagesScreen({ navigation, embedded }) {
             <ScrollView style={styles.scrollArea} contentContainerStyle={styles.threadContent} showsVerticalScrollIndicator={false}>
               {thread.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={40} color={colors.inkFaint} style={styles.emptyIcon} />
+                  <Ionicons name="chatbubble-ellipses-outline" size={rf(40)} color={colors.inkFaint} style={styles.emptyIcon} />
                   <Text style={styles.emptyTitle}>{t('messages.noMessagesTitle')}</Text>
                   <Text style={styles.emptySubtitle}>{t('messages.noMessagesSubtitle')}</Text>
                 </View>
@@ -211,7 +213,7 @@ export default function MessagesScreen({ navigation, embedded }) {
               >
                 {sending
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Ionicons name="send" size={17} color="#fff" />}
+                  : <Ionicons name="send" size={rf(17)} color="#fff" />}
               </TouchableOpacity>
             </View>
           </>
@@ -222,8 +224,8 @@ export default function MessagesScreen({ navigation, embedded }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgScreen },
-  bodyFlex: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.bgScreen, minHeight: 0 },
+  bodyFlex: { flex: 1, minHeight: 0 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -232,15 +234,15 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 14,
   },
-  headerTitle: { fontFamily: fonts.heading, fontSize: 20, color: colors.ink, flex: 1, textAlign: 'center' },
+  headerTitle: { fontFamily: fonts.heading, fontSize: rf(20), color: colors.ink, flex: 1, textAlign: 'center' },
 
-  scrollArea: { flex: 1 },
+  scrollArea: { flex: 1, minHeight: 0 },
   content: { paddingHorizontal: 2, paddingBottom: 16 },
 
   emptyContainer: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 24 },
   emptyIcon: { marginBottom: 12 },
-  emptyTitle: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.inkSoft, marginBottom: 4 },
-  emptySubtitle: { fontFamily: fonts.body, fontSize: 13, color: colors.inkFaint, textAlign: 'center' },
+  emptyTitle: { fontFamily: fonts.bodyBold, fontSize: rf(14.5), color: colors.inkSoft, marginBottom: 4 },
+  emptySubtitle: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkFaint, textAlign: 'center' },
 
   contactRow: {
     backgroundColor: colors.card,
@@ -261,10 +263,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { fontFamily: fonts.headingBold, color: colors.gold700, fontSize: 17 },
+  avatarText: { fontFamily: fonts.headingBold, color: colors.gold700, fontSize: rf(17) },
   contactInfo: { flex: 1, minWidth: 0 },
-  contactName: { fontFamily: fonts.bodySemiBold, fontSize: 14.5, color: colors.ink },
-  contactRole: { fontFamily: fonts.body, fontSize: 12, color: colors.inkSoft, marginTop: 2, textTransform: 'capitalize' },
+  contactName: { fontFamily: fonts.bodySemiBold, fontSize: rf(14.5), color: colors.ink },
+  contactRole: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkSoft, marginTop: 2, textTransform: 'capitalize' },
   contactRight: { alignItems: 'flex-end' },
   contactBadge: {
     minWidth: 20,
@@ -275,7 +277,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
-  contactBadgeText: { fontFamily: fonts.bodyBold, color: colors.soil800, fontSize: 11 },
+  contactBadgeText: { fontFamily: fonts.bodyBold, color: colors.soil800, fontSize: rf(11) },
 
   threadContent: { paddingHorizontal: 2, paddingBottom: 8, flexGrow: 1 },
   bubbleRow: { flexDirection: 'row', marginVertical: 3 },
@@ -284,7 +286,7 @@ const styles = StyleSheet.create({
   bubble: { maxWidth: '78%', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 16, ...shadowCard },
   bubbleMine: { backgroundColor: colors.leaf700, borderBottomRightRadius: 4 },
   bubbleTheirs: { backgroundColor: colors.card, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: colors.border },
-  bubbleText: { fontFamily: fonts.body, fontSize: 14.5, color: colors.ink },
+  bubbleText: { fontFamily: fonts.body, fontSize: rf(14.5), color: colors.ink },
   bubbleTextMine: { color: '#ffffff' },
 
   inputRow: {
@@ -304,7 +306,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 11,
     fontFamily: fonts.body,
-    fontSize: 14.5,
+    fontSize: rf(14.5),
     color: colors.ink,
   },
   sendBtn: {

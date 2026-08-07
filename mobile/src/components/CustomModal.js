@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { useEffect, useRef } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, Animated, StyleSheet,
@@ -88,13 +89,13 @@ export default function CustomModal({
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   card: { width: '100%', maxWidth: 380, backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
-  title: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink, marginBottom: 12 },
+  title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 12 },
   body: { marginBottom: 6 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 16 },
   btn: { flex: 1, paddingVertical: 13, borderRadius: radius.ctrl, alignItems: 'center' },
   btnPrimary: { backgroundColor: PRIMARY },
-  btnPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15 },
+  btnPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15) },
   btnOutline: { borderWidth: 1.5, borderColor: PRIMARY },
-  btnOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: 15 },
+  btnOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15) },
   btnDisabled: { opacity: 0.5 },
 });

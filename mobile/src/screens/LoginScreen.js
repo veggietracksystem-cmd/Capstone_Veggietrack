@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { useState, useEffect } from 'react';
 import {
   Text, View, TextInput, TouchableOpacity, ActivityIndicator,
@@ -15,11 +16,12 @@ import UserGuideModal from '../components/UserGuideModal';
 import ContactUsModal from '../components/ContactUsModal';
 
 const REMEMBER_KEY = 'rememberedPhone'; // AsyncStorage key for the saved phone number
+const PH_PREFIX = '+63';
 
 export default function LoginScreen({ navigation }) {
   const { signIn } = useAuth();
   const { t } = useTranslation();
-  const [phone, setPhone] = useState('');
+  const [localNumber, setLocalNumber] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -32,7 +34,7 @@ export default function LoginScreen({ navigation }) {
       try {
         const saved = await AsyncStorage.getItem(REMEMBER_KEY);
         if (saved) {
-          setPhone(saved);
+          setLocalNumber(saved.startsWith(PH_PREFIX) ? saved.slice(PH_PREFIX.length) : saved);
           setRememberMe(true);
         }
       } catch {
@@ -40,6 +42,14 @@ export default function LoginScreen({ navigation }) {
       }
     })();
   }, []);
+
+  // Only digits reach the field; a leading 0 (common when copying a local
+  // number like 0917...) is dropped since the +63 prefix already covers it.
+  const handlePhoneChange = (text) => {
+    let digits = text.replace(/\D/g, '');
+    if (digits.startsWith('0')) digits = digits.slice(1);
+    setLocalNumber(digits.slice(0, 10));
+  };
 
   // Toggle the checkbox; clearing it immediately forgets the saved number.
   const toggleRememberMe = async () => {
@@ -57,7 +67,7 @@ export default function LoginScreen({ navigation }) {
 
   // Direct login with phone + password
   const handleLogin = async () => {
-    const trimmedPhone = normalizePhone(phone);
+    const trimmedPhone = normalizePhone(`${PH_PREFIX}${localNumber}`);
     if (!isValidPhone(trimmedPhone)) {
       showAlert(t('common.error'), t('common.phoneHint'));
       return;
@@ -93,15 +103,21 @@ export default function LoginScreen({ navigation }) {
         <Text style={styles.title}>{t('auth.login.title')}</Text>
         <Text style={styles.subtitle}>{t('auth.login.subtitle')}</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder={t('auth.login.phonePlaceholder')}
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-          autoCapitalize="none"
-          editable={!loading}
-        />
+        <View style={styles.phoneRow}>
+          <View style={styles.phonePrefix}>
+            <Text style={styles.phonePrefixText}>{PH_PREFIX}</Text>
+          </View>
+          <TextInput
+            style={styles.phoneInput}
+            placeholder={t('auth.login.phonePlaceholder')}
+            value={localNumber}
+            onChangeText={handlePhoneChange}
+            keyboardType="phone-pad"
+            autoCapitalize="none"
+            editable={!loading}
+            maxLength={10}
+          />
+        </View>
 
         <PasswordInput
           style={styles.input}
@@ -164,24 +180,28 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 30 },
-  title: { fontSize: 32, fontWeight: 'bold', color: '#2e7d32', textAlign: 'center', marginBottom: 10 },
-  subtitle: { fontSize: 16, color: '#555', textAlign: 'center', marginBottom: 40 },
-  input: { backgroundColor: '#fff', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 20, borderWidth: 1, borderColor: '#ddd' },
-  button: { backgroundColor: '#2e7d32', padding: 14, borderRadius: 8, alignItems: 'center' },
+  title: { fontSize: rf(32), fontWeight: 'bold', color: '#1E4E09', textAlign: 'center', marginBottom: 10 },
+  subtitle: { fontSize: rf(16), color: '#555', textAlign: 'center', marginBottom: 40 },
+  input: { backgroundColor: '#fff', borderRadius: 8, padding: 12, fontSize: rf(16), marginBottom: 20, borderWidth: 1, borderColor: '#ddd' },
+  phoneRow: { flexDirection: 'row', alignItems: 'stretch', marginBottom: 20, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', backgroundColor: '#fff', overflow: 'hidden' },
+  phonePrefix: { justifyContent: 'center', paddingHorizontal: 12, backgroundColor: '#f0f0f0', borderRightWidth: 1, borderRightColor: '#ddd' },
+  phonePrefixText: { fontSize: rf(16), color: '#333', fontWeight: '600' },
+  phoneInput: { flex: 1, padding: 12, fontSize: rf(16) },
+  button: { backgroundColor: '#1E4E09', padding: 14, borderRadius: 8, alignItems: 'center' },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
-  link: { textAlign: 'center', marginTop: 20, color: '#2e7d32', fontSize: 14 },
+  buttonText: { color: '#fff', fontSize: rf(18), fontWeight: '600' },
+  link: { textAlign: 'center', marginTop: 20, color: '#1E4E09', fontSize: rf(14) },
 
   // Remember Me + Forgot Password row
   optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: -8, marginBottom: 20 },
   rememberWrap: { flexDirection: 'row', alignItems: 'center' },
-  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: '#2e7d32', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 8 },
-  checkboxChecked: { backgroundColor: '#2e7d32' },
-  checkboxTick: { color: '#fff', fontSize: 13, fontWeight: '700', lineHeight: 16 },
-  rememberText: { color: '#555', fontSize: 14 },
-  forgotText: { color: '#2e7d32', fontSize: 14, fontWeight: '600' },
+  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: '#1E4E09', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  checkboxChecked: { backgroundColor: '#1E4E09' },
+  checkboxTick: { color: '#fff', fontSize: rf(13), fontWeight: '700', lineHeight: 16 },
+  rememberText: { color: '#555', fontSize: rf(14) },
+  forgotText: { color: '#1E4E09', fontSize: rf(14), fontWeight: '600' },
 
   footerHelpRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 28 },
-  footerHelpLink: { color: '#555', fontSize: 13, fontWeight: '600' },
+  footerHelpLink: { color: '#555', fontSize: rf(13), fontWeight: '600' },
   footerHelpDot: { color: '#aaa', marginHorizontal: 12 },
 });

@@ -1,6 +1,7 @@
+import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Text, View, ScrollView, TextInput, TouchableOpacity,
+  Text, View, ScrollView, TextInput, TouchableOpacity, Image,
   ActivityIndicator, StyleSheet, RefreshControl, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,29 +9,9 @@ import api from '../api/client';
 import EmptyState from '../components/EmptyState';
 import { showAlert, confirmAction } from '../lib/ui';
 import { useTranslation } from '../i18n/useTranslation';
+import { getVegetableTile } from '../lib/vegetableIcons';
 
-const PRIMARY = '#2e7d32';
-
-// Marketplace vegetable tile colors & icons (aligned with reference design)
-const VEG_TILES = {
-  tomato: { icon: '🍅', bg: '#ffebee' },
-  eggplant: { icon: '🍆', bg: '#f3e5f5' },
-  beans: { icon: '🌿', bg: '#e8f5e9' },
-  squash: { icon: '🎃', bg: '#fff3e0' },
-  carrot: { icon: '🥕', bg: '#fff3e0' },
-  potato: { icon: '🥔', bg: '#fbe9e7' },
-  corn: { icon: '🌽', bg: '#fffde7' },
-  pepper: { icon: '🌶️', bg: '#ffebee' },
-  cucumber: { icon: '🥒', bg: '#e8f5e9' },
-  onion: { icon: '🧅', bg: '#f3e5f5' },
-  lettuce: { icon: '🥬', bg: '#e8f5e9' },
-};
-
-function getVegetableTile(name) {
-  const key = String(name || '').toLowerCase();
-  const match = Object.keys(VEG_TILES).find((k) => key.includes(k));
-  return match ? VEG_TILES[match] : { icon: '🥬', bg: '#e8f5e9' };
-}
+const PRIMARY = '#1E4E09';
 
 export default function HarvestListScreen({ navigation }) {
   const { t } = useTranslation();
@@ -152,10 +133,14 @@ export default function HarvestListScreen({ navigation }) {
               const busy = busyId === h.id;
               return (
                 <View key={String(h.id)} style={styles.productCard}>
-                  {/* Soft Icon Tile */}
-                  <View style={[styles.tileContainer, { backgroundColor: tile.bg }]}>
-                    <Text style={styles.tileIcon}>{tile.icon}</Text>
-                  </View>
+                  {/* Photo (if uploaded) or soft icon tile */}
+                  {h.image_url ? (
+                    <Image source={{ uri: h.image_url }} style={styles.tileContainer} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.tileContainer, { backgroundColor: tile.bg }]}>
+                      <Text style={styles.tileIcon}>{tile.icon}</Text>
+                    </View>
+                  )}
 
                   {/* Title */}
                   <Text style={styles.cropTitle} numberOfLines={1}>
@@ -232,8 +217,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  back: { color: PRIMARY, fontSize: 16, fontWeight: '600', width: 50 },
-  title: { fontSize: 18, fontWeight: '700', color: PRIMARY },
+  back: { color: PRIMARY, fontSize: rf(16), fontWeight: '600', width: 50 },
+  title: { fontSize: rf(18), fontWeight: '700', color: PRIMARY },
 
   // Search Row
   searchRow: {
@@ -251,14 +236,14 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
   },
-  searchIcon: { fontSize: 16, marginRight: 8 },
+  searchIcon: { fontSize: rf(16), marginRight: 8 },
   searchInput: {
     flex: 1,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-    fontSize: 15,
+    fontSize: rf(15),
     color: '#1a1a1a',
   },
-  searchClear: { fontSize: 16, color: '#999', paddingLeft: 8 },
+  searchClear: { fontSize: rf(16), color: '#999', paddingLeft: 8 },
 
   // 2-Column Marketplace Grid
   marketplaceGrid: {
@@ -290,9 +275,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 8,
   },
-  tileIcon: { fontSize: 32 },
+  tileIcon: { fontSize: rf(32) },
   cropTitle: {
-    fontSize: 15,
+    fontSize: rf(15),
     fontWeight: '700',
     color: '#1a1a1a',
     marginBottom: 4,
@@ -306,12 +291,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   stockBadgeText: {
-    fontSize: 11,
+    fontSize: rf(11),
     fontWeight: '600',
     color: PRIMARY,
   },
   statusLabel: {
-    fontSize: 13,
+    fontSize: rf(13),
     fontWeight: '700',
     color: PRIMARY,
     marginBottom: 10,
@@ -325,7 +310,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignItems: 'center',
   },
-  manageBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 12 },
+  manageBtnText: { color: '#ffffff', fontWeight: '700', fontSize: rf(12) },
   pickupBtn: {
     width: '100%',
     backgroundColor: '#ffffff',
@@ -335,7 +320,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     alignItems: 'center',
   },
-  pickupBtnText: { color: PRIMARY, fontWeight: '700', fontSize: 12 },
+  pickupBtnText: { color: PRIMARY, fontWeight: '700', fontSize: rf(12) },
   deleteBtn: {
     width: '100%',
     backgroundColor: '#fff5f5',
@@ -345,5 +330,5 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     alignItems: 'center',
   },
-  deleteBtnText: { color: '#c62828', fontWeight: '700', fontSize: 12 },
+  deleteBtnText: { color: '#c62828', fontWeight: '700', fontSize: rf(12) },
 });

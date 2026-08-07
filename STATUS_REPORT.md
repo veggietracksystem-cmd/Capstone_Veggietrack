@@ -1,7 +1,7 @@
 # VeggieTrack — Project Status Report
 
-*Updated Status: All Capstone Requirements, Dashboard Redesigns, and Mapping Improvements Completed.*  
-**Date:** July 30, 2026  
+*Updated Status: All Capstone Requirements, Dashboard Redesigns, Mapping Improvements, Mockup UI Restoration, and Tagalog Vegetable Validation Completed.*  
+**Date:** August 3, 2026  
 **System Status:** 🟢 Fully Operational & Pushed to GitHub  
 
 ---
@@ -64,6 +64,26 @@ Redesigned the entire Farmer module using a consistent white marketplace UI syst
 
 ---
 
+## Section 2A: Mockup UI Restoration & Reconciliation
+
+The originally-approved leaf/gold/cream mockup design (Farmer 5-tab dashboard, Distributor/Retailer/Delivery restyle, shared components/theme) had diverged from feature work built separately on the older pre-mockup UI. This was reconciled in a single pass across 32 files:
+* **Design System Restored**: Re-applied the approved `appTheme.js` (leaf/gold/cream palette) plus Baloo 2 and Inter custom fonts (`@expo-google-fonts/baloo-2`, `@expo-google-fonts/inter`) across all dashboards.
+* **Feature Preservation**: Carried forward i18n (English + Tagalog), vegetable-name validation, the dedicated `EditProfileScreen`, and `AuthContext`'s `initialRoute` handling into the restored mockup UI so no functionality already in progress was lost.
+* **Full Translation Coverage**: Every user-facing string touched by the mockup restore now routes through the translation system with both English and Tagalog copy (`en.json` / `tl.json`).
+* **Regression Fixes**: Restored the Retailer category-filter chips that had been dropped during the divergence, and fixed a dead link in `ProfileScreen.js` pointing to a deleted survey screen (rebuilt to match the current menu design).
+* **New Shared Component**: Added `BottomSheet.js` and expanded `FarmerDashboard.js`/`FarmerProfileTab.js`/`MessagesScreen.js` to support the mockup's tabbed/embedded-sheet navigation pattern (Messages, Weekly Report, History, Ready-to-Sell now live as tabs/sheets inside the Farmer dashboard rather than separate pushed screens).
+* **Web Support**: Added `mobile/public/index.html` and a `metro.config.js` WASM resolver entry for Expo web builds.
+
+---
+
+## Section 2B: Tagalog Vegetable-Name Validation
+
+Extended the product/harvest name validator to accept Tagalog vegetable names alongside their English equivalents, keeping the mobile and backend copies in sync:
+* Added Tagalog keywords (`kamatis`, `talong`, `repolyo`, `litsugas`, `kalabasa`, `sibuyas`, `bawang`, `karot`, `mustasa`) each mapped to the same category as their English counterpart.
+* Updated in both [backend/lib/vegetables.js](file:///c:/Users/User%201/Desktop/capstone%20project/Capstone_VeggieTrack/backend/lib/vegetables.js) and [mobile/src/lib/vegetables.js](file:///c:/Users/User%201/Desktop/capstone%20project/Capstone_VeggieTrack/mobile/src/lib/vegetables.js) so validation stays consistent across the frontend/backend runtime boundary.
+
+---
+
 ## Section 3: User Guide & Support Systems
 
 * **User Guide Modal**: A tabbed modal detailing supply chain FAQs and step-by-step role workflows for Farmers, Distributors, Retailers, and Riders.
@@ -92,4 +112,4 @@ All schema changes have been documented inside [veggietrack_fixes.sql](file:///c
    - Scanned all 13 modified mobile screens and components.
    - All JSX layouts, states, and navigation transitions parsed with zero syntax errors.
 3. **Repository Status**:
-   - Pushed successfully to branch `main` at `https://github.com/shuina08/Capstone_VeggieTrack.git`.
+   - `main` at commit `f346f0d` ("Accept Tagalog vegetable names in product/harvest validation"), pushed successfully to `https://github.com/shuina08/Capstone_VeggieTrack.git`.

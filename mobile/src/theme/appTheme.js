@@ -2,9 +2,9 @@
 // module mockup (leaf/gold/soil palette, Baloo 2 headings + Inter body).
 // Applied system-wide so every role's UI shares one visual language.
 export const colors = {
-  bgScreen: '#F7F4EC',
+  bgScreen: '#FDFDFD',
   leaf900: '#1F4A27',
-  leaf700: '#2F6B3A',
+  leaf700: '#1E4E09',
   leaf500: '#3F8A4C',
   leaf100: '#E1EEDD',
   leaf50: '#EEF5EA',
@@ -28,13 +28,13 @@ export const radius = {
 };
 
 export const fonts = {
-  heading: 'Baloo2_600SemiBold',
-  headingBold: 'Baloo2_700Bold',
-  headingMedium: 'Baloo2_500Medium',
-  body: 'Inter_400Regular',
-  bodyMedium: 'Inter_500Medium',
-  bodySemiBold: 'Inter_600SemiBold',
-  bodyBold: 'Inter_700Bold',
+  heading: 'Poppins_600SemiBold',
+  headingBold: 'Poppins_700Bold',
+  headingMedium: 'Poppins_500Medium',
+  body: 'Poppins_400Regular',
+  bodyMedium: 'Poppins_500Medium',
+  bodySemiBold: 'Poppins_600SemiBold',
+  bodyBold: 'Poppins_700Bold',
 };
 
 export const shadowCard = {

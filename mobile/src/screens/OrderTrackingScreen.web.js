@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -5,7 +6,7 @@ import api from '../api/client';
 import OrderStepIndicator from '../components/OrderStepIndicator';
 import { useTranslation } from '../i18n/useTranslation';
 
-const PRIMARY = '#2e7d32';
+const PRIMARY = '#1E4E09';
 const POLL_MS = 10000;
 const SAN_PABLO = { latitude: 14.0683, longitude: 121.3256 };
 
@@ -194,15 +195,15 @@ export default function OrderTrackingScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-  back: { color: PRIMARY, fontSize: 16, fontWeight: '600', width: 50 },
-  title: { fontSize: 17, fontWeight: '700', color: '#222', flex: 1, textAlign: 'center' },
+  back: { color: PRIMARY, fontSize: rf(16), fontWeight: '600', width: 50 },
+  title: { fontSize: rf(17), fontWeight: '700', color: '#222', flex: 1, textAlign: 'center' },
   infoBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingBottom: 6 },
   statusBadge: { paddingVertical: 3, paddingHorizontal: 12, borderRadius: 12 },
-  statusBadgeText: { color: '#fff', fontSize: 13, fontWeight: '600', textTransform: 'capitalize' },
-  eta: { fontSize: 14, color: '#555' },
-  addr: { fontSize: 14, color: '#555', paddingHorizontal: 16, marginBottom: 8 },
+  statusBadgeText: { color: '#fff', fontSize: rf(13), fontWeight: '600', textTransform: 'capitalize' },
+  eta: { fontSize: rf(14), color: '#555' },
+  addr: { fontSize: rf(14), color: '#555', paddingHorizontal: 16, marginBottom: 8 },
   stepperWrap: { paddingHorizontal: 12, paddingBottom: 10 },
   mapContainer: { flex: 1, margin: 16, borderRadius: 12, overflow: 'hidden', borderHeight: 1, borderColor: '#eee', backgroundColor: '#f9f9f9', minHeight: 300 },
   errorMsg: { textAlign: 'center', padding: 40, color: '#888' },
-  note: { color: '#e65100', fontSize: 12, padding: 10, fontStyle: 'italic', backgroundColor: '#fff3e0', textAlign: 'center' },
+  note: { color: '#e65100', fontSize: rf(12), padding: 10, fontStyle: 'italic', backgroundColor: '#fff3e0', textAlign: 'center' },
 });

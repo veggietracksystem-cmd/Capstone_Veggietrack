@@ -1,3 +1,4 @@
+import { rf } from '../lib/responsive';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
@@ -19,5 +20,5 @@ export default function ProfileButton() {
 
 const styles = StyleSheet.create({
   iconBtn: { padding: 6, marginRight: 2 },
-  icon: { fontSize: 20 },
+  icon: { fontSize: rf(20) },
 });
