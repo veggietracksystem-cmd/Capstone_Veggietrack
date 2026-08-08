@@ -1,8 +1,17 @@
 import { rf } from '../lib/responsive';
 import { useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts } from '../theme/appTheme';
+
+// Base padding/height for the bar's own content (icons + labels) on a
+// device with no bottom system inset. The device's actual bottom inset
+// (home indicator / gesture or button nav area) is added on top of this,
+// so the bar always clears the system navigation area instead of sitting
+// under it or leaving a fixed, device-mismatched gap above it.
+const BASE_PADDING_BOTTOM = 10;
+const BASE_HEIGHT = 74;
 
 // Small count badge shown on a tab's icon (e.g. cart item count). Bumps with
 // a quick pop animation whenever the count goes up, so adding an item feels
@@ -29,6 +38,7 @@ function TabBadge({ count }) {
 
 export default function BottomNavBar({ tabs, activeTab, onTabPress, onTabMeasure }) {
   const tabRefs = useRef({});
+  const insets = useSafeAreaInsets();
 
   if (!tabs || !Array.isArray(tabs)) return null;
 
@@ -41,7 +51,12 @@ export default function BottomNavBar({ tabs, activeTab, onTabPress, onTabMeasure
   };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { height: BASE_HEIGHT + insets.bottom, paddingBottom: BASE_PADDING_BOTTOM + insets.bottom },
+      ]}
+    >
       {tabs.map((tab) => {
         if (tab.render) {
           // Custom tab content (e.g. NotificationBell) manages its own
@@ -91,9 +106,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingVertical: 10,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
-    height: Platform.OS === 'ios' ? 84 : 74,
+    paddingTop: 10,
     position: 'absolute',
     bottom: 0,
     left: 0,

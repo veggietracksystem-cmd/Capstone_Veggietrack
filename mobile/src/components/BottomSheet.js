@@ -1,5 +1,8 @@
 import { rf } from '../lib/responsive';
-import { Text, View, TouchableOpacity, ScrollView, Modal, Platform, StyleSheet } from 'react-native';
+import {
+  Text, View, TouchableOpacity, ScrollView, Modal, Platform, StyleSheet,
+  KeyboardAvoidingView,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, radius } from '../theme/appTheme';
 
@@ -14,26 +17,36 @@ export default function BottomSheet({ visible, onClose, title, children, scroll 
       animationType={Platform.OS === 'web' ? 'none' : 'slide'}
       onRequestClose={onClose}
     >
-      <View style={styles.backdrop}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <View style={styles.head}>
-            <Text style={styles.title} numberOfLines={1}>{title}</Text>
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
-              <Ionicons name="close" size={rf(16)} color={colors.soil800} />
-            </TouchableOpacity>
+      <KeyboardAvoidingView
+        style={styles.kav}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={styles.backdrop}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
+          <View style={styles.sheet}>
+            <View style={styles.handle} />
+            <View style={styles.head}>
+              <Text style={styles.title} numberOfLines={1}>{title}</Text>
+              <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
+                <Ionicons name="close" size={rf(16)} color={colors.soil800} />
+              </TouchableOpacity>
+            </View>
+            <Body
+              style={scroll ? styles.scrollBody : undefined}
+              contentContainerStyle={scroll ? styles.scrollContent : undefined}
+              keyboardShouldPersistTaps={scroll ? 'handled' : undefined}
+            >
+              {children}
+            </Body>
           </View>
-          <Body style={scroll ? styles.scrollBody : undefined} contentContainerStyle={scroll ? styles.scrollContent : undefined}>
-            {children}
-          </Body>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  kav: { flex: 1 },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(20,17,16,0.42)',

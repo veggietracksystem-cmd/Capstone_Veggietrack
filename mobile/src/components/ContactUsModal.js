@@ -2,7 +2,7 @@ import { rf } from '../lib/responsive';
 import { useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, TextInput,
-  ScrollView, ActivityIndicator,
+  ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { showAlert } from '../lib/ui';
 import { colors, fonts, radius } from '../theme/appTheme';
@@ -42,8 +42,9 @@ export default function ContactUsModal({ visible, onClose }) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+      <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>{t('contactUs.title')}</Text>
@@ -114,13 +115,15 @@ export default function ContactUsModal({ visible, onClose }) {
               )}
             </TouchableOpacity>
           </ScrollView>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  kav: { flex: 1 },
   backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: '85%', paddingBottom: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },

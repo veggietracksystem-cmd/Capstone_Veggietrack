@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "VeggieTrack",
+    "slug": "veggietrack",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -23,11 +23,12 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-font"
     ],
     "extra": {
       "eas": {
-        "projectId": "4eb79e93-124b-4259-858f-1bff49715da6"
+        "projectId": "af768eec-249b-4a47-a974-63a013b38c93"
       }
     }
   }

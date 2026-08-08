@@ -2,7 +2,7 @@ import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
   Text, View, ScrollView, TextInput, TouchableOpacity, Modal, Image,
-  ActivityIndicator, StyleSheet, RefreshControl,
+  ActivityIndicator, StyleSheet, RefreshControl, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
@@ -704,76 +704,82 @@ function ProductListSection() {
         animationType="fade"
         onRequestClose={closeEditModal}
       >
-        <View style={styles.modalBackdrop}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeEditModal} />
+        <KeyboardAvoidingView style={styles.modalKav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalBackdrop}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeEditModal} />
 
-          <View style={styles.modalCard}>
-            <TouchableOpacity
-              style={styles.modalCloseBtn}
-              onPress={closeEditModal}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text style={styles.modalCloseText}>✕</Text>
-            </TouchableOpacity>
+            <View style={styles.modalCard}>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={closeEditModal}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
 
-            {activeListing ? (
-              <>
-                <View style={styles.modalHeader}>
-                  <View style={[styles.productTile, styles.modalTile, { backgroundColor: modalTile.bg }]}>
-                    <Text style={styles.modalTileIcon}>{modalTile.icon}</Text>
-                  </View>
-                  <Text style={styles.modalVegName}>{localizeVegetableName(activeListing.vegetable_name, language)}</Text>
-                </View>
-
-                <Text style={styles.modalLabel}>{t('productList.newQuantityLabel')}</Text>
-                <View style={styles.editRow}>
-                  <TextInput
-                    style={[styles.priceInput, modalIsSoldOut && styles.modalInputDisabled]}
-                    value={qtyInput}
-                    onChangeText={setQtyInput}
-                    keyboardType="decimal-pad"
-                    editable={!modalIsSoldOut && !savingQty}
-                  />
-                  <TouchableOpacity
-                    style={[styles.smallBtn, (savingQty || modalIsSoldOut) && styles.btnDisabled]}
-                    onPress={saveQty}
-                    disabled={savingQty || modalIsSoldOut}
-                  >
-                    {savingQty ? <ActivityIndicator size="small" color={PRIMARY} /> : <Text style={styles.smallBtnText}>{t('common.save')}</Text>}
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.modalLabel}>{t('productList.priceLabel')}</Text>
-                <View style={styles.editRow}>
-                  <TextInput
-                    style={styles.priceInput}
-                    value={priceInput}
-                    onChangeText={setPriceInput}
-                    keyboardType="decimal-pad"
-                    editable={!savingPrice}
-                  />
-                  <TouchableOpacity
-                    style={[styles.smallBtn, savingPrice && styles.btnDisabled]}
-                    onPress={savePrice}
-                    disabled={savingPrice}
-                  >
-                    {savingPrice ? <ActivityIndicator size="small" color={PRIMARY} /> : <Text style={styles.smallBtnText}>{t('common.save')}</Text>}
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.removeBtnFull, removing && styles.btnDisabled]}
-                  onPress={removeProduct}
-                  disabled={removing}
+              {activeListing ? (
+                <ScrollView
+                  style={styles.modalScroll}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
                 >
-                  {removing
-                    ? <ActivityIndicator size="small" color={colors.danger} />
-                    : <Text style={styles.deleteBtnText}>{t('productList.removeBtn')}</Text>}
-                </TouchableOpacity>
-              </>
-            ) : null}
+                  <View style={styles.modalHeader}>
+                    <View style={[styles.productTile, styles.modalTile, { backgroundColor: modalTile.bg }]}>
+                      <Text style={styles.modalTileIcon}>{modalTile.icon}</Text>
+                    </View>
+                    <Text style={styles.modalVegName}>{localizeVegetableName(activeListing.vegetable_name, language)}</Text>
+                  </View>
+
+                  <Text style={styles.modalLabel}>{t('productList.newQuantityLabel')}</Text>
+                  <View style={styles.editRow}>
+                    <TextInput
+                      style={[styles.priceInput, modalIsSoldOut && styles.modalInputDisabled]}
+                      value={qtyInput}
+                      onChangeText={setQtyInput}
+                      keyboardType="decimal-pad"
+                      editable={!modalIsSoldOut && !savingQty}
+                    />
+                    <TouchableOpacity
+                      style={[styles.smallBtn, (savingQty || modalIsSoldOut) && styles.btnDisabled]}
+                      onPress={saveQty}
+                      disabled={savingQty || modalIsSoldOut}
+                    >
+                      {savingQty ? <ActivityIndicator size="small" color={PRIMARY} /> : <Text style={styles.smallBtnText}>{t('common.save')}</Text>}
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.modalLabel}>{t('productList.priceLabel')}</Text>
+                  <View style={styles.editRow}>
+                    <TextInput
+                      style={styles.priceInput}
+                      value={priceInput}
+                      onChangeText={setPriceInput}
+                      keyboardType="decimal-pad"
+                      editable={!savingPrice}
+                    />
+                    <TouchableOpacity
+                      style={[styles.smallBtn, savingPrice && styles.btnDisabled]}
+                      onPress={savePrice}
+                      disabled={savingPrice}
+                    >
+                      {savingPrice ? <ActivityIndicator size="small" color={PRIMARY} /> : <Text style={styles.smallBtnText}>{t('common.save')}</Text>}
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.removeBtnFull, removing && styles.btnDisabled]}
+                    onPress={removeProduct}
+                    disabled={removing}
+                  >
+                    {removing
+                      ? <ActivityIndicator size="small" color={colors.danger} />
+                      : <Text style={styles.deleteBtnText}>{t('productList.removeBtn')}</Text>}
+                  </TouchableOpacity>
+                </ScrollView>
+              ) : null}
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -1192,8 +1198,10 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.5 },
 
   // Home tab: Product List edit modal (icon + name header, qty/price edit, remove, X close)
+  modalKav: { flex: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  modalCard: { width: '100%', maxWidth: 380, backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
+  modalCard: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
+  modalScroll: { flexGrow: 0, flexShrink: 1 },
   modalCloseBtn: { position: 'absolute', top: 14, right: 14, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.leaf50, zIndex: 1 },
   modalCloseText: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.inkSoft },
   modalHeader: { alignItems: 'center', marginBottom: 18, marginTop: 4 },

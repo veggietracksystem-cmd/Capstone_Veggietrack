@@ -2,7 +2,7 @@ import { rf } from '../lib/responsive';
 import { useState } from 'react';
 import {
   Text, TextInput, TouchableOpacity, ActivityIndicator, View, ScrollView,
-  StyleSheet, Modal, Platform,
+  StyleSheet, Modal, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -273,95 +273,111 @@ export default function EditProfileScreen({ navigation }) {
 
       {/* Change Password modal */}
       <Modal visible={pwOpen} transparent animationType={Platform.OS === 'web' ? 'none' : 'slide'} onRequestClose={() => setPwOpen(false)}>
-        <View style={styles.pwBackdrop}>
-          <View style={styles.pwSheet}>
-            <Text style={styles.pwTitle}>{t('editProfile.changePasswordTitle')}</Text>
-            <Text style={styles.pwHint}>
-              {t('editProfile.changePasswordHint')}
-            </Text>
-
-            <Text style={styles.fieldLabel}>{t('editProfile.currentPasswordLabel')}</Text>
-            <PasswordInput
-              style={styles.input}
-              value={currentPw}
-              onChangeText={setCurrentPw}
-              editable={!changingPw}
-            />
-
-            <Text style={styles.fieldLabel}>{t('editProfile.newPasswordLabel')}</Text>
-            <PasswordInput
-              style={styles.input}
-              value={newPw}
-              onChangeText={setNewPw}
-              placeholder={t('editProfile.newPasswordPlaceholder')}
-              editable={!changingPw}
-            />
-
-            <Text style={styles.fieldLabel}>{t('editProfile.confirmNewPasswordLabel')}</Text>
-            <PasswordInput
-              style={styles.input}
-              value={confirmPw}
-              onChangeText={setConfirmPw}
-              editable={!changingPw}
-            />
-
-            <View style={styles.pwActions}>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonOutline, { flex: 1, marginTop: 0 }]}
-                onPress={() => setPwOpen(false)}
-                disabled={changingPw}
+        <KeyboardAvoidingView style={styles.pwKav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.pwBackdrop}>
+            <View style={styles.pwSheet}>
+              <ScrollView
+                style={styles.pwScroll}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
               >
-                <Text style={styles.buttonOutlineText}>{t('common.cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonPrimary, { flex: 1, marginTop: 0 }, changingPw && styles.buttonDisabled]}
-                onPress={changePassword}
-                disabled={changingPw}
-              >
-                {changingPw
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.buttonPrimaryText}>{t('common.update')}</Text>}
-              </TouchableOpacity>
+                <Text style={styles.pwTitle}>{t('editProfile.changePasswordTitle')}</Text>
+                <Text style={styles.pwHint}>
+                  {t('editProfile.changePasswordHint')}
+                </Text>
+
+                <Text style={styles.fieldLabel}>{t('editProfile.currentPasswordLabel')}</Text>
+                <PasswordInput
+                  style={styles.input}
+                  value={currentPw}
+                  onChangeText={setCurrentPw}
+                  editable={!changingPw}
+                />
+
+                <Text style={styles.fieldLabel}>{t('editProfile.newPasswordLabel')}</Text>
+                <PasswordInput
+                  style={styles.input}
+                  value={newPw}
+                  onChangeText={setNewPw}
+                  placeholder={t('editProfile.newPasswordPlaceholder')}
+                  editable={!changingPw}
+                />
+
+                <Text style={styles.fieldLabel}>{t('editProfile.confirmNewPasswordLabel')}</Text>
+                <PasswordInput
+                  style={styles.input}
+                  value={confirmPw}
+                  onChangeText={setConfirmPw}
+                  editable={!changingPw}
+                />
+              </ScrollView>
+
+              <View style={styles.pwActions}>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonOutline, { flex: 1, marginTop: 0 }]}
+                  onPress={() => setPwOpen(false)}
+                  disabled={changingPw}
+                >
+                  <Text style={styles.buttonOutlineText}>{t('common.cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonPrimary, { flex: 1, marginTop: 0 }, changingPw && styles.buttonDisabled]}
+                  onPress={changePassword}
+                  disabled={changingPw}
+                >
+                  {changingPw
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={styles.buttonPrimaryText}>{t('common.update')}</Text>}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Confirm-password modal, shown after Save when the phone number changed */}
       <Modal visible={phonePwOpen} transparent animationType={Platform.OS === 'web' ? 'none' : 'slide'} onRequestClose={() => setPhonePwOpen(false)}>
-        <View style={styles.pwBackdrop}>
-          <View style={styles.pwSheet}>
-            <Text style={styles.pwTitle}>{t('editProfile.changePhoneTitle')}</Text>
-            <Text style={styles.pwHint}>{t('editProfile.changePhoneHint')}</Text>
-
-            <Text style={styles.fieldLabel}>{t('editProfile.currentPasswordLabel')}</Text>
-            <PasswordInput
-              style={styles.input}
-              value={phonePw}
-              onChangeText={setPhonePw}
-              editable={!changingPhone}
-            />
-
-            <View style={styles.pwActions}>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonOutline, { flex: 1, marginTop: 0 }]}
-                onPress={() => { setPhonePwOpen(false); setPhonePw(''); setPendingPhone(null); }}
-                disabled={changingPhone}
+        <KeyboardAvoidingView style={styles.pwKav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.pwBackdrop}>
+            <View style={styles.pwSheet}>
+              <ScrollView
+                style={styles.pwScroll}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
               >
-                <Text style={styles.buttonOutlineText}>{t('common.cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonPrimary, { flex: 1, marginTop: 0 }, changingPhone && styles.buttonDisabled]}
-                onPress={applyPhoneChange}
-                disabled={changingPhone}
-              >
-                {changingPhone
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.buttonPrimaryText}>{t('common.update')}</Text>}
-              </TouchableOpacity>
+                <Text style={styles.pwTitle}>{t('editProfile.changePhoneTitle')}</Text>
+                <Text style={styles.pwHint}>{t('editProfile.changePhoneHint')}</Text>
+
+                <Text style={styles.fieldLabel}>{t('editProfile.currentPasswordLabel')}</Text>
+                <PasswordInput
+                  style={styles.input}
+                  value={phonePw}
+                  onChangeText={setPhonePw}
+                  editable={!changingPhone}
+                />
+              </ScrollView>
+
+              <View style={styles.pwActions}>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonOutline, { flex: 1, marginTop: 0 }]}
+                  onPress={() => { setPhonePwOpen(false); setPhonePw(''); setPendingPhone(null); }}
+                  disabled={changingPhone}
+                >
+                  <Text style={styles.buttonOutlineText}>{t('common.cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonPrimary, { flex: 1, marginTop: 0 }, changingPhone && styles.buttonDisabled]}
+                  onPress={applyPhoneChange}
+                  disabled={changingPhone}
+                >
+                  {changingPhone
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={styles.buttonPrimaryText}>{t('common.update')}</Text>}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <MapPinningModal
@@ -450,8 +466,10 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.6 },
 
   // Change-password modal
+  pwKav: { flex: 1 },
   pwBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end' },
-  pwSheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingBottom: 30 },
+  pwSheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingBottom: 30, maxHeight: '90%' },
+  pwScroll: { flexGrow: 0, flexShrink: 1 },
   pwTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 6 },
   pwHint: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginBottom: 12 },
   pwActions: { flexDirection: 'row', gap: 12, marginTop: 8 },

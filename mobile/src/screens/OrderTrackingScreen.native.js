@@ -1,14 +1,15 @@
 import { rf } from '../lib/responsive';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, ActivityIndicator, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
+import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import api from '../api/client';
 import OrderStepIndicator from '../components/OrderStepIndicator';
 import { useTranslation } from '../i18n/useTranslation';
+import { buildStaticMapHtml } from '../lib/leafletMapHtml';
 
 const PRIMARY = '#1E4E09';
 const POLL_MS = 10000; // Issue 11: refresh order status every 10s while visible
@@ -107,12 +108,16 @@ export default function OrderTrackingScreen({ route, navigation }) {
   }, [address, orderId]);
 
   const anchor = destination || SAN_PABLO;
-  const region = {
-    latitude: anchor.latitude,
-    longitude: anchor.longitude,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
-  };
+  const [webviewError, setWebviewError] = useState(null);
+
+  const html = useMemo(() => buildStaticMapHtml({
+    centerLat: anchor.latitude,
+    centerLng: anchor.longitude,
+    zoom: 14,
+    markers: destination
+      ? [{ lat: destination.latitude, lng: destination.longitude, color: '#d32f2f', popup: address || 'Delivery address' }]
+      : [],
+  }), [anchor.latitude, anchor.longitude, destination, address]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -146,13 +151,14 @@ export default function OrderTrackingScreen({ route, navigation }) {
         <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
       ) : (
         <>
-          <MapView style={styles.map} provider={PROVIDER_DEFAULT} initialRegion={region}>
-            {/* OpenStreetMap raster tiles (no API key needed) */}
-            <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
-            {destination && (
-              <Marker coordinate={destination} title="Delivery address" description={address} pinColor="#d32f2f" />
-            )}
-          </MapView>
+          <WebView
+            key={`${anchor.latitude},${anchor.longitude}`}
+            originWhitelist={['*']}
+            source={{ html }}
+            style={styles.map}
+            onError={() => setWebviewError('Could not load the map. Check your internet connection.')}
+          />
+          {webviewError ? <Text style={styles.note}>{webviewError}</Text> : null}
           {geocodeFailed ? (
             <Text style={styles.note}>
               {t('orderTracking.geocodeFailedNative')}

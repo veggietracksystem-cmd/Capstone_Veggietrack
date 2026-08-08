@@ -2,6 +2,7 @@ import { rf } from '../lib/responsive';
 import { useEffect, useRef } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, Animated, StyleSheet,
+  KeyboardAvoidingView, ScrollView, Platform,
 } from 'react-native';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
@@ -52,44 +53,58 @@ export default function CustomModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={busy ? undefined : onCancel}>
-      <Animated.View style={[styles.backdrop, { opacity }]}>
-        {/* Tapping the backdrop dismisses (unless busy). */}
-        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={busy ? undefined : onCancel} />
+      <KeyboardAvoidingView
+        style={styles.kav}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <Animated.View style={[styles.backdrop, { opacity }]}>
+          {/* Tapping the backdrop dismisses (unless busy). */}
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={busy ? undefined : onCancel} />
 
-        <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
-          {title ? <Text style={styles.title}>{title}</Text> : null}
-          <View style={styles.body}>{children}</View>
+          <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
+            {title ? <Text style={styles.title}>{title}</Text> : null}
+            <ScrollView
+              style={styles.bodyScroll}
+              contentContainerStyle={styles.body}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {children}
+            </ScrollView>
 
-          <View style={styles.actions}>
-            {onCancel ? (
-              <TouchableOpacity
-                style={[styles.btn, styles.btnOutline, busy && styles.btnDisabled]}
-                onPress={onCancel}
-                disabled={busy}
-              >
-                <Text style={styles.btnOutlineText}>{resolvedCancelLabel}</Text>
-              </TouchableOpacity>
-            ) : null}
-            {onConfirm ? (
-              <TouchableOpacity
-                style={[styles.btn, styles.btnPrimary, (busy || confirmDisabled) && styles.btnDisabled]}
-                onPress={onConfirm}
-                disabled={busy || confirmDisabled}
-              >
-                <Text style={styles.btnPrimaryText}>{confirmLabel || t('common.confirm')}</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
+            <View style={styles.actions}>
+              {onCancel ? (
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnOutline, busy && styles.btnDisabled]}
+                  onPress={onCancel}
+                  disabled={busy}
+                >
+                  <Text style={styles.btnOutlineText}>{resolvedCancelLabel}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {onConfirm ? (
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnPrimary, (busy || confirmDisabled) && styles.btnDisabled]}
+                  onPress={onConfirm}
+                  disabled={busy || confirmDisabled}
+                >
+                  <Text style={styles.btnPrimaryText}>{confirmLabel || t('common.confirm')}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  kav: { flex: 1 },
   backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 380, backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
+  card: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
   title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 12 },
+  bodyScroll: { flexGrow: 0, flexShrink: 1 },
   body: { marginBottom: 6 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 16 },
   btn: { flex: 1, paddingVertical: 13, borderRadius: radius.ctrl, alignItems: 'center' },

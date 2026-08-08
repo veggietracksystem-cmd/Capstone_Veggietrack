@@ -1,15 +1,16 @@
 import { rf } from '../lib/responsive';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, ActivityIndicator, StyleSheet,
 } from 'react-native';
-import MapView, { Marker, Polyline, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
+import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { colors, fonts } from '../theme/appTheme';
+import { buildStaticMapHtml } from '../lib/leafletMapHtml';
 
 const PRIMARY = colors.leaf700;
-// Default region (Metro Manila) used until we have the courier's position.
-const FALLBACK = { latitude: 14.5995, longitude: 120.9842, latitudeDelta: 0.3, longitudeDelta: 0.3 };
+// Default center (Metro Manila) used until we have the courier's position.
+const FALLBACK = { latitude: 14.5995, longitude: 120.9842 };
 
 export default function DeliveryMapModal({ visible, address, coords, onClose }) {
   const [loading, setLoading] = useState(true);
@@ -59,9 +60,25 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
   }, [visible, address, coords]);
 
   const anchor = courier || destination;
-  const region = anchor
-    ? { latitude: anchor.latitude, longitude: anchor.longitude, latitudeDelta: 0.05, longitudeDelta: 0.05 }
-    : FALLBACK;
+  const [webviewError, setWebviewError] = useState(null);
+
+  const html = useMemo(() => {
+    const center = anchor || FALLBACK;
+    const markers = [];
+    if (courier) markers.push({ lat: courier.latitude, lng: courier.longitude, color: PRIMARY, popup: 'You (courier)' });
+    if (destination) markers.push({ lat: destination.latitude, lng: destination.longitude, color: '#d32f2f', popup: 'Delivery address' });
+    const polyline = courier && destination
+      ? [{ lat: courier.latitude, lng: courier.longitude }, { lat: destination.latitude, lng: destination.longitude }]
+      : null;
+    return buildStaticMapHtml({
+      centerLat: center.latitude,
+      centerLng: center.longitude,
+      zoom: anchor ? 14 : 10,
+      markers,
+      polyline,
+      polylineColor: PRIMARY,
+    });
+  }, [courier, destination]);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -79,15 +96,16 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
         ) : (
           <>
             {error ? <Text style={styles.error}>{error}</Text> : null}
-            <MapView style={styles.map} provider={PROVIDER_DEFAULT} initialRegion={region}>
-              {/* OpenStreetMap raster tiles */}
-              <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
-              {courier && <Marker coordinate={courier} title="You (courier)" pinColor={PRIMARY} />}
-              {destination && <Marker coordinate={destination} title="Delivery address" pinColor="#d32f2f" />}
-              {courier && destination && (
-                <Polyline coordinates={[courier, destination]} strokeColor={PRIMARY} strokeWidth={3} />
-              )}
-            </MapView>
+            {visible ? (
+              <WebView
+                key={`${courier?.latitude},${courier?.longitude}-${destination?.latitude},${destination?.longitude}`}
+                originWhitelist={['*']}
+                source={{ html }}
+                style={styles.map}
+                onError={() => setWebviewError('Could not load the map. Check your internet connection.')}
+              />
+            ) : null}
+            {webviewError ? <Text style={styles.error}>{webviewError}</Text> : null}
             {!destination && address ? (
               <Text style={styles.note}>Couldn’t pinpoint that address on the map; showing your location.</Text>
             ) : null}

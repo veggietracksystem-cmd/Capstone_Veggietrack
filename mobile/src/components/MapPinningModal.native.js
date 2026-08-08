@@ -1,8 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
-import { View, Text, Modal, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
-import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import {
+  View, Text, Modal, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
+  ScrollView, KeyboardAvoidingView, Platform,
+} from 'react-native';
+import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { rf } from '../lib/responsive';
+import { buildPinningMapHtml } from '../lib/leafletMapHtml';
 
 const PRIMARY = '#1E4E09';
 const SAN_PABLO = { latitude: 14.0683, longitude: 121.3256 };
@@ -19,19 +23,55 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
-  const mapRef = useRef(null);
+  const webviewRef = useRef(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [openId, setOpenId] = useState(0);
+  const [webviewError, setWebviewError] = useState(null);
+  const pendingFlyToRef = useRef(null);
 
-  // 0. Re-seed from the caller's existing pin (e.g. Edit Profile) each time the
-  // modal opens, so re-opening after a cancel doesn't lose the saved location.
+  // Sends a fly-to command into the WebView's Leaflet instance. Queued until
+  // the page reports 'ready' if the WebView hasn't finished loading yet (e.g.
+  // geolocation resolves faster than the CDN-hosted Leaflet page can load).
+  const flyToMap = (lat, lng, zoom = 16) => {
+    if (mapReady && webviewRef.current) {
+      webviewRef.current.injectJavaScript(`window.flyTo && window.flyTo(${lat}, ${lng}, ${zoom}); true;`);
+    } else {
+      pendingFlyToRef.current = { lat, lng, zoom };
+    }
+  };
+
+  const handleWebViewMessage = (e) => {
+    try {
+      const data = JSON.parse(e.nativeEvent.data);
+      if (data.type === 'ready') {
+        setMapReady(true);
+        if (pendingFlyToRef.current) {
+          const { lat, lng, zoom } = pendingFlyToRef.current;
+          pendingFlyToRef.current = null;
+          webviewRef.current?.injectJavaScript(`window.flyTo && window.flyTo(${lat}, ${lng}, ${zoom}); true;`);
+        }
+      } else if (data.type === 'pinchange') {
+        setPinnedCoords({ latitude: data.latitude, longitude: data.longitude });
+      } else if (data.type === 'error') {
+        console.warn('[MapPinningModal.native] WebView error:', data.message);
+      }
+    } catch {
+      /* ignore malformed messages */
+    }
+  };
+
+  // 0. Each time the modal opens: reset the map (forces a fresh WebView load
+  // via `openId`) and re-seed from the caller's existing pin (e.g. Edit
+  // Profile), so re-opening after a cancel doesn't lose the saved location.
   useEffect(() => {
-    if (!visible || !initialCoords) return;
-    setPinnedCoords(initialCoords);
-    setAddressName(initialAddress || 'Fetching address...');
-    mapRef.current?.animateToRegion({
-      ...initialCoords,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    }, 500);
+    if (!visible) return;
+    setMapReady(false);
+    setWebviewError(null);
+    setOpenId((n) => n + 1);
+    if (initialCoords) {
+      setPinnedCoords(initialCoords);
+      setAddressName(initialAddress || 'Fetching address...');
+    }
   }, [visible]);
 
   // 1. Auto-detect user current location on mount/visible — skipped when an
@@ -53,11 +93,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
           longitude: pos.coords.longitude,
         };
         setPinnedCoords(coords);
-        mapRef.current?.animateToRegion({
-          ...coords,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }, 1000);
+        flyToMap(coords.latitude, coords.longitude, 16);
       }
     } catch (err) {
       console.warn('[MapPinningModal.native] Geolocation error:', err);
@@ -132,11 +168,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     setShowResults(false);
     setSearchQuery(item.display_name || item.name);
 
-    mapRef.current?.animateToRegion({
-      ...coords,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    }, 1000);
+    flyToMap(lat, lon, 16);
   };
 
   const handleConfirm = () => {
@@ -147,20 +179,17 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     });
   };
 
-  const handleMapPress = (e) => {
-    const coords = e.nativeEvent.coordinate;
-    setPinnedCoords(coords);
-  };
-
-  const region = {
-    latitude: pinnedCoords.latitude,
-    longitude: pinnedCoords.longitude,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
-  };
+  // Fresh HTML/WebView per modal-open (keyed by openId) so the map always
+  // starts centered on the caller's existing pin, not a stale closure value.
+  const html = useMemo(() => {
+    const seed = initialCoords || pinnedCoords;
+    return buildPinningMapHtml({ centerLat: seed.latitude, centerLng: seed.longitude, zoom: 15 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId]);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Pin Your Location</Text>
@@ -229,22 +258,16 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
 
         {/* Map Container & Floating Buttons */}
         <View style={styles.mapContainer}>
-          <MapView
-            ref={mapRef}
+          <WebView
+            ref={webviewRef}
+            key={openId}
+            originWhitelist={['*']}
+            source={{ html }}
             style={styles.map}
-            provider={PROVIDER_DEFAULT}
-            initialRegion={region}
-            onPress={handleMapPress}
-          >
-            <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
-            <Marker
-              coordinate={pinnedCoords}
-              draggable
-              onDragEnd={(e) => setPinnedCoords(e.nativeEvent.coordinate)}
-              title="Your Location"
-              pinColor={PRIMARY}
-            />
-          </MapView>
+            onMessage={handleWebViewMessage}
+            onError={() => setWebviewError('Could not load the map. Check your internet connection.')}
+          />
+          {webviewError ? <Text style={styles.mapErrorNote}>{webviewError}</Text> : null}
 
           {/* Floating Locate Me Button */}
           <TouchableOpacity
@@ -273,11 +296,13 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
           </TouchableOpacity>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  kav: { flex: 1 },
   container: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
   title: { fontSize: rf(20), fontWeight: '700', color: PRIMARY },
@@ -309,6 +334,7 @@ const styles = StyleSheet.create({
 
   mapContainer: { flex: 1, marginHorizontal: 16, marginBottom: 12, borderRadius: 12, overflow: 'hidden', backgroundColor: '#f9f9f9', minHeight: 280, position: 'relative' },
   map: { flex: 1 },
+  mapErrorNote: { position: 'absolute', bottom: 8, left: 8, right: 8, backgroundColor: 'rgba(255,255,255,0.9)', color: '#c62828', fontSize: rf(12), padding: 8, borderRadius: 6, textAlign: 'center' },
   locateBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ddd', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3, zIndex: 1000 },
   locateBtnText: { color: PRIMARY, fontWeight: '700', fontSize: rf(13) },
 
