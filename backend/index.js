@@ -2981,7 +2981,325 @@ app.get('/api/debug/user/:phone', async (req, res) => {
   console.log('✅ User found:', data);
   res.json({ exists: true, user: data });
 });
+// ============================================
+// RIDER LOCATION UPDATE
+// ============================================
 
+app.post('/api/delivery/update-location', verifyToken, async (req, res) => {
+    try {
+        const { latitude, longitude, delivery_id } = req.body;
+        const rider_id = req.user.userId;
+
+        if (!latitude || !longitude) {
+            return res.json({ 
+                success: false, 
+                message: 'Location data missing' 
+            });
+        }
+
+        const { error: updateError } = await supabaseAdmin
+            .from('users')
+            .update({
+                current_latitude: latitude,
+                current_longitude: longitude,
+                last_location_update: new Date().toISOString()
+            })
+            .eq('id', rider_id);
+
+        if (updateError) {
+            console.error('Update error:', updateError);
+            return res.json({ 
+                success: false, 
+                message: 'Failed to update location' 
+            });
+        }
+
+        if (delivery_id) {
+            await supabaseAdmin
+                .from('delivery_tracking')
+                .insert({
+                    delivery_id,
+                    rider_id,
+                    latitude,
+                    longitude,
+                    status: 'en_route'
+                })
+                .catch(e => console.error('Tracking insert failed:', e));
+        }
+
+        res.json({ 
+            success: true, 
+            message: 'Location updated',
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('Location update error:', error);
+        res.json({ 
+            success: false, 
+            message: 'Location update failed' 
+        });
+    }
+});
+
+// ============================================
+// START SERVER
+// ============================================
+// ============================================
+// // ============================================
+// GET TRACKING DATA (FIXED FOR YOUR TABLE)
+// ============================================
+
+app.get('/api/delivery/tracking/:orderId', verifyToken, async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const userId = req.user.userId;
+        const role = req.user.role;
+
+        // Get order details (using ACTUAL column names)
+        const { data: order, error: orderError } = await supabaseAdmin
+            .from('orders')
+            .select(`
+                id,
+                delivery_personnel_id,
+                retailer_id,
+                delivery_address,
+                status,
+                created_at,
+                distributor_id,
+                total_amount,
+                rider_last_latitude,
+                rider_last_longitude,
+                order_items (vegetable_name, quantity_kg)
+            `)
+            .eq('id', orderId)
+            .single();
+
+        if (orderError || !order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        // Check permissions
+        if (role === 'retailer' && order.retailer_id !== userId) {
+            return res.status(403).json({ error: 'You can only track your own orders' });
+        }
+        if (role === 'delivery_personnel' && order.delivery_personnel_id !== userId) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        // Get distributor/warehouse location (pickup point)
+        const { data: distributor } = await supabaseAdmin
+            .from('users')
+            .select('warehouse_location, latitude, longitude')
+            .eq('id', order.distributor_id)
+            .single();
+
+        // Get rider info
+        let riderName = 'Not assigned';
+        let riderLat = null;
+        let riderLng = null;
+        let riderLastUpdate = null;
+
+        if (order.delivery_personnel_id) {
+            const { data: rider } = await supabaseAdmin
+                .from('users')
+                .select('full_name, current_latitude, current_longitude, last_location_update')
+                .eq('id', order.delivery_personnel_id)
+                .single();
+
+            if (rider) {
+                riderName = rider.full_name || 'Rider';
+                riderLat = rider.current_latitude || order.rider_last_latitude || null;
+                riderLng = rider.current_longitude || order.rider_last_longitude || null;
+                riderLastUpdate = rider.last_location_update || null;
+            }
+        }
+
+        // If no rider assigned, return basic info
+        if (!order.delivery_personnel_id) {
+            return res.json({
+                order_id: orderId,
+                status: order.status,
+                rider_view: {
+                    route_steps: [],
+                    full_route: null,
+                    eta_seconds: null,
+                    distance_km: null,
+                    current_location: null,
+                    pickup_location: {
+                        latitude: distributor?.latitude || null,
+                        longitude: distributor?.longitude || null,
+                        address: distributor?.warehouse_location || 'Pickup Location'
+                    },
+                    delivery_location: {
+                        latitude: null,
+                        longitude: null,
+                        address: order.delivery_address || 'No address'
+                    }
+                },
+                retailer_view: {
+                    rider: {
+                        name: 'No rider assigned yet',
+                        latitude: null,
+                        longitude: null,
+                        last_updated: null
+                    },
+                    pickup: {
+                        address: distributor?.warehouse_location || 'Pickup Location',
+                        latitude: distributor?.latitude || null,
+                        longitude: distributor?.longitude || null
+                    },
+                    delivery: {
+                        address: order.delivery_address || 'No address',
+                        latitude: null,
+                        longitude: null
+                    },
+                    tracking: {
+                        distance_km: null,
+                        eta_formatted: null,
+                        eta_minutes: null,
+                        route: null,
+                        has_location: false
+                    },
+                    items: order.order_items || [],
+                    timeline: {
+                        order_placed: order.created_at,
+                        rider_assigned: null,
+                        in_transit: null,
+                        delivered: order.status === 'delivered' ? order.created_at : null
+                    }
+                }
+            });
+        }
+
+        // Calculate route + ETA using OpenStreetMap OSRM
+        let routeData = null;
+        let etaSeconds = null;
+        let distanceKm = null;
+        let routeGeometry = null;
+
+        // Use rider's location
+        const hasRiderLocation = riderLat && riderLng;
+        const hasDeliveryLocation = distributor?.latitude && distributor?.longitude;
+
+        if (hasRiderLocation && distributor?.latitude && distributor?.longitude) {
+            try {
+                const osmResponse = await fetch(
+                    `https://router.project-osrm.org/route/v1/driving/${riderLng},${riderLat};${distributor.longitude},${distributor.latitude}?overview=full&geometries=geojson&steps=true`,
+                    { signal: AbortSignal.timeout(5000) }
+                );
+
+                if (osmResponse.ok) {
+                    const osmData = await osmResponse.json();
+                    if (osmData.code === 'Ok' && osmData.routes && osmData.routes.length > 0) {
+                        const route = osmData.routes[0];
+                        distanceKm = Number((route.distance / 1000).toFixed(1));
+                        etaSeconds = route.duration;
+                        routeGeometry = route.geometry;
+
+                        // Extract turn-by-turn steps
+                        const steps = [];
+                        if (route.legs && route.legs.length > 0) {
+                            route.legs[0].steps.forEach(step => {
+                                steps.push({
+                                    instruction: step.maneuver.instruction || step.maneuver.type || 'Continue',
+                                    distance: step.distance,
+                                    duration: step.duration,
+                                    location: step.maneuver.location,
+                                    modifier: step.maneuver.modifier || null,
+                                    type: step.maneuver.type || null
+                                });
+                            });
+                        }
+                        routeData = { steps, summary: route.summary || '', duration: route.duration, distance: route.distance };
+                    }
+                }
+            } catch (osmError) {
+                console.error('OSRM error:', osmError);
+            }
+        }
+
+        // Build response for BOTH views
+        res.json({
+            order_id: orderId,
+            status: order.status,
+            
+            // For Rider (Grab-Style)
+            rider_view: {
+                route_steps: routeData?.steps || [],
+                route_summary: routeData?.summary || '',
+                full_route: routeGeometry || null,
+                eta_seconds: etaSeconds,
+                distance_km: distanceKm,
+                current_location: {
+                    latitude: riderLat,
+                    longitude: riderLng
+                },
+                pickup_location: {
+                    latitude: distributor?.latitude || null,
+                    longitude: distributor?.longitude || null,
+                    address: distributor?.warehouse_location || 'Pickup Location'
+                },
+                delivery_location: {
+                    latitude: null,
+                    longitude: null,
+                    address: order.delivery_address || 'No address'
+                }
+            },
+            
+            // For Retailer (Shopee-Style)
+            retailer_view: {
+                rider: {
+                    name: riderName,
+                    latitude: riderLat,
+                    longitude: riderLng,
+                    last_updated: riderLastUpdate
+                },
+                pickup: {
+                    address: distributor?.warehouse_location || 'Pickup Location',
+                    latitude: distributor?.latitude || null,
+                    longitude: distributor?.longitude || null
+                },
+                delivery: {
+                    address: order.delivery_address || 'No address',
+                    latitude: null,
+                    longitude: null
+                },
+                tracking: {
+                    distance_km: distanceKm,
+                    eta_formatted: etaSeconds ? formatETATime(etaSeconds) : null,
+                    eta_minutes: etaSeconds ? Math.round(etaSeconds / 60) : null,
+                    route: routeGeometry || null,
+                    has_location: !!hasRiderLocation
+                },
+                items: order.order_items || [],
+                timeline: {
+                    order_placed: order.created_at,
+                    rider_assigned: order.delivery_personnel_id ? order.created_at : null,
+                    in_transit: order.status === 'in_transit' || order.status === 'delivered' ? order.created_at : null,
+                    delivered: order.status === 'delivered' ? order.created_at : null
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Tracking error:', error);
+        res.status(500).json({ error: 'Failed to get tracking info' });
+    }
+});
+
+// Helper: Format ETA time
+function formatETATime(seconds) {
+    if (!seconds) return 'Calculating...';
+    if (seconds < 60) return `${Math.round(seconds)} sec`;
+    if (seconds < 3600) {
+        const mins = Math.floor(seconds / 60);
+        return `${mins} min${mins > 1 ? 's' : ''}`;
+    }
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    return `${hrs}h ${mins}m`;
+}
 app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+    console.log(`Server running on port ${port}`);
 });
