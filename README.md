@@ -1,148 +1,130 @@
-# VeggieTrack 🥬
+﻿# VeggieTrack
 
-A multi-role vegetable supply-chain application that connects **farmers**, a **distributor**, **retailers**, and **delivery riders** through a single digital hub — from harvest to doorstep.
+VeggieTrack is a capstone vegetable supply-chain app connecting farmers, a central distributor, retailers, and delivery riders. The Express/Supabase backend serves an Expo/React Native client targeting Android, iOS, and web.
 
-Built as a capstone project with a Node/Express + Supabase (PostgreSQL) backend and an Expo / React Native frontend that runs on Android, iOS, and Web from one codebase.
+Documentation reviewed: **September 6, 2026**. This describes the current workspace, including delivery-map changes that are still uncommitted. See [STATUS_REPORT.md](STATUS_REPORT.md) for verification and release readiness.
 
----
+## Roles and features
 
-## How it works
+| Role | Available workflows |
+| --- | --- |
+| Farmer | Record and edit harvests, request pickups, inspect harvest history, export weekly reports |
+| Distributor | Receive pickups into inventory, manage/list stock, approve orders, assign riders, record payments, view inventory reports |
+| Retailer | Browse produce, filter categories, manage cart and saved addresses, select delivery schedules, place/cancel orders, inspect order history and delivery tracking |
+| Delivery personnel | Review assigned pickups/deliveries, accept status workflows, navigate to the hub and retailer, reject deliveries, upload proof and complete deliveries |
 
-VeggieTrack models a real farm-to-retail supply chain around one central **distributor hub**:
+Shared functionality includes phone/password registration and login, token refresh and persistent sessions, profile editing, notifications with navigation links, polling-based messaging and unread counts, a user guide, and contact/support screens. A single distributor is enforced by the API and a database constraint.
 
-1. **Farmers** log their harvests and request pickups.
-2. The **Distributor** (only one account is allowed system-wide) receives pickups into inventory, lists produce for sale, approves retailer orders, and assigns delivery riders.
-3. **Retailers** browse available stock (sorted FIFO by harvest date), place orders, and track delivery in real time.
-4. **Delivery Personnel** view assigned pickups/deliveries, navigate to locations on a map, update delivery status, and upload proof-of-delivery photos.
+Inventory supports FIFO batch provenance and stock lifecycle tracking. English and Tagalog translation resources and vegetable-name validation are present; newer tracking screens still contain English-only copy. Offline harvest caching and queued additions/edits support intermittent connectivity; this is not full offline support for every workflow. Reports use PDF printing and sharing, and images use Cloudinary uploads.
 
-Everyone stays in sync through in-app messaging, notifications, and status tracking end-to-end.
+The interface uses shared leaf/gold/soil colors, Poppins typography, role dashboards, bottom navigation, cards, modals, and bottom sheets.
 
-## Roles at a glance
+## Recent delivery tracking update (pending source commit)
 
-| Role | Icon | Core capabilities |
-|---|---|---|
-| Farmer | 👨‍🌾 | Record harvests, request pickups, view weekly reports |
-| Distributor | 🏢 | Manage inventory, approve orders, assign riders, record payments (single account enforced) |
-| Retailer | 🛒 | Browse stock, place orders, track deliveries |
-| Delivery Personnel | 🛵 | View tasks, navigate routes, update status, upload delivery proof |
+- Shared Leaflet maps use OpenStreetMap tiles in a native WebView or web iframe. The pending changes remove `react-native-maps` and the Android Google Maps metadata.
+- OSRM supplies road geometry, turn instructions, distance, and estimated travel duration through the backend.
+- Rider navigation targets the distributor warehouse before pickup, then the retailer after pickup. GPS is shared while the rider screen is focused and the app is active.
+- Retailer/distributor tracking polls every five seconds and displays the rider, location freshness/accuracy, warehouse, destination, contact, and order items.
+- New orders snapshot the selected delivery pin. Existing orders fall back to a matching saved address, then a matching store location. Missing coordinates produce an explicit message.
+- Tracking access is restricted to the order's retailer, distributor, or assigned rider. Demo simulation does not publish fake GPS or change delivery state.
+- Routing requests are queued, deduplicated, cached, and bounded. GPS remains available if routing fails.
 
-## Key features
-
-- **Streamlined auth** — registration and login by phone number + password (no email/OTP), with silent token refresh so sessions persist across restarts.
-- **Real-time messaging** — polling-based FIFO chat threads with unread badge counts and deep-linked notifications.
-- **Location & mapping** — OpenStreetMap (Nominatim) geocoding search, GPS auto-pinning, and manual map pinning for pickup/delivery addresses.
-- **FIFO inventory** — produce listings sorted by harvest date to keep stock rotation accurate.
-- **Bilingual UI** — full English and Tagalog translations, including Tagalog vegetable-name validation for harvest/product entry.
-- **Offline support** — local caching/queueing (SQLite) for spotty-connectivity field use.
-- **PDF reports** — weekly harvest and inventory reports, exportable/shareable from the app.
-- **Cross-platform** — one Expo/React Native codebase targeting iOS, Android, and Web.
+Background/locked-phone tracking, voice guidance, offline navigation, and live traffic are not implemented. Retailer ETA describes the hub-to-destination road route, not a continuously recalculated remaining rider arrival time.
 
 ## Tech stack
 
-**Backend** (`backend/`)
-- Node.js + Express 5
-- Supabase (PostgreSQL) via `@supabase/supabase-js`
-- JWT auth (`jsonwebtoken`) + `bcrypt` password hashing
-- Twilio / SMS API PH for SMS
-- `date-fns` for date handling
+Versions below are declared in the current package manifests, not claims about the latest upstream releases.
 
-**Mobile / Web** (`mobile/`)
-- Expo (SDK 54) + React Native 0.81 + React 19
-- React Navigation (stack + bottom tabs)
-- `expo-sqlite` + AsyncStorage for offline storage
-- `expo-location`, `react-native-maps` for mapping
-- `expo-secure-store` for token storage
-- Cloudinary for image uploads
-- `expo-print` / `expo-sharing` for PDF report generation
-- Custom theme (Baloo 2 + Inter fonts, leaf/gold/cream design system)
+| Layer | Technologies |
+| --- | --- |
+| API | Node.js, Express `^5.2.1`, CommonJS, dotenv, CORS |
+| Database | Supabase PostgreSQL, `@supabase/supabase-js ^2.108.1`, SQL migrations |
+| Authentication | JSON Web Tokens (`^9.0.3`), bcrypt (`^6.0.0`), SecureStore/client session handling |
+| Client | Expo `^57.0.20`, React Native `0.86.3`, React/React DOM `19.2.3`, React Native Web `^0.21.0` |
+| Navigation/UI | React Navigation 7, safe-area context, gesture handler, Expo vector icons, Poppins fonts |
+| Mapping | Leaflet 1.9.4, OpenStreetMap, OSRM, Nominatim address search, Expo Location, WebView `13.16.1` |
+| Local storage | Expo SQLite, AsyncStorage, NetInfo connectivity detection |
+| Media/reports | Cloudinary unsigned uploads, Expo Image Picker, Print, Sharing |
+| Supporting backend packages | date-fns `^4.4.0`, Twilio `^6.0.2`; SMS configuration remains for legacy/optional flows |
+| Builds | Expo CLI, EAS profiles, checked-in Android Gradle project, Expo development client |
 
-## Project structure
+## Repository layout
 
+```text
+backend/
+  index.js                 Express API routes
+  lib/                     Vegetable validation and pending tracking service
+  sql/                     Base schema and incremental migrations
+  scripts/                 Maintenance utilities
+  test/                    Pending delivery tracking regression suite
+mobile/
+  App.js                   App entry and navigation
+  android/                 Native Android project
+  EAS_BUILD.md             Build/deployment instructions and known build issues
+  src/api/                 HTTP client and session refresh
+  src/components/          Shared controls and platform-specific map frames
+  src/context/             Authentication state
+  src/hooks/               Pending tracking/GPS hooks
+  src/i18n/                English and Tagalog resources
+  src/lib/                 Maps, geometry, uploads, reports, validation
+  src/offline/             Harvest cache and synchronization queue
+  src/screens/             Role dashboards and workflows
+  src/theme/               Shared design tokens
+VeggieTrack-Clean/          Separate Expo project; main app instructions use mobile/
 ```
-Capstone_VeggieTrack/
-├── backend/
-│   ├── index.js            # Express app & all API routes
-│   ├── lib/                # Shared helpers (e.g. vegetable name validation)
-│   ├── config/              # Configuration
-│   ├── scripts/              # Maintenance scripts (e.g. Cloudinary cleanup)
-│   └── sql/                  # Schema & migration SQL files
-└── mobile/
-    ├── App.js               # App entry / navigation setup
-    └── src/
-        ├── api/              # Backend API client
-        ├── components/       # Shared UI components
-        ├── context/          # Auth context
-        ├── i18n/             # English & Tagalog translations
-        ├── lib/              # Client-side helpers (vegetables, PDF, etc.)
-        ├── offline/          # Local cache / SQLite queueing
-        ├── screens/          # Role dashboards & app screens
-        └── theme/            # App theme (colors, typography)
-```
 
-## Getting started
+## Local setup
 
-### Prerequisites
-- Node.js (LTS)
-- A [Supabase](https://supabase.com) project
-- [Expo CLI](https://docs.expo.dev/) (`npx expo`) — no global install required
-- (Optional) Cloudinary account for image uploads, Twilio/SMS API PH for SMS
+Use Node.js compatible with the declared Expo packages, npm, a Supabase project, and Cloudinary configuration for image uploads. Android native development requires the Android SDK/JDK; iOS native builds require macOS/Xcode.
 
-### 1. Backend setup
+From the repository root, set up the backend:
 
-```bash
+```powershell
 cd backend
-npm install
-cp .env.example .env
+npm.cmd ci
+Copy-Item .env.example .env
 ```
 
-Fill in `backend/.env`:
+Configure `PORT`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, and a strong `JWT_SECRET` in `backend/.env`. `NODE_ENV` and optional `SMS_API_PH_KEY` are included in the example. Keep service credentials on the backend and never commit `.env` files.
 
-```
-PORT=3000
-NODE_ENV=development
-SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_KEY=your_service_role_key
-JWT_SECRET=replace_with_a_long_random_string
-SMS_API_PH_KEY=your_sms_api_ph_key
+For a new database, review and apply [schema_complete.sql](backend/sql/schema_complete.sql), then [veggietrack_fixes.sql](backend/sql/veggietrack_fixes.sql) and [fifo_inventory_upgrade.sql](backend/sql/fifo_inventory_upgrade.sql). Review `add_image_urls.sql` and `delivery_reject.sql` for the corresponding schema additions. Existing databases need only applicable migrations; the base schema is not a universal rerunnable installer. `reset_data.sql` is a destructive reset utility, not a setup migration.
+
+Before deploying the pending tracking implementation, also apply `backend/sql/delivery_tracking_maps.sql` from that implementation. It adds order destination coordinates and rider GPS accuracy without deleting existing records.
+
+```powershell
+npm.cmd run dev
 ```
 
-Run the SQL files in `backend/sql/` (starting with `schema_complete.sql`, then the incremental fix/migration files) against your Supabase database, then start the server:
+In another terminal, from the repository root:
 
-```bash
-npm run dev
-```
-
-### 2. Mobile / Web setup
-
-```bash
+```powershell
 cd mobile
-npm install
-cp .env.example .env
+npm.cmd ci
+Copy-Item .env.example .env
 ```
 
-Fill in `mobile/.env`:
+Set `BACKEND_URL` to the backend reachable by the device, plus `CLOUDINARY_CLOUD_NAME` and `CLOUDINARY_UPLOAD_PRESET`. For a physical phone, use your computer's LAN IP during local development rather than `localhost`.
 
-```
-BACKEND_URL=http://YOUR_LAN_IP:3000   # or your deployed backend URL
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_UPLOAD_PRESET=your_unsigned_preset
-```
-
-Then run the app:
-
-```bash
-npm start        # Expo dev server (scan QR with Expo Go)
-npm run android  # Android emulator/device
-npm run ios      # iOS simulator/device
-npm run web      # Web browser preview
+```powershell
+npm.cmd start        # Metro / Expo development server
+npm.cmd run android # Build/run the native Android app
+npm.cmd run ios     # Build/run iOS on macOS
+npm.cmd run web     # Web preview
 ```
 
-## Deployment
+On macOS/Linux use `npm` and copy examples with `cp`. Use a compatible development client for native testing.
 
-- **Backend**: deployable to any Node host (e.g. Render) — set the environment variables above in the hosting dashboard.
-- **Mobile**: built/distributed via [EAS](https://docs.expo.dev/eas/) (see `mobile/eas.json`); point `BACKEND_URL` at the deployed backend before building.
+## Deployment and verification
 
-## Status
+Deploy `backend/` to a Node host with the backend environment variables. For the pending maps implementation, optional variables are `OSRM_BASE_URL`, `MAP_TILE_URL`, `MAP_TILE_ATTRIBUTION`, and `MAPS_USER_AGENT`; `OSRM_BASE_URL=disabled` disables directions while keeping GPS tracking. Default public map services have capacity and availability limits; see [mobile/EAS_BUILD.md](mobile/EAS_BUILD.md) for configuration and deployment sequencing.
 
-See [STATUS_REPORT.md](STATUS_REPORT.md) for the latest detailed changelog of completed features and fixes.
+Run EAS from `mobile/`. The `development` profile creates a development client, `preview` is for internal distribution, and `production` is for store delivery. Set the backend URL and Cloudinary variables in the corresponding EAS environment before building. Rebuild the native binary after map dependency changes.
+
+From the repository root, the current workspace can be checked with:
+
+```powershell
+node --check backend/index.js
+node --test backend/test/deliveryTracking.test.js
+```
+
+The test file belongs to the pending tracking implementation. `backend/package.json` still has a placeholder `npm test` script. These checks do not validate a live database, production deployment, or device build. The build guide records unresolved local native compilation issues; a successful release APK/EAS build and two-device delivery acceptance check remain to be verified.

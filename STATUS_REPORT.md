@@ -1,115 +1,100 @@
-# VeggieTrack — Project Status Report
+﻿# VeggieTrack Project Status Report
 
-*Updated Status: All Capstone Requirements, Dashboard Redesigns, Mapping Improvements, Mockup UI Restoration, and Tagalog Vegetable Validation Completed.*  
-**Date:** August 3, 2026  
-**System Status:** 🟢 Fully Operational & Pushed to GitHub  
+**Reviewed:** September 6, 2026
 
----
+**Scope:** Current local workspace on `main`, with existing uncommitted delivery-tracking work.
 
-## What VeggieTrack is
+**Repository:** https://github.com/veggietracksystem-cmd/Capstone_VeggieTrack
 
-A multi-role vegetable supply-chain web/mobile application connecting four roles through a single distributor "hub":
+This report distinguishes implemented source from verified deployment. This documentation update does not commit or deploy the pre-existing app changes. The previous report's blanket claim that all requirements were complete and fully operational is superseded by the evidence and remaining checks below.
 
-* **👨‍🌾 Farmer** → records harvests, requests pickups, views weekly reports.
-* **🏢 Distributor** (exactly **one** allowed in the system) → receives harvests into inventory, approves retailer orders, assigns riders, records payments.
-* **🛒 Retailer** → browses available stock (FIFO sorted), places orders, tracks delivery status.
-* **🛵 Delivery Personnel (Rider)** → views assigned orders/pickups, navigates routes, updates delivery state, uploads proof-of-delivery photos.
+## Current feature inventory
 
-**Stack:** Node/Express backend + Supabase (PostgreSQL) database; Expo / React Native mobile app (fully compatible with Web preview).
+| Area | Implemented functionality |
+| --- | --- |
+| Accounts | Phone/password registration and login, session persistence/token refresh, profile edits, password/phone management, single-distributor restriction |
+| Farmer | Harvest creation/editing/history, pickup requests, weekly reports, cached harvests and queued add/edit synchronization |
+| Distributor | Pickup assignment/receipt, inventory listing/unlisting and quantity management, FIFO batches with harvest/farmer/pickup provenance, order approval, rider assignment, payment recording, weekly/inventory reports |
+| Retailer | Produce browsing and category filters, cart and order confirmation, preferred schedule, saved delivery addresses and map pins, order cancellation/history, tracking screens |
+| Delivery personnel | Assigned tasks, pickup/status updates, rejection, navigation, proof-of-delivery upload and completion |
+| Communication | Polling-based message threads and unread badges, notifications/read state and navigation links |
+| Shared UI | Role dashboards and bottom navigation, shared cards/modals/sheets, Poppins fonts and leaf/gold/soil palette, profile user guide and contact support |
+| Language | English/Tagalog resources and matching backend/client vegetable validation, including kamatis, talong, repolyo, kalabasa, sibuyas, and bawang |
+| Media and reports | Cloudinary image uploads; PDF generation, printing, and sharing |
 
----
+Existing auth code also retains legacy OTP/email endpoints; the main phone/password flow should not be described as removal of every legacy endpoint. Offline support is scoped to the implemented caches and harvest queue, and new tracking strings are not yet fully translated.
 
-## Section 1: Core Functional Modules
+## Recent changes present locally, pending source commit
 
-### 1. General & Authentication (Streamlined)
-* **Direct Authentication (No OTP / No Email)**: Removed the email input field and complex OTP verification codes from the registration flow. Users register and log in instantly using their phone number and password.
-* **Session Persistence**: Implemented silent token refresh on the backend (`/api/auth/refresh-token`) and handled automated `401` interception on the mobile/web client ([client.js](file:///c:/Users/User%201/Desktop/capstone%20project/Capstone_VeggieTrack/mobile/src/api/client.js)), ensuring user sessions persist across page refreshes.
-* **Single-Distributor Rule**: Enforced both at the API level (returns `409 Conflict`) and via a database index constraint.
-* **Direct Password Reset**: Simplified to direct verification of phone number and password reset without OTP entry steps.
+### Shared delivery maps and tracking
 
-### 2. Messaging & Notifications (Real-Time Threading)
-* **Real-Time FIFO Chat**: Message threads poll every 3 seconds to sync text lists dynamically in FIFO order. 
-* **Unread Badge Counters**: The contacts list polls every 5 seconds, displaying a green badge indicating exact unread counts per thread.
-* **Deep-Linked Notifications**: Tapping notifications dynamically parses metadata, automatically closing notification dialogs and navigating the user directly to the corresponding order or delivery screen.
+The previous native/web and retailer tracking screens now delegate to a shared customer tracking screen and map components. Leaflet 1.9.4 runs inside a WebView on native and an iframe on web, with OpenStreetMap tiles. Pending package/Android changes remove the native Google Maps dependency and metadata.
 
-### 3. OpenStreetMap Location Pinning & Geocoding Search
-* **Automatic GPS Detection**: Geolocation API automatically requests permission and pins the user's current coordinates on map load.
-* **Location Search Bar**: Users can look up locations (cities, streets, landmarks) using OpenStreetMap's **Nominatim Geocoding API**.
-* **Interactive Map Behavior**: Allows auto-pinning (GPS), manual mapping (map click/tap), and search-based pinning with a single active pin. Added a floating "📍 My Location" button to re-center location.
+New source includes:
 
----
+- `backend/lib/deliveryTracking.js`: coordinate/destination resolution, authorized tracking responses, OSRM routing, caching, and turn instructions.
+- `backend/sql/delivery_tracking_maps.sql`: additive destination-pin and GPS-accuracy migration.
+- `backend/test/deliveryTracking.test.js`: backend, geometry, and embedded-map regression tests.
+- `mobile/src/hooks/useDeliveryTracking.js` and `useRiderLocation.js`: focused polling and foreground rider GPS publishing.
+- `mobile/src/components/DeliveryTrackingMap.js` and `DeliveryMapFrame.native.js` / `.web.js`: shared map UI and platform containers.
+- `mobile/src/lib/deliveryTrackingHtml.js` and `trackingGeometry.js`: embedded Leaflet rendering, bridge messages, route progress, and demo geometry.
+- `mobile/src/screens/CustomerDeliveryTrackingScreen.js`: order tracking with warehouse, retailer contact/address, status, and items.
 
-## Section 2: Dashboard UI/UX Redesigns
+### Rider navigation and viewer behavior
 
-### 1. Global Bottom Navigation Overhaul
-Implemented a fixed bottom navigation bar (maximum 5 items per role) across all dashboards with clear icons, text labels, and active tab highlighting:
-* **👨‍🌾 Farmer**: Home (🏠) • Harvests (🌾) • Pickups (🚚) • History (📜) • Profile (👤)
-* **🏢 Distributor**: Home (🏠) • Orders (📋) • Inventory (📦) • Riders (🛵) • Profile (👤)
-* **🛒 Retailer**: Home (🏠) • Browse (🥬) • Orders (📦) • Track (🗺️) • Profile (👤)
-* **🛵 Delivery**: Home (🏠) • Tasks (📋) • Map (🗺️) • History (📜) • Profile (👤)
+Navigation follows one active leg: rider to warehouse before collection, then rider to retailer after pickup. Directions, remaining distance, route progress, and ETA follow that target. Completion continues through the delivery details/proof workflow.
 
-### 2. Header and Layout Cleanup
-* Removed welcome banners from all role dashboards to reduce visual clutter.
-* Added a minimal header containing only the Screen Title and the Notification Bell icon (🔔).
-* Reorganized dashboard layouts so that key metrics (KPIs) and 1-tap primary actions are placed **above the fold** (immediately visible without scrolling).
-* Added proper bottom padding (`paddingBottom: 90`) to prevent any cards from being blocked by the fixed navigation bar.
+Foreground GPS is throttled to roughly five-second publishing intervals. Tracking viewers poll every five seconds while focused; location freshness and accuracy are surfaced. The tracking endpoint restricts private order/GPS/contact data to the related retailer, distributor, and assigned rider. Simulation is labeled as a demo and does not save fabricated GPS or change order status.
 
-### 3. Farmer Screen Marketplace Redesign (Screenshot Aligned)
-Redesigned the entire Farmer module using a consistent white marketplace UI system:
-* **Marketplace Crop Grid**: Displays crops in a 2-column card layout.
-* **Vegetable Icon Tiles**: Features large crop emojis placed inside colored containers with soft-tinted backgrounds matching each vegetable (red, green, purple, yellow).
-* **Stock Badge Pills**: Displays badge containers (e.g. `70 kg in stock`) using soft-tinted green colors.
-* **Manage Action Button**: Replaced generic buttons with prominent **`Manage`** primary green buttons (`backgroundColor: '#2e7d32'`).
-* **Upcoming Produce Banner**: Displays a soft green banner at the bottom stating *"More produce additions coming soon"*.
+OSRM routes are deduplicated and queued below one request per second per backend process. Rider guidance is cached for 30 seconds, the warehouse-to-retailer corridor for five minutes, and routing failures briefly. Missing pins or unavailable directions produce explicit states while GPS remains usable.
 
----
+### Address and supporting changes
 
-## Section 2A: Mockup UI Restoration & Reconciliation
+Order confirmation sends delivery latitude/longitude so the backend can snapshot the chosen destination. Existing orders resolve matching saved address pins, with a matching profile store pin as a fallback; unrelated pins are not substituted. The address screen now uses `react-native-safe-area-context`, and the checkout delivery-address label is simplified. `mobile/EAS_BUILD.md` includes map deployment, configuration, device checks, and known native-build limitations.
 
-The originally-approved leaf/gold/cream mockup design (Farmer 5-tab dashboard, Distributor/Retailer/Delivery restyle, shared components/theme) had diverged from feature work built separately on the older pre-mockup UI. This was reconciled in a single pass across 32 files:
-* **Design System Restored**: Re-applied the approved `appTheme.js` (leaf/gold/cream palette) plus Baloo 2 and Inter custom fonts (`@expo-google-fonts/baloo-2`, `@expo-google-fonts/inter`) across all dashboards.
-* **Feature Preservation**: Carried forward i18n (English + Tagalog), vegetable-name validation, the dedicated `EditProfileScreen`, and `AuthContext`'s `initialRoute` handling into the restored mockup UI so no functionality already in progress was lost.
-* **Full Translation Coverage**: Every user-facing string touched by the mockup restore now routes through the translation system with both English and Tagalog copy (`en.json` / `tl.json`).
-* **Regression Fixes**: Restored the Retailer category-filter chips that had been dropped during the divergence, and fixed a dead link in `ProfileScreen.js` pointing to a deleted survey screen (rebuilt to match the current menu design).
-* **New Shared Component**: Added `BottomSheet.js` and expanded `FarmerDashboard.js`/`FarmerProfileTab.js`/`MessagesScreen.js` to support the mockup's tabbed/embedded-sheet navigation pattern (Messages, Weekly Report, History, Ready-to-Sell now live as tabs/sheets inside the Farmer dashboard rather than separate pushed screens).
-* **Web Support**: Added `mobile/public/index.html` and a `metro.config.js` WASM resolver entry for Expo web builds.
+## Current technology baseline
 
----
+| Layer | Declared/current implementation |
+| --- | --- |
+| Backend | Node.js, Express `^5.2.1`, Supabase JS `^2.108.1` / PostgreSQL |
+| Auth/utilities | JWT `^9.0.3`, bcrypt `^6.0.0`, dotenv, CORS, date-fns, Twilio dependency |
+| Client | Expo `^57.0.20`, React Native `0.86.3`, React/React DOM `19.2.3`, React Native Web `^0.21.0` |
+| UI/navigation | React Navigation 7, Poppins, vector icons, gesture handler, safe-area context |
+| Maps | Leaflet 1.9.4, OpenStreetMap tiles, Nominatim geocoding, OSRM routes, Expo Location, WebView `13.16.1` |
+| Storage/media | SQLite, AsyncStorage, NetInfo, SecureStore, Cloudinary, Expo Image Picker/Print/Sharing |
+| Build | Expo CLI/development client, EAS development/preview/production profiles, checked-in Android Gradle sources |
 
-## Section 2B: Tagalog Vegetable-Name Validation
+These values come from local manifests and implementation. They replace the outdated Expo 54, React Native 0.81, Baloo/Inter, and native-map descriptions.
 
-Extended the product/harvest name validator to accept Tagalog vegetable names alongside their English equivalents, keeping the mobile and backend copies in sync:
-* Added Tagalog keywords (`kamatis`, `talong`, `repolyo`, `litsugas`, `kalabasa`, `sibuyas`, `bawang`, `karot`, `mustasa`) each mapped to the same category as their English counterpart.
-* Updated in both [backend/lib/vegetables.js](file:///c:/Users/User%201/Desktop/capstone%20project/Capstone_VeggieTrack/backend/lib/vegetables.js) and [mobile/src/lib/vegetables.js](file:///c:/Users/User%201/Desktop/capstone%20project/Capstone_VeggieTrack/mobile/src/lib/vegetables.js) so validation stays consistent across the frontend/backend runtime boundary.
+## Database and deployment dependencies
 
----
+The schema history includes `schema_complete.sql`, `veggietrack_fixes.sql`, `fifo_inventory_upgrade.sql`, `add_image_urls.sql`, and `delivery_reject.sql`. Together these cover base entities, distributor uniqueness, notification links, coordinates/status additions, batch provenance, images, and rejection support. Review each migration against the target database; do not run the destructive `reset_data.sql` as a migration.
 
-## Section 3: User Guide & Support Systems
+The pending tracking migration adds `orders.delivery_latitude`, `orders.delivery_longitude`, and `users.current_location_accuracy`. Deploy the tracking service and backend changes with that migration before the updated client. Compatibility fallbacks tolerate missing new columns temporarily, but persisted destination snapshots and accuracy need the migration.
 
-* **User Guide Modal**: A tabbed modal detailing supply chain FAQs and step-by-step role workflows for Farmers, Distributors, Retailers, and Riders.
-* **Contact Us Modal**: Details the San Pablo Central Hub location, hotlines, email, operating hours, and an interactive message inquiry form.
-* **Integration**: Added as quick action menu items on the **Profile** screen for logged-in users, and as footer link triggers on the **Login** screen.
+Confirm the distributor warehouse pin and selected retailer delivery pin. Configure backend Supabase/JWT values and client `BACKEND_URL`/Cloudinary values in the appropriate deployment environment. Optional routing/tile variables and detailed build steps are in [mobile/EAS_BUILD.md](mobile/EAS_BUILD.md).
 
----
+## Verification evidence
 
-## Section 4: Database Schema & Migration Logs
+Checks rerun for this documentation review on September 6, 2026:
 
-All schema changes have been documented inside [veggietrack_fixes.sql](file:///c:/Users/User%201/Desktop/capstone%20project/Capstone_VeggieTrack/backend/sql/veggietrack_fixes.sql):
-* **UUID Linkage**: Added `item_id` (UUID) to the `notifications` table.
-* **Password Reset**: Added `reset_password_token` (TEXT) and `reset_password_expires` (TZ) to `users`.
-* **Coordinates**: Added `latitude` and `longitude` (NUMERIC) to `users` for mapping.
-* **FIFO Tracking**: Added `harvest_date` (TZ) to `products` to track batch timestamps.
-* **Rider References**: Added `delivery_personnel_id` references to `pickup_requests`.
-* **Enum Upgrades**: Enforced custom PostgreSQL enum additions (`'cancelled'`, `'picked_up'`, `'in_transit'`, `'assigned'`) for databases using enum columns.
+| Check | Result | Scope |
+| --- | --- | --- |
+| `node --check backend/index.js` | Passed | Backend JavaScript syntax |
+| `node --test backend/test/deliveryTracking.test.js` | 14 passed, 0 failed | Local regression suite using fixtures/mocks and geometry/map checks |
 
----
+The tests cover coordinate validation, destination precedence, turn instructions, route caching/failures, participant access, pickup-to-delivery navigation transitions, geometry/simulation, script escaping, and Leaflet marker updates. Node emitted a non-fatal module-type warning while importing mobile ES modules. `npm test` in the backend remains a placeholder; use the explicit command above.
 
-## Section 5: Verification & Verification Metrics
+The existing build guide records earlier Android/web exports and an Android debug dry run, but those were not rerun for this documentation-only update. It also records unsuccessful full Windows native compilation due to long paths and C++ runtime linker errors. Earlier test-count references in that guide are historical; the current suite has 14 tests.
 
-1. **Backend Integration**:
-   - Compiles and runs cleanly. Verified using `node --check index.js`.
-2. **Mobile AST Parsing**:
-   - Scanned all 13 modified mobile screens and components.
-   - All JSX layouts, states, and navigation transitions parsed with zero syntax errors.
-3. **Repository Status**:
-   - `main` at commit `f346f0d` ("Accept Tagalog vegetable names in product/harvest validation"), pushed successfully to `https://github.com/shuina08/Capstone_VeggieTrack.git`.
+## Remaining release checks and limitations
+
+- Commit/review the pending app implementation separately; this documentation commit includes only README and this report.
+- Apply the tracking migration and verify the deployed backend against the actual Supabase schema; deployment was not performed in this review.
+- Obtain a successful native release/EAS build and test installation, login, persistence, uploads, maps, and PDF sharing on a device. iOS runtime behavior was not verified here.
+- Test with an assigned rider and a related viewer on two devices: real GPS updates, permission denial, connectivity loss, correct pins, pickup transition, and completion with proof.
+- Finish English/Tagalog coverage for new tracking copy.
+- Foreground tracking requires the rider screen to remain open. Background/locked-phone tracking, voice instructions, offline maps/navigation, and live traffic are not implemented.
+- Viewer ETA is the warehouse-to-retailer route duration, not live remaining rider travel time. Public routing and tile services have no guaranteed uptime; multiple backend processes need shared rate limiting or a suitable routing endpoint.
+
+See [README.md](README.md) for setup and the feature overview.
