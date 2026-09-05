@@ -2980,9 +2980,8 @@ app.get('/api/debug/user/:phone', async (req, res) => {
   
   console.log('✅ User found:', data);
   res.json({ exists: true, user: data });
-});
-// ============================================
-// RIDER LOCATION UPDATE
+});// ============================================
+// RIDER LOCATION UPDATE - FIXED
 // ============================================
 
 app.post('/api/delivery/update-location', verifyToken, async (req, res) => {
@@ -3015,16 +3014,23 @@ app.post('/api/delivery/update-location', verifyToken, async (req, res) => {
         }
 
         if (delivery_id) {
-            await supabaseAdmin
-                .from('delivery_tracking')
-                .insert({
-                    delivery_id,
-                    rider_id,
-                    latitude,
-                    longitude,
-                    status: 'en_route'
-                })
-                .catch(e => console.error('Tracking insert failed:', e));
+            try {
+                const { error: insertError } = await supabaseAdmin
+                    .from('delivery_tracking')
+                    .insert({
+                        delivery_id,
+                        rider_id,
+                        latitude,
+                        longitude,
+                        status: 'en_route'
+                    });
+                
+                if (insertError) {
+                    console.error('Tracking insert error:', insertError);
+                }
+            } catch (trackError) {
+                console.error('Tracking insert failed:', trackError);
+            }
         }
 
         res.json({ 
@@ -3041,7 +3047,6 @@ app.post('/api/delivery/update-location', verifyToken, async (req, res) => {
         });
     }
 });
-
 // ============================================
 // START SERVER
 // ============================================
@@ -3186,7 +3191,7 @@ app.get('/api/delivery/tracking/:orderId', verifyToken, async (req, res) => {
             try {
                 const osmResponse = await fetch(
                     `https://router.project-osrm.org/route/v1/driving/${riderLng},${riderLat};${distributor.longitude},${distributor.latitude}?overview=full&geometries=geojson&steps=true`,
-                    { signal: AbortSignal.timeout(5000) }
+              { signal: AbortSignal.timeout(30000) }
                 );
 
                 if (osmResponse.ok) {
@@ -3300,6 +3305,175 @@ function formatETATime(seconds) {
     const mins = Math.floor((seconds % 3600) / 60);
     return `${hrs}h ${mins}m`;
 }
+
+// ============================================
+// DELIVERY ADDRESSES CRUD
+// ============================================
+
+// GET /api/addresses - Get all addresses for the logged-in user
+app.get('/api/addresses', verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+
+        const { data, error } = await supabaseAdmin
+            .from('delivery_addresses')
+            .select('*')
+            .eq('user_id', userId)
+            .order('is_default', { ascending: false })
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(data || []);
+    } catch (err) {
+        console.error('GET /api/addresses error:', err);
+        res.status(500).json({ error: 'Failed to fetch addresses' });
+    }
+});
+
+// POST /api/addresses - Create a new address
+app.post('/api/addresses', verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { label, address, latitude, longitude, is_default } = req.body;
+
+        if (!label || !address) {
+            return res.status(400).json({ error: 'Label and address are required' });
+        }
+
+        // If this address is set as default, unset any existing default
+        if (is_default) {
+            await supabaseAdmin
+                .from('delivery_addresses')
+                .update({ is_default: false })
+                .eq('user_id', userId);
+        }
+
+        const { data, error } = await supabaseAdmin
+            .from('delivery_addresses')
+            .insert({
+                user_id: userId,
+                label,
+                address,
+                latitude: latitude || null,
+                longitude: longitude || null,
+                is_default: is_default || false,
+            })
+            .select()
+            .single();
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.status(201).json(data);
+    } catch (err) {
+        console.error('POST /api/addresses error:', err);
+        res.status(500).json({ error: 'Failed to create address' });
+    }
+});
+
+// PUT /api/addresses/:id - Update an address
+app.put('/api/addresses/:id', verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { id } = req.params;
+        const { label, address, latitude, longitude, is_default } = req.body;
+
+        const { data: existing, error: checkError } = await supabaseAdmin
+            .from('delivery_addresses')
+            .select('id')
+            .eq('id', id)
+            .eq('user_id', userId)
+            .single();
+
+        if (checkError || !existing) {
+            return res.status(404).json({ error: 'Address not found' });
+        }
+
+        if (is_default) {
+            await supabaseAdmin
+                .from('delivery_addresses')
+                .update({ is_default: false })
+                .eq('user_id', userId)
+                .neq('id', id);
+        }
+
+        const updates = {};
+        if (label !== undefined) updates.label = label;
+        if (address !== undefined) updates.address = address;
+        if (latitude !== undefined) updates.latitude = latitude;
+        if (longitude !== undefined) updates.longitude = longitude;
+        if (is_default !== undefined) updates.is_default = is_default;
+        updates.updated_at = new Date().toISOString();
+
+        const { data, error } = await supabaseAdmin
+            .from('delivery_addresses')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(data);
+    } catch (err) {
+        console.error('PUT /api/addresses/:id error:', err);
+        res.status(500).json({ error: 'Failed to update address' });
+    }
+});
+
+// DELETE /api/addresses/:id - Delete an address
+app.delete('/api/addresses/:id', verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { id } = req.params;
+
+        const { data: existing, error: checkError } = await supabaseAdmin
+            .from('delivery_addresses')
+            .select('id, is_default')
+            .eq('id', id)
+            .eq('user_id', userId)
+            .single();
+
+        if (checkError || !existing) {
+            return res.status(404).json({ error: 'Address not found' });
+        }
+
+        const { error } = await supabaseAdmin
+            .from('delivery_addresses')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        if (existing.is_default) {
+            const { data: remaining } = await supabaseAdmin
+                .from('delivery_addresses')
+                .select('id')
+                .eq('user_id', userId)
+                .limit(1);
+
+            if (remaining && remaining.length > 0) {
+                await supabaseAdmin
+                    .from('delivery_addresses')
+                    .update({ is_default: true })
+                    .eq('id', remaining[0].id);
+            }
+        }
+
+        res.json({ message: 'Address deleted successfully' });
+    } catch (err) {
+        console.error('DELETE /api/addresses/:id error:', err);
+        res.status(500).json({ error: 'Failed to delete address' });
+    }
+});
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
