@@ -342,11 +342,9 @@ export default function RetailerDashboard({ navigation, route }) {
             loading={loadingOrders}
             orders={orders}
             onViewProof={setProofUri}
-            onTrack={(o) => navigation.navigate('OrderTracking', {
-              orderId: o.id,
-              deliveryAddress: o.delivery_address,
-              orderStatus: o.status,
-            })}
+           onTrack={(o) => navigation.navigate('ShopeeTracking', {
+    orderId: o.id,
+})}
             onCancel={cancelOrder}
             onViewDetails={(o) => navigation.navigate('OrderDetails', { order: o })}
             onViewHistory={() => navigation.navigate('OrderHistory')}

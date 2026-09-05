@@ -212,7 +212,6 @@
       "manage": "Pamahalaan",
       "comingSoonTitle": "Maraming produkto pang paparating",
       "comingSoonSubtitle": "Bumalik mamaya o mag-log ng bagong ani kapag hinog na ang iyong mga tanim.",
-
       "tabHarvestNew": "Ani",
       "tabMessagesNew": "Mga Mensahe",
       "tabPickupNew": "Kuha",
@@ -484,7 +483,11 @@
       "confirmOrder": "Kumpirmahin ang Order",
       "orderCompletedTitle": "Nakumpleto ang Order",
       "orderCompletedMessage": "Matagumpay nang naipasa ang iyong order.",
-      "goBackHome": "Bumalik sa Home"
+      "goBackHome": "Bumalik sa Home",
+      "noSavedAddresses": "Wala pang naka-save na address. Magdagdag sa ibaba.",
+      "manageAddresses": "Pamahalaan ang mga address",
+      "useDifferentAddress": "Gumamit ng ibang address",
+      "addressRequired": "Mangyaring maglagay ng address"
     }
   },
   "categories": {
@@ -632,7 +635,7 @@
       "steps": [
         { "title": "Mag-browse ng FIFO Stock", "desc": "Nakalista ang mga ani ayon sa pinakalumang petsa ng ani muna para masiguro ang sariwa at mabawasan ang sayang." },
         { "title": "Maglagay ng Order", "desc": "Piliin ang dami ng stock sa kg. Agad na sinusuri ng order ang availability ng stock." },
-        { "title": "Subaybayan ang Delivery", "desc": "Kapag inaprubahan na ng distributor, i-click ang \"Track Delivery\" para makita ang route ng rider sa mapa." }
+        { "title": "Subaybayan ang Delivery", "desc": "Kapag inaprubahan na ng distributor ang order, i-click ang \"Track Delivery\" para makita ang route ng rider sa mapa." }
       ]
     },
     "rider": {
@@ -748,5 +751,15 @@
     "deleteConfirmMessage": "Permanenteng mabubura ang iyong account. Hindi na ito maibabalik.",
     "deletedTitle": "Nabura ang account",
     "deletedMessage": "Permanenteng nabura na ang iyong account."
+  },
+  "addresses": {
+    "title": "Aking mga Address",
+    "addNew": "Magdagdag ng Address",
+    "editAddress": "Baguhin ang Address",
+    "deleteConfirm": "Sigurado ka bang gusto mong tanggalin ang address na ito?",
+    "labelPlaceholder": "Bahay, Opisina, atbp.",
+    "addressPlaceholder": "Kalsada, Lungsod, Lalawigan",
+    "setDefault": "Itakda bilang default",
+    "default": "Default"
   }
 }

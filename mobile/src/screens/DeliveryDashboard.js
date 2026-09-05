@@ -204,82 +204,43 @@ export default function DeliveryDashboard({ navigation, route }) {
     setMode(targetMode);
     setActiveBottomTab('tasks');
   };
-
   const renderOrderCard = (order) => {
-    const status = effectiveStatus(order);
-    return (
-      <View key={order.id} style={styles.orderCard}>
-        <View style={styles.orderHeader}>
-          <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor(status) }]}>
-            <Text style={styles.statusBadgeText}>{formatStatus(status)}</Text>
-          </View>
+  const status = effectiveStatus(order);
+  const canNavigate = status === 'assigned' || status === 'in_transit' || status === 'picked_up';
+  
+  return (
+    <View key={order.id} style={styles.orderCard}>
+      <View style={styles.orderHeader}>
+        <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: statusColor(status) }]}>
+          <Text style={styles.statusBadgeText}>{formatStatus(status)}</Text>
         </View>
+      </View>
 
-        <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
+      <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
 
+      <View style={styles.buttonRow}>
         <TouchableOpacity
-          style={styles.detailsBtn}
+          style={[styles.detailsBtn, styles.flexButton]}
           onPress={() => navigation.navigate('DeliveryDetails', { order })}
           activeOpacity={0.8}
         >
           <Text style={styles.detailsBtnText}>{t('dashboards.delivery.viewDetailsBtn')}</Text>
         </TouchableOpacity>
-      </View>
-    );
-  };
 
-  const renderPickupCard = (pickup, { actionable }) => {
-    const harvest = pickup.harvests;
-    const isAssigned = pickup.status === 'assigned';
-    const busy = busyId === pickup.id;
-
-    return (
-      <View key={pickup.id} style={styles.orderCard}>
-        <View style={styles.orderHeader}>
-          <Text style={styles.orderId}>{t('dashboards.delivery.pickupNumber', { id: shortId(pickup.id) })}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: isAssigned ? '#1976d2' : PRIMARY }]}>
-            <Text style={styles.statusBadgeText}>{formatStatus(pickup.status)}</Text>
-          </View>
-        </View>
-
-        <Text style={[styles.rowMeta, { fontWeight: '700', marginTop: 4 }]}>{t('dashboards.delivery.farmerDetails')}</Text>
-        <Text style={styles.rowMeta}>👨‍🌾 {pickup.farmer_name || t('dashboards.delivery.farmerFallback')}</Text>
-        <Text style={styles.rowMeta}>
-          🌾 {harvest?.vegetable_name ? localizeVegetableName(harvest.vegetable_name, language) : t('dashboards.delivery.vegetablesFallback')} — {harvest?.quantity_kg || 0} kg
-        </Text>
-
-        {pickup.farmer_address ? (
-          <View style={styles.addressRow}>
-            <Text style={[styles.rowMeta, { flex: 1 }]}>📍 {pickup.farmer_address}</Text>
-            <TouchableOpacity
-              style={styles.routeBtn}
-              onPress={() => {
-                setMapAddress(pickup.farmer_address);
-                setMapCoords(pickup.farmer_coords);
-              }}
-            >
-              <Text style={styles.routeBtnText}>{t('dashboards.delivery.viewRoute')}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {actionable && isAssigned && (
+        {canNavigate && (
           <TouchableOpacity
-            style={[styles.button, styles.buttonPrimary, { marginTop: 12 }, busy && styles.buttonDisabled]}
-            onPress={() => handleMarkPickedUp(pickup.id)}
-            disabled={busy}
+            style={[styles.detailsBtn, styles.navigateBtn]}
+            onPress={() => navigation.navigate('RiderNavigation', { orderId: order.id })}
+            activeOpacity={0.8}
           >
-            {busy ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonPrimaryText}>{t('dashboards.delivery.markPickedUpBtn')}</Text>
-            )}
+            <Text style={styles.navigateBtnText}>🗺️ Navigate</Text>
           </TouchableOpacity>
         )}
       </View>
-    );
-  };
+    </View>
+  );
+};
 
   const ModeToggle = () => (
     <View style={styles.tabContainer}>
@@ -510,4 +471,26 @@ const styles = StyleSheet.create({
   tabButtonActive: { backgroundColor: colors.card, ...shadowCard },
   tabButtonText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(14) },
   tabButtonTextActive: { color: PRIMARY },
+  tabButtonTextActive: { color: PRIMARY },
+
+// ===== NEW STYLES FOR NAVIGATE BUTTON =====
+buttonRow: {
+  flexDirection: 'row',
+  gap: 10,
+  marginTop: 8,
+},
+flexButton: {
+  flex: 1,
+},
+navigateBtn: {
+  backgroundColor: '#2196f3',
+  borderColor: '#2196f3',
+  flex: 1,
+},
+navigateBtnText: {
+  fontFamily: fonts.bodyBold,
+  color: '#fff',
+  fontSize: rf(13.5),
+},
+// ===== END NEW STYLES =====
 });

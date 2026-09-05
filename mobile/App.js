@@ -29,6 +29,9 @@ import StocksScreen from './src/screens/StocksScreen';
 import DistributorInventoryReportScreen from './src/screens/DistributorInventoryReportScreen';
 import DeliveryDetailsScreen from './src/screens/DeliveryDetailsScreen';
 import MessagesScreen from './src/screens/MessagesScreen';
+import RiderNavigationScreen from './src/screens/delivery/RiderNavigationScreen';
+import ShopeeTrackingScreen from './src/screens/Retailer/ShopeeTrackingScreen';
+import ManageAddressesScreen from './src/screens/ManageAddressesScreen';
 
 const Stack = createStackNavigator();
 
@@ -40,8 +43,7 @@ const ROLE_SCREENS = {
   delivery_personnel: { name: 'DeliveryDashboard', component: DeliveryDashboard },
 };
 
-// Reads auth state from context and renders the right stack. Because this reads
-// context, login/logout re-render it automatically — no manual reload needed.
+// Reads auth state from context and renders the right stack.
 function RootNavigator() {
   const { user, loading, initialRoute } = useAuth();
 
@@ -75,14 +77,11 @@ function RootNavigator() {
             <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} />
             {/* Retailer: full breakdown of a single order. */}
             <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
-            {/* Farmer: full harvest list (edit/delete/request pickup). Currently
-                unreachable via navigation - Messages/Weekly-report/History/
-                Ready-to-sell are now embedded tabs/sheets inside FarmerDashboard
-                per the approved mockup, not pushed screens. Left registered in
-                case it's wired up again later. */}
+            {/* Farmer: full harvest list (edit/delete/request pickup). 
+                Unreachable via navigation - kept for potential later use. */}
             <Stack.Screen name="HarvestList" component={HarvestListScreen} />
-            {/* Distributor: aggregated product list (price edit). Kept registered
-                for backward compatibility — Home now embeds this inline. */}
+            {/* Distributor: aggregated product list (price edit). 
+                Kept for backward compatibility — Home now embeds this inline. */}
             <Stack.Screen name="ProductList" component={ProductListScreen} />
             {/* Distributor: received batches (FIFO stocks, add to product list). */}
             <Stack.Screen name="Stocks" component={StocksScreen} />
@@ -90,6 +89,12 @@ function RootNavigator() {
             <Stack.Screen name="DistributorInventoryReport" component={DistributorInventoryReportScreen} />
             {/* Delivery personnel: full details for one assigned order. */}
             <Stack.Screen name="DeliveryDetails" component={DeliveryDetailsScreen} />
+            {/* Rider: Grab-style navigation map (rider view). */}
+            <Stack.Screen name="RiderNavigation" component={RiderNavigationScreen} />
+            {/* Retailer/Distributor: Shopee-style tracking map (customer view). */}
+            <Stack.Screen name="ShopeeTracking" component={ShopeeTrackingScreen} />
+            {/* Manage Addresses - for all users (saved delivery addresses). */}
+            <Stack.Screen name="ManageAddresses" component={ManageAddressesScreen} />
             {/* Distributor/Retailer/Delivery: pushed from the header Messages icon.
                 Farmer instead embeds MessagesScreen as a bottom tab. */}
             <Stack.Screen name="Messages" component={MessagesScreen} />

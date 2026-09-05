@@ -1,5 +1,5 @@
 import { rf } from '../lib/responsive';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet,
 } from 'react-native';
@@ -24,37 +24,92 @@ const todayKey = () => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
-// Reached from the Retailer Cart tab's "Place Order" button. Collects the
-// delivery date/time + address that the Cart tab used to collect directly,
-// reviews the order, and only then submits it — placing the order no longer
-// happens as a side effect of tapping "Place Order" on the Cart.
 export default function OrderConfirmationScreen({ navigation, route }) {
   const { user } = useAuth();
   const { t, language } = useTranslation();
   const { cart = [], totalItems = 0, totalAmount = 0, defaultAddress = '' } = route.params || {};
 
+  // Address state
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(true);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+  const [useManualAddress, setUseManualAddress] = useState(false);
   const [address, setAddress] = useState(defaultAddress || user?.store_location || '');
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
   const [mapModalVisible, setMapModalVisible] = useState(false);
-  const [date, setDate] = useState(todayKey()); // defaults to the current order date, editable
-  const [time, setTime] = useState(''); // required, no default
+  
+  const [date, setDate] = useState(todayKey());
+  const [time, setTime] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Load saved addresses
+  useEffect(() => {
+    loadAddresses();
+  }, []);
+
+  const loadAddresses = async () => {
+    try {
+      const data = await api.get('/api/addresses');
+      setSavedAddresses(data || []);
+      const defaultAddr = data?.find(a => a.is_default);
+      if (defaultAddr) {
+        setSelectedAddressId(defaultAddr.id);
+        setAddress(defaultAddr.address);
+        setLatitude(defaultAddr.latitude || null);
+        setLongitude(defaultAddr.longitude || null);
+      }
+    } catch (err) {
+      console.error('Load addresses error:', err);
+    } finally {
+      setLoadingAddresses(false);
+    }
+  };
+
+  const handleSelectAddress = (addr) => {
+    setSelectedAddressId(addr.id);
+    setAddress(addr.address);
+    setLatitude(addr.latitude || null);
+    setLongitude(addr.longitude || null);
+    setUseManualAddress(false);
+  };
+
+  const handleUseManual = () => {
+    setUseManualAddress(true);
+    setSelectedAddressId(null);
+    setAddress('');
+    setLatitude(null);
+    setLongitude(null);
+  };
 
   const handleMapConfirm = ({ latitude: lat, longitude: lng, address: addr }) => {
     setLatitude(lat);
     setLongitude(lng);
     setAddress(addr);
+    setUseManualAddress(true);
+    setSelectedAddressId(null);
     setMapModalVisible(false);
   };
 
-  const canConfirm = !!address.trim() && !!date && !!time;
+  const getFinalAddress = () => {
+    if (useManualAddress) return address;
+    const selected = savedAddresses.find(a => a.id === selectedAddressId);
+    return selected?.address || address;
+  };
+
+  const canConfirm = !!getFinalAddress().trim() && !!date && !!time;
 
   const confirmOrder = async () => {
+    const finalAddress = getFinalAddress();
+    if (!finalAddress.trim()) {
+      showAlert(t('common.error'), t('dashboards.retailer.addressRequired'));
+      return;
+    }
+
     const payload = {
       items: cart.map((c) => ({ vegetable_name: c.vegetable_name, quantity_kg: c.quantity })),
-      delivery_address: address.trim(),
+      delivery_address: finalAddress.trim(),
       preferred_schedule: `${date}T${time}`,
     };
 
@@ -74,6 +129,8 @@ export default function OrderConfirmationScreen({ navigation, route }) {
     navigation.navigate('RetailerDashboard', { tab: 'shop', orderPlaced: true });
   };
 
+  const selectedAddress = savedAddresses.find(a => a.id === selectedAddressId);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -85,6 +142,7 @@ export default function OrderConfirmationScreen({ navigation, route }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* Order Summary */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('dashboards.retailer.orderSummary')}</Text>
           {cart.map((c) => {
@@ -109,33 +167,95 @@ export default function OrderConfirmationScreen({ navigation, route }) {
           </View>
         </View>
 
+        {/* Delivery Address Selection */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>{t('dashboards.retailer.deliveryAddressLabel')}</Text>
+
+          {loadingAddresses ? (
+            <ActivityIndicator size="small" color={PRIMARY} style={{ marginVertical: 10 }} />
+          ) : savedAddresses.length > 0 ? (
+            <>
+              {savedAddresses.map((addr) => (
+                <TouchableOpacity
+                  key={addr.id}
+                  style={[
+                    styles.addressOption,
+                    selectedAddressId === addr.id && styles.addressOptionSelected,
+                  ]}
+                  onPress={() => handleSelectAddress(addr)}
+                  disabled={confirming}
+                >
+                  <View style={styles.addressRadio}>
+                    {selectedAddressId === addr.id && <View style={styles.addressRadioSelected} />}
+                  </View>
+                  <View style={styles.addressInfo}>
+                    <Text style={styles.addressLabel}>{addr.label}</Text>
+                    <Text style={styles.addressText} numberOfLines={2}>{addr.address}</Text>
+                    {addr.is_default && (
+                      <View style={styles.defaultBadge}>
+                        <Text style={styles.defaultBadgeText}>Default</Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity
+                style={[styles.addressOption, useManualAddress && styles.addressOptionSelected]}
+                onPress={handleUseManual}
+                disabled={confirming}
+              >
+                <View style={styles.addressRadio}>
+                  {useManualAddress && <View style={styles.addressRadioSelected} />}
+                </View>
+                <View style={styles.addressInfo}>
+                  <Text style={styles.addressLabel}>+ {t('dashboards.retailer.useDifferentAddress')}</Text>
+                </View>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text style={styles.noAddressesText}>{t('dashboards.retailer.noSavedAddresses')}</Text>
+          )}
+
+          {(useManualAddress || savedAddresses.length === 0) && (
+            <View style={styles.manualAddressContainer}>
+              <View style={styles.addressRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder={t('dashboards.retailer.deliveryAddressPlaceholder')}
+                  value={address}
+                  onChangeText={setAddress}
+                  editable={!confirming}
+                  multiline
+                />
+                <TouchableOpacity
+                  style={styles.pinBtn}
+                  onPress={() => setMapModalVisible(true)}
+                  disabled={confirming}
+                >
+                  <Ionicons name="location" size={rf(16)} color="#fff" />
+                  <Text style={styles.pinBtnText}>{t('dashboards.retailer.pinLocation')}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={styles.manageAddressesLink}
+                onPress={() => navigation.navigate('ManageAddresses')}
+                disabled={confirming}
+              >
+                <Text style={styles.manageAddressesLinkText}>📋 {t('dashboards.retailer.manageAddresses')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* Preferred Schedule */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('dashboards.retailer.preferredTimeLabel')}</Text>
           <DeliveryDateTimeFields date={date} onDateChange={setDate} time={time} onTimeChange={setTime} disabled={confirming} />
         </View>
 
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>{t('dashboards.retailer.deliveryAddressLabel')}</Text>
-          <View style={styles.addressRow}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              placeholder={t('dashboards.retailer.deliveryAddressPlaceholder')}
-              value={address}
-              onChangeText={setAddress}
-              editable={!confirming}
-              multiline
-            />
-            <TouchableOpacity
-              style={styles.pinBtn}
-              onPress={() => setMapModalVisible(true)}
-              disabled={confirming}
-            >
-              <Ionicons name="location" size={rf(16)} color="#fff" />
-              <Text style={styles.pinBtnText}>{t('dashboards.retailer.pinLocation')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
+        {/* Confirm Button */}
         <TouchableOpacity
           style={[styles.button, styles.buttonPrimary, (confirming || !canConfirm) && styles.buttonDisabled]}
           onPress={confirmOrder}
@@ -193,6 +313,52 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontFamily: fonts.heading, fontSize: rf(16), color: colors.ink, marginBottom: 12 },
 
+  // Address selection styles
+  addressOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: radius.ctrl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 8,
+    backgroundColor: colors.bgScreen,
+  },
+  addressOptionSelected: {
+    borderColor: PRIMARY,
+    backgroundColor: colors.leaf50,
+  },
+  addressRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.border,
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addressRadioSelected: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: PRIMARY,
+  },
+  addressInfo: { flex: 1 },
+  addressLabel: { fontFamily: fonts.bodyBold, fontSize: rf(14), color: colors.ink },
+  addressText: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginTop: 2 },
+  defaultBadge: {
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  defaultBadgeText: { color: '#fff', fontSize: rf(9), fontWeight: 'bold' },
+  noAddressesText: { fontFamily: fonts.body, fontSize: rf(14), color: colors.inkSoft, marginVertical: 8 },
+  manualAddressContainer: { marginTop: 8 },
   addressRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   input: {
     backgroundColor: '#fff',
@@ -214,6 +380,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.ctrl,
   },
   pinBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(12.5) },
+  manageAddressesLink: { marginTop: 8 },
+  manageAddressesLinkText: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: PRIMARY },
 
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
   itemTile: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

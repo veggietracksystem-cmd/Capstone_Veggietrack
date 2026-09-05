@@ -353,11 +353,7 @@ export default function DistributorDashboard({ navigation, route }) {
             onApprove={approveOrder}
             onReject={rejectOrder}
             onAssign={assignDelivery}
-            onTrack={(o) => navigation.navigate('OrderTracking', {
-              orderId: o.id,
-              deliveryAddress: o.delivery_address,
-              orderStatus: o.status,
-            })}
+            onTrack={(o) => navigation.navigate('ShopeeTracking', { orderId: o.id })}
             onViewProof={setProofUri}
           />
         )}
