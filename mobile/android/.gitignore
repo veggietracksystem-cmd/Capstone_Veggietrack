@@ -1,19 +1,13 @@
-# OSX
-#
-.DS_Store
-
-# Android/IntelliJ
-#
+# Local Android build state must not be uploaded to EAS.
 build/
-.idea
-.gradle
+.idea/
+.gradle/
 local.properties
 *.iml
 *.hprof
 .cxx/
+.DS_Store
 
-# generated inline modules
+# Generated inline modules and bundles
 app/src/main/java/inline/
-
-# Bundle artifacts
 *.jsbundle

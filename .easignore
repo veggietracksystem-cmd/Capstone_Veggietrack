@@ -1,0 +1,26 @@
+# EAS uploads from this repository root. Preserve the existing Git exclusions.
+node_modules/
+**/node_modules/
+**/.env
+**/.env*.local
+**/.expo/
+**/web-build/
+.DS_Store
+Thumbs.db
+.claude/
+
+# Local Android state contains absolute paths and must be regenerated on EAS.
+**/android/build/
+**/android/app/build/
+**/android/.gradle/
+**/android/.kotlin/
+**/android/**/.cxx/
+**/android/.idea/
+**/android/local.properties
+**/android/*.iml
+**/android/*.hprof
+**/android/app/src/main/java/inline/
+**/android/**/*.jsbundle
+
+# Separate scratch Expo project; mobile is the app built by this repository.
+/VeggieTrack-Clean/
