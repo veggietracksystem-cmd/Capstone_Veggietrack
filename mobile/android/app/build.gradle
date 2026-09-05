@@ -2,11 +2,11 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
-// 🔥 FIX: Use project.rootDir, which is ALWAYS defined
+// 🔥 FIX: Use project.rootDir — NEVER null!
 def projectRoot = project.rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
 react {
-    // 🔥 Every call uses project.rootDir — never null!
+    // 🔥 Use project.rootDir in ALL execute() calls
     entryFile = file(["node", "-e", "require('expo/scripts/resolveAppEntry')", projectRoot, "android", "absolute"].execute(null, project.rootDir).text.trim())
     reactNativeDir = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, project.rootDir).text.trim()).getParentFile().getAbsoluteFile()
     hermesCommand = new File(["node", "--print", "require.resolve('hermes-compiler/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, project.rootDir).text.trim()).getParentFile().getAbsolutePath() + "/hermesc/%OS-BIN%/hermesc"
