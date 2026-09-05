@@ -2,19 +2,23 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
-def projectRoot = rootDir != null ? rootDir.getAbsoluteFile().getParentFile().getAbsolutePath() : ''
-
 /**
  * This is the configuration block to customize your React Native Android app.
  */
 react {
+    /* Folders */
+    root = file("../../")
+    reactNativeDir = file("../../node_modules/react-native")
+    codegenDir = file("../../node_modules/@react-native/codegen")
+
+    /* Autolinking */
     autolinkLibrariesWithApp()
 }
 
 /**
- * Set this to true in release builds to optimize the app using [R8](https://developer.android.com/topic/performance/app-optimization/enable-app-optimization).
+ * Set this to true in release builds to optimize the app using R8.
  */
-def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
+def enableMinifyInReleaseBuilds = false
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -23,7 +27,6 @@ def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 android {
     ndkVersion rootProject.ext.ndkVersion
-
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
@@ -34,8 +37,6 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.0"
-
-        buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
     signingConfigs {
         debug {
@@ -50,63 +51,15 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
             signingConfig signingConfigs.debug
-            def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
-            shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
-            def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
-            crunchPngs enablePngCrunchInRelease.toBoolean()
-        }
-    }
-    packagingOptions {
-        jniLibs {
-            def enableLegacyPackaging = findProperty('expo.useLegacyPackaging') ?: 'false'
-            useLegacyPackaging enableLegacyPackaging.toBoolean()
-        }
-    }
-    androidResources {
-        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
-    }
-}
-
-// Apply static values from `gradle.properties` to the `android.packagingOptions`
-["pickFirsts", "excludes", "merges", "doNotStrip"].each { prop ->
-    def options = (findProperty("android.packagingOptions.$prop") ?: "").split(",");
-    for (i in 0..<options.size()) options[i] = options[i].trim();
-    options -= ""
-    if (options.length > 0) {
-        println "android.packagingOptions.$prop += $options ($options.length)"
-        options.each {
-            android.packagingOptions[prop] += it
         }
     }
 }
 
 dependencies {
-    // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
-
-    def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
-    def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
-    def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";
-
-    if (isGifEnabled) {
-        // For animated gif support
-        implementation("com.facebook.fresco:animated-gif:${expoLibs.versions.fresco.get()}")
-    }
-
-    if (isWebpEnabled) {
-        // For webp support
-        implementation("com.facebook.fresco:webpsupport:${expoLibs.versions.fresco.get()}")
-        if (isWebpAnimatedEnabled) {
-            // Animated webp support
-            implementation("com.facebook.fresco:animated-webp:${expoLibs.versions.fresco.get()}")
-        }
-    }
-
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
