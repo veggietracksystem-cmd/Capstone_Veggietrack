@@ -32,7 +32,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
         if (status !== 'granted') {
           if (!cancelled) setError('Location permission denied — showing destination only.');
         } else {
-          const pos = await Location.getCurrentPositionAsync({});
+          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
           if (!cancelled) setCourier({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
         }
 

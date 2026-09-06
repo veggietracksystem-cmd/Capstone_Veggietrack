@@ -443,7 +443,7 @@
       "cartEmpty": "Your cart is empty.",
       "subtotal": "subtotal {amount}",
       "total": "Total ({qty} kg)",
-      "deliveryAddressLabel": "Delivery address * (from your store location — editable)",
+      "deliveryAddressLabel": "Delivery address",
       "deliveryAddressPlaceholder": "e.g., 123 Market St, Baguio City",
       "preferredTimeLabel": "Preferred Delivery Date and Time *",
       "pinLocation": "Pin Location",

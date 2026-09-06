@@ -1,7 +1,8 @@
 import { rf } from '../lib/responsive';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { colors, fonts, radius } from '../theme/appTheme';
+import { coordinate } from '../lib/trackingGeometry';
 
 const PRIMARY = colors.leaf700;
 const SAN_PABLO = { latitude: 14.0683, longitude: 121.3256 };
@@ -11,6 +12,25 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
   const [destination, setDestination] = useState(null);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const [geocodeFailed, setGeocodeFailed] = useState(false);
+  const [courier, setCourier] = useState(null);
+  const [gpsError, setGpsError] = useState('');
+  const mapRef = useRef(null), courierMarker = useRef(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    setCourier(null); setGpsError('');
+    let cancelled = false;
+    if (!navigator.geolocation) {
+      setGpsError('Device location unavailable. The destination pin is not your location.');
+      return;
+    }
+    const watch = navigator.geolocation.watchPosition(position => {
+      if (!cancelled) { setCourier(coordinate(position.coords)); setGpsError(''); }
+    }, () => {
+      if (!cancelled) setGpsError('Cannot get your GPS. Enable location permission. The destination pin is not your location.');
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    return () => { cancelled = true; navigator.geolocation.clearWatch(watch); };
+  }, [visible]);
 
   // Load Leaflet CDN script dynamically
   useEffect(() => {
@@ -38,9 +58,10 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
     (async () => {
       setLoading(true);
       setGeocodeFailed(false);
+      setDestination(null);
       try {
-        if (coords && coords.latitude && coords.longitude) {
-          if (!cancelled) setDestination(coords);
+        if (coordinate(coords)) {
+          if (!cancelled) setDestination(coordinate(coords));
         } else if (address) {
           const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`);
           const data = await res.json();
@@ -51,15 +72,13 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
             });
           } else if (!cancelled) {
             setGeocodeFailed(true);
-            setDestination(SAN_PABLO);
           }
         } else if (!cancelled) {
-          setDestination(SAN_PABLO);
+          setGeocodeFailed(true);
         }
       } catch {
         if (!cancelled) {
           setGeocodeFailed(true);
-          setDestination(SAN_PABLO);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -71,27 +90,44 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
 
   // Initialize Map
   useEffect(() => {
-    if (!visible || !leafletLoaded || !destination) return;
+    if (!visible || !leafletLoaded || loading) return;
 
     const container = document.getElementById('delivery-map-leaflet');
     if (!container) return;
 
-    const map = window.L.map('delivery-map-leaflet').setView([destination.latitude, destination.longitude], 14);
+    const center = destination || SAN_PABLO;
+    const map = window.L.map(container).setView([center.latitude, center.longitude], destination ? 14 : 10);
+    mapRef.current = map;
 
     window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    const marker = window.L.marker([destination.latitude, destination.longitude]).addTo(map);
-    if (address) {
-      marker.bindPopup(`<b>Location</b><br>${address}`).openPopup();
+    if (destination) {
+      const label = document.createElement('div');
+      label.textContent = `Destination: ${address || 'Delivery address'}`;
+      window.L.marker([destination.latitude, destination.longitude], { title: 'Destination' }).addTo(map).bindPopup(label);
     }
 
     return () => {
       map.remove();
+      mapRef.current = null; courierMarker.current = null;
     };
-  }, [visible, leafletLoaded, destination, address]);
+  }, [visible, leafletLoaded, loading, destination, address]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !courier) return;
+    const point = [courier.latitude, courier.longitude];
+    if (courierMarker.current) courierMarker.current.setLatLng(point);
+    else {
+      courierMarker.current = window.L.circleMarker(point, { radius: 9, color: '#fff', weight: 3, fillColor: '#218258', fillOpacity: 1 })
+        .addTo(map).bindPopup('You (courier) — device GPS');
+      if (destination) map.fitBounds([point, [destination.latitude, destination.longitude]], { padding: [35, 35], maxZoom: 16 });
+      else map.setView(point, 16);
+    }
+  }, [courier, visible, leafletLoaded, loading, destination, address]);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -103,6 +139,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
           </TouchableOpacity>
         </View>
         {address ? <Text style={styles.addr}>📍 {address}</Text> : null}
+        <Text style={styles.note}>{gpsError || (courier ? 'Green dot: you (device GPS). Pin: destination.' : 'Waiting for your device GPS. Pin: destination.')}</Text>
 
         {loading ? (
           <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />

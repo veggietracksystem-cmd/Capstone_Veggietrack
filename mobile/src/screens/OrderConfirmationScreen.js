@@ -110,6 +110,8 @@ export default function OrderConfirmationScreen({ navigation, route }) {
     const payload = {
       items: cart.map((c) => ({ vegetable_name: c.vegetable_name, quantity_kg: c.quantity })),
       delivery_address: finalAddress.trim(),
+      delivery_latitude: latitude,
+      delivery_longitude: longitude,
       preferred_schedule: `${date}T${time}`,
     };
 
