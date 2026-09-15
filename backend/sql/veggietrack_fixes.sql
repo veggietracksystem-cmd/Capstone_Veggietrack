@@ -32,7 +32,7 @@ create unique index if not exists one_distributor_only
 --   alter type delivery_status add value if not exists 'picked_up';
 --   alter type delivery_status add value if not exists 'in_transit';
 -- (Replace order_status / delivery_status with your actual enum type names from
---  the udt_name column above. ADD VALUE cannot run inside a transaction block.)
+--  the udt_name column above. Commit new enum values before using them.)
 
 ------------------------------------------------------------------------------
 -- ISSUE 5: pickup_requests.status uses 'requested' -> 'received'. If it is an
@@ -74,9 +74,24 @@ ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'cancelled';
 ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'picked_up';
 ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'in_transit';
 
-ALTER TYPE delivery_status ADD VALUE IF NOT EXISTS 'assigned';
-ALTER TYPE delivery_status ADD VALUE IF NOT EXISTS 'picked_up';
-ALTER TYPE delivery_status ADD VALUE IF NOT EXISTS 'in_transit';
-
-ALTER TYPE pickup_status ADD VALUE IF NOT EXISTS 'assigned';
-ALTER TYPE pickup_status ADD VALUE IF NOT EXISTS 'picked_up';
+-- The checked-in base schema uses TEXT for these two statuses. Inspect the
+-- actual column type; only alter it when an enum really exists (including
+-- installations that used a different enum name).
+DO $$
+DECLARE target record; status_type regtype; enum_value text;
+BEGIN
+  FOR target IN SELECT * FROM (VALUES
+    ('deliveries', ARRAY['assigned','picked_up','in_transit']),
+    ('pickup_requests', ARRAY['assigned','picked_up'])
+  ) AS targets(table_name, new_values) LOOP
+    SELECT a.atttypid::regtype INTO status_type
+      FROM pg_attribute a JOIN pg_type t ON t.oid=a.atttypid
+      WHERE a.attrelid=to_regclass('public.' || target.table_name)
+        AND a.attname='status' AND NOT a.attisdropped AND t.typtype='e';
+    IF status_type IS NOT NULL THEN
+      FOREACH enum_value IN ARRAY target.new_values LOOP
+        EXECUTE format('ALTER TYPE %s ADD VALUE IF NOT EXISTS %L', status_type, enum_value);
+      END LOOP;
+    END IF;
+  END LOOP;
+END $$;

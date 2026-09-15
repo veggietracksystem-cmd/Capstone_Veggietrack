@@ -3,40 +3,82 @@ import { AppState, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { useIsFocused } from '@react-navigation/native';
 import api from '../api/client';
-import { coordinate } from '../lib/trackingGeometry';
+import { locationSample, isRecentSample } from '../lib/locationSamples';
+import { acquireDevicePosition } from '../lib/deviceLocation';
 
 export default function useRiderLocation(orderId, enabled) {
   const focused = useIsFocused();
   const [active, setActive] = useState(AppState.currentState !== 'background');
   const [position, setPosition] = useState(null), [error, setError] = useState('');
-  const lastSent = useRef(0), sending = useRef(false), alive = useRef(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const lastSent = useRef(0), sending = useRef(null), alive = useRef(true);
+  const generation = useRef(0), latestSample = useRef(null), refreshPromise = useRef(null);
   useEffect(() => {
     alive.current = true;
     const sub = AppState.addEventListener('change', state => setActive(state === 'active'));
     return () => { alive.current = false; sub.remove(); };
   }, []);
-  useEffect(() => { setPosition(null); setError(''); lastSent.current = 0; }, [orderId, enabled]);
-  const publish = useCallback(async (next, force = false) => {
-    if (!coordinate(next) || !enabled || !focused || !active || !alive.current) return false;
-    setPosition(next);
-    if (sending.current || (!force && Date.now() - lastSent.current < 5000)) return false;
-    sending.current = true;
-    try {
-      await api.post('/api/delivery/update-location', { latitude: next.latitude, longitude: next.longitude,
-        accuracy: next.accuracy, delivery_id: orderId });
-      lastSent.current = Date.now();
-      if (alive.current) setError('');
-      return true;
-    } catch (err) { if (alive.current) setError(`GPS not shared: ${err.message}`); if (force) throw err; }
-    finally { sending.current = false; }
+  useEffect(() => {
+    generation.current++;
+    setPosition(null); setError(''); setRefreshing(false); lastSent.current = 0; latestSample.current = null;
+    refreshPromise.current = null;
+    return () => { generation.current++; sending.current?.controller.abort(); sending.current = null; };
   }, [orderId, enabled, focused, active]);
+  const publish = useCallback(async (next, force = false) => {
+    const sample = locationSample(next);
+    if (!isRecentSample(sample) || !enabled || !focused || !active || !alive.current) return false;
+    if (latestSample.current && sample.timestamp < latestSample.current.timestamp) return false;
+    latestSample.current = sample;
+    setPosition(sample);
+    const version = generation.current;
+    if (sending.current) return false;
+    if (!force && Date.now() - lastSent.current < 5000) return false;
+    const controller = new AbortController();
+    const request = { controller, promise: null };
+    sending.current = request;
+    lastSent.current = Date.now();
+    try {
+      request.promise = api.post('/api/delivery/update-location', { latitude: sample.latitude, longitude: sample.longitude,
+        accuracy: sample.accuracy, captured_at: new Date(sample.timestamp).toISOString(), delivery_id: orderId }, { signal: controller.signal });
+      await request.promise;
+      if (alive.current && version === generation.current) setError('');
+      return true;
+    } catch (err) {
+      if (controller.signal.aborted || version !== generation.current) return false;
+      if (alive.current) setError(`GPS not shared: ${err.message}`);
+      if (force) throw err;
+      return false;
+    } finally { if (sending.current === request) sending.current = null; }
+  }, [orderId, enabled, focused, active]);
+  const refreshLocation = useCallback(({ publish: shouldPublish = true } = {}) => {
+    if (refreshPromise.current) return refreshPromise.current;
+    const version = generation.current;
+    setRefreshing(true);
+    const operation = acquireDevicePosition().then(async next => {
+      if (!alive.current || version !== generation.current) return next;
+      if (!latestSample.current || next.timestamp >= latestSample.current.timestamp) {
+        latestSample.current = next; setPosition(next);
+      }
+      setError('');
+      if (shouldPublish) await publish(next, true);
+      return next;
+    }).catch(err => {
+      if (alive.current && version === generation.current) setError(err.message);
+      throw err;
+    }).finally(() => {
+      if (refreshPromise.current === operation) refreshPromise.current = null;
+      if (alive.current && version === generation.current) setRefreshing(false);
+    });
+    refreshPromise.current = operation;
+    return operation;
+  }, [publish]);
   useEffect(() => {
     if (!enabled || !focused || !active) return undefined;
     let cancelled = false, subscription, browserWatch;
     const receive = location => {
       if (cancelled) return;
-      const coords = coordinate(location.coords);
-      if (coords) publish({ ...coords, accuracy: location.coords.accuracy, timestamp: location.timestamp || Date.now() });
+      const sample = locationSample(location);
+      if (sample) publish(sample);
     };
     const fail = err => { if (!cancelled) setError(err.message || 'GPS unavailable. Check location permission.'); };
     (async () => {
@@ -55,5 +97,5 @@ export default function useRiderLocation(orderId, enabled) {
     })();
     return () => { cancelled = true; subscription?.remove(); if (browserWatch != null) navigator.geolocation.clearWatch(browserWatch); };
   }, [enabled, focused, active, publish]);
-  return { position, error, publish };
+  return { position, error, publish, refreshLocation, refreshing };
 }

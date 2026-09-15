@@ -64,9 +64,9 @@ export default function ProofPreviewModal({
           )}
 
           <TouchableOpacity
-            style={[styles.button, styles.buttonPrimary, (busy || !photo?.pod) && styles.buttonDisabled]}
+            style={[styles.button, styles.buttonPrimary, (busy || !photo?.uri) && styles.buttonDisabled]}
             onPress={onConfirm}
-            disabled={busy || !photo?.pod}
+            disabled={busy || !photo?.uri}
           >
             {busy
               ? <ActivityIndicator color="#fff" />

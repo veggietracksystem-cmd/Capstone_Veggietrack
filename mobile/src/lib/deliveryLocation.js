@@ -1,0 +1,37 @@
+import { coordinate, distanceBetween } from './trackingGeometry';
+
+// UX mirrors the authoritative backend policy. Road distance is never a geofence.
+export const BASE_DELIVERY_RADIUS_METERS = 100;
+export const MAX_ACCURACY_ALLOWANCE_METERS = 50;
+export const STALE_LOCATION_SECONDS = 60;
+export const MAX_ACCEPTABLE_GPS_ACCURACY_METERS = 100;
+export const MISSING_DESTINATION_MESSAGE = 'Delivery location coordinates are unavailable. Contact the distributor.';
+export const POOR_ACCURACY_MESSAGE = 'Your current GPS signal is too inaccurate to verify your location. Refresh your location and try again.';
+export const REFRESH_ACCURACY_MESSAGE = 'Your GPS signal is not accurate enough yet. Move to an open area and tap Refresh Location.';
+
+export function orderDestination(order) {
+  const snapshot = coordinate({ latitude: order?.delivery_latitude, longitude: order?.delivery_longitude });
+  if (snapshot) return { ...snapshot, coordinate_source: 'order_snapshot' };
+  // The API resolves only a matching saved address/store for older orders.
+  // Never geocode the display text or use an unrelated default address here.
+  const resolved = coordinate(order?.retailer_coords);
+  return resolved ? { ...resolved, coordinate_source: order?.retailer_coords?.coordinate_source || order?.delivery_coordinate_source || order?.coordinate_source || 'retailer_store' } : null;
+}
+
+export function validateDeliveryLocation(position, destination, now = Date.now()) {
+  const fail = (code, message, details = {}) => { throw Object.assign(new Error(message), { code, ...details }); };
+  const target = coordinate(destination);
+  if (!target) fail('MISSING_DESTINATION', MISSING_DESTINATION_MESSAGE);
+  const rider = coordinate(position);
+  if (!rider) fail('LOCATION_UNAVAILABLE', 'Current GPS coordinates are required. Refresh your location and try again.');
+  const accuracy = position.accuracy;
+  if (position.mocked || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > MAX_ACCEPTABLE_GPS_ACCURACY_METERS) fail('GPS_INACCURATE', POOR_ACCURACY_MESSAGE);
+  const timestamp = position.timestamp ?? Date.parse(position.captured_at);
+  if (!Number.isFinite(timestamp) || now - timestamp > STALE_LOCATION_SECONDS * 1000 || timestamp > now + 30000) fail('GPS_STALE', 'Your GPS location is out of date. Refresh your location and try again.');
+  const distanceMeters = distanceBetween(rider, target);
+  const effectiveRadiusMeters = BASE_DELIVERY_RADIUS_METERS + Math.min(accuracy, MAX_ACCURACY_ALLOWANCE_METERS);
+  const diagnostics = { distanceMeters, effectiveRadiusMeters, accuracy, source: destination.coordinate_source || 'unavailable' };
+  if (typeof __DEV__ !== 'undefined' && __DEV__) console.debug('[delivery verification]', { rider, destination: target, ...diagnostics });
+  if (distanceMeters > effectiveRadiusMeters) fail('OUTSIDE_RADIUS', `You are approximately ${Math.round(distanceMeters)} m from the delivery location. Move closer before completing this delivery.`, diagnostics);
+  return diagnostics;
+}

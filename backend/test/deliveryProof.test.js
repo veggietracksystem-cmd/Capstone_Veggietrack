@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { validateSchedule, scheduleInstant, validateProof, distanceMeters, proofImageUrl, ensureProofImage } = require('../lib/deliveryProof');
+const { loadDestination, destinationFor, coordinate, missingColumn } = require('../lib/deliveryTracking');
+const { STALE_LOCATION_SECONDS } = require('../lib/locationPolicy');
 const now = Date.parse('2026-09-05T22:00:00+08:00');
 const destination = { latitude: 7.1, longitude: 125.6 };
 const proof = { ...destination, accuracy: 10, captured_at: new Date(now).toISOString() };
@@ -37,9 +39,21 @@ test('nearby proof is verified with authoritative submission time', () => {
   assert.equal(result.submitted_at, new Date(now + 1000).toISOString());
   assert.equal(result.address, null);
 });
-test('far away, uncertain boundary, missing destination and invalid GPS are rejected', () => {
-  for (const patch of [{ latitude: 8 }, { latitude: 7.101, accuracy: 50 }, { latitude: null }, { longitude: '125.6' }, { accuracy: 51 }, { accuracy: null }, { accuracy: NaN }, { accuracy: -1 }, { captured_at: '2026-09-05T22:00' }, { captured_at: new Date(now - 600001).toISOString() }, { captured_at: new Date(now + 30001).toISOString() }]) assert.throws(() => validateProof({ ...proof, ...patch }, destination, now));
-  assert.throws(() => validateProof(proof, {}, now), /map pin/);
+test('far away, outside capped radius, missing destination and invalid GPS are rejected', () => {
+  for (const patch of [{ latitude: 8 }, { latitude: 7.102, accuracy: 50 }, { latitude: null }, { longitude: '125.6' }, { accuracy: 101 }, { accuracy: null }, { accuracy: NaN }, { accuracy: -1 }, { captured_at: '2026-09-05T22:00' }, { captured_at: new Date(now - 60001).toISOString() }, { captured_at: new Date(now + 30001).toISOString() }]) assert.throws(() => validateProof({ ...proof, ...patch }, destination, now));
+  assert.throws(() => validateProof(proof, {}, now), /Delivery location coordinates are unavailable/);
+});
+for (const [meters, accuracy, allowed, radius] of [[0, 0, true, 100], [40, 10, true, 110], [75, 10, true, 110],
+  [115, 20, true, 120], [125, 20, false, 120], [149, 100, true, 150], [151, 100, false, 150], [500, 10, false, 110], [500, 1000, false, 150]]) {
+  test(`radius policy: ${meters}m away with ${accuracy}m accuracy`, () => {
+    const sample = { ...proof, latitude: destination.latitude + meters / 6371000 * 180 / Math.PI, accuracy };
+    if (allowed) assert.equal(validateProof(sample, destination, now).effective_radius_meters, radius);
+    else assert.throws(() => validateProof(sample, destination, now), accuracy > 100 ? /GPS signal is too inaccurate/ : /Move closer/);
+  });
+}
+test('stale GPS requires refresh and poor accuracy never masquerades as distance failure', () => {
+  assert.throws(() => validateProof({ ...proof, captured_at: new Date(now - 60001).toISOString() }, destination, now), { code: 'GPS_STALE' });
+  assert.throws(() => validateProof({ ...proof, latitude: 8, accuracy: 1000 }, destination, now), { code: 'GPS_INACCURATE' });
 });
 test('photo overlay contains Manila submission time and coordinates; rejects arbitrary URLs', () => {
   const url = proofImageUrl(original, validateProof(proof, destination, now), 'demo');
@@ -68,7 +82,7 @@ function handler(path, endMarker, deps = {}) {
   vm.runInNewContext(source.slice(start, end), {
     app: { get: (_, auth, cb) => { callback = cb; }, post: (_, auth, cb) => { callback = cb; }, put: (_, auth, cb) => { callback = cb; } },
     verifyToken() {}, validateSchedule, validateProof, proofImageUrl: (url, pod) => proofImageUrl(url, pod, 'demo'),
-    ensureProofImage: async () => {}, createNotification: async () => {}, Date, console, ...deps,
+    ensureProofImage: async () => {}, createNotification: async () => {}, loadDestination, destinationFor, coordinate, missingColumn, STALE_LOCATION_SECONDS, Date, console, ...deps,
   });
   return callback;
 }
@@ -100,6 +114,30 @@ test('completion rejects missing GPS/photo, poor accuracy and far-away proof wit
     assert.equal(res.statusCode, 422); assert.equal(db.calls.length, 0);
   }
 });
+test('completion cannot persist when uploaded image rendering fails', async () => {
+  const db = completionDb(), res = response();
+  const cb = handler("put('/api/deliveries/:id/complete'", '// Distributor weekly report', { supabaseAdmin: db, ensureProofImage: async () => { throw Error('Cloudinary non-2xx'); } });
+  await cb(request(), res);
+  assert.equal(res.statusCode, 503); assert.equal(db.calls.length, 0);
+  assert.equal(res.body.error, 'Proof was uploaded, but the delivery could not be completed. Please try again.');
+});
+test('backend completion resolves the same legacy destination as tracking', async () => {
+  const legacyOrder = { id: 'o', retailer_id: 'retailer', distributor_id: 'distributor', status: 'in_transit', delivery_address: 'Branch' };
+  const retailer = { store_location: 'Main', latitude: 1, longitude: 2 };
+  const addresses = [{ address: 'branch', ...destination }];
+  const db = completionDb();
+  db.from = table => {
+    const q = { select() { return q; }, eq() { return q; },
+      single: async () => ({ data: table === 'deliveries' ? { id: 'd', order_id: 'o', status: 'in_transit' } : table === 'orders' ? legacyOrder : retailer }),
+      then: resolve => Promise.resolve({ data: addresses }).then(resolve) };
+    return q;
+  };
+  const res = response(); await complete(db)(request(), res);
+  assert.equal(res.statusCode, 200);
+  const target = destinationFor(legacyOrder, retailer, addresses);
+  assert.equal(db.calls[0].args.p_pod.coordinate_source, target.coordinate_source);
+  assert.equal(db.calls[0].args.p_pod.distance_meters, distanceMeters(proof, target));
+});
 test('completion authorization, workflow, retries and database errors', async () => {
   for (const [options, code] of [[{ status: 'assigned' }, 409], [{ missing: true }, 404], [{ rpcError: { code: '22023', message: 'expired' } }, 422], [{ rpcError: { code: 'PGRST202' } }, 500], [{ status: 'delivered' }, 200]]) {
     const db = completionDb(options), res = response(); await complete(db)(request(), res); assert.equal(res.statusCode, code);
@@ -124,4 +162,26 @@ test('retailer and distributor read endpoints include persisted POD metadata', a
     assert.equal(res.statusCode, 200); assert.equal(res.body[0].deliveries[0].pod.latitude, 7.1);
     assert.ok(selections.some(value => /pod/.test(value)));
   }
+});
+
+test('GPS publishes use an atomic timestamp filter and do not append ignored older samples', async () => {
+  let current = null; const history = [];
+  const db = { from(table) {
+    if (table === 'delivery_tracking') return { insert: async value => { history.push(value); return {}; } };
+    let updates, filter;
+    const q = { update(value) { updates = value; return q; }, eq() { return q; }, or(value) { filter = value; return q; },
+      select() {
+        assert.match(filter, /last_location_update\.is\.null,last_location_update\.lt\./);
+        if (current && current.last_location_update >= updates.last_location_update) return Promise.resolve({ data: [] });
+        current = updates; return Promise.resolve({ data: [updates] });
+      } };
+    return q;
+  } };
+  const cb = handler("post('/api/delivery/update-location'", '// ============================================', { supabaseAdmin: db });
+  const newer = new Date(Date.now() - 1000).toISOString(), older = new Date(Date.now() - 5000).toISOString();
+  for (const captured_at of [newer, older]) {
+    const res = response(); await cb({ user: { role: 'delivery_personnel', userId: 'rider' }, body: { ...destination, accuracy: 5, captured_at } }, res);
+    assert.equal(res.statusCode, 200); assert.equal(res.body.ignored, captured_at === older ? true : undefined);
+  }
+  assert.equal(current.last_location_update, newer); assert.equal(history.length, 0);
 });

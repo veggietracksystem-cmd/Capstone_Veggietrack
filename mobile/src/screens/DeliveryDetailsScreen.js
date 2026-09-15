@@ -1,11 +1,14 @@
 import { currentProofLocation, captureProofPhoto } from '../lib/podCapture';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Text, View, ScrollView, TouchableOpacity, TextInput, Platform, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../api/client';
 import { uploadToCloudinary } from '../lib/cloudinary';
+import { createProofSubmission, proofFailureMessage } from '../lib/podSubmission';
+import { orderDestination, validateDeliveryLocation, MISSING_DESTINATION_MESSAGE, REFRESH_ACCURACY_MESSAGE } from '../lib/deliveryLocation';
+import { isOnline } from '../offline/net';
 import DeliveryMapModal from '../components/DeliveryMapModal';
 import ProofPreviewModal from '../components/ProofPreviewModal';
 import CustomModal from '../components/CustomModal';
@@ -50,6 +53,25 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
   const [rejectReasonKey, setRejectReasonKey] = useState(null);
   const [rejectOtherText, setRejectOtherText] = useState('');
   const [rejecting, setRejecting] = useState(false);
+  const [locationDetails, setLocationDetails] = useState(null);
+  const [locationError, setLocationError] = useState('');
+  const actionRef = useRef(null);
+  const submissionRef = useRef(null);
+  const locationGeneration = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    let cancelled = false;
+    const requestGeneration = ++locationGeneration.current;
+    if (order && !['delivered', 'cancelled'].includes(effectiveStatus(order))) {
+      currentProofLocation(t).then(position => {
+        if (cancelled || requestGeneration !== locationGeneration.current) return;
+        try { setLocationDetails(validateDeliveryLocation(position, orderDestination(order))); setLocationError(''); }
+        catch (error) { setLocationDetails(Number.isFinite(error.distanceMeters) ? error : null); setLocationError(error.code === 'GPS_INACCURATE' ? REFRESH_ACCURACY_MESSAGE : error.message); }
+      }).catch(error => { if (!cancelled && requestGeneration === locationGeneration.current) setLocationError(error.code === 'GPS_INACCURATE' ? REFRESH_ACCURACY_MESSAGE : error.message); });
+    }
+    return () => { cancelled = true; mounted.current = false; };
+  }, [order?.id]);
 
   if (!order) {
     return (
@@ -86,41 +108,67 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
   // coordinates as before, just one button instead of two.
   const routeTarget = rank < 1
     ? { address: order.distributor_address, coords: order.distributor_coords }
-    : { address: order.retailer_address, coords: order.retailer_coords };
+    : { address: order.retailer_address, coords: orderDestination(order) };
+
+  const verifiedLocation = async () => {
+    const requestGeneration = ++locationGeneration.current;
+    if (!orderDestination(order)) throw new Error(MISSING_DESTINATION_MESSAGE);
+    const position = await currentProofLocation(t);
+    try {
+      const details = validateDeliveryLocation(position, orderDestination(order));
+      if (mounted.current && requestGeneration === locationGeneration.current) { setLocationDetails(details); setLocationError(''); }
+      return position;
+    } catch (error) {
+      if (mounted.current && requestGeneration === locationGeneration.current) { setLocationDetails(Number.isFinite(error.distanceMeters) ? error : null); setLocationError(error.message); }
+      throw error;
+    }
+  };
+
+  const refreshLocation = async () => {
+    if (actionRef.current) return;
+    actionRef.current = 'location'; setBusy(true);
+    try { await verifiedLocation(); }
+    catch (error) { setLocationError(error.code === 'GPS_INACCURATE' ? REFRESH_ACCURACY_MESSAGE : error.message); }
+    finally { actionRef.current = null; if (mounted.current) setBusy(false); }
+  };
 
   const updateStatus = async (newStatus) => {
+    if (actionRef.current) return;
     if (!delivery?.id) {
       showAlert(t('dashboards.delivery.missingDeliveryTitle'), t('dashboards.delivery.pullToRefreshRetry'));
       return;
     }
-    setBusy(true);
+    actionRef.current = 'status'; setBusy(true);
     try {
       await api.put(`/api/deliveries/${delivery.id}/status`, { status: newStatus });
       await refreshOrder();
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      actionRef.current = null;
       setBusy(false);
     }
   };
 
   const openProof = async () => {
-    setBusy(true);
+    if (actionRef.current) return;
+    actionRef.current = 'location'; setBusy(true);
     try {
-      await currentProofLocation(t);
-      setPhoto(null);
+      await verifiedLocation();
       setConfirmVisible(true);
     } catch (err) { showAlert(t('common.error'), err.message); }
-    finally { setBusy(false); }
+    finally { actionRef.current = null; setBusy(false); }
   };
   const pickPhoto = async () => {
-    setBusy(true);
-    setPhoto(null);
+    if (actionRef.current) return;
+    actionRef.current = 'photo'; setBusy(true);
     try {
-      setPhoto(await captureProofPhoto(t, ImagePicker, Platform.OS));
+      const selected = await captureProofPhoto(t, ImagePicker, Platform.OS, setPhoto);
+      if (selected) setPhoto(selected);
     } catch (err) {
+      if (err.selectedPhoto) setPhoto(err.selectedPhoto);
       showAlert(t('common.error'), err.message || t('dashboards.delivery.cameraErrorFallback'));
-    } finally { setBusy(false); }
+    } finally { actionRef.current = null; setBusy(false); }
   };
 
   const REJECT_REASON_PRESETS = [
@@ -137,6 +185,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
   };
 
   const submitReject = async () => {
+    if (actionRef.current) return;
     if (!delivery?.id) {
       showAlert(t('dashboards.delivery.missingDeliveryTitle'), t('dashboards.delivery.pullToRefreshRetry'));
       return;
@@ -147,7 +196,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
       showAlert(t('common.error'), t('dashboards.delivery.rejectReasonRequired'));
       return;
     }
-    setRejecting(true);
+    actionRef.current = 'reject'; setRejecting(true); setBusy(true);
     try {
       await api.put(`/api/deliveries/${delivery.id}/reject`, { reason });
       setRejectModalVisible(false);
@@ -157,28 +206,35 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
-      setRejecting(false);
+      actionRef.current = null; setRejecting(false); setBusy(false);
     }
   };
 
   const markDelivered = async () => {
+    if (actionRef.current) return;
     if (!delivery?.id) {
       showAlert(t('dashboards.delivery.missingDeliveryTitle'), t('dashboards.delivery.missingDeliveryIdMessage'));
       return;
     }
-    setBusy(true);
+    actionRef.current = 'complete'; setBusy(true);
     try {
-      if (!photo?.pod) throw new Error(t('pod.required'));
-      if (Date.now() - Date.parse(photo.pod.captured_at) > 10 * 60000) throw new Error(t('pod.stale'));
-      const proofUrl = await uploadToCloudinary(photo);
-      await api.put(`/api/deliveries/${delivery.id}/complete`, { proof_photo_url: proofUrl, ...photo.pod });
+      if (!submissionRef.current || submissionRef.current.id !== delivery.id) {
+        submissionRef.current = { id: delivery.id, controller: createProofSubmission({ upload: uploadToCloudinary, isOnline,
+          complete: body => api.put(`/api/deliveries/${delivery.id}/complete`, body) }) };
+      }
+      await submissionRef.current.controller.submit({ photo, getLocation: verifiedLocation });
+      // A failed follow-up refresh cannot leave an already confirmed delivery actionable.
+      setOrder(current => ({ ...current, status: 'delivered', deliveries: Array.isArray(current.deliveries)
+        ? current.deliveries.map(item => item.id === delivery.id ? { ...item, status: 'delivered' } : item)
+        : { ...current.deliveries, status: 'delivered' } }));
       setPhoto(null);
       setConfirmVisible(false);
       await refreshOrder();
       showAlert(t('dashboards.delivery.deliveredTitle'), t('dashboards.delivery.deliveredMessage', { id: shortId(order.id) }));
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), proofFailureMessage(err));
     } finally {
+      actionRef.current = null;
       setBusy(false);
     }
   };
@@ -206,9 +262,6 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
             <Text style={styles.summaryLabel}>{t('deliveryDetails.totalAmountLabel')} </Text>
             <Text style={styles.summaryValue}>{peso(order.total_amount)}</Text>
           </Text>
-          {!finished && (
-            <Text style={styles.summaryLine}>{t('dashboards.delivery.etaText')}</Text>
-          )}
 
           <View style={styles.divider} />
 
@@ -254,7 +307,10 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
           <Text style={styles.sectionTitle}>{t('deliveryDetails.routeTitle')}</Text>
           <TouchableOpacity
             style={styles.routeBtnCentered}
-            onPress={() => { setMapAddress(routeTarget.address); setMapCoords(routeTarget.coords); }}
+            onPress={() => {
+              if (!routeTarget.coords) { showAlert(t('common.error'), rank < 1 ? 'Pickup location coordinates are unavailable. Contact the distributor.' : MISSING_DESTINATION_MESSAGE); return; }
+              setMapAddress(routeTarget.address || 'Delivery route'); setMapCoords(routeTarget.coords);
+            }}
           >
             <Text style={styles.routeBtnText}>{t('dashboards.delivery.viewRoute')}</Text>
           </TouchableOpacity>
@@ -265,6 +321,14 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
 
               {/* 6. Delivery Progress */}
               <Text style={styles.sectionTitle}>{t('deliveryDetails.progressTitle')}</Text>
+              {locationDetails && <>
+                <Text style={styles.rowMeta}>Distance to delivery point: {Math.round(locationDetails.distanceMeters)} m</Text>
+                <Text style={styles.rowMeta}>GPS accuracy: ±{Math.round(locationDetails.accuracy)} m</Text>
+              </>}
+              {!!locationError && <Text style={[styles.rowMeta, { color: colors.danger }]}>{locationError}</Text>}
+              <TouchableOpacity style={[styles.routeBtnCentered, busy && styles.buttonDisabled]} disabled={busy} onPress={refreshLocation}>
+                <Text style={styles.routeBtnText}>Refresh Location</Text>
+              </TouchableOpacity>
 
               {PROGRESS_STEPS.map((step) => {
                 if (rank >= step.rank) {

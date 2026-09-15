@@ -1,7 +1,6 @@
 const { coordinate } = require('./deliveryTracking');
-// 150 m accommodates entrances/loading areas; accuracy must be <= 50 m.
-const RADIUS_METERS = 150;
-const MAX_ACCURACY_METERS = 50;
+const { BASE_DELIVERY_RADIUS_METERS, MAX_ACCURACY_ALLOWANCE_METERS, STALE_LOCATION_SECONDS,
+  MAX_ACCEPTABLE_GPS_ACCURACY_METERS, distanceMeters, effectiveRadius } = require('./locationPolicy');
 function scheduleInstant(value) {
   if (typeof value !== 'string') return NaN;
   const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2})(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?$/.exec(value);
@@ -16,25 +15,25 @@ function validateSchedule(value, now = Date.now()) {
   if (instant <= now) throw new Error('Delivery date and time cannot be in the past.');
   return new Date(instant).toISOString();
 }
-function distanceMeters(a, b) {
-  const rad = n => n * Math.PI / 180;
-  const h = Math.sin(rad(b.latitude - a.latitude) / 2) ** 2 +
-    Math.cos(rad(a.latitude)) * Math.cos(rad(b.latitude)) * Math.sin(rad(b.longitude - a.longitude) / 2) ** 2;
-  return 6371000 * 2 * Math.asin(Math.sqrt(Math.min(1, h)));
-}
-function validateProof(body, destination, now = Date.now()) {
+function proofError(code, message) { return Object.assign(new Error(message), { code }); }
+function validateProof(body = {}, destination, now = Date.now()) {
+  if (!coordinate(destination)) throw proofError('DELIVERY_DESTINATION_MISSING', 'Delivery location coordinates are unavailable. Contact the distributor.');
   const point = coordinate(body);
-  if (!point || typeof body.latitude !== 'number' || typeof body.longitude !== 'number') throw new Error('Current GPS coordinates are required.');
-  if (typeof body.accuracy !== 'number' || !Number.isFinite(body.accuracy) || body.accuracy < 0 || body.accuracy > MAX_ACCURACY_METERS) throw new Error('GPS accuracy is insufficient. Retry at the delivery location (50 meters or better).');
+  if (!point || typeof body.latitude !== 'number' || typeof body.longitude !== 'number') throw proofError('GPS_REQUIRED', 'Current GPS coordinates are required.');
+  if (typeof body.accuracy !== 'number' || !Number.isFinite(body.accuracy) || body.accuracy < 0 || body.accuracy > MAX_ACCEPTABLE_GPS_ACCURACY_METERS) throw proofError('GPS_INACCURATE', 'Your current GPS signal is too inaccurate to verify your location. Refresh your location and try again.');
   const captured = typeof body.captured_at === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(body.captured_at) ? Date.parse(body.captured_at) : NaN;
-  if (!Number.isFinite(captured) || now - captured > 10 * 60 * 1000 || captured - now > 30000) throw new Error('Proof location has expired. Retake the photo and GPS location.');
-  if (!coordinate(destination)) throw new Error('Delivery destination has no saved map pin. Ask the distributor to correct the destination before completing delivery.');
+  if (!Number.isFinite(captured) || now - captured > STALE_LOCATION_SECONDS * 1000 || captured - now > 30000) throw proofError('GPS_STALE', 'Your GPS location has expired. Refresh your location and try again.');
   const distance = distanceMeters(point, destination);
-  // Include reported uncertainty: do not verify readings straddling the boundary.
-  if (distance + body.accuracy > RADIUS_METERS) throw new Error(`Outside the delivery verification area (${Math.round(distance)} meters away). Retry at the destination.`);
+  const radius = effectiveRadius(body.accuracy);
+  if (process.env.DEBUG_DELIVERY_LOCATION === 'true') console.debug('Delivery location verification', {
+    rider: point, destination: coordinate(destination), accuracy: body.accuracy, distance_meters: distance,
+    effective_radius_meters: radius, coordinate_source: destination.coordinate_source || 'order_snapshot',
+  });
+  if (distance > radius) throw proofError('DELIVERY_OUTSIDE_RADIUS', `You are approximately ${Math.round(distance)} m from the delivery location. Move closer before completing this delivery.`);
   return { latitude: point.latitude, longitude: point.longitude, accuracy: body.accuracy,
     captured_at: new Date(captured).toISOString(), submitted_at: new Date(now).toISOString(),
-    location_status: 'verified', distance_meters: distance, address: null };
+    location_status: 'verified', distance_meters: distance, effective_radius_meters: radius,
+    coordinate_source: destination.coordinate_source || 'order_snapshot', address: null };
 }
 function proofImageUrl(url, proof, cloud = process.env.CLOUDINARY_CLOUD_NAME) {
   // Restrict to original Cloudinary uploads; never fetch arbitrary client URLs.
@@ -51,4 +50,8 @@ async function ensureProofImage(url, fetchImpl = fetch) {
   await response.body?.cancel();
   if (!valid) throw new Error('Proof image could not be generated. Retry uploading the photo.');
 }
-module.exports = { scheduleInstant, validateSchedule, distanceMeters, validateProof, proofImageUrl, ensureProofImage, RADIUS_METERS, MAX_ACCURACY_METERS };
+module.exports = { scheduleInstant, validateSchedule, distanceMeters, validateProof, proofImageUrl, ensureProofImage,
+  BASE_DELIVERY_RADIUS_METERS, MAX_ACCURACY_ALLOWANCE_METERS, STALE_LOCATION_SECONDS,
+  MAX_ACCEPTABLE_GPS_ACCURACY_METERS, effectiveRadius,
+  RADIUS_METERS: BASE_DELIVERY_RADIUS_METERS + MAX_ACCURACY_ALLOWANCE_METERS,
+  MAX_ACCURACY_METERS: MAX_ACCEPTABLE_GPS_ACCURACY_METERS };

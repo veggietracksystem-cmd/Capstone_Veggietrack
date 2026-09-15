@@ -19,7 +19,8 @@ test('missing assigned rider GPS never falls back to legacy order or retailer co
   assert.equal(res.body.retailer_view.tracking.has_location, false);
   assert.equal(res.body.rider_view.current_location.latitude, undefined);
   assert.equal(res.body.rider_view.full_route, null);
-  assert.equal(res.body.retailer_view.tracking.eta_formatted, '~3 hr 16 min');
+  assert.equal(res.body.retailer_view.tracking.eta_formatted, null);
+  assert.equal(res.body.retailer_view.tracking.estimated_route_formatted, '3 hr 16 min');
 });
 
 test('coordinates accept zero and reject missing, non-finite, and out-of-range values', () => {
@@ -71,12 +72,14 @@ function fakeDb(order, overrides = {}) {
 }
 function response() { return { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } }; }
 const order = { id: 'o', distributor_id: 'hub', retailer_id: 'shop', delivery_personnel_id: 'rider', status: 'in_transit', delivery_address: 'Store', order_items: [] };
-test('retailer and distributor receive their own hub-to-store corridor and rider accuracy', async () => {
+test('retailer and distributor receive live current-leg routing, static corridor and rider accuracy', async () => {
   for (const [role, userId] of [['retailer', 'shop'], ['distributor', 'hub']]) {
     const calls = [], res = response();
     await createTrackingHandler({ db: fakeDb(order), routes: { getRoute: async points => { calls.push(points); return { ...route, steps: [] }; } }, env: {} })({ params: { orderId: 'o' }, user: { role, userId } }, res);
     assert.equal(res.statusCode, 200); assert.equal(res.body.retailer_view.rider.accuracy, 7);
-    assert.equal(calls.length, 1); assert.equal(calls[0][1].latitude, 14.069);
+    assert.equal(calls.length, 2); assert.equal(calls[0][1].latitude, 14.069);
+    assert.deepEqual(calls[1][0], { latitude: 14.0682, longitude: 121.3252 });
+    assert.equal(res.body.retailer_view.tracking.navigation_phase, 'delivery');
     assert.equal(res.body.retailer_view.delivery.contact, 'sample');
   }
 });
@@ -115,7 +118,8 @@ test('unavailable rider routing never falls back to the warehouse-to-retailer co
   await createTrackingHandler({ db: fakeDb(order), routes: { getRoute: async (_, identity) => identity.startsWith('corridor:') ? route : null } })({ params: { orderId: 'o' }, user: { role: 'delivery_personnel', userId: 'rider' } }, res);
   assert.equal(res.body.rider_view.full_route, null);
   assert.equal(res.body.rider_view.eta_seconds, null);
-  assert.ok(res.body.retailer_view.tracking.route);
+  assert.equal(res.body.retailer_view.tracking.route, null);
+  assert.ok(res.body.retailer_view.tracking.estimated_route);
 });
 
 test('marking picked up switches the cached navigation endpoint immediately', async () => {

@@ -11,7 +11,7 @@ function client(fetch) {
     plugins: [require.resolve('../../mobile/node_modules/@babel/plugin-transform-modules-commonjs')],
   }).code;
   const exports = {};
-  vm.runInNewContext(code, { exports, fetch, require: () => ({ BACKEND_URL: 'https://api.test' }) });
+  vm.runInNewContext(code, { exports, fetch, AbortController, setTimeout, clearTimeout, require: () => ({ BACKEND_URL: 'https://api.test' }) });
   return exports;
 }
 const response = status => ({ status, ok: status === 200, text: async () => '{}' });

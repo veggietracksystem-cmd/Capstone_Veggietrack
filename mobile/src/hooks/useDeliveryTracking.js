@@ -8,21 +8,42 @@ export default function useDeliveryTracking(orderId) {
   const focused = useIsFocused();
   const { user } = useAuth();
   const [data, setData] = useState(null), [loading, setLoading] = useState(true), [error, setError] = useState(null);
-  const generation = useRef(0), busy = useRef(false);
-  const refresh = useCallback(async () => {
-    if (!orderId || busy.current || !focused || AppState.currentState === 'background') return;
-    const version = generation.current;
-    busy.current = true;
-    try { const next = await api.get(`/api/delivery/tracking/${encodeURIComponent(orderId)}`);
-      if (version === generation.current) { setData(next); setError(null); }
-    } catch (err) { if (version === generation.current) setError(err.message || 'Tracking unavailable'); }
-    finally { if (version === generation.current) { busy.current = false; setLoading(false); } }
-  }, [orderId, focused, user?.id, user?.role]);
+  const [active, setActive] = useState(AppState.currentState !== 'background');
+  const generation = useRef(0), pending = useRef(null);
   useEffect(() => {
-    generation.current++; busy.current = false; setData(null); setLoading(!!orderId);
+    const subscription = AppState.addEventListener('change', state => setActive(state === 'active'));
+    return () => subscription.remove();
+  }, []);
+  const refresh = useCallback(async () => {
+    if (!orderId || !focused || !active) return;
+    if (pending.current) return pending.current.promise;
+    const version = generation.current;
+    const request = { controller: new AbortController(), promise: null };
+    pending.current = request;
+    request.promise = (async () => {
+    try { const next = await api.get(`/api/delivery/tracking/${encodeURIComponent(orderId)}`, { signal: request.controller.signal });
+      if (version === generation.current) { setData(next); setError(null); }
+    } catch (err) { if (version === generation.current && !request.controller.signal.aborted) setError(err.message || 'Tracking unavailable'); }
+    finally {
+      if (pending.current === request) pending.current = null;
+      if (version === generation.current) setLoading(false);
+    }
+    })();
+    return request.promise;
+  }, [orderId, focused, active, user?.id, user?.role]);
+  useEffect(() => {
+    setData(null); setLoading(!!orderId); setError(null);
+  }, [orderId, user?.id, user?.role]);
+  useEffect(() => {
+    generation.current++;
+    if (!focused || !active || !orderId) return undefined;
     refresh();
     const timer = setInterval(refresh, 5000);
-    return () => { generation.current++; busy.current = false; clearInterval(timer); };
-  }, [refresh, orderId]);
+    return () => {
+      generation.current++;
+      pending.current?.controller.abort(); pending.current = null;
+      clearInterval(timer);
+    };
+  }, [refresh, orderId, focused, active]);
   return { data, loading, error, refresh };
 }

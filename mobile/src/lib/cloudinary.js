@@ -1,46 +1,68 @@
-import { Platform } from 'react-native';
+﻿import { Platform } from 'react-native';
 import { CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from '@env';
 
-// Uploads a local image (from expo-image-picker) to Cloudinary using an
-// UNSIGNED upload preset, and returns the hosted secure_url.
-//
-// Requires in .env:
-//   CLOUDINARY_CLOUD_NAME=...
-//   CLOUDINARY_UPLOAD_PRESET=...   (must be an *unsigned* preset)
-export async function uploadToCloudinary(asset) {
-  if (!CLOUDINARY_CLOUD_NAME || CLOUDINARY_CLOUD_NAME === 'your_cloud_name' ||
-      !CLOUDINARY_UPLOAD_PRESET || CLOUDINARY_UPLOAD_PRESET === 'your_unsigned_preset') {
-    throw new Error('Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET in .env.');
-  }
+const UPLOAD_MESSAGE = 'Unable to upload image. Please try again.';
+const uploadError = (code, details = {}) => Object.assign(new Error(UPLOAD_MESSAGE), { code, stage: 'upload', ...details });
+const MIME_EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif', 'image/avif': 'avif', 'image/gif': 'gif' };
 
-  const uri = asset?.uri;
-  if (!uri) throw new Error('No image selected.');
+export function prepareNativeImage(asset) {
+  let uri = typeof asset?.uri === 'string' ? asset.uri.trim() : '';
+  if (uri.startsWith('/')) uri = `file://${uri}`;
+  // Android networking uses ContentResolver; preserve content:// and encoded paths.
+  if (!/^(file|content):\/\//i.test(uri)) throw uploadError('IMAGE_PREPARATION_FAILED');
+  const suppliedName = asset.fileName || uri.split('/').pop()?.split(/[?#]/)[0] || '';
+  const extension = suppliedName.split('.').pop()?.toLowerCase();
+  const inferredType = Object.keys(MIME_EXTENSIONS).find(type => MIME_EXTENSIONS[type] === extension) || (extension === 'jpeg' ? 'image/jpeg' : null);
+  const type = asset.mimeType || inferredType;
+  if (!type || !MIME_EXTENSIONS[type]) throw uploadError('IMAGE_PREPARATION_FAILED');
+  const stem = suppliedName.replace(/\.[^.]*$/, '').replace(/[^a-zA-Z0-9_-]/g, '_') || 'proof';
+  return { uri, type, name: `${stem}.${MIME_EXTENSIONS[type]}` };
+}
 
-  const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
-  const formData = new FormData();
-  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-
-  if (Platform.OS === 'web') {
-    // On web the picker gives a blob/data URI — fetch it into a Blob to upload.
-    const blob = await (await fetch(uri)).blob();
-    formData.append('file', blob, asset.fileName || 'proof.jpg');
-  } else {
-    // On native, append the file descriptor directly.
-    const name = asset.fileName || uri.split('/').pop() || 'proof.jpg';
-    const type = asset.mimeType || 'image/jpeg';
-    formData.append('file', { uri, name, type });
-  }
-
-  let response;
-  try {
-    response = await fetch(url, { method: 'POST', body: formData });
-  } catch (err) {
-    throw new Error('Upload failed — check your internet connection.');
-  }
-
-  const data = await response.json();
-  if (!response.ok || !data.secure_url) {
-    throw new Error(data?.error?.message || 'Cloudinary upload failed.');
-  }
-  return data.secure_url;
+// Only the public cloud name and unsigned preset belong in the mobile build.
+export async function uploadToCloudinary(asset, { timeoutMs = 30000 } = {}) {
+  const cloud = CLOUDINARY_CLOUD_NAME?.trim();
+  const preset = CLOUDINARY_UPLOAD_PRESET?.trim();
+  if (!cloud || cloud === 'your_cloud_name' || !/^[\w-]+$/.test(cloud) || !preset || preset === 'your_unsigned_preset') throw uploadError('CLOUDINARY_CONFIGURATION');
+  if (!asset?.uri) throw uploadError('IMAGE_PREPARATION_FAILED');
+  const controller = new AbortController();
+  let timedOut = false;
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => { timedOut = true; controller.abort(); reject(uploadError('UPLOAD_TIMEOUT')); }, timeoutMs);
+  });
+  const operation = async () => {
+    const formData = new FormData();
+    formData.append('upload_preset', preset);
+    try {
+      if (Platform.OS === 'web') {
+        let file = asset.file;
+        if (!file) {
+          const local = await fetch(asset.uri, { signal: controller.signal });
+          if (!local.ok) throw uploadError('IMAGE_PREPARATION_FAILED');
+          file = await local.blob();
+        }
+        if (!file.size || !/^image\//.test(file.type || asset.mimeType || '')) throw uploadError('IMAGE_PREPARATION_FAILED');
+        formData.append('file', file, asset.fileName || file.name || `proof.${MIME_EXTENSIONS[file.type] || 'jpg'}`);
+      } else formData.append('file', prepareNativeImage(asset));
+    } catch (error) {
+      if (timedOut) throw uploadError('UPLOAD_TIMEOUT');
+      throw error.code ? error : uploadError('IMAGE_PREPARATION_FAILED');
+    }
+    let response;
+    try {
+      // fetch supplies multipart Content-Type including the required boundary.
+      response = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/image/upload`, { method: 'POST', body: formData, signal: controller.signal });
+    } catch { throw uploadError(timedOut ? 'UPLOAD_TIMEOUT' : 'CLOUDINARY_UNREACHABLE'); }
+    let data;
+    try { data = JSON.parse(await response.text()); } catch { data = null; }
+    if (!response.ok || !data?.secure_url) {
+      const configurationFailure = /upload preset|unsigned|cloud name|api key/i.test(data?.error?.message || '');
+      throw uploadError(configurationFailure ? 'CLOUDINARY_CONFIGURATION' : 'CLOUDINARY_UPLOAD_FAILED', { status: response.status });
+    }
+    if (!/^https:\/\/res\.cloudinary\.com\//.test(data.secure_url)) throw uploadError('CLOUDINARY_UPLOAD_FAILED');
+    return data.secure_url;
+  };
+  try { return await Promise.race([operation(), deadline]); }
+  finally { clearTimeout(timer); }
 }

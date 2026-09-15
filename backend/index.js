@@ -9,7 +9,8 @@ const { verifyToken, configureAuth } = require('./lib/auth');
 const { createSmsHook } = require('./lib/smsHook');
 const { mountAccountRoutes } = require('./lib/accountRoutes');
 const { isVegetable, VEGETABLE_VALIDATION_MESSAGE } = require('./lib/vegetables');
-const { coordinate, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
+const { coordinate, destinationFor, loadDestination, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
+const { STALE_LOCATION_SECONDS } = require('./lib/locationPolicy');
 
 dotenv.config();
 
@@ -1466,14 +1467,7 @@ app.get('/api/delivery/orders', verifyToken, async (req, res) => {
   const { data: orders, error } = await supabaseAdmin
     .from('orders')
     .select(`
-      id,
-      status,
-      total_amount,
-      delivery_address,
-      preferred_schedule,
-      created_at,
-      retailer_id,
-      distributor_id,
+      *,
       order_items (vegetable_name, quantity_kg, price_at_order),
       deliveries (id, status, proof_photo_url, delivered_at, pod)
     `)
@@ -1504,18 +1498,24 @@ app.get('/api/delivery/orders', verifyToken, async (req, res) => {
       });
     }
 
+    const retailerIds = [...new Set((orders || []).map(o => o.retailer_id))].filter(Boolean);
+    const addressResult = retailerIds.length ? await supabaseAdmin.from('delivery_addresses')
+      .select('user_id, address, latitude, longitude').in('user_id', retailerIds) : { data: [] };
+    if (addressResult.error) throw addressResult.error;
     const list = (orders || []).map((o) => {
       const ret = usersInfo[o.retailer_id] || {};
       const dist = usersInfo[o.distributor_id] || {};
+      const destination = destinationFor(o, ret, (addressResult.data || []).filter(address => address.user_id === o.retailer_id));
 
       return {
         ...o,
         retailer_name: ret.full_name || 'Retailer',
         retailer_address: o.delivery_address || ret.store_location || 'Retailer address',
-        retailer_coords: ret.latitude && ret.longitude ? { latitude: ret.latitude, longitude: ret.longitude } : null,
+        retailer_coords: coordinate(destination), delivery_location: destination,
+        delivery_coordinate_source: destination.coordinate_source,
         distributor_name: dist.full_name || 'Distributor',
         distributor_address: dist.warehouse_location || 'Distributor warehouse',
-        distributor_coords: dist.latitude && dist.longitude ? { latitude: dist.latitude, longitude: dist.longitude } : null,
+        distributor_coords: coordinate(dist),
       };
     });
 
@@ -1891,12 +1891,15 @@ app.put('/api/deliveries/:id/complete', verifyToken, async (req, res) => {
   if (delivery.status === 'delivered' && order.status === 'delivered') return res.json({ message: 'Delivery already completed', pod: delivery.pod });
   if (delivery.status !== 'in_transit' || order.status !== 'in_transit') return res.status(409).json({ error: 'Delivery must be in transit before submitting proof.' });
   let pod, photoUrl;
+  let destination;
+  try { destination = await loadDestination(supabaseAdmin, order); }
+  catch { return res.status(503).json({ error: 'Unable to load delivery destination. Retry.', code: 'DELIVERY_DESTINATION_LOOKUP_FAILED' }); }
   try {
-    pod = validateProof(req.body, { latitude: order.delivery_latitude, longitude: order.delivery_longitude });
+    pod = validateProof(req.body, destination);
     photoUrl = proofImageUrl(proof_photo_url, pod);
-  } catch (err) { return res.status(422).json({ error: err.message }); }
+  } catch (err) { return res.status(422).json({ error: err.message, code: err.code || 'PROOF_IMAGE_INVALID' }); }
   try { await ensureProofImage(photoUrl); }
-  catch { return res.status(503).json({ error: 'Could not generate the proof photo footer. Check your connection and retry.' }); }
+  catch { return res.status(503).json({ error: 'Proof was uploaded, but the delivery could not be completed. Please try again.', code: 'PROOF_IMAGE_UNAVAILABLE' }); }
   const { error: completeError } = await supabaseAdmin.rpc('complete_delivery_with_proof', {
     p_delivery_id: id, p_rider_id: deliveryPersonId, p_photo_url: photoUrl, p_pod: pod,
   });
@@ -2125,21 +2128,33 @@ app.post('/api/delivery/update-location', verifyToken, async (req, res) => {
     if (req.user.role !== 'delivery_personnel') return res.status(403).json({ error: 'Only riders can publish delivery GPS' });
     const coords = coordinate(req.body);
     if (!coords) return res.status(400).json({ error: 'Valid latitude and longitude are required' });
-    const { delivery_id, accuracy } = req.body;
+    const { delivery_id, accuracy, captured_at, timestamp: deviceTimestamp } = req.body;
     if (delivery_id) {
       const { data: order } = await supabaseAdmin.from('orders').select('delivery_personnel_id').eq('id', delivery_id).single();
       if (!order || order.delivery_personnel_id !== riderId) return res.status(403).json({ error: 'This delivery is not assigned to you' });
     }
-    const precision = accuracy != null && Number.isFinite(Number(accuracy)) && Number(accuracy) >= 0 ? Number(accuracy) : null;
-    const timestamp = new Date().toISOString();
+    if (accuracy != null && (typeof accuracy !== 'number' || !Number.isFinite(accuracy) || accuracy < 0)) {
+      return res.status(400).json({ error: 'GPS accuracy must be a non-negative number' });
+    }
+    const precision = accuracy ?? null;
+    // Existing clients without a capture time retain receipt-time compatibility.
+    const captured = captured_at != null ? (typeof captured_at === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(captured_at) ? Date.parse(captured_at) : NaN) :
+      deviceTimestamp != null ? (typeof deviceTimestamp === 'number' ? deviceTimestamp : NaN) : Date.now();
+    if (!Number.isFinite(captured) || Date.now() - captured > STALE_LOCATION_SECONDS * 1000 || captured - Date.now() > 30000) {
+      return res.status(422).json({ error: 'Your GPS location has expired. Refresh your location and try again.', code: 'GPS_STALE' });
+    }
+    const timestamp = new Date(captured).toISOString();
     const updates = { current_latitude: coords.latitude, current_longitude: coords.longitude,
       current_location_accuracy: precision, last_location_update: timestamp };
-    let result = await supabaseAdmin.from('users').update(updates).eq('id', riderId);
+    const saveLocation = () => supabaseAdmin.from('users').update(updates).eq('id', riderId)
+      .or(`last_location_update.is.null,last_location_update.lt.${timestamp}`).select('last_location_update');
+    let result = await saveLocation();
     if (missingColumn(result.error, ['current_location_accuracy'])) {
       delete updates.current_location_accuracy;
-      result = await supabaseAdmin.from('users').update(updates).eq('id', riderId);
+      result = await saveLocation();
     }
     if (result.error) return res.status(500).json({ error: 'Failed to save rider location' });
+    if (!result.data?.length) return res.json({ success: true, ignored: true, timestamp });
     if (delivery_id) {
       const { error } = await supabaseAdmin.from('delivery_tracking').insert({ delivery_id,
         rider_id: riderId, ...coords, status: 'en_route' });
