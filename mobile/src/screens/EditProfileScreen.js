@@ -1,8 +1,9 @@
 import { rf } from '../lib/responsive';
+import ProfilePhotoField from '../components/ProfilePhotoField';
 import { useState } from 'react';
 import {
   Text, TextInput, TouchableOpacity, ActivityIndicator, View, ScrollView,
-  StyleSheet, Modal, Platform, KeyboardAvoidingView,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,13 +11,11 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert, confirmAction } from '../lib/ui';
-import { normalizePhone, isValidPhone } from '../lib/phone';
-import PasswordInput from '../components/PasswordInput';
 import MapPinningModal from '../components/MapPinningModal';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 
 export default function EditProfileScreen({ navigation }) {
-  const { user, signIn, signOut, updateUser } = useAuth();
+  const { user, signOut, updateUser } = useAuth();
   const { t } = useTranslation();
 
   const ROLE_LOCATION = {
@@ -30,12 +29,15 @@ export default function EditProfileScreen({ navigation }) {
 
   const [fullName, setFullName] = useState(user?.full_name || user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
-  const [phone, setPhone] = useState(user?.phone || '');
+  const phone = user?.phone || '';
   const [location, setLocation] = useState(loc ? (user?.[loc.key] || '') : '');
   const [latitude, setLatitude] = useState(user?.latitude ?? null);
   const [longitude, setLongitude] = useState(user?.longitude ?? null);
   const [mapModalVisible, setMapModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || null);
+  const [avatarChanged, setAvatarChanged] = useState(false);
+  const [photoState, setPhotoState] = useState('ready');
   const [deleting, setDeleting] = useState(false);
 
   const handleMapConfirm = ({ latitude: lat, longitude: lng, address }) => {
@@ -45,80 +47,17 @@ export default function EditProfileScreen({ navigation }) {
     setMapModalVisible(false);
   };
 
-  // Change-password modal state
-  const [pwOpen, setPwOpen] = useState(false);
-  const [currentPw, setCurrentPw] = useState('');
-  const [newPw, setNewPw] = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
-  const [changingPw, setChangingPw] = useState(false);
-
-  const changePassword = async () => {
-    if (newPw.length < 6) {
-      showAlert(t('common.error'), t('editProfile.passwordTooShort'));
-      return;
-    }
-    if (newPw !== confirmPw) {
-      showAlert(t('common.error'), t('editProfile.passwordsDontMatch'));
-      return;
-    }
-    setChangingPw(true);
-    try {
-      await api.put(`/api/users/${user.id}/password`, {
-        current_password: currentPw || undefined,
-        new_password: newPw,
-      });
-      setPwOpen(false);
-      setCurrentPw(''); setNewPw(''); setConfirmPw('');
-      showAlert(t('common.saved'), t('editProfile.passwordUpdated'));
-    } catch (err) {
-      showAlert(t('common.error'), err.message);
-    } finally {
-      setChangingPw(false);
-    }
-  };
-
-  // Change-phone modal state. Phone is the login credential, so unlike
-  // Name/Email it requires a current-password confirmation (Issue: security)
-  // before the change is applied, via a dedicated endpoint.
-  const [phonePwOpen, setPhonePwOpen] = useState(false);
-  const [phonePw, setPhonePw] = useState('');
-  const [pendingPhone, setPendingPhone] = useState(null);
-  const [changingPhone, setChangingPhone] = useState(false);
-
-  const applyPhoneChange = async () => {
-    setChangingPhone(true);
-    try {
-      const data = await api.put(`/api/users/${user.id}/phone`, {
-        current_password: phonePw || undefined,
-        new_phone: pendingPhone,
-      });
-      await signIn(data.token, { ...user, phone: data.phone });
-      setPhonePwOpen(false);
-      setPhonePw('');
-      setPendingPhone(null);
-      showAlert(t('common.saved'), t('editProfile.phoneUpdated'));
-    } catch (err) {
-      showAlert(t('common.error'), err.message);
-    } finally {
-      setChangingPhone(false);
-    }
-  };
-
   const save = async () => {
+    if (saving || photoState !== 'ready') return;
     const name = fullName.trim();
     if (!name) {
       showAlert(t('common.error'), t('editProfile.nameRequired'));
       return;
     }
 
-    const normalizedPhone = normalizePhone(phone);
-    const phoneChanged = normalizedPhone !== (user?.phone || '');
-    if (phoneChanged && !isValidPhone(normalizedPhone)) {
-      showAlert(t('common.error'), t('common.phoneHint'));
-      return;
-    }
 
     const updates = { full_name: name, email: email.trim() };
+    if (avatarChanged) updates.avatar_url = avatarUrl;
     if (loc) updates[loc.key] = location.trim();
     if (latitude != null && longitude != null) {
       updates.latitude = latitude;
@@ -129,12 +68,8 @@ export default function EditProfileScreen({ navigation }) {
     try {
       const data = await api.put(`/api/users/${user.id}`, updates);
       await updateUser({ ...data.user, name: data.user.full_name });
-      if (phoneChanged) {
-        setPendingPhone(normalizedPhone);
-        setPhonePwOpen(true);
-      } else {
-        showAlert(t('common.saved'), t('editProfile.saved'));
-      }
+      setAvatarChanged(false);
+      showAlert(t('common.saved'), t('editProfile.saved'));
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
@@ -142,23 +77,7 @@ export default function EditProfileScreen({ navigation }) {
     }
   };
 
-  const deleteAccount = () => {
-    confirmAction(
-      t('editProfile.deleteConfirmTitle'),
-      t('editProfile.deleteConfirmMessage'),
-      async () => {
-        setDeleting(true);
-        try {
-          await api.delete(`/api/users/${user.id}`);
-          showAlert(t('editProfile.deletedTitle'), t('editProfile.deletedMessage'));
-          await signOut({ redirectToLogin: true });
-        } catch (err) {
-          showAlert(t('common.error'), err.message);
-          setDeleting(false);
-        }
-      }
-    );
-  };
+  const deleteAccount = () => showAlert('Disable account', 'Contact the distributor to disable your account. Your orders and transaction history will be preserved.');
 
   return (
     <SafeAreaView style={styles.container}>
@@ -175,6 +94,9 @@ export default function EditProfileScreen({ navigation }) {
         {/* Profile Details Card */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('editProfile.profileDetails')}</Text>
+          <ProfilePhotoField user={user} value={avatarUrl} disabled={saving || deleting}
+            onChange={(url) => { setAvatarUrl(url); setAvatarChanged(true); }}
+            onStateChange={setPhotoState} />
 
           <Text style={styles.fieldLabel}>{t('editProfile.fullNameLabel')}</Text>
           <TextInput
@@ -198,12 +120,13 @@ export default function EditProfileScreen({ navigation }) {
           <TextInput
             style={styles.input}
             value={phone}
-            onChangeText={setPhone}
             keyboardType="phone-pad"
             autoCapitalize="none"
-            editable={!saving && !deleting}
+            editable={false}
           />
-          <Text style={styles.phoneHint}>{t('common.phoneHint')}</Text>
+          <TouchableOpacity disabled={saving || deleting} onPress={() => navigation.navigate('ChangePhone')}>
+            <Text style={styles.phoneHint}>{t('phoneAuth.changePhone')}</Text>
+          </TouchableOpacity>
 
           {loc && (
             <>
@@ -233,27 +156,13 @@ export default function EditProfileScreen({ navigation }) {
           )}
 
           <TouchableOpacity
-            style={[styles.button, styles.buttonPrimary, saving && styles.buttonDisabled]}
+            style={[styles.button, styles.buttonPrimary, (saving || photoState !== 'ready') && styles.buttonDisabled]}
             onPress={save}
-            disabled={saving || deleting}
+            disabled={saving || deleting || photoState !== 'ready'}
           >
             {saving
               ? <ActivityIndicator color="#fff" />
               : <Text style={styles.buttonPrimaryText}>{t('common.saveChanges')}</Text>}
-          </TouchableOpacity>
-        </View>
-
-        {/* Security Card */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>{t('editProfile.security')}</Text>
-
-          <TouchableOpacity
-            style={[styles.menuItem, styles.menuItemLast]}
-            onPress={() => setPwOpen(true)}
-            disabled={saving || deleting}
-          >
-            <Text style={styles.menuItemText}>{t('editProfile.changePassword')}</Text>
-            <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
         </View>
 
@@ -266,119 +175,10 @@ export default function EditProfileScreen({ navigation }) {
           >
             {deleting
               ? <ActivityIndicator color="#c62828" />
-              : <Text style={styles.buttonDangerText}>{t('editProfile.deleteAccount')}</Text>}
+              : <Text style={styles.buttonDangerText}>Disable account</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      {/* Change Password modal */}
-      <Modal visible={pwOpen} transparent animationType={Platform.OS === 'web' ? 'none' : 'slide'} onRequestClose={() => setPwOpen(false)}>
-        <KeyboardAvoidingView style={styles.pwKav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.pwBackdrop}>
-            <View style={styles.pwSheet}>
-              <ScrollView
-                style={styles.pwScroll}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={styles.pwTitle}>{t('editProfile.changePasswordTitle')}</Text>
-                <Text style={styles.pwHint}>
-                  {t('editProfile.changePasswordHint')}
-                </Text>
-
-                <Text style={styles.fieldLabel}>{t('editProfile.currentPasswordLabel')}</Text>
-                <PasswordInput
-                  style={styles.input}
-                  value={currentPw}
-                  onChangeText={setCurrentPw}
-                  editable={!changingPw}
-                />
-
-                <Text style={styles.fieldLabel}>{t('editProfile.newPasswordLabel')}</Text>
-                <PasswordInput
-                  style={styles.input}
-                  value={newPw}
-                  onChangeText={setNewPw}
-                  placeholder={t('editProfile.newPasswordPlaceholder')}
-                  editable={!changingPw}
-                />
-
-                <Text style={styles.fieldLabel}>{t('editProfile.confirmNewPasswordLabel')}</Text>
-                <PasswordInput
-                  style={styles.input}
-                  value={confirmPw}
-                  onChangeText={setConfirmPw}
-                  editable={!changingPw}
-                />
-              </ScrollView>
-
-              <View style={styles.pwActions}>
-                <TouchableOpacity
-                  style={[styles.button, styles.buttonOutline, { flex: 1, marginTop: 0 }]}
-                  onPress={() => setPwOpen(false)}
-                  disabled={changingPw}
-                >
-                  <Text style={styles.buttonOutlineText}>{t('common.cancel')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.button, styles.buttonPrimary, { flex: 1, marginTop: 0 }, changingPw && styles.buttonDisabled]}
-                  onPress={changePassword}
-                  disabled={changingPw}
-                >
-                  {changingPw
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={styles.buttonPrimaryText}>{t('common.update')}</Text>}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Confirm-password modal, shown after Save when the phone number changed */}
-      <Modal visible={phonePwOpen} transparent animationType={Platform.OS === 'web' ? 'none' : 'slide'} onRequestClose={() => setPhonePwOpen(false)}>
-        <KeyboardAvoidingView style={styles.pwKav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.pwBackdrop}>
-            <View style={styles.pwSheet}>
-              <ScrollView
-                style={styles.pwScroll}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={styles.pwTitle}>{t('editProfile.changePhoneTitle')}</Text>
-                <Text style={styles.pwHint}>{t('editProfile.changePhoneHint')}</Text>
-
-                <Text style={styles.fieldLabel}>{t('editProfile.currentPasswordLabel')}</Text>
-                <PasswordInput
-                  style={styles.input}
-                  value={phonePw}
-                  onChangeText={setPhonePw}
-                  editable={!changingPhone}
-                />
-              </ScrollView>
-
-              <View style={styles.pwActions}>
-                <TouchableOpacity
-                  style={[styles.button, styles.buttonOutline, { flex: 1, marginTop: 0 }]}
-                  onPress={() => { setPhonePwOpen(false); setPhonePw(''); setPendingPhone(null); }}
-                  disabled={changingPhone}
-                >
-                  <Text style={styles.buttonOutlineText}>{t('common.cancel')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.button, styles.buttonPrimary, { flex: 1, marginTop: 0 }, changingPhone && styles.buttonDisabled]}
-                  onPress={applyPhoneChange}
-                  disabled={changingPhone}
-                >
-                  {changingPhone
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={styles.buttonPrimaryText}>{t('common.update')}</Text>}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
       <MapPinningModal
         visible={mapModalVisible}

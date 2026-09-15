@@ -1,3 +1,4 @@
+import { currentProofLocation, captureProofPhoto } from '../lib/podCapture';
 import { useState } from 'react';
 import { Text, View, ScrollView, TouchableOpacity, TextInput, Platform, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,8 +33,8 @@ function formatScheduleParts(preferredSchedule) {
   const d = new Date(preferredSchedule);
   if (isNaN(d.getTime())) return null;
   return {
-    date: d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }),
-    time: d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
+    date: d.toLocaleDateString(undefined, { timeZone: 'Asia/Manila', month: 'long', day: 'numeric', year: 'numeric' }),
+    time: d.toLocaleTimeString(undefined, { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' }),
   };
 }
 
@@ -103,23 +104,23 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
     }
   };
 
-  const pickPhoto = async () => {
+  const openProof = async () => {
+    setBusy(true);
     try {
-      let result;
-      if (Platform.OS === 'web') {
-        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
-      } else {
-        const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) {
-          showAlert(t('dashboards.delivery.permissionNeededTitle'), t('dashboards.delivery.cameraPermissionMessage'));
-          return;
-        }
-        result = await ImagePicker.launchCameraAsync({ quality: 0.6 });
-      }
-      if (!result.canceled && result.assets?.length) setPhoto(result.assets[0]);
+      await currentProofLocation(t);
+      setPhoto(null);
+      setConfirmVisible(true);
+    } catch (err) { showAlert(t('common.error'), err.message); }
+    finally { setBusy(false); }
+  };
+  const pickPhoto = async () => {
+    setBusy(true);
+    setPhoto(null);
+    try {
+      setPhoto(await captureProofPhoto(t, ImagePicker, Platform.OS));
     } catch (err) {
       showAlert(t('common.error'), err.message || t('dashboards.delivery.cameraErrorFallback'));
-    }
+    } finally { setBusy(false); }
   };
 
   const REJECT_REASON_PRESETS = [
@@ -167,9 +168,10 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
     }
     setBusy(true);
     try {
-      let proofUrl;
-      if (photo) proofUrl = await uploadToCloudinary(photo);
-      await api.put(`/api/deliveries/${delivery.id}/complete`, proofUrl ? { proof_photo_url: proofUrl } : {});
+      if (!photo?.pod) throw new Error(t('pod.required'));
+      if (Date.now() - Date.parse(photo.pod.captured_at) > 10 * 60000) throw new Error(t('pod.stale'));
+      const proofUrl = await uploadToCloudinary(photo);
+      await api.put(`/api/deliveries/${delivery.id}/complete`, { proof_photo_url: proofUrl, ...photo.pod });
       setPhoto(null);
       setConfirmVisible(false);
       await refreshOrder();
@@ -291,7 +293,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
 
               <TouchableOpacity
                 style={[styles.button, styles.buttonPrimary, (busy || rank < 2) && styles.buttonDisabled]}
-                onPress={() => setConfirmVisible(true)}
+                onPress={openProof}
                 disabled={busy || rank < 2}
               >
                 <Text style={styles.buttonPrimaryText}>{t('dashboards.delivery.markDelivered')}</Text>

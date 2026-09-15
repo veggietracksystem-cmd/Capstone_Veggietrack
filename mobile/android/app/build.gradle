@@ -1,7 +1,6 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
-
 def projectRoot = rootProject.projectDir.parentFile.absolutePath
 
 // Resolve from the mobile project on both EAS/Linux and local Windows builds.

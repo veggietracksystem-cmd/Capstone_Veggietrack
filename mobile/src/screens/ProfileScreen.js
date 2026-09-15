@@ -1,3 +1,4 @@
+import UserAvatar from '../components/UserAvatar';
 import { rf } from '../lib/responsive';
 import { useState } from 'react';
 import {
@@ -87,11 +88,7 @@ export default function ProfileScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* User Card */}
         <View style={styles.profileCard}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>
-              {(fullName || user?.phone || 'U').charAt(0).toUpperCase()}
-            </Text>
-          </View>
+          <UserAvatar user={user} style={styles.avatarCircle} textStyle={styles.avatarText} />
           <Text style={styles.userName}>{fullName || user?.phone || 'User'}</Text>
           <View style={styles.roleBadge}>
             <Text style={styles.roleBadgeText}>{(user?.role || 'user').replace(/_/g, ' ').toUpperCase()}</Text>

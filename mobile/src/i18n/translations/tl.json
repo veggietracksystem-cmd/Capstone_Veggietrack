@@ -1,4 +1,35 @@
 {
+  "avatar": {
+    "title": "Larawan sa profile",
+    "choose": "Pumili ng larawan",
+    "replace": "Palitan ang larawan",
+    "uploadFailed": "Hindi na-upload ang larawan. Pumili ng larawan upang subukang muli.",
+    "saveHint": "I-save ang mga pagbabago upang ma-update ang larawan sa profile."
+},
+  "phoneAuth": {
+  "changePhone": "Palitan ang numero (patunayan sa SMS)",
+  "title": "Maligayang pagdating sa VeggieTrack",
+  "subtitle": "Mag-sign in o gumawa ng account gamit ang iyong numero ng telepono.",
+  "phone": "Numero ng telepono",
+  "code": "Verification code mula sa SMS",
+  "send": "Ipadala ang OTP",
+  "verify": "Patunayan at magpatuloy",
+  "resend": "Ipadala muli ang OTP",
+  "cooldown": "Ipadala muli pagkalipas ng {seconds}s",
+  "another": "Gumamit ng ibang numero",
+  "invalidPhone": "Maglagay ng wastong numero, tulad ng 09171234567 o +639171234567.",
+  "invalidCode": "Ilagay ang anim na digit na code mula sa SMS.",
+  "profile": "Kumpletuhin ang profile para sa {phone}.",
+  "unavailable": "Pansamantalang hindi available ang pag-sign in, pagpaparehistro, at pagpapalit ng numero. Subukan muli sa ibang pagkakataon."
+},
+  "checkout": {
+  "minimumWeight": "Dapat hindi bababa sa 5 kg ang kabuuang order.",
+  "cartStorageError": "Hindi ma-access ang naka-save na cart. Subukan muli bago isara ang app.",
+  "hour": "Oras",
+  "minute": "Minuto",
+  "deliveryDate": "Petsa ng delivery",
+  "deliveryTime": "Oras ng delivery (oras sa Pilipinas)"
+},
   "common": {
     "save": "I-save",
     "saveChanges": "I-save ang mga Pagbabago",
@@ -761,5 +792,22 @@
     "addressPlaceholder": "Kalsada, Lungsod, Lalawigan",
     "setDefault": "Itakda bilang default",
     "default": "Default"
+  },
+  "pod": {
+    "pastSchedule": "Hindi maaaring lumipas na ang petsa at oras ng paghahatid.",
+    "pinRequired": "I-pin sa mapa ang destinasyon para maberipika ang paghahatid.",
+    "permission": "Kailangan ang pahintulot sa lokasyon. Payagan ito sa Settings at subukan muli.",
+    "services": "I-on ang location services at subukan muli.",
+    "timeout": "Nag-timeout ang GPS. Pumunta sa bukas na lugar sa destinasyon at subukan muli.",
+    "unavailable": "Hindi available ang GPS. Subukan muli sa destinasyon.",
+    "accuracy": "Hindi sapat ang katumpakan ng GPS. I-on ang precise location at subukan sa labas (50 metro o mas mahusay).",
+    "stale": "Nag-expire ang GPS proof. Kumuha muli ng larawan at lokasyon.",
+    "required": "Kailangan ang larawan at kasalukuyang GPS location.",
+    "captured": "Kinuha ang GPS",
+    "submitted": "Isinumite",
+    "coordinates": "Mga coordinate",
+    "verified": "Beripikado ang lokasyon ng paghahatid",
+    "unverified": "Hindi maberipika ang lokasyon ng paghahatid",
+    "distance": "Layo mula sa destinasyon"
   }
 }

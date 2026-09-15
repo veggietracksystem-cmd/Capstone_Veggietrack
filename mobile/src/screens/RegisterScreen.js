@@ -1,97 +1,54 @@
 import { rf } from '../lib/responsive';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { supabase, authConfigured } from '../lib/supabase';
+import { normalizePhone, isValidPhone, PHONE_HINT } from '../lib/phone';
+import { authError } from '../lib/authErrors';
 import {
   Text, TextInput, TouchableOpacity, ActivityIndicator, View, ScrollView,
   StyleSheet, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { api } from '../api/client';
-import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert } from '../lib/ui';
-import { normalizePhone, isValidPhone } from '../lib/phone';
-import PasswordInput from '../components/PasswordInput';
 import MapPinningModal from '../components/MapPinningModal';
 
 const PRIMARY = '#1E4E09';
-const PH_PREFIX = '+63';
 
-export default function RegisterScreen({ navigation }) {
-  const { signIn } = useAuth();
+export default function RegisterScreen({ navigation, route }) {
   const { t } = useTranslation();
 
   // Role -> location field key + i18n keys. The backend reads the matching key.
   const ROLES = [
     { value: 'farmer', label: t('auth.register.roleFarmer'), locationKey: 'farm_location', locationLabel: t('auth.register.farmLocation') },
-    { value: 'distributor', label: t('auth.register.roleDistributor'), locationKey: 'warehouse_location', locationLabel: t('auth.register.warehouseLocation') },
     { value: 'retailer', label: t('auth.register.roleRetailer'), locationKey: 'store_location', locationLabel: t('auth.register.storeLocation') },
     { value: 'delivery_personnel', label: t('auth.register.roleDelivery'), locationKey: 'service_area', locationLabel: t('auth.register.serviceArea') },
   ];
 
-  const [localNumber, setLocalNumber] = useState('');
+  const [phone,setPhone]=useState('');
+  const [password,setPassword]=useState('');
+  const lock=useRef(false);
   const [fullName, setFullName] = useState('');
-  const [username, setUsername] = useState('');
   const [role, setRole] = useState('farmer');
   const [location, setLocation] = useState('');
   const [mapModalVisible, setMapModalVisible] = useState(false);
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const roleConfig = ROLES.find((r) => r.value === role) || ROLES[0];
 
-  // Only digits reach the field; a leading 0 (common when copying a local
-  // number like 0917...) is dropped since the +63 prefix already covers it.
-  const handlePhoneChange = (text) => {
-    let digits = text.replace(/\D/g, '');
-    if (digits.startsWith('0')) digits = digits.slice(1);
-    setLocalNumber(digits.slice(0, 10));
-  };
-
   const register = async () => {
-    const trimmedPhone = normalizePhone(`${PH_PREFIX}${localNumber}`);
-    const trimmedName = fullName.trim();
-
-    if (!isValidPhone(trimmedPhone)) {
-      showAlert(t('common.error'), t('common.phoneHint'));
-      return;
-    }
-    if (!trimmedName) {
-      showAlert(t('common.error'), t('auth.register.enterFullName'));
-      return;
-    }
-    if (!password || password.length < 6) {
-      showAlert(t('common.error'), t('auth.register.passwordTooShort'));
-      return;
-    }
-    if (password !== confirmPassword) {
-      showAlert(t('common.error'), t('auth.register.passwordsDontMatch'));
-      return;
-    }
-
-    const payload = {
-      phone: trimmedPhone,
-      full_name: trimmedName,
-      role,
-      password,
-      [roleConfig.locationKey]: location.trim() || undefined,
-      latitude: latitude || undefined,
-      longitude: longitude || undefined,
-    };
-
-    setLoading(true);
+    if(lock.current)return;
+    if(!authConfigured){showAlert('Configuration required','Configure Supabase before registering.');return;}
+    if(!isValidPhone(phone)){showAlert('Mobile number',PHONE_HINT);return;}
+    if(!fullName.trim() || !location.trim() || password.length<8){showAlert('Check your details','Enter your name, location and a password of at least 8 characters.');return;}
+    lock.current=true;setLoading(true);
     try {
-      const data = await api.post('/api/auth/register', payload);
-      showAlert(t('auth.register.successTitle'), t('auth.register.successMessage'), () => {
-        navigation.navigate('Login');
-      });
-    } catch (err) {
-      showAlert(t('common.error'), err.message);
-    } finally {
-      setLoading(false);
-    }
+      const {error}=await supabase.auth.signUp({phone:normalizePhone(phone),password,options:{data:{full_name:fullName.trim(),role,[roleConfig.locationKey]:location.trim(),latitude,longitude}}});
+      if(error)throw error;
+      setPassword('');navigation.navigate('PhoneOtp',{phone:normalizePhone(phone)});
+    } catch(error){showAlert('Registration',authError(error));}
+    finally{lock.current=false;setLoading(false);}
   };
 
   const handleMapConfirm = ({ latitude, longitude, address }) => {
@@ -109,41 +66,16 @@ export default function RegisterScreen({ navigation }) {
       >
         <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>{t('auth.register.title')}</Text>
-          <Text style={styles.subtitle}>{t('auth.register.subtitle')}</Text>
+          <Text style={styles.subtitle}>Verify your mobile number, then wait for distributor approval.</Text>
 
-          <Text style={styles.fieldLabel}>{t('auth.register.phoneLabel')}</Text>
-          <View style={styles.phoneRow}>
-            <View style={styles.phonePrefix}>
-              <Text style={styles.phonePrefixText}>{PH_PREFIX}</Text>
-            </View>
-            <TextInput
-              style={styles.phoneInput}
-              placeholder="9171234567"
-              value={localNumber}
-              onChangeText={handlePhoneChange}
-              keyboardType="phone-pad"
-              autoCapitalize="none"
-              editable={!loading}
-              maxLength={10}
-            />
-          </View>
-
+          <TextInput style={styles.input} placeholder="Mobile number" accessibilityLabel="Mobile number" keyboardType="phone-pad" value={phone} onChangeText={setPhone} editable={!loading}/>
+          <TextInput style={styles.input} placeholder="Password (at least 8 characters)" accessibilityLabel="Password" secureTextEntry value={password} onChangeText={setPassword} editable={!loading}/>
           <Text style={styles.fieldLabel}>{t('auth.register.fullNameLabel')}</Text>
           <TextInput
             style={styles.input}
             placeholder={t('auth.register.fullNamePlaceholder')}
             value={fullName}
             onChangeText={setFullName}
-            editable={!loading}
-          />
-
-          <Text style={styles.fieldLabel}>{t('auth.register.usernameLabel')}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={t('auth.register.usernamePlaceholder')}
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
             editable={!loading}
           />
 
@@ -191,27 +123,10 @@ export default function RegisterScreen({ navigation }) {
             </Text>
           ) : null}
 
-          <Text style={styles.fieldLabel}>{t('auth.register.passwordLabel')}</Text>
-          <PasswordInput
-            style={styles.input}
-            placeholder={t('auth.register.passwordPlaceholder')}
-            value={password}
-            onChangeText={setPassword}
-            editable={!loading}
-          />
-
-          <Text style={styles.fieldLabel}>{t('auth.register.confirmPasswordLabel')}</Text>
-          <PasswordInput
-            style={styles.input}
-            placeholder={t('auth.register.confirmPasswordPlaceholder')}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            editable={!loading}
-          />
-
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={register}
+            accessibilityState={{ disabled: loading }}
             disabled={loading}
             activeOpacity={0.7}
           >

@@ -1,28 +1,22 @@
+import DeliveryTimeScroller from './DeliveryTimeScroller';
+import { useTranslation } from '../i18n/useTranslation';
+import { manilaDate, scheduleInstant } from '../lib/deliverySchedule';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { colors, fonts } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
 
 const PRIMARY = colors.leaf700;
 
-// Common delivery time slots (24h). A full clock picker would need a native
-// datetime library, which isn't installed — these slots cover realistic
-// delivery windows without adding a dependency.
-const TIME_SLOTS = ['08:00', '10:00', '12:00', '13:00', '15:00', '17:00'];
-
-const pad = (n) => String(n).padStart(2, '0');
-const dateKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
 // Next 7 days as selectable chips, today first.
 function nextDays(count = 7) {
   const out = [];
   for (let i = 0; i < count; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
+    const d = new Date(`${manilaDate(Date.now() + i * 86400000)}T12:00:00+08:00`);
     let label;
     if (i === 0) label = 'Today';
     else if (i === 1) label = 'Tomorrow';
     else label = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-    out.push({ key: dateKey(d), label });
+    out.push({ key: manilaDate(Date.now() + i * 86400000), label });
   }
   return out;
 }
@@ -32,11 +26,12 @@ function nextDays(count = 7) {
 // defaults to today (set by the caller); `time` has no default and is
 // required before checkout can proceed.
 export default function DeliveryDateTimeFields({ date, onDateChange, time, onTimeChange, disabled }) {
+  const { t } = useTranslation();
   const days = nextDays();
 
   return (
     <View>
-      <Text style={styles.label}>Delivery date</Text>
+      <Text style={styles.label}>{t('checkout.deliveryDate')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {days.map((d) => {
           const sel = date === d.key;
@@ -53,22 +48,8 @@ export default function DeliveryDateTimeFields({ date, onDateChange, time, onTim
         })}
       </ScrollView>
 
-      <Text style={[styles.label, styles.timeLabel]}>Delivery time</Text>
-      <View style={styles.timeWrap}>
-        {TIME_SLOTS.map((slot) => {
-          const sel = time === slot;
-          return (
-            <TouchableOpacity
-              key={slot}
-              style={[styles.chip, sel && styles.chipActive]}
-              onPress={() => onTimeChange(slot)}
-              disabled={disabled}
-            >
-              <Text style={[styles.chipText, sel && styles.chipTextActive]}>{slot}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <Text style={[styles.label, styles.timeLabel]}>{t('checkout.deliveryTime')}</Text>
+      <DeliveryTimeScroller date={date} time={time} onTimeChange={onTimeChange} disabled={disabled} />
     </View>
   );
 }

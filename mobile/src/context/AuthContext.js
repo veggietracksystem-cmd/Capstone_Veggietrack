@@ -1,144 +1,51 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import { Platform } from 'react-native';
-import { setAuthToken, setUnauthorizedHandler, setTokenRefreshedHandler } from '../api/client';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
+import { api, setAuthToken, setUnauthorizedHandler, setBlockedHandler, setTokenProvider } from '../api/client';
+import { supabase, authConfigured, clearStoredSession } from '../lib/supabase';
 import { clearAll } from '../offline/db';
-
-// Cross-platform secure storage: expo-secure-store on native (throws on web),
-// localStorage on web. Imported lazily so the web bundle never loads SecureStore.
-async function storageGet(key) {
-  if (Platform.OS === 'web') return window.localStorage.getItem(key);
-  const SecureStore = require('expo-secure-store');
-  return SecureStore.getItemAsync(key);
-}
-
-async function storageSet(key, value) {
-  if (Platform.OS === 'web') {
-    window.localStorage.setItem(key, value);
-    return;
-  }
-  const SecureStore = require('expo-secure-store');
-  await SecureStore.setItemAsync(key, value);
-}
-
-async function storageDelete(key) {
-  if (Platform.OS === 'web') {
-    window.localStorage.removeItem(key);
-    return;
-  }
-  const SecureStore = require('expo-secure-store');
-  await SecureStore.deleteItemAsync(key);
-}
-
 const AuthContext = createContext(null);
-
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(null);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // true until startup restore finishes
-  // Which unauthenticated screen to land on after signOut(). Defaults to Landing;
-  // set to 'Login' for flows (like account deletion) that should skip it.
-  const [initialRoute, setInitialRoute] = useState('Landing');
-
-  // Keep the API client's token in sync with context state.
-  useEffect(() => {
-    setAuthToken(token);
-  }, [token]);
-
-  // If any request returns 401, the token is dead → sign out.
-  useEffect(() => {
-    setUnauthorizedHandler(() => {
-      setAuthToken(null);
-      setToken(null);
-      setUser(null);
-      storageDelete('token');
-      storageDelete('user');
-      clearAll(); // drop cached offline data for the signed-out user
-    });
-  }, []);
-
-  // Update context state when a silent token refresh occurs in the API client.
-  useEffect(() => {
-    setTokenRefreshedHandler((newToken) => {
-      setToken(newToken);
-    });
-  }, []);
-
-
-  // Restore a saved session on app start.
-  useEffect(() => {
-    let mounted = true;
-
-    (async () => {
-      try {
-        const savedToken = await storageGet('token');
-        const savedUserJson = await storageGet('user');
-
-        if (savedToken && savedUserJson && mounted) {
-          try {
-            const parsedUser = JSON.parse(savedUserJson);
-            if (parsedUser && parsedUser.role && parsedUser.id) {
-              setAuthToken(savedToken);
-              setToken(savedToken);
-              setUser(parsedUser);
-            } else {
-              await storageDelete('token');
-              await storageDelete('user');
-            }
-          } catch {
-            await storageDelete('token');
-            await storageDelete('user');
-          }
-        }
-      } catch (err) {
-        console.warn('[Auth] Failed to restore session:', err);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const signIn = async (newToken, newUser) => {
-    // Set the client token imperatively first so the dashboard that mounts
-    // right after this render can fetch immediately (avoids "No token provided").
-    setAuthToken(newToken);
-    setToken(newToken);
-    setUser(newUser);
-    await storageSet('token', newToken);
-    await storageSet('user', JSON.stringify(newUser));
-  };
-
-  // Merge partial updates into the current user and persist them, so profile
-  // edits survive an app restart without forcing a re-login.
-  const updateUser = async (updates) => {
-    const merged = { ...user, ...updates };
-    setUser(merged);
-    await storageSet('user', JSON.stringify(merged));
-  };
-
-  const signOut = async (opts = {}) => {
-    setInitialRoute(opts.redirectToLogin ? 'Login' : 'Landing');
-    setAuthToken(null);
-    setToken(null);
-    setUser(null);
-    await storageDelete('token');
-    await storageDelete('user');
-    await clearAll(); // wipe cached harvests/products/orders/queues
-  };
-
-  return (
-    <AuthContext.Provider value={{ token, user, loading, initialRoute, signIn, signOut, updateUser }}>
-      {children}
-    </AuthContext.Provider>
-  );
+ const [user,setUser]=useState(null), [session,setSession]=useState(null), [loading,setLoading]=useState(true);
+ const [statusError,setStatusError]=useState(''), [recoveryMode,setRecoveryMode]=useState(false);
+ const [initialRoute,setInitialRoute]=useState('Landing');
+ const generation=useRef(0), alive=useRef(true);
+ const refreshProfile=async()=>{
+  const version=++generation.current;
+  try {
+   const {data,error}=await supabase.auth.getSession();
+   if(error) throw error;
+   if(!alive.current || version!==generation.current) return;
+   const current=data.session;
+   setSession(current); setAuthToken(current?.access_token || null);
+   if(!current){setUser(null);setStatusError('');return;}
+   const result=await api.get('/api/auth/me');
+   if(alive.current && version===generation.current){setUser(result.user);setStatusError('');}
+  } catch {
+   if(alive.current && version===generation.current){setUser(null);setStatusError('Account status could not be checked. Reconnect and refresh.');}
+  } finally {if(alive.current && version===generation.current)setLoading(false);}
+ };
+ const signOut=async(opts={})=>{
+  generation.current++; setInitialRoute(opts.redirectToLogin?'Login':'Landing');
+  setUser(null);setSession(null);setAuthToken(null);setStatusError('');setRecoveryMode(false);
+  try { await supabase.auth.signOut({scope:'local'}); }
+  finally { await clearStoredSession(); }
+  await clearAll();
+ };
+ useEffect(()=>{
+  alive.current=true;
+  setTokenProvider(async()=>{const {data}=await supabase.auth.getSession();return data.session?.access_token || null;});
+  setUnauthorizedHandler(()=>{void signOut({redirectToLogin:true});});
+  setBlockedHandler(()=>{setUser(null);void refreshProfile();});
+  if(authConfigured) void refreshProfile(); else setLoading(false);
+  const {data:{subscription}}=supabase.auth.onAuthStateChange(()=>{setTimeout(()=>{if(alive.current)void refreshProfile();},0);});
+  const timer=setInterval(()=>{if(AppState.currentState==='active')void refreshProfile();},15000);
+  const appSub=AppState.addEventListener('change',state=>{
+   if(state==='active'){supabase.auth.startAutoRefresh();setUser(null);void refreshProfile();}
+   else {supabase.auth.stopAutoRefresh();setUser(null);}
+  });
+  return ()=>{alive.current=false;generation.current++;subscription.unsubscribe();appSub.remove();clearInterval(timer);setUnauthorizedHandler(null);setBlockedHandler(null);setTokenProvider(null);};
+ },[]);
+ const signIn=async(phone,password)=>{const {error}=await supabase.auth.signInWithPassword({phone,password});if(error)throw error;await refreshProfile();};
+ return <AuthContext.Provider value={{user,session,token:session?.access_token,loading,initialRoute,statusError,recoveryMode,setRecoveryMode,signIn,signOut,refreshProfile,updateUser:refreshProfile}}>{children}</AuthContext.Provider>;
 }
-
-// Convenience hook used throughout the app.
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used inside an <AuthProvider>');
-  return ctx;
-}
+export function useAuth(){return useContext(AuthContext);}

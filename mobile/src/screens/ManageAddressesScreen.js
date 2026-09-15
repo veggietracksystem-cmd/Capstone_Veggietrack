@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { showAlert, confirmAction } from '../lib/ui';
@@ -40,7 +41,7 @@ export default function ManageAddressesScreen({ navigation }) {
     const [saving, setSaving] = useState(false);
     const [mapModalVisible, setMapModalVisible] = useState(false);
 
-   const loadAddresses = async () => {
+   const loadAddresses = useCallback(async () => {
     try {
         const data = await api.get('/api/addresses');
         // If data is null or undefined, use empty array
@@ -55,11 +56,11 @@ export default function ManageAddressesScreen({ navigation }) {
         setLoading(false);
         setRefreshing(false);
     }
-};
+}, []);
 
-    useEffect(() => {
+    useFocusEffect(useCallback(() => {
         loadAddresses();
-    }, [loadAddresses]);
+    }, [loadAddresses]));
 
     const openAddModal = () => {
         setEditingAddress(null);

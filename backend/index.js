@@ -1,16 +1,15 @@
+const { validateOrderItems } = require('./lib/orderRules');
+const { validateAvatarUrl } = require('./lib/avatar');
+const { validateSchedule, validateProof, proofImageUrl, ensureProofImage } = require('./lib/deliveryProof');
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const { createClient } = require('@supabase/supabase-js');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
+const { verifyToken, configureAuth } = require('./lib/auth');
+const { createSmsHook } = require('./lib/smsHook');
+const { mountAccountRoutes } = require('./lib/accountRoutes');
 const { isVegetable, VEGETABLE_VALIDATION_MESSAGE } = require('./lib/vegetables');
 const { coordinate, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
-
-// Legacy marker stored as password_hash for accounts created before password
-// login existed. These accounts have NO real password, so we skip the bcrypt
-// check for them rather than locking them out.
-const LEGACY_PASSWORD_MARKER = 'registered_with_otp';
 
 dotenv.config();
 
@@ -21,78 +20,18 @@ const port = process.env.PORT || 3000;
 // browser. Without this, the browser blocks the preflight OPTIONS request and
 // the fetch fails silently — even though curl works fine.
 app.use(cors());
+// Raw body is required for Standard Webhooks signature verification.
+app.post('/api/hooks/send-sms', express.raw({ type: 'application/json', limit: '32kb' }), createSmsHook());
 app.use(express.json());
-
-// Public Supabase client (anon key) – for login/OTP
-const supabasePublic = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
 
 // Admin Supabase client (service_role) – bypasses RLS for authenticated API calls
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
+configureAuth(supabaseAdmin);
+mountAccountRoutes(app, supabaseAdmin);
 
-// Store OTP codes
-const otpStore = new Map();
-// Store OTP verification attempts
-const otpAttempts = new Map(); // key: phone, value: { count, firstAttemptTime }
-// Pending registrations awaiting OTP verification (phone -> registration data)
-const pendingRegistrations = new Map();
-// Cooldown between OTP resends (phone -> lastResendTimestamp)
-const otpCooldown = new Map();
-// Rate limit for send-otp (phone -> { count, firstAttemptTime })
-const sendOtpLimits = new Map();
-
-// ========== OTP DELIVERY (console-only mode) ==========
-// Temporary console-only delivery for the capstone demonstration. Twilio has
-// been removed, so the OTP is simply printed to the terminal running the
-// backend — read the code from there to complete login/registration. The OTP is
-// still generated + verified locally (otpStore), so the verify endpoints are
-// unchanged. This ALWAYS prints (including in production) since console is now
-// the only channel.
-async function deliverOtp(phone, otp, context = 'login') {
-  console.log(`\n========== OTP for ${phone} (${context}) ==========\nCODE: ${otp}\n==================================\n`);
-}
-
-function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-// ========== OTP BRUTE-FORCE GUARD (shared by all OTP-verifying routes) ==========
-// B3: max 5 failed attempts per phone, then a 15-minute lockout. Used by
-// verify-otp, verify-registration, and reset-password so none of them can be
-// brute-forced (6-digit codes are only ~1M combinations).
-function otpAttemptsExceeded(phone) {
-  const attempt = otpAttempts.get(phone);
-  if (attempt && attempt.count >= 5) {
-    if (Date.now() - attempt.firstAttemptTime < 15 * 60 * 1000) return true;
-    otpAttempts.delete(phone); // lockout window passed — reset
-  }
-  return false;
-}
-
-function recordFailedOtp(phone) {
-  const current = otpAttempts.get(phone);
-  if (!current) {
-    otpAttempts.set(phone, { count: 1, firstAttemptTime: Date.now() });
-  } else {
-    current.count += 1;
-    otpAttempts.set(phone, current);
-  }
-}
-
-// International phone validation (E.164): '+' then 10–15 digits. Not PH-only, so
-// any country's real number is accepted. Mirrors mobile/src/lib/phone.js.
-function isValidPhone(phone) {
-  return /^\+\d{10,15}$/.test((phone || '').trim());
-}
-
-function generateToken(userId, phone, role) {
-  return jwt.sign({ userId, phone, role }, process.env.JWT_SECRET || 'temp_secret_change_this', { expiresIn: '7d' });
-}
 
 // ========== HELPER: CREATE NOTIFICATION ==========
 async function createNotification(userId, title, message, type = 'info', itemId = null) {
@@ -108,160 +47,9 @@ async function createNotification(userId, title, message, type = 'info', itemId 
   await supabaseAdmin.from('notifications').insert(insertData);
 }
 
-// Auth middleware
-function verifyToken(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-  const token = authHeader.split(' ')[1];
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'temp_secret_change_this');
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-}
-
-// ========== AUTH ROUTES ==========
-// Step 1 of password+OTP login: validate phone + password BEFORE sending an OTP.
-// Returns { valid: true } so the client can proceed to /api/auth/send-otp.
-app.post('/api/auth/login', async (req, res) => {
-  const { phone, password } = req.body || {};
-  
-  if (!phone || !password) {
-    return res.status(400).json({ error: 'Phone and password are required' });
-  }
-
-  const { data: user, error } = await supabaseAdmin
-    .from('users')
-    .select('id, full_name, phone, role, email, farm_location, warehouse_location, store_location, service_area, password_hash')
-    .eq('phone', phone)
-    .single();
-
-  if (error || !user) {
-    return res.status(404).json({ error: 'No account found with this phone number' });
-  }
-
-  // Legacy accounts check (if any exist without hashed password)
-  if (!user.password_hash || user.password_hash === LEGACY_PASSWORD_MARKER) {
-    return res.status(401).json({ error: 'Please re-register your account password.' });
-  }
-
-  const ok = await bcrypt.compare(password, user.password_hash);
-  if (!ok) {
-    return res.status(401).json({ error: 'Incorrect password' });
-  }
-
-  const token = generateToken(user.id, user.phone, user.role);
-  res.json({
-    message: 'Login successful',
-    token,
-    user: {
-      id: user.id,
-      full_name: user.full_name,
-      phone: user.phone,
-      role: user.role,
-      email: user.email,
-      farm_location: user.farm_location,
-      warehouse_location: user.warehouse_location,
-      store_location: user.store_location,
-      service_area: user.service_area
-    }
-  });
-});
-
-app.post('/api/auth/send-otp', async (req, res) => {
-  const { phone } = req.body;
-  if (!phone) return res.status(400).json({ error: 'Phone number required' });
-
-  // Rate limit: max 3 OTP requests per phone in a rolling 10-minute window.
-  const nowTs = Date.now();
-  const limit = sendOtpLimits.get(phone);
-  if (limit) {
-    if (nowTs - limit.firstAttemptTime > 10 * 60 * 1000) {
-      // Window expired – start fresh.
-      sendOtpLimits.set(phone, { count: 1, firstAttemptTime: nowTs });
-    } else if (limit.count >= 3) {
-      return res.status(429).json({ error: 'Too many OTP requests. Please wait 10 minutes.' });
-    } else {
-      limit.count += 1;
-      sendOtpLimits.set(phone, limit);
-    }
-  } else {
-    sendOtpLimits.set(phone, { count: 1, firstAttemptTime: nowTs });
-  }
-
-  const { data: user, error } = await supabaseAdmin
-    .from('users')
-    .select('id, phone, role')
-    .eq('phone', phone)
-    .single();
-
-  if (error || !user) {
-    return res.status(404).json({ error: 'No account found with this phone number' });
-  }
-
-  const otp = generateOTP();
-  otpStore.set(phone, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
-  await deliverOtp(phone, otp, 'login'); // Issue 2: real SMS (falls back to console)
-  res.json({ message: 'OTP sent', phone });
-});
-
-app.post('/api/auth/verify-otp', async (req, res) => {
-  const { phone, otp } = req.body;
-  if (!phone || !otp) return res.status(400).json({ error: 'Phone and OTP required' });
-
-    // Check failed attempts
-  const attempt = otpAttempts.get(phone);
-  if (attempt && attempt.count >= 5) {
-    const timeSinceFirst = Date.now() - attempt.firstAttemptTime;
-    if (timeSinceFirst < 15 * 60 * 1000) {
-      return res.status(429).json({ error: 'Too many failed attempts. Try again later.' });
-    } else {
-      otpAttempts.delete(phone);
-    }
-  }
-  const stored = otpStore.get(phone);
-  if (!stored || stored.otp !== otp || stored.expiresAt < Date.now()) {
-    // B1: record exactly ONE failed attempt (the duplicate counting block that
-    // used to live here is gone — it locked users out after ~3 tries, not 5).
-    recordFailedOtp(phone);
-    return res.status(400).json({ error: 'Invalid or expired OTP' });
-  }
-  otpStore.delete(phone);
-    otpAttempts.delete(phone);
-
-  const { data: user, error } = await supabaseAdmin
-
-    .from('users')
-    .select('id, full_name, phone, role, email, farm_location, warehouse_location, store_location, service_area')
-    .eq('phone', phone)
-    .single();
-
-  if (error || !user) return res.status(404).json({ error: 'User not found' });
-
-  const token = generateToken(user.id, user.phone, user.role);
-  res.json({
-    message: 'Login successful',
-    token,
-    // `name` kept for dashboard headers; full_name + email + location fields
-    // let the Profile screen seed its editable inputs without an extra fetch.
-    user: {
-      id: user.id,
-      name: user.full_name,
-      full_name: user.full_name,
-      phone: user.phone,
-      role: user.role,
-      email: user.email,
-      farm_location: user.farm_location,
-      warehouse_location: user.warehouse_location,
-      store_location: user.store_location,
-      service_area: user.service_area
-    }
-  });
-});
+// Authentication is paused until Supabase Auth is connected.
+// Keep every business route protected; never accept legacy application tokens.
+app.use('/api/auth', (req, res) => res.status(410).json({ error: 'Use Supabase Auth for authentication.' }));
 
 // ========== FARMER HARVEST ROUTES ==========
 app.post('/api/harvests', verifyToken, async (req, res) => {
@@ -488,6 +276,11 @@ app.post('/api/pickup-requests', verifyToken, async (req, res) => {
     return res.status(403).json({ error: 'Only farmers can request pickups' });
   }
   const { harvest_id, note } = req.body || {};
+  if (harvest_id) {
+    const { data: ownedHarvest, error: ownershipError } = await supabaseAdmin.from('harvests')
+      .select('id').eq('id', harvest_id).eq('farmer_id', req.user.userId).maybeSingle();
+    if (ownershipError || !ownedHarvest) return res.status(404).json({ error: 'Harvest not found or not owned by you' });
+  }
 
   const { data: request, error } = await supabaseAdmin
     .from('pickup_requests')
@@ -556,14 +349,17 @@ app.get('/api/pickup-requests', verifyToken, async (req, res) => {
 
     const farmerIds = [...new Set((data || []).map((r) => r.farmer_id).filter(Boolean))];
     let nameById = {};
+    let avatarById = {};
     if (farmerIds.length) {
       const { data: farmers } = await supabaseAdmin
-        .from('users').select('id, full_name').in('id', farmerIds);
+        .from('users').select('id, full_name, avatar_url').in('id', farmerIds);
+      avatarById = Object.fromEntries((farmers || []).map((f) => [f.id, f.avatar_url]));
       nameById = Object.fromEntries((farmers || []).map((f) => [f.id, f.full_name]));
     }
     const list = (data || []).map((r) => ({
       ...r,
       farmer_name: nameById[r.farmer_id] || null,
+      farmer_avatar_url: avatarById[r.farmer_id] || null,
       created_at: r.requested_at,
     }));
     return res.json(list);
@@ -670,6 +466,7 @@ app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
       harvests (vegetable_name, quantity_kg, recorded_at)
     `)
     .eq('id', id)
+    .eq('delivery_personnel_id', req.user.userId)
     .single();
 
   if (fetchErr || !request) return res.status(404).json({ error: 'Pickup request not found' });
@@ -684,6 +481,7 @@ app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
       received_at: new Date()
     })
     .eq('id', id)
+    .eq('delivery_personnel_id', req.user.userId)
     .select()
     .single();
 
@@ -1126,16 +924,19 @@ app.get('/api/products/available', async (req, res) => {
 
 // ========== RETAILER ORDER ROUTES ==========
 app.post('/api/orders', verifyToken, async (req, res) => {
-  const { items, delivery_address, preferred_schedule } = req.body;
+  const { delivery_address } = req.body || {};
+  let items;
   const retailerId = req.user.userId;
   const role = req.user.role;
 
   if (role !== 'retailer') {
     return res.status(403).json({ error: 'Only retailers can place orders' });
   }
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Order items are required' });
-  }
+  let preferred_schedule;
+  try { preferred_schedule = validateSchedule(req.body?.preferred_schedule); }
+  catch (err) { return res.status(422).json({ error: err.message, field: 'preferred_schedule' }); }
+  try { items = validateOrderItems(req.body?.items); }
+  catch (err) { return res.status(422).json({ error: err.message, field: 'items' }); }
   if (!delivery_address) {
     return res.status(400).json({ error: 'Delivery address is required' });
   }
@@ -1182,19 +983,34 @@ app.post('/api/orders', verifyToken, async (req, res) => {
 
     // Step 1: create the order first. If this fails, no stock has been touched.
     const deliveryCoords = coordinate({ latitude: req.body.delivery_latitude, longitude: req.body.delivery_longitude });
+    if (!deliveryCoords) return res.status(422).json({ error: 'Pin the delivery destination on the map before placing your order.' });
+    try { preferred_schedule = validateSchedule(preferred_schedule); }
+    catch (err) { return res.status(422).json({ error: err.message, field: 'preferred_schedule' }); }
+    // Save the destination in the existing address book before creating the order.
+    // A failed address write must not produce a successful checkout with a lost address.
+    const { data: savedAddresses, error: addressReadError } = await supabaseAdmin.from('delivery_addresses')
+      .select('id, address, latitude, longitude').eq('user_id', retailerId);
+    if (addressReadError) throw new Error('Could not save delivery address. Please retry.');
+    const existingAddress = (savedAddresses || []).find(a =>
+      a.address.trim().toLowerCase() === delivery_address.trim().toLowerCase() &&
+      a.latitude != null && a.longitude != null &&
+      Number(a.latitude) === deliveryCoords.latitude && Number(a.longitude) === deliveryCoords.longitude);
+    if (!existingAddress) {
+      const { error: addressError } = await supabaseAdmin.from('delivery_addresses').insert({
+        user_id: retailerId, label: 'Delivery', address: delivery_address.trim(),
+        latitude: deliveryCoords.latitude, longitude: deliveryCoords.longitude,
+        is_default: savedAddresses.length === 0,
+      });
+      if (addressError) throw new Error('Could not save delivery address. Please retry.');
+    }
     const orderValues = { retailer_id: retailerId, distributor_id: distributorId, total_amount,
       delivery_address, preferred_schedule: preferred_schedule || null, status: 'pending',
       ...(deliveryCoords ? { delivery_latitude: deliveryCoords.latitude, delivery_longitude: deliveryCoords.longitude } : {}) };
     const insertOrder = values => supabaseAdmin.from('orders').insert(values).select().single();
     let orderResult = await insertOrder(orderValues);
-    if (missingColumn(orderResult.error, ['delivery_latitude', 'delivery_longitude'])) {
-      // Keep existing checkout working until the additive migration is applied.
-      delete orderValues.delivery_latitude; delete orderValues.delivery_longitude;
-      orderResult = await insertOrder(orderValues);
-      console.warn('Apply sql/delivery_tracking_maps.sql to retain order map pins.');
-    }
     const { data: order, error: orderError } = orderResult;
 
+    if (orderError?.code === '22023') return res.status(422).json({ error: orderError.message, field: 'preferred_schedule' });
     if (orderError || !order) throw new Error('Failed to create order');
 
     // Step 2: one order_item per batch consumed — carries product_id so
@@ -1294,7 +1110,7 @@ app.get('/api/orders', verifyToken, async (req, res) => {
       .in('order_id', orderIds),
     supabaseAdmin
       .from('deliveries')
-      .select('order_id, status, proof_photo_url, delivered_at')
+      .select('order_id, status, proof_photo_url, delivered_at, pod')
       .in('order_id', orderIds),
   ]);
 
@@ -1379,7 +1195,7 @@ app.get('/api/orders/active', verifyToken, async (req, res) => {
     .select(`
       *,
       order_items (vegetable_name, quantity_kg, price_at_order),
-      deliveries (id, status, delivery_personnel_id, proof_photo_url, delivered_at)
+      deliveries (id, status, delivery_personnel_id, proof_photo_url, delivered_at, pod)
     `)
     .eq('distributor_id', req.user.userId)
     .in('status', ['approved', 'picked_up', 'in_transit', 'delivered', 'cancelled'])
@@ -1409,7 +1225,7 @@ app.get('/api/orders/:id', verifyToken, async (req, res) => {
 
   let query = supabaseAdmin.from('orders').select(`
     *,
-    order_items (*)
+    order_items (*), deliveries (id, status, proof_photo_url, delivered_at, pod)
   `).eq('id', id);
 
   if (role === 'retailer') {
@@ -1589,7 +1405,8 @@ app.get('/api/delivery-personnel', verifyToken, async (req, res) => {
   const { data, error } = await supabaseAdmin
     .from('users')
     .select('id, full_name, phone, service_area')
-    .eq('role', 'delivery_personnel');
+    .eq('role', 'delivery_personnel')
+    .eq('account_status', 'active');
 
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
@@ -1658,7 +1475,7 @@ app.get('/api/delivery/orders', verifyToken, async (req, res) => {
       retailer_id,
       distributor_id,
       order_items (vegetable_name, quantity_kg, price_at_order),
-      deliveries (id, status)
+      deliveries (id, status, proof_photo_url, delivered_at, pod)
     `)
     .eq('delivery_personnel_id', req.user.userId)
     .order('created_at', { ascending: false });
@@ -1839,7 +1656,7 @@ app.get('/api/messages/contacts', verifyToken, async (req, res) => {
     //  - delivery_personnel -> the distributor + retailers whose orders they've been assigned
     let query = supabaseAdmin
       .from('users')
-      .select('id, full_name, role')
+      .select('id, full_name, role, avatar_url, profile_picture_updated_at')
       .neq('id', req.user.userId)
       .order('full_name', { ascending: true });
 
@@ -1907,6 +1724,9 @@ app.get('/api/messages/unread-count', verifyToken, async (req, res) => {
 app.get('/api/messages/:userId', verifyToken, async (req, res) => {
   const me = req.user.userId;
   const other = req.params.userId;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(other)) {
+    return res.status(400).json({ error: 'Invalid message participant' });
+  }
 
   const { data, error } = await supabaseAdmin
     .from('messages')
@@ -1965,12 +1785,12 @@ app.put('/api/deliveries/:id/status', verifyToken, async (req, res) => {
     return res.status(404).json({ error: 'Delivery not found or not assigned to you' });
   }
 
-  await supabaseAdmin.from('deliveries').update({ status }).eq('id', id);
+  if (!(delivery.status === status || (delivery.status === 'assigned' && status === 'picked_up') || (delivery.status === 'picked_up' && status === 'in_transit'))) return res.status(409).json({ error: 'Invalid delivery status transition. Refresh and retry.' });
+  const { error: progressError } = await supabaseAdmin.rpc('advance_delivery_status', { p_delivery_id: id, p_rider_id: req.user.userId, p_status: status });
+  if (progressError) return res.status(progressError.code === '22023' ? 409 : 500).json({ error: 'Unable to update delivery status. Refresh and retry.' });
   // Once the rider picks up the order it is, from the retailer/distributor's
   // point of view, already on its way — so the parent order jumps straight to
   // "in_transit" instead of surfacing the rider-only "picked_up" step.
-  const orderStatus = status === 'picked_up' ? 'in_transit' : status;
-  await supabaseAdmin.from('orders').update({ status: orderStatus }).eq('id', delivery.order_id);
 
   const { data: order } = await supabaseAdmin
     .from('orders').select('retailer_id').eq('id', delivery.order_id).single();
@@ -2066,24 +1886,21 @@ app.put('/api/deliveries/:id/complete', verifyToken, async (req, res) => {
     return res.status(404).json({ error: 'Delivery not found or not assigned to you' });
   }
 
-  const deliveryUpdate = { status: 'delivered', delivered_at: new Date() };
-  if (proof_photo_url) deliveryUpdate.proof_photo_url = proof_photo_url;
-
-  await supabaseAdmin
-    .from('deliveries')
-    .update(deliveryUpdate)
-    .eq('id', id);
-
-  await supabaseAdmin
-    .from('orders')
-    .update({ status: 'delivered' })
-    .eq('id', delivery.order_id);
-
-  const { data: order } = await supabaseAdmin
-    .from('orders')
-    .select('retailer_id, distributor_id')
-    .eq('id', delivery.order_id)
-    .single();
+  const { data: order, error: orderError } = await supabaseAdmin.from('orders').select('*').eq('id', delivery.order_id).single();
+  if (orderError || !order) return res.status(500).json({ error: 'Unable to load delivery destination. Retry.' });
+  if (delivery.status === 'delivered' && order.status === 'delivered') return res.json({ message: 'Delivery already completed', pod: delivery.pod });
+  if (delivery.status !== 'in_transit' || order.status !== 'in_transit') return res.status(409).json({ error: 'Delivery must be in transit before submitting proof.' });
+  let pod, photoUrl;
+  try {
+    pod = validateProof(req.body, { latitude: order.delivery_latitude, longitude: order.delivery_longitude });
+    photoUrl = proofImageUrl(proof_photo_url, pod);
+  } catch (err) { return res.status(422).json({ error: err.message }); }
+  try { await ensureProofImage(photoUrl); }
+  catch { return res.status(503).json({ error: 'Could not generate the proof photo footer. Check your connection and retry.' }); }
+  const { error: completeError } = await supabaseAdmin.rpc('complete_delivery_with_proof', {
+    p_delivery_id: id, p_rider_id: deliveryPersonId, p_photo_url: photoUrl, p_pod: pod,
+  });
+  if (completeError) return res.status(completeError.code === '22023' ? 422 : 500).json({ error: completeError.code === '22023' ? completeError.message : 'Could not save delivery proof. Retry; contact the administrator if this continues.' });
 
   const orderIdShort = delivery.order_id.slice(0,8);
   await createNotification(order.retailer_id, 'Order Delivered', `Your order ${orderIdShort} has been delivered. Thank you!`, 'delivery', delivery.order_id);
@@ -2245,252 +2062,6 @@ app.get('/api/distributor/inventory-report', verifyToken, async (req, res) => {
   res.json(rows);
 });
 
-// ========== REGISTRATION ROUTES ==========
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { phone, full_name, role, password, farm_location, warehouse_location, store_location, service_area, latitude, longitude } = req.body;
-
-    if (!phone || !full_name || !role) {
-      return res.status(400).json({ error: 'Phone, full name, and role are required' });
-    }
-
-    // Accept any valid international number (+ and 10–15 digits), not just +63.
-    if (!isValidPhone(phone)) {
-      return res.status(400).json({ error: 'Enter a valid phone number with country code, e.g. +639171234567' });
-    }
-
-    // Reject if the phone is already registered.
-    const { data: existingUser, error: checkErr } = await supabaseAdmin
-      .from('users')
-      .select('id')
-      .eq('phone', phone)
-      .maybeSingle();
-
-    if (checkErr) {
-      console.error('❌ Supabase register check error:', checkErr);
-      return res.status(500).json({ error: `Database error: ${checkErr.message}` });
-    }
-
-    if (existingUser) {
-      return res.status(409).json({ error: 'An account with this phone number already exists' });
-    }
-
-    // Fail fast if a distributor already exists.
-    if (role === 'distributor') {
-      const { data: existingDistributor } = await supabaseAdmin
-        .from('users')
-        .select('id')
-        .eq('role', 'distributor')
-        .maybeSingle();
-      if (existingDistributor) {
-        return res.status(409).json({ error: 'Only one distributor account is allowed.' });
-      }
-    }
-
-    const password_hash = password
-      ? await bcrypt.hash(password, 10)
-      : LEGACY_PASSWORD_MARKER;
-
-    const newUser = {
-      full_name,
-      phone,
-      role,
-      email: null,
-      password_hash,
-      latitude: latitude || null,
-      longitude: longitude || null
-    };
-    if (role === 'farmer') newUser.farm_location = farm_location || null;
-    if (role === 'distributor') newUser.warehouse_location = warehouse_location || null;
-    if (role === 'retailer') newUser.store_location = store_location || null;
-    if (role === 'delivery_personnel') newUser.service_area = service_area || null;
-
-    const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .insert(newUser)
-      .select()
-      .single();
-
-    if (error) {
-      console.log('❌ Insert error details:', error);
-      return res.status(400).json({ error: error.message });
-    }
-
-    const token = generateToken(user.id, user.phone, user.role);
-    res.status(201).json({
-      message: 'Registration successful',
-      token,
-      user: {
-        id: user.id,
-        full_name: user.full_name,
-        phone: user.phone,
-        role: user.role,
-        email: user.email,
-        farm_location: user.farm_location,
-        warehouse_location: user.warehouse_location,
-        store_location: user.store_location,
-        service_area: user.service_area
-      }
-    });
-  } catch (err) {
-    console.error('❌ register error:', err);
-    let msg = err.message || 'Registration failed';
-    if (msg.includes('fetch failed') || err.name === 'TypeError') {
-      msg = 'Database connection failed — please ensure your Supabase project is active and unpaused.';
-    }
-    res.status(500).json({ error: msg });
-  }
-});
-
-app.post('/api/auth/verify-registration', async (req, res) => {
-  try {
-    const { phone, otp } = req.body;
-    if (!phone || !otp) return res.status(400).json({ error: 'Phone and OTP required' });
-
-    // B3: brute-force guard (same logic as verify-otp).
-    if (otpAttemptsExceeded(phone)) {
-      return res.status(429).json({ error: 'Too many failed attempts. Try again later.' });
-    }
-
-    const stored = otpStore.get(phone);
-    if (!stored || stored.otp !== otp || stored.expiresAt < Date.now()) {
-      recordFailedOtp(phone);
-      return res.status(400).json({ error: 'Invalid or expired OTP' });
-    }
-    otpAttempts.delete(phone); // success — clear the counter
-
-    const pending = pendingRegistrations.get(phone);
-    if (!pending) {
-      return res.status(400).json({ error: 'No pending registration found for this phone number. Please submit registration again.' });
-    }
-
-    // Issue 3: only one distributor (the hub) may exist. If one is already
-    // registered, block this even though the OTP was valid, and clear the pending
-    // registration so the phone can re-register under a different role.
-    if (pending.role === 'distributor') {
-      const { data: existingDistributor } = await supabaseAdmin
-        .from('users')
-        .select('id')
-        .eq('role', 'distributor')
-        .maybeSingle();
-      if (existingDistributor) {
-        pendingRegistrations.delete(phone);
-        otpStore.delete(phone);
-        return res.status(409).json({ error: 'Only one distributor account is allowed.' });
-      }
-    }
-
-    // Hash the password if one was provided at registration; otherwise fall back
-    // to the legacy marker (account works via OTP only, no password login).
-    const password_hash = pending.password
-      ? await bcrypt.hash(pending.password, 10)
-      : LEGACY_PASSWORD_MARKER;
-
-    // Build the user record, attaching only the location field for the role.
-    const newUser = {
-      full_name: pending.full_name,
-      phone,
-      role: pending.role,
-      email: pending.email || null,
-      password_hash,
-      latitude: pending.latitude || null,
-      longitude: pending.longitude || null
-    };
-    if (pending.role === 'farmer') newUser.farm_location = pending.farm_location || null;
-    if (pending.role === 'distributor') newUser.warehouse_location = pending.warehouse_location || null;
-    if (pending.role === 'retailer') newUser.store_location = pending.store_location || null;
-    if (pending.role === 'delivery_personnel') newUser.service_area = pending.service_area || null;
-
-    const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .insert(newUser)
-      .select()
-      .single();
-
-    console.log('🔍 Insert result:', { data: user, error });
-
-    if (error) {
-      console.log('❌ Insert error details:', error);
-      return res.status(400).json({ error: `Database insertion error: ${error.message}` });
-    }
-
-    pendingRegistrations.delete(phone);
-    otpStore.delete(phone);
-
-    const token = generateToken(user.id, user.phone, user.role);
-    res.status(201).json({
-      token,
-      // Return the location fields too so the Profile screen is fully seeded
-      // right after registration (the insert .select() returns all columns).
-      user: {
-        id: user.id,
-        full_name: user.full_name,
-        phone: user.phone,
-        role: user.role,
-        email: user.email,
-        farm_location: user.farm_location,
-        warehouse_location: user.warehouse_location,
-        store_location: user.store_location,
-        service_area: user.service_area
-      }
-    });
-  } catch (err) {
-    console.error('❌ verify-registration error:', err);
-    let msg = err.message || 'Verification failed';
-    if (msg.includes('fetch failed') || err.name === 'TypeError') {
-      msg = 'Database connection failed — please ensure your Supabase project is active and unpaused.';
-    }
-    res.status(500).json({ error: msg });
-  }
-});
-
-app.post('/api/auth/resend-otp', async (req, res) => {
-  const { phone, purpose = 'login' } = req.body;
-  if (!phone) return res.status(400).json({ error: 'Phone number required' });
-
-  // Enforce a 60-second cooldown between resends.
-  const last = otpCooldown.get(phone);
-  if (last && Date.now() - last < 60 * 1000) {
-    return res.status(429).json({ error: 'Please wait before requesting another OTP.' });
-  }
-
-  if (purpose === 'registration' && !pendingRegistrations.has(phone)) {
-    return res.status(400).json({ error: 'No pending registration found for this phone number' });
-  }
-
-  const otp = generateOTP();
-  otpStore.set(phone, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
-  otpCooldown.set(phone, Date.now());
-
-  await deliverOtp(phone, otp, purpose); // Issue 2: real SMS (falls back to console)
-  res.json({ message: 'OTP resent.' });
-});
-
-app.post('/api/auth/refresh-token', async (req, res) => {
-  const { token } = req.body;
-  if (!token) return res.status(400).json({ error: 'Token required' });
-
-  try {
-    // Accept an expired token as long as the signature is valid.
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'temp_secret_change_this', { ignoreExpiration: true });
-    const { userId, phone, role } = decoded;
-
-    // Confirm the user still exists before issuing a fresh token.
-    const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .select('id, phone, role')
-      .eq('id', userId)
-      .single();
-
-    if (error || !user) return res.status(404).json({ error: 'User not found' });
-
-    const newToken = generateToken(user.id, user.phone, user.role);
-    res.json({ token: newToken });
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-});
-
 // ========== USER PROFILE ROUTES ==========
 app.put('/api/users/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
@@ -2500,9 +2071,13 @@ app.put('/api/users/:id', verifyToken, async (req, res) => {
 
   const {
     full_name, email, farm_location, warehouse_location, store_location, service_area,
-    latitude, longitude,
+    latitude, longitude, avatar_url,
   } = req.body;
   const updates = {};
+  if (avatar_url !== undefined) {
+    try { updates.avatar_url = validateAvatarUrl(avatar_url); }
+    catch (error) { return res.status(error.status).json({ error: error.message }); }
+  }
   if (full_name !== undefined) updates.full_name = full_name;
   if (email !== undefined) updates.email = email;
   if (farm_location !== undefined) updates.farm_location = farm_location;
@@ -2520,105 +2095,17 @@ app.put('/api/users/:id', verifyToken, async (req, res) => {
     .from('users')
     .update(updates)
     .eq('id', id)
-    .select('id, full_name, phone, role, email, farm_location, warehouse_location, store_location, service_area, latitude, longitude')
+    .select('id, full_name, phone, role, email, farm_location, warehouse_location, store_location, service_area, latitude, longitude, avatar_url, profile_picture_updated_at')
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
   res.json({ message: 'Profile updated', user: data });
 });
 
-// Change password (Issue 9). Requires the current password only if the account
-// already has one set; legacy OTP-only accounts can set a password for the first
-// time without it.
-app.put('/api/users/:id/password', verifyToken, async (req, res) => {
-  const { id } = req.params;
-  if (req.user.userId !== id) {
-    return res.status(403).json({ error: 'You can only change your own password' });
-  }
-  const { current_password, new_password } = req.body || {};
-  if (!new_password || new_password.length < 6) {
-    return res.status(400).json({ error: 'New password must be at least 6 characters' });
-  }
-
-  const { data: user, error } = await supabaseAdmin
-    .from('users')
-    .select('id, password_hash')
-    .eq('id', id)
-    .single();
-  if (error || !user) return res.status(404).json({ error: 'User not found' });
-
-  const hasRealPassword = user.password_hash && user.password_hash !== LEGACY_PASSWORD_MARKER;
-  if (hasRealPassword) {
-    if (!current_password) {
-      return res.status(400).json({ error: 'Current password is required' });
-    }
-    const ok = await bcrypt.compare(current_password, user.password_hash);
-    if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
-  }
-
-  const password_hash = await bcrypt.hash(new_password, 10);
-  const { error: updateError } = await supabaseAdmin
-    .from('users')
-    .update({ password_hash })
-    .eq('id', id);
-  if (updateError) return res.status(500).json({ error: updateError.message });
-
-  res.json({ message: 'Password updated' });
-});
-
-// Change phone number. Phone doubles as the login credential (unique, embedded
-// in the JWT), so — like the password change above — it requires the current
-// password when the account has a real one set; legacy OTP-only accounts can
-// change it without. Uniqueness is re-checked the same way registration does.
-app.put('/api/users/:id/phone', verifyToken, async (req, res) => {
-  const { id } = req.params;
-  if (req.user.userId !== id) {
-    return res.status(403).json({ error: 'You can only update your own profile' });
-  }
-  const { current_password, new_phone } = req.body || {};
-  if (!new_phone || !isValidPhone(new_phone)) {
-    return res.status(400).json({ error: 'Enter a valid phone number with country code, e.g. +639171234567' });
-  }
-  const phone = new_phone.trim();
-
-  const { data: user, error } = await supabaseAdmin
-    .from('users')
-    .select('id, phone, password_hash, role')
-    .eq('id', id)
-    .single();
-  if (error || !user) return res.status(404).json({ error: 'User not found' });
-
-  const hasRealPassword = user.password_hash && user.password_hash !== LEGACY_PASSWORD_MARKER;
-  if (hasRealPassword) {
-    if (!current_password) {
-      return res.status(400).json({ error: 'Current password is required' });
-    }
-    const ok = await bcrypt.compare(current_password, user.password_hash);
-    if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
-  }
-
-  if (phone === user.phone) {
-    return res.json({ message: 'Phone number updated', phone: user.phone, token: generateToken(user.id, user.phone, user.role) });
-  }
-
-  const { data: existingUser, error: checkErr } = await supabaseAdmin
-    .from('users')
-    .select('id')
-    .eq('phone', phone)
-    .neq('id', id)
-    .maybeSingle();
-  if (checkErr) return res.status(500).json({ error: checkErr.message });
-  if (existingUser) return res.status(409).json({ error: 'An account with this phone number already exists' });
-
-  const { error: updateError } = await supabaseAdmin
-    .from('users')
-    .update({ phone })
-    .eq('id', id);
-  if (updateError) return res.status(500).json({ error: updateError.message });
-
-  const token = generateToken(user.id, phone, user.role);
-  res.json({ message: 'Phone number updated', phone, token });
-});
+app.put('/api/users/:id/password', verifyToken, (req, res) =>
+  res.status(410).json({ error: 'Password changes are unavailable.' }));
+app.put('/api/users/:id/phone', verifyToken, (req, res) =>
+  res.status(410).json({ error: 'Phone changes are temporarily unavailable.' }));
 
 app.delete('/api/users/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
@@ -2626,366 +2113,12 @@ app.delete('/api/users/:id', verifyToken, async (req, res) => {
     return res.status(403).json({ error: 'You can only delete your own account' });
   }
 
-  const { error } = await supabaseAdmin
-    .from('users')
-    .delete()
-    .eq('id', id);
-
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ message: 'Account deleted successfully.' });
+  // Historical relationships use cascading foreign keys. Ordinary account closure
+  // is handled by distributor disabling, never by deleting the profile.
+  res.status(409).json({ error: 'Contact the distributor to disable your account and preserve your transaction history.' });
 });
 
-// ========== PASSWORD RESET (Forgot Password via Phone) ==========
-app.post('/api/auth/forgot-password', async (req, res) => {
-  const { phone } = req.body;
-  if (!phone) return res.status(400).json({ error: 'Phone number required' });
-
-  const { data: user } = await supabaseAdmin
-    .from('users')
-    .select('id')
-    .eq('phone', phone)
-    .maybeSingle();
-  if (!user) return res.status(404).json({ error: 'No account found with this phone number' });
-
-  res.json({ message: 'Phone number verified. Proceed to set new password.', phone });
-});
-
-app.post('/api/auth/reset-password', async (req, res) => {
-  const { phone, new_password, password } = req.body;
-  const targetPassword = new_password || password;
-  if (!phone || !targetPassword) {
-    return res.status(400).json({ error: 'Phone number and new password required' });
-  }
-
-  const hashed = await bcrypt.hash(targetPassword, 10);
-  const { error } = await supabaseAdmin
-    .from('users')
-    .update({ password_hash: hashed })
-    .eq('phone', phone);
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  res.json({ message: 'Password reset successful. You can now log in.' });
-});
-
-// 2. Email Reset Link Flow (New Features)
-app.post('/api/auth/forgot-password-email', async (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'Email address is required' });
-  }
-
-  try {
-    const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .select('id, full_name, email')
-      .eq('email', email.trim().toLowerCase())
-      .maybeSingle();
-
-    if (error || !user) {
-      // Mock success for security to prevent user enumeration
-      return res.json({ message: 'If the email is registered, a password reset link has been sent.' });
-    }
-
-    const crypto = require('crypto');
-    const token = crypto.randomBytes(20).toString('hex');
-    const expires = new Date(Date.now() + 3600000); // 1 hour
-
-    const { error: updateErr } = await supabaseAdmin
-      .from('users')
-      .update({
-        reset_password_token: token,
-        reset_password_expires: expires.toISOString()
-      })
-      .eq('id', user.id);
-
-    if (updateErr) {
-      return res.status(500).json({ error: updateErr.message });
-    }
-
-    const resetUrl = `http://localhost:${port}/api/auth/reset-password-web?token=${token}`;
-    console.log('\n==================================================');
-    console.log(`✉️  EMAIL OUTBOX: PASSWORD RESET REQUEST`);
-    console.log(`TO: ${user.email} (${user.full_name})`);
-    console.log(`LINK: ${resetUrl}`);
-    console.log(`EXPIRY: 1 Hour`);
-    console.log('==================================================\n');
-
-    res.json({ message: 'If the email is registered, a password reset link has been sent.' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/auth/reset-password-web', async (req, res) => {
-  const { token } = req.query;
-  if (!token) {
-    return res.status(400).send('<h1>Invalid Request</h1><p>Reset token is missing.</p>');
-  }
-
-  try {
-    const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .select('id, reset_password_expires')
-      .eq('reset_password_token', token)
-      .maybeSingle();
-
-    if (error || !user) {
-      return res.status(400).send('<h1>Link Invalid</h1><p>This password reset link is invalid or has already been used.</p>');
-    }
-
-    if (new Date(user.reset_password_expires) < new Date()) {
-      return res.status(400).send('<h1>Link Expired</h1><p>This password reset link has expired. Please request a new one.</p>');
-    }
-
-    res.send(`
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reset Password - VeggieTrack</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --primary: #2e7d32;
-      --primary-hover: #1b5e20;
-      --bg: #f4f7f5;
-      --card-bg: #ffffff;
-      --text: #2c3e2e;
-      --text-muted: #607362;
-      --error: #d32f2f;
-      --success: #388e3c;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Inter', sans-serif;
-      background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-      color: var(--text);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      padding: 20px;
-    }
-    .card {
-      background: var(--card-bg);
-      padding: 40px;
-      border-radius: 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-      width: 100%;
-      max-width: 440px;
-      text-align: center;
-      animation: fadeIn 0.5s ease-out;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(15px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .logo { font-size: 48px; margin-bottom: 12px; display: inline-block; }
-    h1 { font-size: 24px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
-    p { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; }
-    .form-group { text-align: left; margin-bottom: 20px; }
-    label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; display: block; }
-    input {
-      width: 100%;
-      padding: 12px 16px;
-      border-radius: 8px;
-      border: 1px solid #c8d6c9;
-      font-family: inherit;
-      font-size: 15px;
-      transition: all 0.2s;
-    }
-    input:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(46,125,50,0.15);
-    }
-    .btn {
-      width: 100%;
-      background: var(--primary);
-      color: white;
-      border: none;
-      padding: 14px;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s;
-      margin-top: 10px;
-    }
-    .btn:hover { background: var(--primary-hover); }
-    .error-msg { color: var(--error); font-size: 13px; margin-top: 8px; text-align: left; display: none; }
-    .success-card { display: none; }
-    .success-icon { font-size: 48px; color: var(--success); margin-bottom: 16px; }
-  </style>
-</head>
-<body>
-  <div class="card" id="form-card">
-    <span class="logo">🥬</span>
-    <h1>Reset Password</h1>
-    <p>Please enter your new password below.</p>
-    <form id="reset-form">
-      <input type="hidden" name="token" id="token-input">
-      <div class="form-group">
-        <label for="password">New Password</label>
-        <input type="password" id="password" required minlength="6" placeholder="At least 6 characters">
-      </div>
-      <div class="form-group">
-        <label for="confirm-password">Confirm Password</label>
-        <input type="password" id="confirm-password" required minlength="6" placeholder="Repeat new password">
-        <div class="error-msg" id="match-error">Passwords do not match.</div>
-      </div>
-      <button type="submit" class="btn" id="submit-btn">Reset Password</button>
-    </form>
-  </div>
-
-  <div class="card success-card" id="success-card">
-    <div class="success-icon">✓</div>
-    <h1>Password Reset Successful</h1>
-    <p>Your password has been successfully updated. You can now return to the VeggieTrack app and log in with your new credentials.</p>
-  </div>
-
-  <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    document.getElementById('token-input').value = token;
-
-    const form = document.getElementById('reset-form');
-    const passwordInput = document.getElementById('password');
-    const confirmInput = document.getElementById('confirm-password');
-    const matchError = document.getElementById('match-error');
-    const formCard = document.getElementById('form-card');
-    const successCard = document.getElementById('success-card');
-    const submitBtn = document.getElementById('submit-btn');
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      matchError.style.display = 'none';
-
-      if (passwordInput.value !== confirmInput.value) {
-        matchError.style.display = 'block';
-        return;
-      }
-
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Resetting...';
-
-      try {
-        const response = await fetch('/api/auth/reset-password-web', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token: token,
-            password: passwordInput.value
-          })
-        });
-
-        const data = await response.json();
-        if (response.ok) {
-          formCard.style.display = 'none';
-          successCard.style.display = 'block';
-        } else {
-          alert(data.error || 'Failed to reset password. Please request a new reset link.');
-          submitBtn.disabled = false;
-          submitBtn.textContent = 'Reset Password';
-        }
-      } catch (err) {
-        alert('An error occurred. Please check your internet connection.');
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Reset Password';
-      }
-    });
-  </script>
-</body>
-</html>
-    `);
-  } catch (err) {
-    res.status(500).send('<h1>Server Error</h1><p>' + err.message + '</p>');
-  }
-});
-
-app.post('/api/auth/reset-password-web', async (req, res) => {
-  const { token, password } = req.body;
-  if (!token || !password) {
-    return res.status(400).json({ error: 'Token and password are required' });
-  }
-
-  try {
-    const { data: user, error: fetchError } = await supabaseAdmin
-      .from('users')
-      .select('id, reset_password_expires')
-      .eq('reset_password_token', token)
-      .maybeSingle();
-
-    if (fetchError || !user) {
-      return res.status(400).json({ error: 'Invalid reset token' });
-    }
-
-    if (new Date(user.reset_password_expires) < new Date()) {
-      return res.status(400).json({ error: 'Reset token has expired' });
-    }
-
-    const hashed = await bcrypt.hash(password, 10);
-    const { error: updateError } = await supabaseAdmin
-      .from('users')
-      .update({
-        password_hash: hashed,
-        reset_password_token: null,
-        reset_password_expires: null
-      })
-      .eq('id', user.id);
-
-    if (updateError) {
-      return res.status(500).json({ error: 'Failed to reset password: ' + updateError.message });
-    }
-
-    res.json({ message: 'Password reset successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ========== DEBUG ENDPOINTS ==========
-// Debug: List all users (temporary)
-app.get('/api/debug/users', async (req, res) => {
-  console.log('🔍 DEBUG: Fetching all users...');
-  
-  const { data, error } = await supabaseAdmin
-    .from('users')
-    .select('id, phone, full_name, role, email');
-  
-  if (error) {
-    console.log('❌ Debug error:', error);
-    return res.status(500).json({ error: error.message });
-  }
-  
-  console.log(`✅ Found ${data?.length || 0} users`);
-  res.json({ users: data, count: data?.length || 0 });
-});
-
-// Debug: Check specific phone number
-app.get('/api/debug/user/:phone', async (req, res) => {
-  const { phone } = req.params;
-  console.log(`🔍 DEBUG: Looking for user with phone: ${phone}`);
-  
-  const { data, error } = await supabaseAdmin
-    .from('users')
-    .select('*')
-    .eq('phone', phone)
-    .single();
-  
-  if (error) {
-    console.log('❌ User not found:', error.message);
-    return res.json({ exists: false, error: error.message });
-  }
-  
-  console.log('✅ User found:', data);
-  res.json({ exists: true, user: data });
-});// ============================================
-// RIDER LOCATION UPDATE - FIXED
-// ============================================
-
+// ========== RIDER LOCATION ==========
 app.post('/api/delivery/update-location', verifyToken, async (req, res) => {
   try {
     const riderId = req.user.userId;

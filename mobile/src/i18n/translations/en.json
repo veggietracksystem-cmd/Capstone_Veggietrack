@@ -1,4 +1,35 @@
 {
+  "avatar": {
+    "title": "Profile picture",
+    "choose": "Choose picture",
+    "replace": "Replace picture",
+    "uploadFailed": "Picture upload failed. Select a picture to retry.",
+    "saveHint": "Save changes to update your profile picture."
+},
+  "phoneAuth": {
+  "changePhone": "Change phone number (verify by SMS)",
+  "title": "Welcome to VeggieTrack",
+  "subtitle": "Sign in or create an account with your phone number.",
+  "phone": "Phone number",
+  "code": "SMS verification code",
+  "send": "Send OTP",
+  "verify": "Verify and continue",
+  "resend": "Resend OTP",
+  "cooldown": "Resend in {seconds}s",
+  "another": "Use another number",
+  "invalidPhone": "Enter a valid number, such as 09171234567 or +639171234567.",
+  "invalidCode": "Enter the six-digit SMS code.",
+  "profile": "Complete your profile for {phone}.",
+  "unavailable": "Sign-in, registration, and phone changes are temporarily unavailable. Please try again later."
+},
+  "checkout": {
+  "minimumWeight": "Minimum order is 5 kg in total.",
+  "cartStorageError": "Could not access saved cart. Please retry before closing the app.",
+  "hour": "Hour",
+  "minute": "Minute",
+  "deliveryDate": "Delivery date",
+  "deliveryTime": "Delivery time (Philippine time)"
+},
   "common": {
     "save": "Save",
     "saveChanges": "Save Changes",
@@ -761,5 +792,22 @@
     "addressPlaceholder": "Street, City, Province",
     "setDefault": "Set as default",
     "default": "Default"
+  },
+  "pod": {
+    "pastSchedule": "Delivery date and time cannot be in the past.",
+    "pinRequired": "Pin your delivery destination on the map to enable delivery verification.",
+    "permission": "Location permission is required. Enable location access in Settings and retry.",
+    "services": "Turn on location services and retry.",
+    "timeout": "GPS timed out. Move to an open area at the delivery location and retry.",
+    "unavailable": "GPS is unavailable. Retry at the delivery location.",
+    "accuracy": "GPS accuracy is insufficient. Enable precise location and retry outdoors (50 meters or better).",
+    "stale": "GPS proof has expired. Retake the photo and location.",
+    "required": "A proof photo and current GPS location are required.",
+    "captured": "GPS captured",
+    "submitted": "Submitted",
+    "coordinates": "Coordinates",
+    "verified": "Delivery location verified",
+    "unverified": "Delivery location could not be verified",
+    "distance": "Distance from destination"
   }
 }

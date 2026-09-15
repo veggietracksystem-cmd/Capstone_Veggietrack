@@ -6,3 +6,13 @@ node_modules/
 .DS_Store
 Thumbs.db
 .claude/
+**/.env.*
+!**/.env.example
+**/*service-account*.json
+**/*firebase-adminsdk*.json
+**/google-services.json
+**/GoogleService-Info.plist
+**/*.p8
+**/auth-check-export/
+**/auth-check-export-native/
+**/auth-implementation-export/

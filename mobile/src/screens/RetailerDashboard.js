@@ -1,3 +1,5 @@
+import { readCart, saveCart, subscribeCart, reconcileCart } from '../lib/cartStore';
+import { manilaSchedule } from '../lib/deliverySchedule';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -107,6 +109,23 @@ export default function RetailerDashboard({ navigation, route }) {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [searchQuery, setSearchQuery] = useState(''); // filters the product list locally
   const [cart, setCart] = useState([]); // { product_id, name, price, quantity, stock }
+  const [cartReady, setCartReady] = useState(false);
+  const [freshProducts, setFreshProducts] = useState(null);
+  useEffect(() => {
+    let active = true;
+    setCartReady(false);
+    setCart([]);
+    readCart(user.id).then(saved => { if (active) { setCart(saved); setCartReady(true); } })
+      .catch(() => { if (active) showAlert(t('common.error'), t('checkout.cartStorageError')); });
+    const unsubscribe = subscribeCart(user.id, setCart);
+    return () => { active = false; unsubscribe(); };
+  }, [user.id]);
+  useEffect(() => {
+    if (cartReady) saveCart(user.id, cart).catch(() => showAlert(t('common.error'), t('checkout.cartStorageError')));
+  }, [cart, cartReady, user.id]);
+  useEffect(() => {
+    if (cartReady && freshProducts) setCart(previous => reconcileCart(previous, freshProducts));
+  }, [cartReady, freshProducts]);
   const [address, setAddress] = useState('');
   const [flights, setFlights] = useState([]); // in-flight "add to cart" fly-to-cart animations
   const [cartIconTarget, setCartIconTarget] = useState(null); // measured on-screen center of the Cart tab icon
@@ -153,6 +172,7 @@ export default function RetailerDashboard({ navigation, route }) {
       api.get('/api/products/available')
     );
     setProducts(list);
+    if (source === 'network') setFreshProducts(list);
     setShopOffline(source === 'cache');
   }, []);
 
@@ -183,7 +203,7 @@ export default function RetailerDashboard({ navigation, route }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    if (tab === 'shop') await loadProducts();
+    if (tab === 'shop' || tab === 'cart') await loadProducts();
     else if (tab === 'orders') await loadOrders();
     setRefreshing(false);
   };
@@ -192,6 +212,7 @@ export default function RetailerDashboard({ navigation, route }) {
   // Cart is keyed by vegetable_name, not a batch/product id — the retailer
   // never picks a batch; the backend resolves FIFO batches at order time.
   const addToCart = (product, touchEvent) => {
+    if (!cartReady) return;
     if (product.available_kg <= 0) {
       showAlert(t('dashboards.retailer.outOfStockTitle'), t('dashboards.retailer.outOfStockMessage', { name: localizeVegetableName(product.vegetable_name, language) }));
       return;
@@ -264,6 +285,10 @@ export default function RetailerDashboard({ navigation, route }) {
   const goToCheckout = () => {
     if (cart.length === 0) {
       showAlert(t('dashboards.retailer.emptyCartTitle'), t('dashboards.retailer.emptyCartMessage'));
+      return;
+    }
+    if (!cartReady || totalItems < 5) {
+      showAlert(t('common.error'), t('checkout.minimumWeight'));
       return;
     }
     navigation.navigate('OrderConfirmation', {
@@ -353,7 +378,7 @@ export default function RetailerDashboard({ navigation, route }) {
       </ScrollView>
 
       <ImageViewerModal
-        uri={proofUri}
+        uri={proofUri?.proof_photo_url} proof={proofUri?.pod}
         visible={!!proofUri}
         onClose={() => setProofUri(null)}
       />
@@ -488,9 +513,11 @@ function CartTab({ cart, totalItems, totalAmount, onChangeQty, onRemove, onCheck
         <Text style={styles.summaryTotal}>{peso(totalAmount)}</Text>
       </View>
 
+      {totalItems < 5 && <Text style={{ color: colors.danger }}>{t('checkout.minimumWeight')}</Text>}
       <TouchableOpacity
-        style={[styles.button, styles.buttonPrimary, { marginTop: 16 }]}
+        style={[styles.button, styles.buttonPrimary, { marginTop: 16, opacity: totalItems < 5 ? 0.5 : 1 }]}
         onPress={onCheckout}
+        disabled={totalItems < 5}
       >
         <Text style={styles.buttonPrimaryText}>{t('dashboards.retailer.placeOrder', { amount: peso(totalAmount) })}</Text>
       </TouchableOpacity>
@@ -547,7 +574,7 @@ function OrdersTab({ loading, orders, onViewProof, onTrack, onCancel, onViewDeta
             <Text style={styles.rowMeta}>{t('dashboards.retailer.deliverTo', { address: o.delivery_address })}</Text>
           ) : null}
           {o.preferred_schedule ? (
-            <Text style={styles.rowMeta}>{t('dashboards.retailer.schedule', { schedule: o.preferred_schedule })}</Text>
+            <Text style={styles.rowMeta}>{t('dashboards.retailer.schedule', { schedule: manilaSchedule(o.preferred_schedule) })}</Text>
           ) : null}
 
           {/* Issue 16: visual progress (Pending → Approved → Out for Delivery → Delivered).
@@ -571,7 +598,7 @@ function OrdersTab({ loading, orders, onViewProof, onTrack, onCancel, onViewDeta
           {getProofUrl(o) && (
             <TouchableOpacity
               style={styles.proofRow}
-              onPress={() => onViewProof(getProofUrl(o))}
+              onPress={() => onViewProof(getDelivery(o))}
               activeOpacity={0.8}
             >
               <Image source={{ uri: getProofUrl(o) }} style={styles.proofThumb} />

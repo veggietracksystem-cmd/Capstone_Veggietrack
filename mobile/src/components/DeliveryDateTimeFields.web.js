@@ -1,40 +1,31 @@
+import DeliveryTimeScroller from './DeliveryTimeScroller';
+import { useTranslation } from '../i18n/useTranslation';
+import { manilaDate } from '../lib/deliverySchedule';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts, radius } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
-
-// Local "YYYY-MM-DD" for the date input's min (no past dates).
-function todayLocalDate() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 // Web: native browser date + time pickers. On react-native-web a raw <input>
 // is valid because the tree renders through react-dom. `date` defaults to
 // today (set by the caller); `time` has no default and is required.
 export default function DeliveryDateTimeFields({ date, onDateChange, time, onTimeChange, disabled }) {
+  const { t } = useTranslation();
   return (
     <View>
-      <Text style={styles.label}>Delivery date</Text>
+      <Text style={styles.label}>{t('checkout.deliveryDate')}</Text>
       {/* eslint-disable-next-line react-native/no-raw-text */}
       <input
         type="date"
         value={date || ''}
-        min={todayLocalDate()}
+        min={manilaDate()}
         disabled={disabled}
         onChange={(e) => onDateChange(e.target.value)}
         style={inputStyle}
       />
 
-      <Text style={[styles.label, styles.timeLabel]}>Delivery time</Text>
+      <Text style={[styles.label, styles.timeLabel]}>{t('checkout.deliveryTime')}</Text>
       {/* eslint-disable-next-line react-native/no-raw-text */}
-      <input
-        type="time"
-        value={time || ''}
-        disabled={disabled}
-        onChange={(e) => onTimeChange(e.target.value)}
-        style={inputStyle}
-      />
+      <DeliveryTimeScroller date={date} time={time} onTimeChange={onTimeChange} disabled={disabled} />
     </View>
   );
 }

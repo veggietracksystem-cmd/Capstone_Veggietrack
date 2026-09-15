@@ -1,3 +1,5 @@
+import { clearCheckedOutCart } from '../lib/cartStore';
+import { manilaDate, scheduleInstant, validateSchedule } from '../lib/deliverySchedule';
 import { rf } from '../lib/responsive';
 import { useState, useEffect } from 'react';
 import {
@@ -18,12 +20,6 @@ import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 
 const PRIMARY = colors.leaf700;
 
-const pad = (n) => String(n).padStart(2, '0');
-const todayKey = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
-
 export default function OrderConfirmationScreen({ navigation, route }) {
   const { user } = useAuth();
   const { t, language } = useTranslation();
@@ -39,8 +35,11 @@ export default function OrderConfirmationScreen({ navigation, route }) {
   const [longitude, setLongitude] = useState(null);
   const [mapModalVisible, setMapModalVisible] = useState(false);
   
-  const [date, setDate] = useState(todayKey());
+  const [date, setDate] = useState(manilaDate());
   const [time, setTime] = useState('');
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
+  const scheduleValid = scheduleInstant(`${date}T${time}`) > now;
   const [confirming, setConfirming] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -57,8 +56,8 @@ export default function OrderConfirmationScreen({ navigation, route }) {
       if (defaultAddr) {
         setSelectedAddressId(defaultAddr.id);
         setAddress(defaultAddr.address);
-        setLatitude(defaultAddr.latitude || null);
-        setLongitude(defaultAddr.longitude || null);
+        setLatitude(defaultAddr.latitude ?? null);
+        setLongitude(defaultAddr.longitude ?? null);
       }
     } catch (err) {
       console.error('Load addresses error:', err);
@@ -70,8 +69,8 @@ export default function OrderConfirmationScreen({ navigation, route }) {
   const handleSelectAddress = (addr) => {
     setSelectedAddressId(addr.id);
     setAddress(addr.address);
-    setLatitude(addr.latitude || null);
-    setLongitude(addr.longitude || null);
+    setLatitude(addr.latitude ?? null);
+    setLongitude(addr.longitude ?? null);
     setUseManualAddress(false);
   };
 
@@ -98,26 +97,31 @@ export default function OrderConfirmationScreen({ navigation, route }) {
     return selected?.address || address;
   };
 
-  const canConfirm = !!getFinalAddress().trim() && !!date && !!time;
+  const weightValid = cart.length > 0 && cart.every(c => Number.isFinite(c.quantity) && c.quantity > 0) && cart.reduce((sum, c) => sum + c.quantity, 0) >= 5;
+  const canConfirm = weightValid && !!getFinalAddress().trim() && scheduleValid && latitude != null && longitude != null;
 
   const confirmOrder = async () => {
+    if (confirming) return;
+    if (!weightValid) { showAlert(t('common.error'), t('checkout.minimumWeight')); return; }
     const finalAddress = getFinalAddress();
     if (!finalAddress.trim()) {
       showAlert(t('common.error'), t('dashboards.retailer.addressRequired'));
       return;
     }
 
+    try { validateSchedule(`${date}T${time}`); } catch (err) { showAlert(t('common.error'), t('pod.pastSchedule')); return; }
     const payload = {
       items: cart.map((c) => ({ vegetable_name: c.vegetable_name, quantity_kg: c.quantity })),
       delivery_address: finalAddress.trim(),
       delivery_latitude: latitude,
       delivery_longitude: longitude,
-      preferred_schedule: `${date}T${time}`,
+      preferred_schedule: `${date}T${time}+08:00`,
     };
 
     setConfirming(true);
     try {
       await api.post('/api/orders', payload);
+      await clearCheckedOutCart(user.id).catch(() => showAlert(t('common.error'), t('checkout.cartStorageError')));
       setSuccess(true);
     } catch (err) {
       showAlert(t('dashboards.retailer.orderFailedTitle'), err?.message || t('dashboards.retailer.orderFailedFallback'));
@@ -226,7 +230,7 @@ export default function OrderConfirmationScreen({ navigation, route }) {
                   style={[styles.input, { flex: 1 }]}
                   placeholder={t('dashboards.retailer.deliveryAddressPlaceholder')}
                   value={address}
-                  onChangeText={setAddress}
+                  onChangeText={(value) => { setAddress(value); setLatitude(null); setLongitude(null); }}
                   editable={!confirming}
                   multiline
                 />
@@ -255,8 +259,11 @@ export default function OrderConfirmationScreen({ navigation, route }) {
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('dashboards.retailer.preferredTimeLabel')}</Text>
           <DeliveryDateTimeFields date={date} onDateChange={setDate} time={time} onTimeChange={setTime} disabled={confirming} />
+          {!!date && !!time && !scheduleValid && <Text style={{ color: colors.danger }}>{t('pod.pastSchedule')}</Text>}
+          {(latitude == null || longitude == null) && <Text style={{ color: colors.danger }}>{t('pod.pinRequired')}</Text>}
         </View>
 
+        {!weightValid && <Text style={{ color: colors.danger }}>{t('checkout.minimumWeight')}</Text>}
         {/* Confirm Button */}
         <TouchableOpacity
           style={[styles.button, styles.buttonPrimary, (confirming || !canConfirm) && styles.buttonDisabled]}

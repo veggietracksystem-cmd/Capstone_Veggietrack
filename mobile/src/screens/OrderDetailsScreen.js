@@ -1,3 +1,5 @@
+import ProofDetails from '../components/ProofDetails';
+import { manilaSchedule } from '../lib/deliverySchedule';
 import { Text, View, ScrollView, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OrderStepIndicator from '../components/OrderStepIndicator';
@@ -12,8 +14,7 @@ const PRIMARY = colors.leaf700;
 
 function splitSchedule(preferredSchedule) {
   if (!preferredSchedule) return { date: null, time: null };
-  const [date, time] = preferredSchedule.split('T');
-  return { date: date || null, time: time || null };
+  return { date: manilaSchedule(preferredSchedule), time: null };
 }
 
 function Row({ label, value }) {
@@ -119,7 +120,8 @@ export default function OrderDetailsScreen({ navigation, route }) {
         {proofUrl && (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>{t('dashboards.retailer.proofOfDelivery')}</Text>
-            <Image source={{ uri: proofUrl }} style={styles.proofImage} />
+            <Image source={{ uri: proofUrl }} style={styles.proofImage} resizeMode="contain" />
+            <ProofDetails proof={delivery?.pod} />
           </View>
         )}
       </ScrollView>

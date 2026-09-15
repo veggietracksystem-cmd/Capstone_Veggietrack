@@ -12,9 +12,13 @@ import AlertModalHost from './src/components/AlertModalHost';
 import LandingScreen from './src/screens/LandingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
+import PhoneOtpScreen from './src/screens/PhoneOtpScreen';
+import ApplicationStatusScreen from './src/screens/ApplicationStatusScreen';
+import AccountManagementScreen from './src/screens/AccountManagementScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import EditProfileScreen from './src/screens/EditProfileScreen';
+import ChangePhoneScreen from './src/screens/ChangePhoneScreen';
 import FarmerDashboard from './src/screens/FarmerDashboard';
 import DistributorDashboard from './src/screens/DistributorDashboard';
 import RetailerDashboard from './src/screens/RetailerDashboard';
@@ -45,7 +49,7 @@ const ROLE_SCREENS = {
 
 // Reads auth state from context and renders the right stack.
 function RootNavigator() {
-  const { user, loading, initialRoute } = useAuth();
+  const { user, session, recoveryMode, loading, initialRoute } = useAuth();
 
   if (loading) {
     return (
@@ -55,7 +59,7 @@ function RootNavigator() {
     );
   }
 
-  const roleScreen = (user && user.role && ROLE_SCREENS[user.role]) ? ROLE_SCREENS[user.role] : null;
+  const roleScreen = (!recoveryMode && user?.access_allowed && user.role && ROLE_SCREENS[user.role]) ? ROLE_SCREENS[user.role] : null;
 
   return (
     <NavigationContainer>
@@ -63,12 +67,14 @@ function RootNavigator() {
         screenOptions={{ headerShown: false, cardStyle: { flex: 1 } }}
         initialRouteName={roleScreen ? roleScreen.name : initialRoute}
       >
-        {roleScreen ? (
+        {session && !recoveryMode && !roleScreen ? (<Stack.Screen name="ApplicationStatus" component={ApplicationStatusScreen}/>) : roleScreen ? (
           <>
             <Stack.Screen name={roleScreen.name} component={roleScreen.component} />
             {/* Reachable from a dashboard via navigation.navigate('Profile'/'EditProfile'). */}
             <Stack.Screen name="Profile" component={ProfileScreen} />
+            {user.role === 'distributor' && <Stack.Screen name="AccountManagement" component={AccountManagementScreen} />}
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+            <Stack.Screen name="ChangePhone" component={ChangePhoneScreen} />
             {/* Retailer/Distributor: live delivery tracking on a map. */}
             <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
             {/* Retailer: review delivery address/schedule + confirm before submitting an order. */}
@@ -106,6 +112,8 @@ function RootNavigator() {
             <Stack.Screen name="Landing" component={LandingScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
+            <Stack.Screen name="PhoneOtp" component={PhoneOtpScreen} />
+            <Stack.Screen name="CompleteProfile" component={RegisterScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           </>
         )}

@@ -26,7 +26,20 @@
       "expo-sqlite",
       "expo-font",
       "expo-sharing",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow VeggieTrack to verify your delivery location."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow VeggieTrack to capture delivery proof.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "eas": {

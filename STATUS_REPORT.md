@@ -1,3 +1,5 @@
+> Authentication update: the Supabase/PhilSMS implementation is ready for local verification and manual deployment. Follow [AUTH_SUPABASE_SETUP.md](AUTH_SUPABASE_SETUP.md). Deployed migration, account import and live SMS acceptance are not yet performed; older auth descriptions below are historical.
+
 ﻿# VeggieTrack Project Status Report
 
 **Reviewed:** September 6, 2026

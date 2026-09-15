@@ -1,3 +1,4 @@
+import UserAvatar from '../components/UserAvatar';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -153,11 +154,7 @@ export default function MessagesScreen({ navigation, embedded }) {
                   onPress={() => openThread(c)}
                   activeOpacity={0.7}
                 >
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {(c.full_name || '?').charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
+                  <UserAvatar user={c} size={42} style={styles.avatar} textStyle={styles.avatarText} />
                   <View style={styles.contactInfo}>
                     <Text style={styles.contactName} numberOfLines={1}>{c.full_name || t('messages.unknownContact')}</Text>
                     <Text style={styles.contactRole} numberOfLines={1}>{roleLabel(c.role)}</Text>

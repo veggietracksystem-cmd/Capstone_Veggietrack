@@ -1,3 +1,4 @@
+import UserAvatar from '../components/UserAvatar';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -5,6 +6,7 @@ import {
   ActivityIndicator, StyleSheet, RefreshControl, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
@@ -316,6 +318,7 @@ export default function DistributorDashboard({ navigation, route }) {
       <View style={styles.minimalHeader}>
         <Text style={styles.minimalTitle}>{t('dashboards.distributor.hubTitle')}</Text>
         <View style={styles.headerIcons}>
+          <TouchableOpacity onPress={() => navigation.navigate('AccountManagement')} accessibilityLabel="User Management"><Ionicons name="people-outline" size={24} color="#1E4E09" /></TouchableOpacity>
           <MessagesIcon />
           <NotificationBell />
         </View>
@@ -386,7 +389,7 @@ export default function DistributorDashboard({ navigation, route }) {
       </ScrollView>
 
       <ImageViewerModal
-        uri={proofUri}
+        uri={proofUri?.proof_photo_url} proof={proofUri?.pod}
         visible={!!proofUri}
         onClose={() => setProofUri(null)}
       />
@@ -480,7 +483,10 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
           const busy = busyId === req.id;
           return (
             <View key={req.id} style={styles.pickupCard}>
-              <Text style={styles.pickupFarmer}>👨‍🌾 {farmerNameOf(req)}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <UserAvatar user={{ full_name: farmerNameOf(req), avatar_url: req.farmer_avatar_url }} size={28} />
+                <Text style={styles.pickupFarmer}>{farmerNameOf(req)}</Text>
+              </View>
               <Text style={styles.pickupHarvest}>
                 {harvest?.vegetable_name ? localizeVegetableName(harvest.vegetable_name, language) : t('dashboards.distributor.unknownHarvest')}
                 {harvest?.quantity_kg != null ? ` — ${harvest.quantity_kg} kg` : ''}
@@ -996,7 +1002,7 @@ function OrdersTab({
             {getProofUrl(order) && (
               <TouchableOpacity
                 style={styles.proofRow}
-                onPress={() => onViewProof(getProofUrl(order))}
+                onPress={() => onViewProof(getDelivery(order))}
                 activeOpacity={0.8}
               >
                 <Image source={{ uri: getProofUrl(order) }} style={styles.proofThumb} />

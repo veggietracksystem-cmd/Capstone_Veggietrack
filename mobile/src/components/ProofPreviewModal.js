@@ -1,3 +1,5 @@
+import ProofDetails from './ProofDetails';
+import { useTranslation } from '../i18n/useTranslation';
 import { rf } from '../lib/responsive';
 import { useEffect, useRef } from 'react';
 import { Modal, View, Text, Image, TouchableOpacity, ActivityIndicator, Animated, StyleSheet } from 'react-native';
@@ -9,8 +11,7 @@ const PRIMARY = colors.leaf700;
  * Confirm-delivery modal with proof-of-delivery preview.
  *
  * The photo is only uploaded when the driver taps "Confirm & Upload" — picking a
- * photo just stages it here for preview. A proof photo is optional; without one
- * the primary button reads "Confirm Delivery".
+ * photo stages it with current GPS for preview. Both are required.
  *
  * Props:
  *  - visible:    show/hide
@@ -18,12 +19,13 @@ const PRIMARY = colors.leaf700;
  *  - photo:      picked asset ({ uri }) or null
  *  - busy:       true while uploading/completing (disables buttons, shows spinner)
  *  - onPickPhoto: open the camera/library to attach or replace the photo
- *  - onConfirm:  upload (if any) + mark delivered
+ *  - onConfirm:  upload required photo/GPS + mark delivered
  *  - onCancel:   dismiss without changes
  */
 export default function ProofPreviewModal({
   visible, orderLabel, photo, busy, onPickPhoto, onConfirm, onCancel,
 }) {
+  const { t } = useTranslation();
   // Subtle scale/fade entrance for a smoother feel (Issue 1).
   const scale = useRef(new Animated.Value(0.9)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -48,7 +50,8 @@ export default function ProofPreviewModal({
 
           {photo ? (
             <>
-              <Image source={{ uri: photo.uri }} style={styles.preview} resizeMode="cover" />
+              <Image source={{ uri: photo.uri }} style={styles.preview} resizeMode="contain" />
+              <ProofDetails proof={photo.pod} />
               <TouchableOpacity onPress={onPickPhoto} disabled={busy}>
                 <Text style={styles.retakeLink}>Retake photo</Text>
               </TouchableOpacity>
@@ -56,14 +59,14 @@ export default function ProofPreviewModal({
           ) : (
             <TouchableOpacity style={styles.addPhotoBtn} onPress={onPickPhoto} disabled={busy}>
               <Text style={styles.addPhotoText}>📷 Add Proof Photo</Text>
-              <Text style={styles.optionalText}>(optional)</Text>
+              <Text style={styles.optionalText}>{t('pod.required')}</Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity
-            style={[styles.button, styles.buttonPrimary, busy && styles.buttonDisabled]}
+            style={[styles.button, styles.buttonPrimary, (busy || !photo?.pod) && styles.buttonDisabled]}
             onPress={onConfirm}
-            disabled={busy}
+            disabled={busy || !photo?.pod}
           >
             {busy
               ? <ActivityIndicator color="#fff" />

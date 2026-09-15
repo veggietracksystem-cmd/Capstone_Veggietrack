@@ -12,7 +12,7 @@ import { peso, shortId } from '../lib/ui';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
-import { statusColor, getProofUrl, isOldCompleted } from './RetailerDashboard';
+import { statusColor, getProofUrl, getDelivery, isOldCompleted } from './RetailerDashboard';
 
 const PRIMARY = colors.leaf700;
 
@@ -92,7 +92,7 @@ export default function OrderHistoryScreen({ navigation }) {
                 )}
 
                 {getProofUrl(o) && (
-                  <TouchableOpacity style={styles.proofRow} onPress={() => setProofUri(getProofUrl(o))} activeOpacity={0.8}>
+                  <TouchableOpacity style={styles.proofRow} onPress={() => setProofUri(getDelivery(o))} activeOpacity={0.8}>
                     <Image source={{ uri: getProofUrl(o) }} style={styles.proofThumb} />
                     <Text style={styles.proofText}>{t('dashboards.retailer.proofOfDelivery')}</Text>
                   </TouchableOpacity>
@@ -111,7 +111,7 @@ export default function OrderHistoryScreen({ navigation }) {
         </ScrollView>
       )}
 
-      <ImageViewerModal uri={proofUri} visible={!!proofUri} onClose={() => setProofUri(null)} />
+      <ImageViewerModal uri={proofUri?.proof_photo_url} proof={proofUri?.pod} visible={!!proofUri} onClose={() => setProofUri(null)} />
     </SafeAreaView>
   );
 }

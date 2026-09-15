@@ -1,3 +1,4 @@
+import UserAvatar from '../components/UserAvatar';
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useAuth } from '../context/AuthContext';
@@ -31,11 +32,7 @@ export default function FarmerProfileTab({ navigation }) {
     <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* User Card */}
       <View style={styles.profileCard}>
-        <View style={styles.avatarCircle}>
-          <Text style={styles.avatarText}>
-            {(fullName || user?.phone || 'F').charAt(0).toUpperCase()}
-          </Text>
-        </View>
+        <UserAvatar user={user} style={styles.avatarCircle} textStyle={styles.avatarText} />
         <Text style={styles.userName}>{fullName || user?.phone || 'Farmer'}</Text>
         <View style={styles.roleBadge}>
           <Text style={styles.roleBadgeText}>{(user?.role || 'farmer').replace(/_/g, ' ').toUpperCase()}</Text>

@@ -10,6 +10,7 @@
     "@react-navigation/bottom-tabs": "^7.18.0",
     "@react-navigation/native": "^7.3.1",
     "@react-navigation/stack": "^7.10.3",
+    "@supabase/supabase-js": "2.108.1",
     "expo": "^57.0.20",
     "expo-dev-client": "~57.0.18",
     "expo-font": "~57.0.3",

@@ -2,6 +2,10 @@
 
 VeggieTrack is a capstone vegetable supply-chain app connecting farmers, a central distributor, retailers, and delivery riders. The Express/Supabase backend serves an Expo/React Native client targeting Android, iOS, and web.
 
+## Authentication transition
+
+Supabase phone/password authentication, PhilSMS delivery hook, distributor approval and verified phone changes are implemented in the workspace. Production still requires the reviewed migration, legacy credential import and private provider configuration. Follow [the deployment checklist](AUTH_SUPABASE_SETUP.md); do not deploy the mobile build before its backend/database. The [cleanup report](AUTH_CLEANUP_REPORT.md) describes the earlier preparation checkpoint.
+
 Documentation reviewed: **September 6, 2026**. This describes the current workspace, including delivery-map changes that are still uncommitted. See [STATUS_REPORT.md](STATUS_REPORT.md) for verification and release readiness.
 
 ## Roles and features
@@ -13,7 +17,7 @@ Documentation reviewed: **September 6, 2026**. This describes the current worksp
 | Retailer | Browse produce, filter categories, manage cart and saved addresses, select delivery schedules, place/cancel orders, inspect order history and delivery tracking |
 | Delivery personnel | Review assigned pickups/deliveries, accept status workflows, navigate to the hub and retailer, reject deliveries, upload proof and complete deliveries |
 
-Shared functionality includes phone/password registration and login, token refresh and persistent sessions, profile editing, notifications with navigation links, polling-based messaging and unread counts, a user guide, and contact/support screens. A single distributor is enforced by the API and a database constraint.
+Shared functionality includes profile editing, notifications with navigation links, polling-based messaging and unread counts, a user guide, and contact/support screens. A single distributor is enforced by the API and a database constraint.
 
 Inventory supports FIFO batch provenance and stock lifecycle tracking. English and Tagalog translation resources and vegetable-name validation are present; newer tracking screens still contain English-only copy. Offline harvest caching and queued additions/edits support intermittent connectivity; this is not full offline support for every workflow. Reports use PDF printing and sharing, and images use Cloudinary uploads.
 
@@ -39,13 +43,13 @@ Versions below are declared in the current package manifests, not claims about t
 | --- | --- |
 | API | Node.js, Express `^5.2.1`, CommonJS, dotenv, CORS |
 | Database | Supabase PostgreSQL, `@supabase/supabase-js ^2.108.1`, SQL migrations |
-| Authentication | JSON Web Tokens (`^9.0.3`), bcrypt (`^6.0.0`), SecureStore/client session handling |
+| Authentication | Supabase phone/password Auth, SMS hook, approval flow and verified phone changes; hosted migration/import pending |
 | Client | Expo `^57.0.20`, React Native `0.86.3`, React/React DOM `19.2.3`, React Native Web `^0.21.0` |
 | Navigation/UI | React Navigation 7, safe-area context, gesture handler, Expo vector icons, Poppins fonts |
 | Mapping | Leaflet 1.9.4, OpenStreetMap, OSRM, Nominatim address search, Expo Location, WebView `13.16.1` |
 | Local storage | Expo SQLite, AsyncStorage, NetInfo connectivity detection |
 | Media/reports | Cloudinary unsigned uploads, Expo Image Picker, Print, Sharing |
-| Supporting backend packages | date-fns `^4.4.0`, Twilio `^6.0.2`; SMS configuration remains for legacy/optional flows |
+| Supporting backend packages | date-fns `^4.4.0`, dotenv, CORS |
 | Builds | Expo CLI, EAS profiles, checked-in Android Gradle project, Expo development client |
 
 ## Repository layout
@@ -85,7 +89,7 @@ npm.cmd ci
 Copy-Item .env.example .env
 ```
 
-Configure `PORT`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, and a strong `JWT_SECRET` in `backend/.env`. `NODE_ENV` and optional `SMS_API_PH_KEY` are included in the example. Keep service credentials on the backend and never commit `.env` files.
+Configure `PORT`, `NODE_ENV`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_KEY` in `backend/.env`. Keep service credentials on the backend and never commit `.env` files. No SMS credential is needed for this cleanup.
 
 For a new database, review and apply [schema_complete.sql](backend/sql/schema_complete.sql), then [veggietrack_fixes.sql](backend/sql/veggietrack_fixes.sql) and [fifo_inventory_upgrade.sql](backend/sql/fifo_inventory_upgrade.sql). Review `add_image_urls.sql` and `delivery_reject.sql` for the corresponding schema additions. Existing databases need only applicable migrations; the base schema is not a universal rerunnable installer. `reset_data.sql` is a destructive reset utility, not a setup migration.
 
@@ -124,7 +128,7 @@ From the repository root, the current workspace can be checked with:
 
 ```powershell
 node --check backend/index.js
-node --test backend/test/deliveryTracking.test.js
+npm.cmd test --prefix backend
 ```
 
-The test file belongs to the pending tracking implementation. `backend/package.json` still has a placeholder `npm test` script. These checks do not validate a live database, production deployment, or device build. The build guide records unresolved local native compilation issues; a successful release APK/EAS build and two-device delivery acceptance check remain to be verified.
+The backend test suite covers authentication boundaries and delivery/checkout/POD regressions. These checks do not validate a live database, production deployment, or device build. The build guide records unresolved local native compilation issues; a successful release APK/EAS build and two-device delivery acceptance check remain to be verified.
