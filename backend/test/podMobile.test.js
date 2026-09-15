@@ -8,9 +8,21 @@ const path = require('node:path');
 function loadModule(file, mocks = {}, globals = {}) {
   const source = fs.readFileSync(path.join(__dirname, '../../mobile/src', file), 'utf8');
   const code = babel.transformSync(source, { configFile: false, babelrc: false, plugins: [require.resolve('../../mobile/node_modules/@babel/plugin-transform-modules-commonjs')] }).code;
-  const exports = {};
-  vm.runInNewContext(code, { exports, require: name => mocks[name], Date, setTimeout, clearTimeout, ...globals });
-  return exports;
+  const moduleMocks = { ...mocks };
+  if (file === 'lib/podCapture.js' && !moduleMocks['./deviceLocation']) {
+    const trackingGeometry = loadModule('lib/trackingGeometry.js', {}, globals);
+    const deliveryLocation = loadModule('lib/deliveryLocation.js', { './trackingGeometry': trackingGeometry }, globals);
+    const locationSamples = loadModule('lib/locationSamples.js', { './trackingGeometry': trackingGeometry, './deliveryLocation': deliveryLocation }, globals);
+    moduleMocks['./deliveryLocation'] = deliveryLocation;
+    moduleMocks['./deviceLocation'] = loadModule('lib/deviceLocation.js', {
+      'expo-location': mocks['expo-location'],
+      'react-native': { Platform: { OS: 'android' } },
+      './locationSamples': locationSamples,
+    }, globals);
+  }
+  const module = { exports: {} };
+  vm.runInNewContext(code, { exports: module.exports, module, require: name => moduleMocks[name], Date, setTimeout, clearTimeout, ...globals });
+  return module.exports;
 }
 const t = key => key;
 const position = () => ({ coords: { latitude: 7.1, longitude: 125.6, accuracy: 10 }, timestamp: Date.now() });

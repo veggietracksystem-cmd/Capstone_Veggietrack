@@ -21,8 +21,13 @@ export async function acquireDevicePosition(options = {}) {
     if (!await Location.hasServicesEnabledAsync()) throw locationError('LOCATION_SERVICES_DISABLED', 'Location services are disabled. Enable GPS in your device settings.');
   }, timeoutMs);
   return refineLocation(async remainingMs => {
-    try { return await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest, maximumAge: 0, timeout: remainingMs }); }
+    try {
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest, maximumAge: 0, timeout: remainingMs });
+      if (typeof position?.timestamp === 'number' && Date.now() - position.timestamp > 60000) throw locationError('GPS_STALE', 'Your location is out of date. Tap Refresh Location and try again.');
+      return position;
+    }
     catch (error) {
+      if (error?.code === 'GPS_STALE') throw error;
       if (error?.code === 3 || error?.code === 'E_LOCATION_TIMEOUT') throw locationError('GPS_TIMEOUT', 'Location refresh timed out. Tap Refresh Location and try again.');
       throw locationError('LOCATION_UNAVAILABLE', 'GPS unavailable. Move to an open area and tap Refresh Location.');
     }
