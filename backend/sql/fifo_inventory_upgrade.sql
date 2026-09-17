@@ -15,6 +15,7 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS pickup_request_id UUID REFERENCES 
 ALTER TABLE products ADD COLUMN IF NOT EXISTS farmer_id UUID REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS quantity_received NUMERIC;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'received'; -- received | listed | sold_out
+ALTER TABLE products ADD COLUMN IF NOT EXISTS batch_photo_url TEXT; -- distributor's actual received-batch photo
 
 -- Price is unknown until a batch is added to the product list.
 ALTER TABLE products ALTER COLUMN price_per_kg DROP NOT NULL;

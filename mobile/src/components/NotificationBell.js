@@ -6,10 +6,8 @@ import {
   Text, View, TouchableOpacity, Modal, ScrollView,
   ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import CustomModal from './CustomModal';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
@@ -46,11 +44,9 @@ function typeColor(type) {
 }
 
 export default function NotificationBell({ asTabItem = false, active = false, onPress, fullScreen = false }) {
-  const navigation = useNavigation();
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
   const [marking, setMarking] = useState(false);
-  const { user } = useAuth();
   const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
@@ -112,25 +108,6 @@ export default function NotificationBell({ asTabItem = false, active = false, on
     } finally {
       requestLock.release('mark');
       if (mounted.current) setMarking(false);
-    }
-  };
-
-  // Where "View Details" on the detail modal actually navigates to — same
-  // routing rules as before, just no longer fired immediately on tap.
-  const goToNotification = (n) => {
-    setDetailNotification(null);
-    setOpen(false);
-    if (!n.item_id) return;
-    if (n.type === 'pickup') {
-      navigation.navigate('DistributorDashboard', { tab: 'pickups' });
-    } else if (['order', 'delivery', 'payment'].includes(n.type)) {
-      if (user?.role === 'retailer') {
-        navigation.navigate('OrderTracking', { orderId: n.item_id });
-      } else if (user?.role === 'distributor') {
-        navigation.navigate('DistributorDashboard', { tab: 'orders' });
-      } else if (user?.role === 'delivery_personnel') {
-        navigation.navigate('DeliveryDashboard', { filter: 'active' });
-      }
     }
   };
 
@@ -212,8 +189,6 @@ export default function NotificationBell({ asTabItem = false, active = false, on
         <CustomModal
           visible={!!detailNotification}
           title={detailNotification?.title}
-          confirmLabel={detailNotification?.item_id ? t('notifications.viewDetails') : undefined}
-          onConfirm={detailNotification?.item_id ? () => goToNotification(detailNotification) : undefined}
           cancelLabel={t('notifications.close')}
           onCancel={() => setDetailNotification(null)}
         >
@@ -324,8 +299,6 @@ export default function NotificationBell({ asTabItem = false, active = false, on
       <CustomModal
         visible={!!detailNotification}
         title={detailNotification?.title}
-        confirmLabel={detailNotification?.item_id ? t('notifications.viewDetails') : undefined}
-        onConfirm={detailNotification?.item_id ? () => goToNotification(detailNotification) : undefined}
         cancelLabel={t('notifications.close')}
         onCancel={() => setDetailNotification(null)}
       >

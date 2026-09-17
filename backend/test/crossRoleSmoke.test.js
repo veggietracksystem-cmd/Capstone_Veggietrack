@@ -8,6 +8,7 @@ const { createRequire } = require('node:module');
 // Stateful HTTP-handler smoke: data produced by one role is consumed by the next.
 // Database transaction/authorization semantics have separate PostgreSQL/security tests.
 test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu -> retailer checkout and approval', async () => {
+  process.env.CLOUDINARY_CLOUD_NAME = 'veggietrack';
   let sequence = 0;
   const data = { users: [
     { id: 'farmer', role: 'farmer', full_name: 'Farmer' },
@@ -38,7 +39,7 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
   const realRequire = createRequire(path.join(__dirname, '../index.js'));
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../index.js'), 'utf8'), {
     require: name => name === 'express' ? express : name === 'dotenv' ? { config() {} } : name === '@supabase/supabase-js' ? { createClient: () => db } : realRequire(name),
-    process: { env: {} }, console, Date, URL, setTimeout, clearTimeout,
+    process: { env: { CLOUDINARY_CLOUD_NAME: 'veggietrack' } }, console, Date, URL, setTimeout, clearTimeout,
   });
   async function call(key, userId, body = {}, id) {
     const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
@@ -54,9 +55,12 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
   const batch = data.products[0];
   assert.equal(batch.status, 'received'); assert.equal(batch.harvest_id, harvest.id); assert.equal(batch.farmer_id, 'farmer');
   assert.equal((await call('get /api/products/available', 'retailer')).length, 0);
+  const photo = 'https://res.cloudinary.com/veggietrack/image/upload/v123/batches/carrot-received.jpg';
+  await call('put /api/products/:id/batch-photo', 'hub', { batch_photo_url: photo }, batch.id);
   await call('put /api/products/:id/list', 'hub', { price_per_kg: 20 }, batch.id);
   const menu = await call('get /api/products/available', 'retailer');
   assert.equal(menu[0].available_kg, 8);
+  assert.equal(menu[0].batch_photo_url, photo);
   const order = (await call('post /api/orders', 'retailer', {
     items: [{ vegetable_name: 'Carrot', quantity_kg: 6 }], delivery_address: 'Store',
     delivery_latitude: 14.1, delivery_longitude: 121.2,

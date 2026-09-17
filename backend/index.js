@@ -1,5 +1,5 @@
 const { validateOrderItems } = require('./lib/orderRules');
-const { validateAvatarUrl } = require('./lib/avatar');
+const { validateAvatarUrl, validateBatchPhotoUrl } = require('./lib/avatar');
 const { validateSchedule, validateProof, proofImageUrl, ensureProofImage } = require('./lib/deliveryProof');
 const express = require('express');
 const cors = require('cors');
@@ -575,7 +575,7 @@ app.get('/', (req, res) => {
 // pickup (see POST /api/pickup-requests/:id/pickup) so harvest_date/farmer
 // traceability is never lost.
 app.post('/api/products', verifyToken, async (req, res) => {
-  const { vegetable_name, price_per_kg, stock_kg } = req.body;
+  const { vegetable_name, price_per_kg, stock_kg, batch_photo_url } = req.body;
   const distributorId = req.user.userId;
   const role = req.user.role;
 
@@ -588,6 +588,9 @@ app.post('/api/products', verifyToken, async (req, res) => {
   if (!isVegetable(vegetable_name)) {
     return res.status(400).json({ error: VEGETABLE_VALIDATION_MESSAGE });
   }
+  let batchPhotoUrl;
+  try { batchPhotoUrl = validateBatchPhotoUrl(batch_photo_url); }
+  catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
 
   const { data, error } = await supabaseAdmin
     .from('products')
@@ -596,6 +599,7 @@ app.post('/api/products', verifyToken, async (req, res) => {
       vegetable_name,
       price_per_kg,
       stock_kg,
+      batch_photo_url: batchPhotoUrl,
       quantity_received: stock_kg,
       status: 'listed'
     })
@@ -660,7 +664,7 @@ app.put('/api/products/:id/list', verifyToken, async (req, res) => {
 
   const { data: batch, error: fetchError } = await supabaseAdmin
     .from('products')
-    .select('id, vegetable_name, status')
+    .select('id, vegetable_name, status, batch_photo_url')
     .eq('id', id)
     .eq('distributor_id', distributorId)
     .single();
@@ -672,6 +676,9 @@ app.put('/api/products/:id/list', verifyToken, async (req, res) => {
   // normal 'received' state and legacy rows from before batch statuses existed.
   if (batch.status === 'listed' || batch.status === 'sold_out') {
     return res.status(400).json({ error: `Batch is already ${batch.status}` });
+  }
+  if (!batch.batch_photo_url) {
+    return res.status(400).json({ error: 'Upload a recent batch photo in Edit before adding this batch to the product list.' });
   }
 
   const { data: sibling } = await supabaseAdmin
@@ -697,6 +704,53 @@ app.put('/api/products/:id/list', verifyToken, async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   res.json({ message: 'Added to product list', product: data });
+});
+
+// The received-batch photo belongs to one product row (one FIFO lot).  It is
+// deliberately not cascaded to similarly named batches.
+app.put('/api/products/:id/batch-photo', verifyToken, async (req, res) => {
+  if (req.user.role !== 'distributor') {
+    return res.status(403).json({ error: 'Only distributors can update batch photos' });
+  }
+  let batchPhotoUrl;
+  try { batchPhotoUrl = validateBatchPhotoUrl(req.body?.batch_photo_url); }
+  catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
+
+  const { data, error } = await supabaseAdmin
+    .from('products')
+    .update({ batch_photo_url: batchPhotoUrl, updated_at: new Date() })
+    .eq('id', req.params.id)
+    .eq('distributor_id', req.user.userId)
+    .select()
+    .single();
+  if (error || !data) return res.status(error ? 500 : 404).json({ error: error ? error.message : 'Batch not found or not owned by you' });
+  res.json({ message: 'Recent batch photo saved', product: data });
+});
+
+// A received batch may have its staged photo removed and replaced. Listed
+// batches retain one so the retailer menu never loses its actual product photo.
+app.delete('/api/products/:id/batch-photo', verifyToken, async (req, res) => {
+  if (req.user.role !== 'distributor') {
+    return res.status(403).json({ error: 'Only distributors can remove batch photos' });
+  }
+  const { data: batch, error: fetchError } = await supabaseAdmin
+    .from('products')
+    .select('id, status')
+    .eq('id', req.params.id)
+    .eq('distributor_id', req.user.userId)
+    .single();
+  if (fetchError || !batch) return res.status(404).json({ error: 'Batch not found or not owned by you' });
+  if (batch.status === 'listed' || batch.status === 'sold_out') {
+    return res.status(400).json({ error: 'Listed batches must retain a recent batch photo. Unlist the product before removing it.' });
+  }
+  const { data, error } = await supabaseAdmin
+    .from('products')
+    .update({ batch_photo_url: null, updated_at: new Date() })
+    .eq('id', batch.id)
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ message: 'Recent batch photo removed', product: data });
 });
 
 // Price edits from the Product List screen. Stock is intentionally not
@@ -907,16 +961,18 @@ app.get('/api/products/listings', verifyToken, async (req, res) => {
 app.get('/api/products/available', async (req, res) => {
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('vegetable_name, price_per_kg, stock_kg')
+    .select('vegetable_name, price_per_kg, stock_kg, batch_photo_url, harvest_date')
     .eq('status', 'listed')
-    .gt('stock_kg', 0);
+    .gt('stock_kg', 0)
+    .order('harvest_date', { ascending: true });
 
   if (error) return res.status(500).json({ error: error.message });
 
   const byVeg = {};
   (data || []).forEach((row) => {
     if (!byVeg[row.vegetable_name]) {
-      byVeg[row.vegetable_name] = { vegetable_name: row.vegetable_name, price_per_kg: row.price_per_kg, available_kg: 0 };
+      // Rows are ordered below so this is the oldest sellable (FIFO) batch.
+      byVeg[row.vegetable_name] = { vegetable_name: row.vegetable_name, price_per_kg: row.price_per_kg, available_kg: 0, batch_photo_url: row.batch_photo_url };
     }
     byVeg[row.vegetable_name].available_kg += Number(row.stock_kg);
   });

@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS products (
     vegetable_name TEXT NOT NULL,
     price_per_kg NUMERIC NOT NULL,
     stock_kg NUMERIC NOT NULL,
+    batch_photo_url TEXT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

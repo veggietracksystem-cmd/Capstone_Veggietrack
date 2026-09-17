@@ -44,6 +44,7 @@ export default function MessagesScreen({ navigation, embedded }) {
   const { t } = useTranslation();
   const [view, setView] = useState('contacts'); // 'contacts' | 'thread'
   const [contacts, setContacts] = useState([]);
+  const [contactSearch, setContactSearch] = useState('');
   const [active, setActive] = useState(null); // contact being chatted with
   const [thread, setThread] = useState([]);
   const [input, setInput] = useState('');
@@ -151,6 +152,9 @@ export default function MessagesScreen({ navigation, embedded }) {
 
   const Wrapper = embedded ? View : SafeAreaView;
   const displayNow = new Date();
+  const contactQuery = contactSearch.trim().toLocaleLowerCase();
+  const filteredContacts = contacts.filter((contact) => !contactQuery
+    || `${contact.full_name || ''} ${roleLabel(contact.role)}`.toLocaleLowerCase().includes(contactQuery));
 
   return (
     <Wrapper style={styles.container}>
@@ -179,14 +183,26 @@ export default function MessagesScreen({ navigation, embedded }) {
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
           >
+            <View style={styles.searchRow}>
+              <Ionicons name="search-outline" size={rf(18)} color={colors.inkFaint} />
+              <TextInput style={styles.searchInput} value={contactSearch} onChangeText={setContactSearch}
+                placeholder="Search conversations" placeholderTextColor={colors.inkFaint} autoCapitalize="none"
+                returnKeyType="search" accessibilityLabel="Search conversations" />
+              {!!contactSearch && <TouchableOpacity onPress={() => setContactSearch('')} hitSlop={8}><Ionicons name="close-circle" size={rf(18)} color={colors.inkFaint} /></TouchableOpacity>}
+            </View>
             {contacts.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Ionicons name="mail-outline" size={rf(40)} color={colors.inkFaint} style={styles.emptyIcon} />
                 <Text style={styles.emptyTitle}>{t('messages.noContactsTitle')}</Text>
                 <Text style={styles.emptySubtitle}>{t('messages.noContactsSubtitle')}</Text>
               </View>
+            ) : filteredContacts.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="search-outline" size={rf(40)} color={colors.inkFaint} style={styles.emptyIcon} />
+                <Text style={styles.emptyTitle}>No conversations found</Text>
+              </View>
             ) : (
-              contacts.map((c) => (
+              filteredContacts.map((c) => (
                 <TouchableOpacity
                   key={c.id}
                   style={styles.contactRow}
@@ -290,6 +306,8 @@ const styles = StyleSheet.create({
 
   scrollArea: { flex: 1, minHeight: 0 },
   content: { paddingHorizontal: 2, paddingBottom: 16 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, marginBottom: 12 },
+  searchInput: { flex: 1, minWidth: 0, paddingVertical: 10, fontFamily: fonts.body, color: colors.ink, fontSize: rf(14) },
 
   emptyContainer: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 24 },
   emptyIcon: { marginBottom: 12 },

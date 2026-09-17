@@ -470,9 +470,13 @@ function HomeTab({ loading, products, searchQuery, setSearchQuery, onAdd }) {
             const tile = getVegetableTile(p.vegetable_name);
             return (
               <View key={p.vegetable_name} style={styles.kpiCard}>
-                <View style={[styles.kpiIconWrap, { backgroundColor: tile.bg }]}>
-                  <Text style={styles.kpiIcon}>{tile.icon}</Text>
-                </View>
+                {p.batch_photo_url ? (
+                  <Image source={{ uri: p.batch_photo_url }} style={styles.productPhoto} resizeMode="cover" accessibilityLabel={`${p.vegetable_name} recent batch`} />
+                ) : (
+                  <View style={[styles.kpiIconWrap, { backgroundColor: tile.bg }]}>
+                    <Text style={styles.kpiIcon}>{tile.icon}</Text>
+                  </View>
+                )}
                 <Text style={styles.kpiName} numberOfLines={1}>{localizeVegetableName(p.vegetable_name, language)}</Text>
                 <Text style={styles.kpiPrice}>{peso(p.price_per_kg)} / kg</Text>
                 <Text style={styles.kpiMeta}>{t('dashboards.retailer.kgAvailable', { qty: p.available_kg })}</Text>
@@ -716,6 +720,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, alignItems: 'center', ...shadowCard,
   },
   kpiIconWrap: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  productPhoto: { width: '100%', height: 118, borderRadius: 16, marginBottom: 8, backgroundColor: colors.leaf50 },
   kpiIcon: { fontSize: rf(26) },
   kpiName: { fontFamily: fonts.bodyBold, fontSize: rf(14.5), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
   kpiPrice: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: PRIMARY, marginTop: 4, textAlign: 'center' },

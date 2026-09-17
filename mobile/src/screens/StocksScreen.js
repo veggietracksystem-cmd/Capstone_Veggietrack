@@ -10,9 +10,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
+import BatchPhotoField from '../components/BatchPhotoField';
 import CustomModal from '../components/CustomModal';
 import BottomNavBar from '../components/BottomNavBar';
-import { showAlert, peso } from '../lib/ui';
+import { showAlert, confirmAction, peso } from '../lib/ui';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
@@ -54,6 +55,11 @@ export default function StocksScreen({ navigation }) {
   const [priceBatch, setPriceBatch] = useState(null);
   const [priceInput, setPriceInput] = useState('');
   const [priceBusy, setPriceBusy] = useState(false);
+  const [editingBatch, setEditingBatch] = useState(null);
+  const [batchPhotoUrl, setBatchPhotoUrl] = useState('');
+  const [batchPhotoState, setBatchPhotoState] = useState('ready');
+  const [editPriceInput, setEditPriceInput] = useState('');
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   const loadBatches = useCallback(async () => {
     const isCurrent = beginRead('loadBatches');
@@ -86,6 +92,13 @@ export default function StocksScreen({ navigation }) {
   // Anything not already listed/sold_out counts as "received" — covers both
   // the normal state and legacy batches from before the status column existed.
   const isListable = (status) => status !== 'listed' && status !== 'sold_out';
+  const showBatchPhotoError = (err) => {
+    if (err?.status === 404) {
+      showAlert('Backend update required', 'The connected VeggieTrack server does not yet support batch photos. Deploy the latest backend, then try again.');
+      return;
+    }
+    showAlert(t('common.error'), err.message);
+  };
 
   const statusLabel = (status) => {
     if (status === 'listed') return t('stocks.statusListed');
@@ -110,6 +123,10 @@ export default function StocksScreen({ navigation }) {
   };
 
   const onAddToProductList = (batch) => {
+    if (!batch.batch_photo_url) {
+      showAlert(t('common.error'), 'A recent batch photo is required. Select Edit to upload or take one before listing this batch.');
+      return;
+    }
     const sibling = batches.find(
       (b) => b.vegetable_name === batch.vegetable_name && !isListable(b.status)
     );
@@ -119,6 +136,53 @@ export default function StocksScreen({ navigation }) {
     }
     setPriceBatch(batch);
     setPriceInput('');
+  };
+
+  const openEdit = (batch) => {
+    setEditingBatch(batch);
+    setBatchPhotoUrl(batch.batch_photo_url || '');
+    setBatchPhotoState('ready');
+    setEditPriceInput(batch.price_per_kg != null ? String(batch.price_per_kg) : '');
+  };
+  const saveBatchPhoto = async () => {
+    if (!batchPhotoUrl || batchPhotoState !== 'ready') {
+      showAlert(t('common.error'), batchPhotoState === 'uploading' ? 'Please wait for the recent batch photo to finish uploading.' : 'A recent batch photo is required before this batch can be saved.');
+      return;
+    }
+    const canEditPrice = !isListable(editingBatch?.status);
+    const price = Number(editPriceInput);
+    if (canEditPrice && (!price || price <= 0)) {
+      showAlert(t('common.error'), t('stocks.priceRequired'));
+      return;
+    }
+    if (!editingBatch || !requestLock.acquire('batchPhoto')) return;
+    setPhotoBusy(true);
+    try {
+      const { product } = await api.put(`/api/products/${editingBatch.id}/batch-photo`, { batch_photo_url: batchPhotoUrl });
+      setBatches(prev => prev.map(b => b.id === product.id ? { ...b, ...product } : b));
+      if (canEditPrice) {
+        const { products } = await api.put(`/api/products/${editingBatch.id}`, { price_per_kg: price });
+        if (Array.isArray(products)) setBatches(prev => prev.map(b => products.find(p => p.id === b.id) || b));
+      }
+      setEditingBatch(null);
+    } catch (err) { showBatchPhotoError(err); }
+    finally { requestLock.release('batchPhoto'); setPhotoBusy(false); }
+  };
+  const removeBatchPhoto = () => {
+    if (!editingBatch || !isListable(editingBatch.status)) {
+      showAlert(t('common.error'), 'Listed batches must keep their photo so retailers can see the product they are ordering. Unlist it first to remove the photo.');
+      return;
+    }
+    confirmAction('Remove batch photo', 'This batch will need a new recent photo before it can be listed.', async () => {
+      if (!requestLock.acquire('removeBatchPhoto')) return;
+      setPhotoBusy(true);
+      try {
+        const { product } = await api.delete(`/api/products/${editingBatch.id}/batch-photo`);
+        setBatchPhotoUrl('');
+        setBatches(prev => prev.map(b => b.id === product.id ? { ...b, ...product } : b));
+      } catch (err) { showBatchPhotoError(err); }
+      finally { requestLock.release('removeBatchPhoto'); setPhotoBusy(false); }
+    });
   };
 
   const confirmPrice = async () => {
@@ -186,6 +250,9 @@ export default function StocksScreen({ navigation }) {
               : <Text style={styles.addBtnText}>{t('stocks.addToProductList')}</Text>}
           </TouchableOpacity>
         )}
+        <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(b)} disabled={busy}>
+          <Text style={styles.editBtnText}>Edit</Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -235,6 +302,17 @@ export default function StocksScreen({ navigation }) {
         />
       </CustomModal>
 
+      <CustomModal visible={!!editingBatch} title={`Edit ${localizeVegetableName(editingBatch?.vegetable_name, language)}`} confirmLabel="Save Batch" onConfirm={saveBatchPhoto} onCancel={() => setEditingBatch(null)} busy={photoBusy}>
+        <BatchPhotoField value={batchPhotoUrl} onChange={setBatchPhotoUrl} onStateChange={setBatchPhotoState} disabled={photoBusy} />
+        {!isListable(editingBatch?.status) && <>
+          <Text style={styles.editPriceLabel}>{t('productList.priceLabel')}</Text>
+          <TextInput style={styles.priceInput} value={editPriceInput} onChangeText={setEditPriceInput} placeholder={t('stocks.priceLabel')} keyboardType="decimal-pad" editable={!photoBusy} />
+        </>}
+        {!!batchPhotoUrl && isListable(editingBatch?.status) && <TouchableOpacity onPress={removeBatchPhoto} disabled={photoBusy} style={styles.removePhotoBtn}>
+          <Text style={styles.removePhotoText}>Remove photo</Text>
+        </TouchableOpacity>}
+      </CustomModal>
+
       <BottomNavBar
         tabs={DISTRIBUTOR_TABS}
         activeTab="stocks"
@@ -267,7 +345,12 @@ const styles = StyleSheet.create({
   addBtn: { marginTop: 10, backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 10, alignItems: 'center' },
   addBtnDisabled: { opacity: 0.6 },
   addBtnText: { color: '#fff', fontFamily: fonts.bodySemiBold, fontSize: rf(14) },
+  editBtn: { marginTop: 8, borderWidth: 1, borderColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 9, alignItems: 'center' },
+  editBtnText: { color: PRIMARY, fontFamily: fonts.bodySemiBold, fontSize: rf(14) },
 
   modalHint: { fontSize: rf(13), color: colors.inkFaint, marginBottom: 10 },
   priceInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, fontSize: rf(15) },
+  editPriceLabel: { fontFamily: fonts.bodySemiBold, color: colors.ink, marginTop: 14, marginBottom: 7 },
+  removePhotoBtn: { alignSelf: 'flex-start', marginTop: 4, paddingVertical: 6 },
+  removePhotoText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(13) },
 });
