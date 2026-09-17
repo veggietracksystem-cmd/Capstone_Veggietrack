@@ -1,3 +1,6 @@
+import useLatestRequest from '../hooks/useLatestRequest';
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
+import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -18,6 +21,8 @@ import { useTranslation } from '../i18n/useTranslation';
 const PRIMARY = colors.leaf700;
 
 export default function ProductListScreen({ navigation }) {
+  const beginRead = useLatestRequest();
+  const requestLock = useRequestLock();
   const { t, language } = useTranslation();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,10 +45,13 @@ export default function ProductListScreen({ navigation }) {
   const activeListing = activeVeg ? listings.find((l) => l.vegetable_name === activeVeg) : null;
 
   const loadListings = useCallback(async () => {
+    const isCurrent = beginRead('loadListings');
     try {
       const data = await api.get('/api/products/listings');
+      if (!isCurrent()) return;
       setListings(Array.isArray(data) ? data : []);
     } catch (err) {
+      if (!isCurrent()) return;
       showAlert(t('common.error'), err.message);
     }
   }, [t]);
@@ -55,6 +63,8 @@ export default function ProductListScreen({ navigation }) {
       setLoading(false);
     })();
   }, [loadListings]);
+
+  useRefreshOnFocus(loadListings);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -80,6 +90,7 @@ export default function ProductListScreen({ navigation }) {
       showAlert(t('common.error'), t('dashboards.distributor.enterValidPrice'));
       return;
     }
+    if (!requestLock.acquire('productEdit')) return;
     setSavingPrice(true);
     try {
       // Any batch of this vegetable works — the backend cascades the price
@@ -89,6 +100,7 @@ export default function ProductListScreen({ navigation }) {
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('productEdit');
       setSavingPrice(false);
     }
   };
@@ -104,6 +116,7 @@ export default function ProductListScreen({ navigation }) {
       showAlert(t('common.error'), t('productList.quantityMustBeLess', { qty: activeListing.available_kg }));
       return;
     }
+    if (!requestLock.acquire('productEdit')) return;
     setSavingQty(true);
     try {
       await api.put(`/api/products/${activeListing.id}/reduce-quantity`, { new_total_kg: qtyNum });
@@ -111,6 +124,7 @@ export default function ProductListScreen({ navigation }) {
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('productEdit');
       setSavingQty(false);
     }
   };
@@ -127,6 +141,7 @@ export default function ProductListScreen({ navigation }) {
       t('productList.removeConfirmTitle'),
       t('productList.removeConfirmMessage', { name: label }),
       async () => {
+        if (!requestLock.acquire('productEdit')) return;
         setRemoving(true);
         try {
           await api.put(`/api/products/${target.id}/unlist`);
@@ -134,6 +149,7 @@ export default function ProductListScreen({ navigation }) {
         } catch (err) {
           showAlert(t('common.error'), err.message || t('productList.removeFailed'));
         } finally {
+          requestLock.release('productEdit');
           setRemoving(false);
         }
       }
@@ -287,7 +303,7 @@ export default function ProductListScreen({ navigation }) {
                     <TouchableOpacity
                       style={[styles.smallBtn, savingPrice && styles.btnDisabled]}
                       onPress={savePrice}
-                      disabled={savingPrice}
+                      disabled={savingPrice || savingQty || removing}
                     >
                       {savingPrice ? <ActivityIndicator size="small" color={PRIMARY} /> : <Text style={styles.smallBtnText}>{t('common.save')}</Text>}
                     </TouchableOpacity>
@@ -296,7 +312,7 @@ export default function ProductListScreen({ navigation }) {
                   <TouchableOpacity
                     style={[styles.removeBtn, removing && styles.btnDisabled]}
                     onPress={removeProduct}
-                    disabled={removing}
+                    disabled={savingPrice || savingQty || removing}
                   >
                     {removing
                       ? <ActivityIndicator size="small" color={colors.danger} />

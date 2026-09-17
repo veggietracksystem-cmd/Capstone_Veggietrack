@@ -1,3 +1,6 @@
+import useLatestRequest from '../hooks/useLatestRequest';
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
+import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -31,6 +34,8 @@ const DISTRIBUTOR_TABS_KEYS = [
 ];
 
 export default function StocksScreen({ navigation }) {
+  const beginRead = useLatestRequest();
+  const requestLock = useRequestLock();
   const { t, language } = useTranslation();
   const DISTRIBUTOR_TABS = DISTRIBUTOR_TABS_KEYS.map((tab) => ({ ...tab, label: t(tab.labelKey) }));
   const handleBottomTabPress = (tab) => {
@@ -51,10 +56,13 @@ export default function StocksScreen({ navigation }) {
   const [priceBusy, setPriceBusy] = useState(false);
 
   const loadBatches = useCallback(async () => {
+    const isCurrent = beginRead('loadBatches');
     try {
       const data = await api.get('/api/products');
+      if (!isCurrent()) return;
       setBatches(Array.isArray(data) ? data : []);
     } catch (err) {
+      if (!isCurrent()) return;
       showAlert(t('common.error'), err.message);
     }
   }, [t]);
@@ -66,6 +74,8 @@ export default function StocksScreen({ navigation }) {
       setLoading(false);
     })();
   }, [loadBatches]);
+
+  useRefreshOnFocus(loadBatches);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -84,13 +94,17 @@ export default function StocksScreen({ navigation }) {
   };
 
   const submitListing = async (batch, price) => {
+    if (!requestLock.acquire('BusyId')) return;
     setBusyId(batch.id);
     try {
       const { product } = await api.put(`/api/products/${batch.id}/list`, { price_per_kg: price });
+      beginRead('loadBatches');
       setBatches((prev) => prev.map((b) => (b.id === batch.id ? { ...b, ...product } : b)));
+      return true;
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('BusyId');
       setBusyId(null);
     }
   };
@@ -113,14 +127,19 @@ export default function StocksScreen({ navigation }) {
       showAlert(t('common.error'), t('stocks.priceRequired'));
       return;
     }
+    if (!priceBatch || !requestLock.acquire('priceConfirm')) return;
     setPriceBusy(true);
-    await submitListing(priceBatch, price);
-    setPriceBusy(false);
-    setPriceBatch(null);
+    try {
+      const saved = await submitListing(priceBatch, price);
+      if (saved) setPriceBatch(null);
+    } finally {
+      requestLock.release('priceConfirm');
+      setPriceBusy(false);
+    }
   };
 
   const renderItem = ({ item: b }) => {
-    const busy = busyId === b.id;
+    const busy = busyId != null;
     const statusStyle = STATUS_STYLE[b.status] || STATUS_STYLE.received;
     return (
       <View style={styles.card}>

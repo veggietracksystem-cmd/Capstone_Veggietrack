@@ -1,3 +1,5 @@
+import useLatestRequest from '../hooks/useLatestRequest';
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -8,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
 import ImageViewerModal from '../components/ImageViewerModal';
-import { peso, shortId } from '../lib/ui';
+import { showAlert, peso, shortId } from '../lib/ui';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
@@ -17,6 +19,7 @@ import { statusColor, getProofUrl, getDelivery, isOldCompleted } from './Retaile
 const PRIMARY = colors.leaf700;
 
 export default function OrderHistoryScreen({ navigation }) {
+  const beginRead = useLatestRequest();
   const { t, language } = useTranslation();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,11 +27,14 @@ export default function OrderHistoryScreen({ navigation }) {
   const [proofUri, setProofUri] = useState(null);
 
   const load = useCallback(async () => {
+    const isCurrent = beginRead('load');
     try {
       const data = await api.get('/api/orders');
+      if (!isCurrent()) return;
       setOrders(Array.isArray(data) ? data : []);
-    } catch {
-      // stay on whatever was already loaded
+    } catch (err) {
+      if (!isCurrent()) return;
+      showAlert(t('common.error'), err.message);
     }
   }, []);
 
@@ -39,6 +45,8 @@ export default function OrderHistoryScreen({ navigation }) {
       setLoading(false);
     })();
   }, [load]);
+
+  useRefreshOnFocus(load);
 
   const onRefresh = async () => {
     setRefreshing(true);

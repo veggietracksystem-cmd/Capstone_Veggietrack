@@ -41,10 +41,11 @@ for (const [name, overrides, message] of [
   ['GPS timeout', { getCurrentPositionAsync: async () => { throw { code: 3 }; } }, 'timeout'],
   ['poor accuracy', { getCurrentPositionAsync: async () => ({ ...position(), coords: { ...position().coords, accuracy: 200 } }) }, 'accuracy'],
   ['mocked GPS', { getCurrentPositionAsync: async () => ({ ...position(), mocked: true }) }, 'accuracy'],
-  ['stale GPS', { getCurrentPositionAsync: async () => ({ ...position(), timestamp: Date.now() - 60000 }) }, 'stale'],
+  ['stale GPS', { getCurrentPositionAsync: async () => ({ ...position(), timestamp: Date.now() - 61000 }) }, 'stale'],
 ]) test(`device capture handles ${name}`, async () => {
   const { currentProofLocation } = loadModule('lib/podCapture.js', { 'expo-location': location(overrides) });
-  await assert.rejects(currentProofLocation(t), new RegExp(`pod.${message}`));
+  await assert.rejects(currentProofLocation(t), message === 'accuracy'
+    ? /Your current GPS signal is too inaccurate to verify your location/ : new RegExp(`pod.${message}`));
 });
 test('hanging permission/GPS request times out and clears the timer', async () => {
   let cleared = false;

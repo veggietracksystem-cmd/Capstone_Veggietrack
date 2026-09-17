@@ -1,3 +1,7 @@
+import { queueHarvest, syncPending } from '../offline/harvestStore';
+import useLatestRequest from '../hooks/useLatestRequest';
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
+import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -14,6 +18,8 @@ import { getVegetableTile } from '../lib/vegetableIcons';
 const PRIMARY = '#1E4E09';
 
 export default function HarvestListScreen({ navigation }) {
+  const beginRead = useLatestRequest();
+  const requestLock = useRequestLock();
   const { t } = useTranslation();
   const [harvests, setHarvests] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,10 +28,13 @@ export default function HarvestListScreen({ navigation }) {
   const [busyId, setBusyId] = useState(null);
 
   const loadHarvests = useCallback(async () => {
+    const isCurrent = beginRead('loadHarvests');
     try {
       const data = await api.get('/api/harvests');
+      if (!isCurrent()) return;
       setHarvests(Array.isArray(data) ? data : []);
     } catch (err) {
+      if (!isCurrent()) return;
       showAlert(t('common.error'), err.message);
     }
   }, []);
@@ -37,6 +46,8 @@ export default function HarvestListScreen({ navigation }) {
       setLoading(false);
     })();
   }, [loadHarvests]);
+
+  useRefreshOnFocus(loadHarvests);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -53,13 +64,16 @@ export default function HarvestListScreen({ navigation }) {
       t('harvestList.deleteConfirmTitle'),
       t('harvestList.deleteConfirmMessage', { name: harvest.vegetable_name, qty: harvest.quantity_kg }),
       async () => {
+        if (!requestLock.acquire('BusyId')) return;
         setBusyId(harvest.id);
         try {
           await api.delete(`/api/harvests/${harvest.id}`);
+          beginRead('loadHarvests');
           setHarvests((prev) => prev.filter((h) => h.id !== harvest.id));
         } catch (err) {
           showAlert(t('common.error'), err.message);
         } finally {
+          requestLock.release('BusyId');
           setBusyId(null);
         }
       }
@@ -67,13 +81,19 @@ export default function HarvestListScreen({ navigation }) {
   };
 
   const requestPickup = async (harvest) => {
+    if (!requestLock.acquire('BusyId')) return;
     setBusyId(harvest.id);
     try {
       await api.post('/api/pickup-requests', { harvest_id: harvest.id, note: null });
+      beginRead('loadHarvests');
+      setHarvests(prev => prev.map(h => h.id === harvest.id ? { ...h, status: 'for_pickup' } : h));
+      await queueHarvest({ type: 'edit', id: harvest.id, payload: { status: 'for_pickup' } });
+      await syncPending();
       showAlert(t('harvestList.pickupRequestedTitle'), t('harvestList.pickupRequestedMessage', { name: harvest.vegetable_name, qty: harvest.quantity_kg }));
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('BusyId');
       setBusyId(null);
     }
   };
@@ -130,7 +150,7 @@ export default function HarvestListScreen({ navigation }) {
           <View style={styles.marketplaceGrid}>
             {filteredHarvests.map((h) => {
               const tile = getVegetableTile(h.vegetable_name);
-              const busy = busyId === h.id;
+              const busy = busyId != null;
               return (
                 <View key={String(h.id)} style={styles.productCard}>
                   {/* Photo (if uploaded) or soft icon tile */}

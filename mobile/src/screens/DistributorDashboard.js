@@ -1,6 +1,9 @@
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
+import useLatestRequest from '../hooks/useLatestRequest';
+import useRequestLock from '../hooks/useRequestLock';
 import UserAvatar from '../components/UserAvatar';
 import { rf } from '../lib/responsive';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Text, View, ScrollView, TextInput, TouchableOpacity, Modal, Image,
   ActivityIndicator, StyleSheet, RefreshControl, KeyboardAvoidingView, Platform,
@@ -41,6 +44,9 @@ function farmerNameOf(req) {
 }
 
 export default function DistributorDashboard({ navigation, route }) {
+  const beginRead = useLatestRequest();
+  const requestLock = useRequestLock();
+  const refreshProducts = useRef(null);
   const { user } = useAuth();
   const { t, language } = useTranslation();
 
@@ -113,9 +119,11 @@ export default function DistributorDashboard({ navigation, route }) {
   // ---------- Loaders ----------
   // Pending orders: read-through cache only (approve/assign stay online).
   const loadOrders = useCallback(async () => {
+    const isCurrent = beginRead('loadOrders');
     const { list, source } = await readThrough('orders_pending_cache', () =>
       api.get('/api/orders/pending')
     );
+    if (!isCurrent()) return;
     setOrders(list);
     setOrdersOffline(source === 'cache');
   }, []);
@@ -123,34 +131,42 @@ export default function DistributorDashboard({ navigation, route }) {
   // Active (approved / picked_up / in_transit) orders — so assigned orders stay
   // visible on the dashboard (Issue 9).
   const loadActiveOrders = useCallback(async () => {
+    const isCurrent = beginRead('loadActiveOrders');
     const { list } = await readThrough('orders_active_cache', () =>
       api.get('/api/orders/active')
     );
+    if (!isCurrent()) return;
     setActiveOrders(list);
   }, []);
 
   // Pickup requests from farmers — feeds the Harvest Receiving card count.
   const loadPickupRequests = useCallback(async () => {
+    const isCurrent = beginRead('loadPickupRequests');
     const { list } = await readThrough('pickup_requests_cache', () =>
       api.get('/api/pickup-requests')
     );
+    if (!isCurrent()) return;
     setPickupRequests(list);
   }, []);
 
   // Delivery personnel: cached so the assign picker has names offline.
   const loadPersonnel = useCallback(async () => {
+    const isCurrent = beginRead('loadPersonnel');
     const { list } = await readThrough('personnel_cache', () =>
       api.get('/api/delivery-personnel')
     );
+    if (!isCurrent()) return;
     setPersonnel(list);
   }, []);
 
   // Payments: read-through cache (recording a payment stays online).
   const loadPayments = useCallback(async () => {
+    const isCurrent = beginRead('loadPayments');
     const [unpaidRes, paidRes] = await Promise.all([
       readThrough('unpaid_orders_cache', () => api.get('/api/orders/unpaid')),
       readThrough('payments_cache', () => api.get('/api/payments')),
     ]);
+    if (!isCurrent()) return;
     setUnpaidOrders(unpaidRes.list);
     setPayments(paidRes.list);
     setPaymentsOffline(unpaidRes.source === 'cache' || paidRes.source === 'cache');
@@ -172,8 +188,11 @@ export default function DistributorDashboard({ navigation, route }) {
     if (!navigation?.addListener) return undefined;
     return navigation.addListener('focus', () => {
       loadPickupRequests();
+      loadOrders();
+      loadActiveOrders();
+      loadPayments();
     });
-  }, [navigation, loadPickupRequests]);
+  }, [navigation, loadPickupRequests, loadOrders, loadActiveOrders, loadPayments]);
 
   // Issue 10: poll orders every 30s so the Approved-tab statuses (picked up /
   // in transit / delivered) update without a manual pull-to-refresh.
@@ -183,11 +202,19 @@ export default function DistributorDashboard({ navigation, route }) {
   }, [loadOrders, loadActiveOrders]);
 
   const onRefresh = async () => {
+    if (!requestLock.acquire('refresh')) return;
     setRefreshing(true);
-    if (tab === 'orders') await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPickupRequests()]);
-    else if (tab === 'pickups') await loadPickupRequests();
-    else if (tab === 'payments') await loadPayments();
-    setRefreshing(false);
+    try {
+      if (tab === 'orders') await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPickupRequests()]);
+      else if (tab === 'pickups') await loadPickupRequests();
+      else if (tab === 'payments') await loadPayments();
+      else await Promise.all([loadOrders(), loadActiveOrders(), loadPickupRequests(), loadPayments(), refreshProducts.current?.()]);
+    } catch (err) {
+      showAlert(t('common.error'), err.message);
+    } finally {
+      requestLock.release('refresh');
+      setRefreshing(false);
+    }
   };
 
   // ---------- Payment actions (online-only) ----------
@@ -202,6 +229,7 @@ export default function DistributorDashboard({ navigation, route }) {
       showAlert(t('common.error'), t('dashboards.distributor.invalidAmount'));
       return;
     }
+    if (!requestLock.acquire('RecordBusy')) return;
     setRecordBusy(true);
     try {
       await api.post('/api/payments', { order_id: order.id, amount });
@@ -212,16 +240,19 @@ export default function DistributorDashboard({ navigation, route }) {
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('RecordBusy');
       setRecordBusy(false);
     }
   };
 
   // ---------- Order actions ----------
   const approveOrder = async (order) => {
+    if (!requestLock.acquire('BusyOrderId')) return;
     setBusyOrderId(order.id);
     try {
       await api.put(`/api/orders/${order.id}/approve`);
       // Flip the card to "approved" so the assign picker appears (don't remove yet).
+      beginRead('loadOrders');
       setOrders((prev) =>
         prev.map((o) => (o.id === order.id ? { ...o, status: 'approved' } : o))
       );
@@ -230,20 +261,25 @@ export default function DistributorDashboard({ navigation, route }) {
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('BusyOrderId');
       setBusyOrderId(null);
     }
   };
 
   const rejectOrder = async (order, reason) => {
+    if (!requestLock.acquire('BusyOrderId')) return;
     setBusyOrderId(order.id);
     try {
       await api.put(`/api/orders/${order.id}/cancel`, { reason });
+      beginRead('loadOrders');
       setOrders((prev) => prev.filter((o) => o.id !== order.id));
       await loadActiveOrders();
       showAlert(t('dashboards.distributor.orderRejectedTitle'), t('dashboards.distributor.orderRejectedMessage', { id: shortId(order.id) }));
+      return true;
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('BusyOrderId');
       setBusyOrderId(null);
     }
   };
@@ -254,17 +290,20 @@ export default function DistributorDashboard({ navigation, route }) {
       showAlert(t('common.error'), t('dashboards.distributor.selectDeliveryPerson'));
       return;
     }
+    if (!requestLock.acquire('BusyOrderId')) return;
     setBusyOrderId(order.id);
     try {
       await api.put(`/api/orders/${order.id}/assign`, { delivery_personnel_id: personnelId });
       // Remove from the pending/approved list and refresh the active list so the
       // order reappears there as "assigned" instead of disappearing (Issue 9).
+      beginRead('loadOrders');
       setOrders((prev) => prev.filter((o) => o.id !== order.id));
       await loadActiveOrders();
       showAlert(t('dashboards.distributor.deliveryAssignedTitle'), t('dashboards.distributor.deliveryAssignedMessage', { id: shortId(order.id) }));
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('BusyOrderId');
       setBusyOrderId(null);
     }
   };
@@ -291,6 +330,7 @@ export default function DistributorDashboard({ navigation, route }) {
       showAlert(t('common.error'), t('dashboards.distributor.selectRider'));
       return;
     }
+    if (!requestLock.acquire('ReceiveBusyId')) return;
     setReceiveBusyId(req.id);
     try {
       await api.put(`/api/pickup-requests/${req.id}/assign`, {
@@ -304,6 +344,7 @@ export default function DistributorDashboard({ navigation, route }) {
     } catch (err) {
       showAlert(t('common.error'), t('dashboards.distributor.riderAssignFailed', { message: err.message }));
     } finally {
+      requestLock.release('ReceiveBusyId');
       setReceiveBusyId(null);
     }
   };
@@ -335,6 +376,7 @@ export default function DistributorDashboard({ navigation, route }) {
 
         {tab === 'home' && (
           <HomeTab
+            refreshProducts={refreshProducts}
             pendingOrderCount={orders.length}
             pendingPickupCount={pendingReceiveCount}
             unpaidCount={unpaidOrders.length}
@@ -480,7 +522,7 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
       ) : (
         pending.map((req) => {
           const harvest = harvestOf(req);
-          const busy = busyId === req.id;
+          const busy = busyId != null;
           return (
             <View key={req.id} style={styles.pickupCard}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -519,6 +561,7 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
 // Product List (price editing) embedded inline — it used to be a separate
 // screen reached via a "Product List →" button; it now lives directly here.
 function HomeTab({
+  refreshProducts,
   pendingOrderCount, pendingPickupCount, unpaidCount,
   onViewOrders, onViewPickups, onViewPayments,
 }) {
@@ -541,7 +584,7 @@ function HomeTab({
       </View>
 
       <Text style={[styles.sectionTitle, { marginTop: 4 }]}>{t('productList.title')}</Text>
-      <ProductListSection />
+      <ProductListSection refreshProducts={refreshProducts} />
     </View>
   );
 }
@@ -549,8 +592,10 @@ function HomeTab({
 // Aggregated product listings, ported from ProductListScreen.js so it can
 // live directly on the Distributor Home tab. Each card shows a single Edit
 // button that opens a centered modal for quantity/price edits and removal.
-function ProductListSection() {
+function ProductListSection({ refreshProducts }) {
   const { t, language } = useTranslation();
+  const requestLock = useRequestLock();
+  const beginRead = useLatestRequest();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -566,10 +611,13 @@ function ProductListSection() {
   const activeListing = activeVeg ? listings.find((l) => l.vegetable_name === activeVeg) : null;
 
   const loadListings = useCallback(async () => {
+    const isCurrent = beginRead('loadListings');
     try {
       const data = await api.get('/api/products/listings');
+      if (!isCurrent()) return;
       setListings(Array.isArray(data) ? data : []);
     } catch (err) {
+      if (!isCurrent()) return;
       showAlert(t('common.error'), err.message);
     }
   }, [t]);
@@ -581,6 +629,12 @@ function ProductListSection() {
       setLoading(false);
     })();
   }, [loadListings]);
+
+  useRefreshOnFocus(loadListings);
+  useEffect(() => {
+    refreshProducts.current = loadListings;
+    return () => { refreshProducts.current = null; };
+  }, [refreshProducts, loadListings]);
 
   const openEditModal = (listing) => {
     setActiveVeg(listing.vegetable_name);
@@ -600,6 +654,7 @@ function ProductListSection() {
       showAlert(t('common.error'), t('dashboards.distributor.enterValidPrice'));
       return;
     }
+    if (!requestLock.acquire('productEdit')) return;
     setSavingPrice(true);
     try {
       await api.put(`/api/products/${activeListing.id}`, { price_per_kg: priceNum });
@@ -607,6 +662,7 @@ function ProductListSection() {
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('productEdit');
       setSavingPrice(false);
     }
   };
@@ -622,6 +678,7 @@ function ProductListSection() {
       showAlert(t('common.error'), t('productList.quantityMustBeLess', { qty: activeListing.available_kg }));
       return;
     }
+    if (!requestLock.acquire('productEdit')) return;
     setSavingQty(true);
     try {
       await api.put(`/api/products/${activeListing.id}/reduce-quantity`, { new_total_kg: qtyNum });
@@ -629,6 +686,7 @@ function ProductListSection() {
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('productEdit');
       setSavingQty(false);
     }
   };
@@ -645,6 +703,7 @@ function ProductListSection() {
       t('productList.removeConfirmTitle'),
       t('productList.removeConfirmMessage', { name: label }),
       async () => {
+        if (!requestLock.acquire('productEdit')) return;
         setRemoving(true);
         try {
           await api.put(`/api/products/${target.id}/unlist`);
@@ -652,6 +711,7 @@ function ProductListSection() {
         } catch (err) {
           showAlert(t('common.error'), err.message || t('productList.removeFailed'));
         } finally {
+          requestLock.release('productEdit');
           setRemoving(false);
         }
       }
@@ -762,7 +822,7 @@ function ProductListSection() {
                     <TouchableOpacity
                       style={[styles.smallBtn, savingPrice && styles.btnDisabled]}
                       onPress={savePrice}
-                      disabled={savingPrice}
+                      disabled={savingPrice || savingQty || removing}
                     >
                       {savingPrice ? <ActivityIndicator size="small" color={PRIMARY} /> : <Text style={styles.smallBtnText}>{t('common.save')}</Text>}
                     </TouchableOpacity>
@@ -771,7 +831,7 @@ function ProductListSection() {
                   <TouchableOpacity
                     style={[styles.removeBtnFull, removing && styles.btnDisabled]}
                     onPress={removeProduct}
-                    disabled={removing}
+                    disabled={savingPrice || savingQty || removing}
                   >
                     {removing
                       ? <ActivityIndicator size="small" color={colors.danger} />
@@ -827,11 +887,13 @@ function OrdersTab({
   const cancelled = activeOrders.filter((o) => o.status === 'cancelled');
   const history = activeOrders.filter((o) => effectiveStatus(o) === 'delivered');
 
-  const submitReject = () => {
-    if (!reasonInput.trim()) return;
-    onReject(rejectingOrder, reasonInput.trim());
-    setRejectingOrder(null);
-    setReasonInput('');
+  const submitReject = async () => {
+    if (!reasonInput.trim() || busyOrderId != null) return;
+    const saved = await onReject(rejectingOrder, reasonInput.trim());
+    if (saved) {
+      setRejectingOrder(null);
+      setReasonInput('');
+    }
   };
 
   return (
@@ -851,7 +913,7 @@ function OrdersTab({
         orders.length === 0 ? (
           <EmptyState icon="✅" title={t('dashboards.distributor.noPendingOrders')} message={t('dashboards.distributor.noPendingOrdersMessage')} />
         ) : orders.map((order) => {
-          const busy = busyOrderId === order.id;
+          const busy = busyOrderId != null;
           const isApproved = order.status === 'approved';
           const items = order.order_items || [];
 
@@ -1020,6 +1082,7 @@ function OrdersTab({
         onConfirm={submitReject}
         cancelLabel={t('common.cancel')}
         onCancel={() => setRejectingOrder(null)}
+        busy={busyOrderId != null}
         confirmDisabled={!reasonInput.trim()}
       >
         <Text style={styles.fieldLabel}>{t('dashboards.distributor.rejectReasonLabel')}</Text>

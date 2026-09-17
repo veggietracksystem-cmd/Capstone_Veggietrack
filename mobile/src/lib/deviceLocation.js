@@ -23,7 +23,6 @@ export async function acquireDevicePosition(options = {}) {
   return refineLocation(async remainingMs => {
     try {
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest, maximumAge: 0, timeout: remainingMs });
-      if (typeof position?.timestamp === 'number' && Date.now() - position.timestamp > 60000) throw locationError('GPS_STALE', 'Your location is out of date. Tap Refresh Location and try again.');
       return position;
     }
     catch (error) {

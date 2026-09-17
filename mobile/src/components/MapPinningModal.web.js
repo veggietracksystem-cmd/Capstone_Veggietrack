@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, Modal, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { rf } from '../lib/responsive';
+import PlaceAutocomplete from './PlaceAutocomplete';
 
 const PRIMARY = '#1E4E09';
 const SAN_PABLO = { latitude: 14.0683, longitude: 121.3256 };
@@ -11,12 +12,6 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const [loadingAddress, setLoadingAddress] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
-
-  // Search state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [showResults, setShowResults] = useState(false);
 
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -160,25 +155,6 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     };
   }, [visible, leafletLoaded]);
 
-  // 5. Handle Geocoding Search via Nominatim
-  const handleSearch = async () => {
-    const q = searchQuery.trim();
-    if (!q) return;
-    setSearching(true);
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=ph&limit=5`
-      );
-      const results = await res.json();
-      setSearchResults(Array.isArray(results) ? results : []);
-      setShowResults(true);
-    } catch (err) {
-      console.warn('[MapPinningModal] Search error:', err);
-    } finally {
-      setSearching(false);
-    }
-  };
-
   const handleSelectSearchResult = (item) => {
     const lat = parseFloat(item.lat);
     const lon = parseFloat(item.lon);
@@ -187,8 +163,6 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     const coords = { latitude: lat, longitude: lon };
     setPinnedCoords(coords);
     setAddressName(item.display_name || item.name);
-    setShowResults(false);
-    setSearchQuery(item.display_name || item.name);
 
     if (mapRef.current && markerRef.current) {
       mapRef.current.setView([lat, lon], 16);
@@ -214,61 +188,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
           </TouchableOpacity>
         </View>
 
-        {/* Search Bar at Top */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchRow}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search place, street, or city..."
-              value={searchQuery}
-              onChangeText={(text) => {
-                setSearchQuery(text);
-                if (!text) setShowResults(false);
-              }}
-              onSubmitEditing={handleSearch}
-              returnKeyType="search"
-            />
-            {searchQuery ? (
-              <TouchableOpacity
-                onPress={() => {
-                  setSearchQuery('');
-                  setShowResults(false);
-                }}
-                style={styles.clearBtn}
-              >
-                <Text style={styles.clearBtnText}>✕</Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity style={styles.searchBtn} onPress={handleSearch} disabled={searching}>
-              {searching ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.searchBtnText}>Search</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Floating Search Results Dropdown */}
-          {showResults && (
-            <View style={styles.resultsDropdown}>
-              {searchResults.length === 0 ? (
-                <Text style={styles.noResults}>No matching places found.</Text>
-              ) : (
-                searchResults.map((item, idx) => (
-                  <TouchableOpacity
-                    key={item.place_id || idx}
-                    style={styles.resultItem}
-                    onPress={() => handleSelectSearchResult(item)}
-                  >
-                    <Text style={styles.resultText} numberOfLines={2}>
-                      📍 {item.display_name}
-                    </Text>
-                  </TouchableOpacity>
-                ))
-              )}
-            </View>
-          )}
-        </View>
+        <PlaceAutocomplete visible={visible} onSelect={handleSelectSearchResult} />
 
         {/* Map Container & Floating Buttons */}
         <View style={styles.mapContainer}>
@@ -310,32 +230,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
   title: { fontSize: rf(20), fontWeight: '700', color: PRIMARY },
   close: { color: '#c62828', fontSize: rf(16), fontWeight: '600' },
-
-  searchContainer: { paddingHorizontal: 16, marginBottom: 8, zIndex: 999 },
-  searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0', borderRadius: 8, paddingHorizontal: 8 },
-  searchInput: { flex: 1, paddingVertical: 10, fontSize: rf(14), color: '#222' },
-  clearBtn: { padding: 8 },
-  clearBtnText: { color: '#888', fontSize: rf(14), fontWeight: 'bold' },
-  searchBtn: { backgroundColor: PRIMARY, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 6, marginLeft: 4 },
-  searchBtnText: { color: '#fff', fontWeight: '600', fontSize: rf(13) },
-
-  resultsDropdown: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    marginTop: 4,
-    maxHeight: 180,
-    overflow: 'scroll',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  resultItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  resultText: { fontSize: rf(13), color: '#333' },
-  noResults: { padding: 12, fontSize: rf(13), color: '#888', fontStyle: 'italic', textAlign: 'center' },
 
   mapContainer: { flex: 1, marginHorizontal: 16, marginBottom: 12, borderRadius: 12, overflow: 'hidden', backgroundColor: '#f9f9f9', minHeight: 280, position: 'relative' },
   locateBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ddd', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3, zIndex: 1000 },

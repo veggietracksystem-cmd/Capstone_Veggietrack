@@ -1,3 +1,17 @@
+Last reviewed: 2026-09-16
+
+## Delivery rollout update
+
+Development, preview and production profiles now explicitly select matching EAS environments. Configure `BACKEND_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_UPLOAD_PRESET`, `EXPO_PUBLIC_SUPABASE_URL`, and `EXPO_PUBLIC_SUPABASE_ANON_KEY` before building. Only public configuration belongs in mobile. Local dotenv and process-environment substitution are regression-tested; the remote EAS settings were not inspected.
+
+Before the API/mobile rollout, inspect the database and use the complete guarded [delivery_location_policy.sql](../backend/sql/delivery_location_policy.sql), which supersedes the older tracking/proof rollout instructions below. It handles the missing snapshot, accuracy and POD fields found on September 16. No hosted migration was applied. Do not reapply historical `delivery_proof.sql` afterward.
+
+Delivery completion uses fresh refined GPS, a 100 m base radius plus capped 50 m accuracy allowance, and backend validation. LIVE ETA is the active rider-to-warehouse or rider-to-destination leg. Missing OSRM routing shows ETA unavailable while GPS continues. Static corridor duration is never live ETA. See [the final verification report](../DELIVERY_RELIABILITY_REPORT.md).
+
+Current checks: backend suite and `npx expo export --platform web --output-dir .expo/delivery-verification/web` pass. The native build issues and physical-device acceptance limitations recorded below remain unverified; a web export is not an APK build.
+
+## Earlier build reference (rollout instructions superseded above)
+
 # Android builds
 
 Run EAS commands from `mobile`, which contains the app's `eas.json` and lockfile.

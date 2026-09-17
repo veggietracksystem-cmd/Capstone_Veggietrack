@@ -1,3 +1,5 @@
+import useLatestRequest from '../hooks/useLatestRequest';
+import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -45,6 +47,9 @@ function typeColor(type) {
 
 export default function NotificationBell({ asTabItem = false, active = false, onPress, fullScreen = false }) {
   const navigation = useNavigation();
+  const beginRead = useLatestRequest();
+  const requestLock = useRequestLock();
+  const [marking, setMarking] = useState(false);
   const { user } = useAuth();
   const { t } = useTranslation();
   const [items, setItems] = useState([]);
@@ -58,9 +63,10 @@ export default function NotificationBell({ asTabItem = false, active = false, on
   const unread = items.filter((n) => !n.is_read).length;
 
   const load = useCallback(async () => {
+    const isCurrent = beginRead('notifications');
     try {
       const data = await api.get('/api/notifications');
-      if (mounted.current) setItems(Array.isArray(data) ? data : []);
+      if (isCurrent()) setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       // Silent on background polls; only surface if the modal/screen is open.
       if (open || fullScreen) showAlert(t('common.error'), err.message);
@@ -95,13 +101,17 @@ export default function NotificationBell({ asTabItem = false, active = false, on
   };
 
   const markRead = async (n) => {
-    if (n.is_read) return;
-    setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, is_read: true } : x)));
+    if (n.is_read || !requestLock.acquire('mark')) return;
+    setMarking(true);
     try {
       await api.put(`/api/notifications/${n.id}/read`);
+      beginRead('notifications');
+      if (mounted.current) setItems(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
     } catch (err) {
-      setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, is_read: false } : x)));
       showAlert(t('common.error'), err.message);
+    } finally {
+      requestLock.release('mark');
+      if (mounted.current) setMarking(false);
     }
   };
 
@@ -132,14 +142,18 @@ export default function NotificationBell({ asTabItem = false, active = false, on
   };
 
   const markAllRead = async () => {
-    if (unread === 0) return;
-    const snapshot = items;
-    setItems((prev) => prev.map((x) => ({ ...x, is_read: true })));
+    if (unread === 0 || !requestLock.acquire('mark')) return;
+    const ids = new Set(items.map(n => n.id));
+    setMarking(true);
     try {
       await api.put('/api/notifications/read-all');
+      beginRead('notifications');
+      if (mounted.current) setItems(prev => prev.map(n => ids.has(n.id) ? { ...n, is_read: true } : n));
     } catch (err) {
-      setItems(snapshot); // revert
       showAlert(t('common.error'), err.message);
+    } finally {
+      requestLock.release('mark');
+      if (mounted.current) setMarking(false);
     }
   };
 
@@ -152,8 +166,8 @@ export default function NotificationBell({ asTabItem = false, active = false, on
             <Text style={styles.screenTitle}>{t('notifications.screenTitle')}</Text>
           </View>
           {unread > 0 && (
-            <TouchableOpacity onPress={markAllRead} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.markAllText}>{t('notifications.markAllRead')}</Text>
+            <TouchableOpacity disabled={marking} onPress={markAllRead} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.markAllText}>{marking ? t('common.loading') : t('notifications.markAllRead')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -295,9 +309,9 @@ export default function NotificationBell({ asTabItem = false, active = false, on
               <TouchableOpacity
                 style={[styles.footerBtn, styles.footerBtnOutline, unread === 0 && styles.btnDisabled]}
                 onPress={markAllRead}
-                disabled={unread === 0}
+                disabled={marking || unread === 0}
               >
-                <Text style={[styles.footerOutlineText, unread === 0 && styles.linkDisabled]}>{t('notifications.markAllRead')}</Text>
+                <Text style={[styles.footerOutlineText, unread === 0 && styles.linkDisabled]}>{marking ? t('common.loading') : t('notifications.markAllRead')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.footerBtn, styles.footerBtnPrimary]} onPress={() => setOpen(false)}>
                 <Text style={styles.footerPrimaryText}>{t('notifications.close')}</Text>

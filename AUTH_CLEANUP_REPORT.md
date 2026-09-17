@@ -1,3 +1,9 @@
+Last reviewed: 2026-09-16
+
+## Historical checkpoint
+
+The cleanup report below describes an earlier checkpoint, not current authentication behavior. Supabase Auth is implemented; follow [AUTH_SUPABASE_SETUP.md](AUTH_SUPABASE_SETUP.md). The current delivery/GPS/POD/ETA changes and verification are in [DELIVERY_RELIABILITY_REPORT.md](DELIVERY_RELIABILITY_REPORT.md). No authentication rules or security tests were removed by that task.
+
 # Authentication cleanup report
 
 Date: September 15, 2026

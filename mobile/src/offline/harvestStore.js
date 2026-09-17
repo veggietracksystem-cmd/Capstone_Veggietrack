@@ -5,6 +5,14 @@ import { kvGet, kvSet } from './db';
 const CACHE_KEY = 'harvests_cache';
 const QUEUE_KEY = 'harvests_queue';
 
+// Serialize local queue writes and replay: focus/reconnect/manual refresh can overlap.
+let queueOperation = Promise.resolve();
+function serializeQueue(operation) {
+  const result = queueOperation.then(operation);
+  queueOperation = result.catch(() => {});
+  return result;
+}
+
 // ---- connectivity ----
 export async function isOnline() {
   try {
@@ -50,7 +58,11 @@ export async function fetchHarvests() {
 
 // Queue an add/edit, optimistically update the cache, and return the new list.
 // mutation = { type: 'add', payload } | { type: 'edit', id, payload }
-export async function queueHarvest(mutation) {
+export function queueHarvest(mutation) {
+  return serializeQueue(() => applyQueuedHarvest(mutation));
+}
+
+async function applyQueuedHarvest(mutation) {
   let queue = await getQueue();
   let cache = await getCachedHarvests();
 
@@ -83,7 +95,11 @@ export async function queueHarvest(mutation) {
 }
 
 // Replay queued mutations to the backend, oldest first. Stops on first failure.
-export async function syncPending() {
+export function syncPending() {
+  return serializeQueue(replayPending);
+}
+
+async function replayPending() {
   let queue = await getQueue();
   if (queue.length === 0) return { synced: 0, remaining: 0 };
   if (!(await isOnline())) return { synced: 0, remaining: queue.length, offline: true };

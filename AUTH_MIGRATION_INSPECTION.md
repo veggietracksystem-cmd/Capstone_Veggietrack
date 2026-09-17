@@ -1,3 +1,9 @@
+Last reviewed: 2026-09-16
+
+## Historical inspection boundary
+
+This document preserves the earlier Auth inspection checkpoint. Its proposed migration state is not a current deployment inventory. Follow [AUTH_SUPABASE_SETUP.md](AUTH_SUPABASE_SETUP.md) for Auth and [DELIVERY_RELIABILITY_REPORT.md](DELIVERY_RELIABILITY_REPORT.md) for the September 16 delivery schema inspection. Do not rerun historical Auth migration/credential cleanup based only on this record.
+
 # Authentication migration: read-only inspection
 
 > Superseded by [the implementation/deployment checklist](AUTH_SUPABASE_SETUP.md). The returned SQL results confirmed all 12 hashes are bcrypt-shaped, no Auth users/triggers/public functions, RLS disabled on 10 business tables, and the single distributor index. The legacy-preserving implementation is now in the workspace; no deployed migration/import was performed.

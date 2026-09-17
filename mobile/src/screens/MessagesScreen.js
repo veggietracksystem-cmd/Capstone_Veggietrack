@@ -1,3 +1,4 @@
+import useRequestLock from '../hooks/useRequestLock';
 import UserAvatar from '../components/UserAvatar';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -15,9 +16,30 @@ import { useTranslation } from '../i18n/useTranslation';
 
 const roleLabel = (r) => (r ? r.replace('_', ' ') : '');
 
+// Use the device's local calendar for both separators and message times.
+const messageDate = (timestamp) => {
+  if (!timestamp) return null;
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const sameDay = (a, b) => Boolean(a && b
+  && a.getFullYear() === b.getFullYear()
+  && a.getMonth() === b.getMonth()
+  && a.getDate() === b.getDate());
+
+const messageDateLabel = (date, now) => {
+  if (sameDay(date, now)) return 'Today';
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (sameDay(date, yesterday)) return 'Yesterday';
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+};
+
 // `embedded`: rendered as the "Messages" bottom tab (no back arrow, no own
 // SafeAreaView top inset - the tab bar/topbar chrome is provided by the parent).
 export default function MessagesScreen({ navigation, embedded }) {
+  const requestLock = useRequestLock();
   const { user } = useAuth();
   const { t } = useTranslation();
   const [view, setView] = useState('contacts'); // 'contacts' | 'thread'
@@ -28,6 +50,8 @@ export default function MessagesScreen({ navigation, embedded }) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const mounted = useRef(true);
+  const activeId = useRef(null);
+  const threadVersion = useRef(0);
 
   const loadContacts = useCallback(async () => {
     try {
@@ -58,9 +82,10 @@ export default function MessagesScreen({ navigation, embedded }) {
     if (view !== 'thread' || !active) return undefined;
     let threadMounted = true;
     const fetchThread = async () => {
+      const version = ++threadVersion.current;
       try {
         const data = await api.get(`/api/messages/${active.id}`);
-        if (threadMounted) setThread(Array.isArray(data) ? data : []);
+        if (threadMounted && version === threadVersion.current && activeId.current === active.id) setThread(Array.isArray(data) ? data : []);
       } catch (err) {
         // silent on background poll
       }
@@ -73,37 +98,50 @@ export default function MessagesScreen({ navigation, embedded }) {
   }, [view, active]);
 
   const openThread = async (contact) => {
+    activeId.current = contact.id;
+    const version = ++threadVersion.current;
+    setThread([]);
     setActive(contact);
     setView('thread');
     setLoading(true);
     try {
       const data = await api.get(`/api/messages/${contact.id}`);
-      setThread(Array.isArray(data) ? data : []);
+      if (mounted.current && version === threadVersion.current && activeId.current === contact.id) setThread(Array.isArray(data) ? data : []);
       await loadContacts(); // opening marks incoming as read; refresh badges
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
-      setLoading(false);
+      if (mounted.current && activeId.current === contact.id) setLoading(false);
     }
   };
 
   const send = async () => {
     const body = input.trim();
     if (!body || !active) return;
+    if (!requestLock.acquire('Sending')) return;
     setSending(true);
     try {
       const { data } = await api.post('/api/messages', { recipient_id: active.id, body });
-      setThread((prev) => [...prev, data]);
-      setInput('');
+      // Invalidate a poll started before the send was committed.
+      threadVersion.current++;
+      if (mounted.current && activeId.current === active.id) {
+        setThread(prev => prev.some(m => m.id === data.id) ? prev : [...prev, data]);
+        setInput(current => current.trim() === body ? '' : current);
+      }
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('Sending');
       setSending(false);
     }
   };
 
   const handleBack = () => {
     if (view === 'thread') {
+      activeId.current = null;
+      threadVersion.current++;
+      setLoading(false);
+      setInput('');
       setView('contacts');
       setActive(null);
     } else if (!embedded) {
@@ -112,6 +150,7 @@ export default function MessagesScreen({ navigation, embedded }) {
   };
 
   const Wrapper = embedded ? View : SafeAreaView;
+  const displayNow = new Date();
 
   return (
     <Wrapper style={styles.container}>
@@ -180,12 +219,28 @@ export default function MessagesScreen({ navigation, embedded }) {
                   <Text style={styles.emptySubtitle}>{t('messages.noMessagesSubtitle')}</Text>
                 </View>
               ) : (
-                thread.map((m) => {
+                thread.map((m, index) => {
                   const mine = m.sender_id === user?.id;
+                  const date = messageDate(m.created_at);
+                  const previousDate = messageDate(thread[index - 1]?.created_at);
+                  const showDate = date && !sameDay(date, previousDate);
                   return (
-                    <View key={m.id} style={[styles.bubbleRow, mine ? styles.rowMine : styles.rowTheirs]}>
-                      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-                        <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{m.body}</Text>
+                    <View key={m.id}>
+                      {showDate && (
+                        <View style={styles.dateSeparator}>
+                          <Text style={styles.dateLabel}>{messageDateLabel(date, displayNow)}</Text>
+                        </View>
+                      )}
+                      <View style={[styles.bubbleRow, mine ? styles.rowMine : styles.rowTheirs]}>
+                        <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
+                          <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{m.body}</Text>
+                          {date && (
+                            <Text style={[styles.messageTime, mine && styles.messageTimeMine]}>
+                              {date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                              {mine && (m.is_read === true ? ' · Seen' : m.is_read === false ? ' · Sent' : '')}
+                            </Text>
+                          )}
+                        </View>
                       </View>
                     </View>
                   );
@@ -277,6 +332,8 @@ const styles = StyleSheet.create({
   contactBadgeText: { fontFamily: fonts.bodyBold, color: colors.soil800, fontSize: rf(11) },
 
   threadContent: { paddingHorizontal: 2, paddingBottom: 8, flexGrow: 1 },
+  dateSeparator: { alignItems: 'center', marginTop: 12, marginBottom: 8 },
+  dateLabel: { fontFamily: fonts.bodyMedium, fontSize: rf(12), color: colors.inkSoft, backgroundColor: colors.leaf50, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4, textAlign: 'center' },
   bubbleRow: { flexDirection: 'row', marginVertical: 3 },
   rowMine: { justifyContent: 'flex-end' },
   rowTheirs: { justifyContent: 'flex-start' },
@@ -285,6 +342,8 @@ const styles = StyleSheet.create({
   bubbleTheirs: { backgroundColor: colors.card, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: colors.border },
   bubbleText: { fontFamily: fonts.body, fontSize: rf(14.5), color: colors.ink },
   bubbleTextMine: { color: '#ffffff' },
+  messageTime: { fontFamily: fonts.body, fontSize: rf(11), color: colors.inkSoft, marginTop: 4, alignSelf: 'flex-end' },
+  messageTimeMine: { color: colors.leaf100 },
 
   inputRow: {
     flexDirection: 'row',

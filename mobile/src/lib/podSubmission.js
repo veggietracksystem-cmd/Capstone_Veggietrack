@@ -48,7 +48,10 @@ export function createProofSubmission({ upload, complete, isOnline }) {
         const location = await getLocation();
         try {
           const result = await complete({ proof_photo_url: uploadedUrl, ...location });
-          completed = result || { status: 'delivered' };
+          if (!result || (result.status !== 'delivered' && !['Delivery marked as completed', 'Delivery already completed'].includes(result.message))) {
+            throw Object.assign(new Error('The server did not confirm delivery completion.'), { code: 'COMPLETION_UNCONFIRMED' });
+          }
+          completed = result;
           return completed;
         } catch (error) {
           error.stage = 'complete';

@@ -1,3 +1,6 @@
+import useRequestLock from '../hooks/useRequestLock';
+import useLatestRequest from '../hooks/useLatestRequest';
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
 import { readCart, saveCart, subscribeCart, reconcileCart } from '../lib/cartStore';
 import { manilaSchedule } from '../lib/deliverySchedule';
 import { rf } from '../lib/responsive';
@@ -65,6 +68,9 @@ export function isOldCompleted(order) {
 }
 
 export default function RetailerDashboard({ navigation, route }) {
+  const beginRead = useLatestRequest();
+  const requestLock = useRequestLock();
+  const [cancelling, setCancelling] = useState(false);
   const { user } = useAuth();
   const { t, language } = useTranslation();
 
@@ -168,18 +174,22 @@ export default function RetailerDashboard({ navigation, route }) {
 
   // ---------- Loaders (read-through cache; placing an order stays online) ----------
   const loadProducts = useCallback(async () => {
+    const isCurrent = beginRead('loadProducts');
     const { list, source } = await readThrough('available_products_cache', () =>
       api.get('/api/products/available')
     );
+    if (!isCurrent()) return;
     setProducts(list);
     if (source === 'network') setFreshProducts(list);
     setShopOffline(source === 'cache');
   }, []);
 
   const loadOrders = useCallback(async () => {
+    const isCurrent = beginRead('loadOrders');
     const { list, source } = await readThrough('my_orders_cache', () =>
       api.get('/api/orders')
     );
+    if (!isCurrent()) return;
     setOrders(list);
     setOrdersOffline(source === 'cache');
   }, []);
@@ -201,11 +211,20 @@ export default function RetailerDashboard({ navigation, route }) {
     return () => clearInterval(id);
   }, [loadOrders]);
 
+  useRefreshOnFocus(() => Promise.all([loadProducts(), loadOrders()]));
+
   const onRefresh = async () => {
+    if (!requestLock.acquire('refresh')) return;
     setRefreshing(true);
-    if (tab === 'shop' || tab === 'cart') await loadProducts();
-    else if (tab === 'orders') await loadOrders();
-    setRefreshing(false);
+    try {
+      if (tab === 'shop' || tab === 'cart') await loadProducts();
+      else if (tab === 'orders') await loadOrders();
+    } catch (err) {
+      showAlert(t('common.error'), err.message);
+    } finally {
+      requestLock.release('refresh');
+      setRefreshing(false);
+    }
   };
 
   // ---------- Cart ----------
@@ -304,12 +323,19 @@ export default function RetailerDashboard({ navigation, route }) {
       t('dashboards.retailer.cancelOrderTitle'),
       t('dashboards.retailer.cancelOrderMessage'),
       async () => {
+        if (!requestLock.acquire('cancel')) return;
+        setCancelling(true);
         try {
           await api.put(`/api/orders/${orderId}/cancel`);
           showAlert(t('dashboards.retailer.orderSuccessTitle'), t('dashboards.retailer.orderCancelledMessage'));
-          await loadOrders(); // Refresh order list
+      beginRead('loadOrders');
+          setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o));
+          await Promise.all([loadOrders(), loadProducts()]);
         } catch (err) {
           showAlert(t('common.error'), err.message);
+        } finally {
+          requestLock.release('cancel');
+          setCancelling(false);
         }
       }
     );
@@ -370,6 +396,7 @@ export default function RetailerDashboard({ navigation, route }) {
            onTrack={(o) => navigation.navigate('ShopeeTracking', {
     orderId: o.id,
 })}
+            cancelling={cancelling}
             onCancel={cancelOrder}
             onViewDetails={(o) => navigation.navigate('OrderDetails', { order: o })}
             onViewHistory={() => navigation.navigate('OrderHistory')}
@@ -531,7 +558,7 @@ export function getProofUrl(order) {
   return delivery?.proof_photo_url || null;
 }
 
-function OrdersTab({ loading, orders, onViewProof, onTrack, onCancel, onViewDetails, onViewHistory }) {
+function OrdersTab({ loading, cancelling, orders, onViewProof, onTrack, onCancel, onViewDetails, onViewHistory }) {
   const { t, language } = useTranslation();
 
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
@@ -610,6 +637,7 @@ function OrdersTab({ loading, orders, onViewProof, onTrack, onCancel, onViewDeta
           {o.status === 'pending' && (
             <TouchableOpacity
               style={[styles.trackBtn, styles.cancelBtn]}
+              disabled={cancelling}
               onPress={() => onCancel(o.id)}
               activeOpacity={0.8}
             >

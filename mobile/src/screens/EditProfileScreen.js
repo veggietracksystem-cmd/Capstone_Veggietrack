@@ -1,3 +1,4 @@
+import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import ProfilePhotoField from '../components/ProfilePhotoField';
 import { useState } from 'react';
@@ -15,6 +16,7 @@ import MapPinningModal from '../components/MapPinningModal';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 
 export default function EditProfileScreen({ navigation }) {
+  const requestLock = useRequestLock();
   const { user, signOut, updateUser } = useAuth();
   const { t } = useTranslation();
 
@@ -64,6 +66,8 @@ export default function EditProfileScreen({ navigation }) {
       updates.longitude = longitude;
     }
 
+    if (!requestLock.acquire('Saving')) return;
+
     setSaving(true);
     try {
       const data = await api.put(`/api/users/${user.id}`, updates);
@@ -73,6 +77,7 @@ export default function EditProfileScreen({ navigation }) {
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('Saving');
       setSaving(false);
     }
   };

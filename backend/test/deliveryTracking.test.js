@@ -62,6 +62,23 @@ test('routing failures are cached briefly and do not masquerade as road routes',
   assert.equal(await service.getRoute(points, 'a'), null);
   assert.equal(await service.getRoute(points, 'a'), null); assert.equal(calls, 1);
 });
+test('meaningful movement refreshes a route before TTL and a delayed earlier route cannot replace the latest origin', async () => {
+  let calls = 0, release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const service = createRouteService({ fetchImpl: async () => {
+    const number = ++calls;
+    if (number === 1) await gate;
+    return { ok: true, json: async () => ({ code: 'Ok', routes: [{ ...route, duration: number * 60 }] }) };
+  }, env: {}, wait: async () => {} });
+  const destination = { latitude: 14.069, longitude: 121.326 };
+  const initial = service.getRoute([{ latitude: 14.068, longitude: 121.325 }, destination], 'moving', 30000);
+  const moved = service.getRoute([{ latitude: 14.0688, longitude: 121.3258 }, destination], 'moving', 30000);
+  release();
+  assert.equal((await initial).duration, 60);
+  assert.equal((await moved).duration, 120);
+  assert.equal((await service.getRoute([{ latitude: 14.0688, longitude: 121.3258 }, destination], 'moving', 30000)).duration, 120);
+  assert.equal(calls, 2);
+});
 function fakeDb(order, overrides = {}) {
   const users = { hub: { full_name: 'Distributor', warehouse_location: 'Warehouse', latitude: 14.068, longitude: 121.325 },
     shop: { full_name: 'Retailer', phone: 'sample', store_location: 'Store', latitude: 14.069, longitude: 121.326 },
@@ -158,7 +175,8 @@ test('embedded addresses cannot break out of the WebView script', () => {
 });
 
 test('Leaflet bridge updates existing markers, preserves text, and handles missing GPS', async () => {
-  const { buildDeliveryTrackingHtml } = await import('../../mobile/src/lib/deliveryTrackingHtml.js');
+  const source = require('node:fs').readFileSync(require('node:path').join(__dirname, '../../mobile/src/lib/deliveryTrackingHtml.js'), 'utf8');
+  const { buildDeliveryTrackingHtml } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
   const vm = require('node:vm');
   const layers = [], messages = [], frames = new Map(); let frameId = 0;
   const layer = (point, options) => ({ point, options,

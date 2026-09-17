@@ -1,3 +1,9 @@
+Last reviewed: 2026-09-16
+
+## Delivery/API reliability review
+
+The API client now supports cancellation and 30-second request timeouts while preserving current-session 401 sign-out and account-blocked behavior. Network/server failures do not sign users out. Delivery submission explicitly distinguishes session expiry from connectivity failure. Auth/security regression tests still pass; no auth migration, credential change or SMS send was performed in this delivery task. See [DELIVERY_RELIABILITY_REPORT.md](DELIVERY_RELIABILITY_REPORT.md) for delivery rollout prerequisites. Hosted avatar columns are present in the latest read-only schema audit.
+
 # Supabase Auth + PhilSMS deployment
 
 ## Implemented; deployment remains manual

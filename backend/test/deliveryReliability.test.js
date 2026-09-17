@@ -1,0 +1,107 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const babel = require('../../mobile/node_modules/@babel/core');
+function load(file, mocks = {}, globals = {}) {
+  const absolute = path.resolve(__dirname, '../../mobile/src', file);
+  const code = babel.transformSync(fs.readFileSync(absolute, 'utf8'), { configFile: false, babelrc: false,
+    plugins: [require.resolve('../../mobile/node_modules/@babel/plugin-transform-modules-commonjs')] }).code;
+  const module = { exports: {} };
+  vm.runInNewContext(code, { module, exports: module.exports, Date, console, setTimeout, clearTimeout, AbortController,
+    require: name => Object.hasOwn(mocks, name) ? mocks[name] : load(path.relative(path.resolve(__dirname, '../../mobile/src'), path.resolve(path.dirname(absolute), name + '.js')), mocks, globals), ...globals });
+  return module.exports;
+}
+const { createProofSubmission, proofFailureMessage, POD_MESSAGES } = load('lib/podSubmission.js');
+const photo = { uri: 'file:///proof.jpg', mimeType: 'image/jpeg' };
+const location = async () => ({ latitude: 0, longitude: 0, accuracy: 10, captured_at: new Date().toISOString() });
+test('Cloudinary failure never completes, and duplicate taps share one active submission', async () => {
+  let uploads = 0, completions = 0, release;
+  const wait = new Promise(resolve => { release = resolve; });
+  const controller = createProofSubmission({ isOnline: async () => true, upload: async () => { uploads++; await wait; throw Error('upload rejected'); }, complete: async () => { completions++; } });
+  const first = controller.submit({ photo, getLocation: location });
+  const duplicate = controller.submit({ photo, getLocation: location });
+  assert.equal(first, duplicate); release();
+  await assert.rejects(first, error => { assert.equal(proofFailureMessage(error), POD_MESSAGES.upload); return true; });
+  assert.equal(uploads, 1); assert.equal(completions, 0); assert.equal(controller.isSubmitting(), false);
+});
+test('backend rejection preserves uploaded proof for a safe retry and retains rejection details', async () => {
+  let uploads = 0, attempts = 0;
+  const controller = createProofSubmission({ isOnline: async () => true, upload: async () => { uploads++; return 'hosted-photo'; }, complete: async body => {
+    assert.equal(body.proof_photo_url, 'hosted-photo');
+    if (++attempts === 1) throw Object.assign(Error('rejected'), { status: 422, data: { error: 'Move closer.' } });
+    return { status: 'delivered' };
+  } });
+  await assert.rejects(controller.submit({ photo, getLocation: location }), error => { assert.equal(proofFailureMessage(error), POD_MESSAGES.completion + '\n\nMove closer.'); return true; });
+  await controller.submit({ photo, getLocation: location });
+  await controller.submit({ photo, getLocation: location });
+  assert.equal(uploads, 1); assert.equal(attempts, 2);
+});
+test('offline is only reported when connectivity says offline; server/401/5xx/timeout remain distinct', async () => {
+  const controller = createProofSubmission({ isOnline: async () => false, upload: () => assert.fail(), complete: () => assert.fail() });
+  await assert.rejects(controller.submit({ photo, getLocation: location }), error => { assert.equal(proofFailureMessage(error), POD_MESSAGES.offline); return true; });
+  for (const [error, expected] of [
+    [{ code: 'BACKEND_UNREACHABLE', status: 0, stage: 'complete' }, POD_MESSAGES.unreachable],
+    [{ status: 401, stage: 'complete' }, POD_MESSAGES.session],
+    [{ status: 503, stage: 'complete' }, POD_MESSAGES.completion],
+    [{ code: 'REQUEST_TIMEOUT', status: 0, stage: 'complete' }, POD_MESSAGES.completion + '\n\n' + POD_MESSAGES.timeout],
+  ]) assert.equal(proofFailureMessage(error), expected);
+});
+test('NetInfo unknown/error states do not claim offline', async () => {
+  for (const state of [{}, { isConnected: true }, { isConnected: false }, { isInternetReachable: false }]) {
+    const net = load('offline/net.js', { '@react-native-community/netinfo': { fetch: async () => state } });
+    assert.equal(await net.isOnline(), state.isConnected !== false && state.isInternetReachable !== false);
+  }
+  assert.equal(await load('offline/net.js', { '@react-native-community/netinfo': { fetch: async () => { throw Error(); } } }).isOnline(), true);
+});
+test('a malformed successful response never fabricates delivery completion', async () => {
+  const controller = createProofSubmission({ isOnline: async () => true, upload: async () => 'hosted', complete: async () => null });
+  await assert.rejects(controller.submit({ photo, getLocation: location }), { code: 'COMPLETION_UNCONFIRMED' });
+});
+function uploadModule(fetch, env = { CLOUDINARY_CLOUD_NAME: 'test-cloud', CLOUDINARY_UPLOAD_PRESET: 'unsigned-test' }) {
+  return load('lib/cloudinary.js', { 'react-native': { Platform: { OS: 'android' } }, '@env': env }, { fetch,
+    FormData: class { append() {} } });
+}
+test('native URI/MIME preparation, multipart boundary, upload errors/configuration and timeout', async () => {
+  const module = uploadModule(async (_, options) => {
+    assert.equal(options.headers, undefined); assert.ok(options.signal);
+    return { ok: true, text: async () => JSON.stringify({ secure_url: 'https://res.cloudinary.com/test-cloud/image/upload/v1/proof.jpg' }) };
+  });
+  assert.equal(module.prepareNativeImage({ uri: '/cache/image.png' }).type, 'image/png');
+  assert.equal(module.prepareNativeImage({ uri: 'content://media/123', mimeType: 'image/heic' }).uri, 'content://media/123');
+  assert.throws(() => module.prepareNativeImage({ uri: 'content://media/123' }), { code: 'IMAGE_PREPARATION_FAILED' });
+  await module.uploadToCloudinary(photo);
+  for (const [response, code] of [
+    [{ ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'Upload preset must be unsigned' } }) }, 'CLOUDINARY_CONFIGURATION'],
+    [{ ok: false, status: 500, text: async () => '<html>Error</html>' }, 'CLOUDINARY_UPLOAD_FAILED'],
+  ]) await assert.rejects(uploadModule(async () => response).uploadToCloudinary(photo), { code });
+  await assert.rejects(uploadModule(() => assert.fail(), {}).uploadToCloudinary(photo), { code: 'CLOUDINARY_CONFIGURATION' });
+  await assert.rejects(uploadModule(() => new Promise(() => {})).uploadToCloudinary(photo, { timeoutMs: 5 }), { code: 'UPLOAD_TIMEOUT' });
+});
+test('fresh GPS refinement requires multiple observations, ignores stale and inaccurate samples, keeps best acceptable', async () => {
+  const { refineLocation } = load('lib/locationSamples.js');
+  let now = 100000, reads = 0;
+  const readings = [
+    { timestamp: 1, coords: { latitude: 0, longitude: 0, accuracy: 5 } },
+    { timestamp: 100001, coords: { latitude: 0, longitude: 0, accuracy: 1000 } },
+    { timestamp: 100002, coords: { latitude: 0, longitude: 0, accuracy: 18 } },
+    { timestamp: 100003, coords: { latitude: 0, longitude: 0, accuracy: 9 } },
+  ];
+  const best = await refineLocation(async () => readings[reads++], { now: () => now, pause: async ms => { now += ms; } });
+  assert.equal(reads, 4); assert.equal(best.accuracy, 9);
+  await assert.rejects(refineLocation(async () => readings[3], { now: () => now, timeoutMs: 5, pause: async ms => { now += ms; } }), { code: 'GPS_UNCONFIRMED' });
+});
+test('current-leg ETA never uses static duration; routing failure leaves fresh GPS usable', () => {
+  const { activeJourney, liveEtaSeconds, isLivePosition } = load('lib/trackingJourney.js');
+  const pickup = { latitude: 0, longitude: 0 }, delivery = { latitude: 1, longitude: 1 };
+  for (const [status, phase, target] of [['approved', 'pickup', pickup], ['in_transit', 'delivery', delivery]]) {
+    const journey = activeJourney({ status, retailer_view: { pickup, delivery, tracking: { navigation_phase: phase, route: { coordinates: [] }, eta_seconds: 720, estimated_route_seconds: 3600 } } });
+    assert.equal(journey.target, target); assert.equal(liveEtaSeconds(journey, { live: true }), 720);
+  }
+  const legacy = activeJourney({ retailer_view: { tracking: { route: {}, eta_seconds: 3600 } } });
+  assert.equal(liveEtaSeconds(legacy, { live: true }), null);
+  const failed = activeJourney({ retailer_view: { tracking: { navigation_phase: 'delivery', route: null, eta_seconds: null } } });
+  assert.equal(liveEtaSeconds(failed, { live: true }), null);
+  assert.equal(isLivePosition({ latitude: 0, longitude: 0, timestamp: Date.now() }), true);
+});

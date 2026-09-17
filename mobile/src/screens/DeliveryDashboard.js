@@ -1,3 +1,5 @@
+import useLatestRequest from '../hooks/useLatestRequest';
+import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -88,6 +90,8 @@ function tabForLegacyFilter(filter) {
 }
 
 export default function DeliveryDashboard({ navigation, route }) {
+  const beginRead = useLatestRequest();
+  const requestLock = useRequestLock();
   const { user } = useAuth();
   const { t, language } = useTranslation();
 
@@ -121,26 +125,32 @@ export default function DeliveryDashboard({ navigation, route }) {
   }, [route.params?.filter]);
 
   const loadPickups = useCallback(async () => {
+    const isCurrent = beginRead('loadPickups');
     try {
       const data = await api.get('/api/pickup-requests');
+      if (!isCurrent()) return;
       setPickups(Array.isArray(data) ? data : []);
-    } catch {
-      // silent
+    } catch (err) {
+      if (!isCurrent()) return;
+      showAlert(t('common.error'), err.message);
     }
   }, []);
 
   const loadOrders = useCallback(async () => {
+    const isCurrent = beginRead('loadOrders');
     const { list, source } = await readThrough('delivery_orders_cache', () =>
       api.get('/api/delivery/orders')
     );
+    if (!isCurrent()) return;
     setOrders(list);
     setOffline(source === 'cache');
   }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadOrders(), loadPickups()]);
-    setLoading(false);
+    try { await Promise.all([loadOrders(), loadPickups()]); }
+    catch (err) { showAlert(t('common.error'), err.message); }
+    finally { setLoading(false); }
   }, [loadOrders, loadPickups]);
 
   useEffect(() => {
@@ -150,33 +160,41 @@ export default function DeliveryDashboard({ navigation, route }) {
   // Refresh whenever this screen regains focus (e.g. returning from
   // DeliveryDetails after a status change or a reject), so a delivery that
   // was rejected or just marked delivered disappears immediately instead of
-  // waiting for a manual pull-to-refresh. Returning to the screen also resets
-  // back to the Home tab rather than whatever tab was selected before
-  // navigating away.
+  // waiting for a manual pull-to-refresh. Keep the selected tab and task mode.
   useEffect(() => {
     if (!navigation?.addListener) return undefined;
     return navigation.addListener('focus', () => {
-      setActiveBottomTab('home');
-      setMode('deliveries');
       loadOrders();
+      loadPickups();
     });
-  }, [navigation, loadOrders]);
+  }, [navigation, loadOrders, loadPickups]);
 
   const onRefresh = async () => {
+    if (!requestLock.acquire('refresh')) return;
     setRefreshing(true);
-    await Promise.all([loadOrders(), loadPickups()]);
-    setRefreshing(false);
+    try {
+      await Promise.all([loadOrders(), loadPickups()]);
+    } catch (err) {
+      showAlert(t('common.error'), err.message);
+    } finally {
+      requestLock.release('refresh');
+      setRefreshing(false);
+    }
   };
 
   const handleMarkPickedUp = async (pickupId) => {
+    if (!requestLock.acquire('BusyId')) return;
     setBusyId(pickupId);
     try {
       await api.post(`/api/pickup-requests/${pickupId}/pickup`);
+      beginRead('loadPickups');
+      setPickups(prev => prev.map(p => p.id === pickupId ? { ...p, status: 'picked_up' } : p));
       await Promise.all([loadOrders(), loadPickups()]);
       showAlert(t('common.success'), t('dashboards.delivery.pickedUpSuccessMessage'));
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
+      requestLock.release('BusyId');
       setBusyId(null);
     }
   };
@@ -241,6 +259,30 @@ export default function DeliveryDashboard({ navigation, route }) {
     </View>
   );
 };
+
+  const renderPickupCard = (pickup, { actionable }) => {
+    const harvest = pickup.harvests;
+    return (
+      <View key={pickup.id} style={styles.orderCard}>
+        <View style={styles.orderHeader}>
+          <Text style={styles.orderId}>{t('dashboards.delivery.pickupNumber', { id: shortId(pickup.id) })}</Text>
+          <Text style={styles.rowMeta}>{formatStatus(pickup.status)}</Text>
+        </View>
+        <Text style={styles.rowMeta}>{pickup.farmer_name || t('dashboards.delivery.farmerFallback')}</Text>
+        <Text style={styles.rowMeta}>{harvest ? `${localizeVegetableName(harvest.vegetable_name, language)} · ${harvest.quantity_kg} kg` : t('dashboards.delivery.vegetablesFallback')}</Text>
+        {!!pickup.farmer_address && <Text style={styles.rowMeta}>{pickup.farmer_address}</Text>}
+        <View style={styles.buttonRow}>
+          {!!pickup.farmer_address && <TouchableOpacity style={styles.routeBtn} onPress={() => {
+            setMapAddress(pickup.farmer_address);
+            setMapCoords(pickup.farmer_coords);
+          }}><Text style={styles.routeBtnText}>{t('dashboards.delivery.viewRoute')}</Text></TouchableOpacity>}
+          {actionable && <TouchableOpacity style={styles.detailsBtn} disabled={busyId != null} onPress={() => handleMarkPickedUp(pickup.id)}>
+            {busyId === pickup.id ? <ActivityIndicator color={PRIMARY} /> : <Text style={styles.detailsBtnText}>{t('dashboards.delivery.markPickedUpBtn')}</Text>}
+          </TouchableOpacity>}
+        </View>
+      </View>
+    );
+  };
 
   const ModeToggle = () => (
     <View style={styles.tabContainer}>
@@ -470,7 +512,6 @@ const styles = StyleSheet.create({
   tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
   tabButtonActive: { backgroundColor: colors.card, ...shadowCard },
   tabButtonText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(14) },
-  tabButtonTextActive: { color: PRIMARY },
   tabButtonTextActive: { color: PRIMARY },
 
 // ===== NEW STYLES FOR NAVIGATE BUTTON =====

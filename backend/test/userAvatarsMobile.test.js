@@ -18,6 +18,7 @@ function component(file, mocks = {}) {
     useEffect(effect) { const index = cursor++; if (!(index in values)) { values[index] = true; cleanups.push(effect()); } },
   };
   const filename = path.join(__dirname, '../../mobile/src/components', file);
+  function loadLocal(filename) {
   const source = babel.transformSync(fs.readFileSync(filename, 'utf8'), {
     filename, babelrc: false, configFile: false, presets: [mobileRequire.resolve('babel-preset-expo')],
   }).code;
@@ -29,9 +30,13 @@ function component(file, mocks = {}) {
     if (name === '../theme/appTheme') return { colors: {}, fonts: {}, radius: {} };
     if (name === '../i18n/useTranslation') return { useTranslation: () => ({ t: key => key }) };
     if (name === './UserAvatar') return () => null;
+    if (name.startsWith('.')) return loadLocal(path.resolve(path.dirname(filename), name + '.js'));
     return mobileRequire(name);
   } });
-  return { render(props) { cursor = 0; return module.exports.default(props); }, unmount() { cleanups.forEach(fn => fn?.()); } };
+  return module.exports;
+  }
+  const loaded = loadLocal(filename);
+  return { render(props) { cursor = 0; return loaded.default(props); }, unmount() { cleanups.forEach(fn => fn?.()); } };
 }
 function find(tree, type) {
   if (!tree || typeof tree !== 'object') return null;

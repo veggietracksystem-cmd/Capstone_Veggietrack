@@ -1,3 +1,11 @@
+Last reviewed: 2026-09-16
+
+## Current status: implementation complete
+
+The September 16 read-only hosted schema audit confirms `users.avatar_url` and `users.profile_picture_updated_at` now exist. The implementation and regression tests pass locally. Real-device photo upload and SQL trigger/RLS catalog verification remain unverified. Do not rerun the non-idempotent avatar migration based on the older deployment note below. The shared upload helper now has MIME preparation, timeout and typed-error handling; profile upload remains staged until Save.
+
+The remainder is the historical Chunk 1 report; its earlier claim that hosted avatar columns were absent is superseded by this inspection. Its request to stop after Chunk 1 is historical and does not restrict the authorized delivery work.
+
 # Chunk 1 — Existing-account profile pictures
 
 ## Status

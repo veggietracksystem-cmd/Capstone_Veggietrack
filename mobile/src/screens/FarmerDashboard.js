@@ -1,3 +1,5 @@
+import useLatestRequest from '../hooks/useLatestRequest';
+import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -158,6 +160,8 @@ function buildWeeklyBuckets(harvests) {
 }
 
 export default function FarmerDashboard({ navigation, route }) {
+  const beginRead = useLatestRequest();
+  const requestLock = useRequestLock();
   const { user } = useAuth();
   const { t, language } = useTranslation();
   const [activeTab, setActiveTab] = useState('home');
@@ -213,7 +217,6 @@ export default function FarmerDashboard({ navigation, route }) {
   // the first time the History sheet is opened).
   const [historyReportRows, setHistoryReportRows] = useState([]);
   const [loadingHistoryReport, setLoadingHistoryReport] = useState(false);
-  const [historyReportLoaded, setHistoryReportLoaded] = useState(false);
   const [exportingReport, setExportingReport] = useState(false);
 
   // Pick-up tab: multi-select cart
@@ -227,27 +230,35 @@ export default function FarmerDashboard({ navigation, route }) {
   }, []);
 
   const loadHarvests = useCallback(async () => {
+    const isCurrent = beginRead('loadHarvests');
     const { list, source } = await fetchHarvests();
+    if (!isCurrent()) return;
     setHarvests(list);
     setOffline(source === 'cache');
     await refreshPendingCount();
   }, [refreshPendingCount]);
 
   const loadMessagesUnreadCount = useCallback(async () => {
+    const isCurrent = beginRead('loadMessagesUnreadCount');
     try {
       const { count } = await api.get('/api/messages/unread-count');
+      if (!isCurrent()) return;
       setMessagesUnreadCount(count || 0);
     } catch {
+      if (!isCurrent()) return;
       setMessagesUnreadCount(0);
     }
   }, []);
 
   const loadNotifUnreadCount = useCallback(async () => {
+    const isCurrent = beginRead('loadNotifUnreadCount');
     try {
       const data = await api.get('/api/notifications');
       const list = Array.isArray(data) ? data : [];
+      if (!isCurrent()) return;
       setNotifUnreadCount(list.filter((n) => !n.is_read).length);
     } catch {
+      if (!isCurrent()) return;
       setNotifUnreadCount(0);
     }
   }, []);
@@ -255,11 +266,14 @@ export default function FarmerDashboard({ navigation, route }) {
   // There's only one distributor in the system; used to label the Weekly
   // report table's "Distributor" column without a dedicated backend join.
   const loadDistributorName = useCallback(async () => {
+    const isCurrent = beginRead('loadDistributorName');
     try {
       const contacts = await api.get('/api/messages/contacts');
       const d = Array.isArray(contacts) ? contacts.find((c) => c.role === 'distributor') : null;
+      if (!isCurrent()) return;
       setDistributorName(d?.full_name || null);
     } catch {
+      if (!isCurrent()) return;
       setDistributorName(null);
     }
   }, []);
@@ -301,10 +315,17 @@ export default function FarmerDashboard({ navigation, route }) {
   }, [navigation, loadHarvests, loadMessagesUnreadCount, loadNotifUnreadCount]);
 
   const onRefresh = async () => {
+    if (!requestLock.acquire('refresh')) return;
     setRefreshing(true);
-    await Promise.all([loadHarvests(), loadMessagesUnreadCount(), loadNotifUnreadCount()]);
-    await trySync();
-    setRefreshing(false);
+    try {
+      await Promise.all([loadHarvests(), loadMessagesUnreadCount(), loadNotifUnreadCount()]);
+      await trySync();
+    } catch (err) {
+      showAlert(t('common.error'), err.message);
+    } finally {
+      requestLock.release('refresh');
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => {
@@ -339,6 +360,11 @@ export default function FarmerDashboard({ navigation, route }) {
   const pendingWeavePct = totalHarvestKg > 0 ? Math.min(100, Math.round((pendingPickupKg / totalHarvestKg) * 100)) : 0;
 
   const availableHarvests = useMemo(() => harvests.filter((h) => h.status === 'available'), [harvests]);
+  // Keep the loaded order within each group without mutating the source list.
+  const pickupDisplayHarvests = useMemo(() => [
+    ...availableHarvests.filter((h) => cart[h.id]),
+    ...availableHarvests.filter((h) => !cart[h.id]),
+  ], [availableHarvests, cart]);
 
   // ---- Weekly report table (online-only, fetched when the sheet opens) ----
   const openWeeklyReport = async () => {
@@ -349,22 +375,21 @@ export default function FarmerDashboard({ navigation, route }) {
       setWeeklyReportRows(Array.isArray(r?.details) ? r.details : []);
     } catch (err) {
       showAlert('Error', err.message);
-      setWeeklyReportRows([]);
+      // Retain the last report on a failed refresh.
     } finally {
       setLoadingWeeklyReport(false);
     }
   };
 
-  // ---- Full history report (fetched once, cached in state) ----
+  // ---- Full history report ----
   const openHistoryReport = async () => {
     setShowWeeklySheet(false);
     setShowHistorySheet(true);
-    if (historyReportLoaded) return;
+    // Refresh the report on each open; preserve the expanded history week.
     setLoadingHistoryReport(true);
     try {
       const r = await api.get('/api/harvests/weekly-report?range=all');
       setHistoryReportRows(Array.isArray(r?.details) ? r.details : []);
-      setHistoryReportLoaded(true);
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
@@ -403,6 +428,7 @@ export default function FarmerDashboard({ navigation, route }) {
     if (!name) { showAlert('Error', t('dashboards.farmer.enterVegetableName')); return; }
     if (!isVegetable(name)) { showAlert('Error', VEGETABLE_VALIDATION_MESSAGE); return; }
     if (isNaN(qty) || qty <= 0) { showAlert('Error', t('dashboards.farmer.enterValidQuantity')); return; }
+    if (!requestLock.acquire('Submitting')) return;
     setSubmitting(true);
     try {
       const payload = { vegetable_name: name, quantity_kg: qty, status };
@@ -420,6 +446,7 @@ export default function FarmerDashboard({ navigation, route }) {
     } catch (err) {
       showAlert('Error', err.message);
     } finally {
+      requestLock.release('Submitting');
       setSubmitting(false);
     }
   };
@@ -449,6 +476,7 @@ export default function FarmerDashboard({ navigation, route }) {
     if (!name) { showAlert('Error', t('dashboards.farmer.enterVegetableName')); return; }
     if (!isVegetable(name)) { showAlert('Error', VEGETABLE_VALIDATION_MESSAGE); return; }
     if (isNaN(qty) || qty <= 0) { showAlert('Error', t('dashboards.farmer.enterValidQuantity')); return; }
+    if (!requestLock.acquire('EditSubmitting')) return;
     setEditSubmitting(true);
     try {
       const payload = { vegetable_name: name, quantity_kg: qty, status: editStatus };
@@ -463,6 +491,7 @@ export default function FarmerDashboard({ navigation, route }) {
     } catch (err) {
       showAlert('Error', err.message);
     } finally {
+      requestLock.release('EditSubmitting');
       setEditSubmitting(false);
     }
   };
@@ -471,14 +500,17 @@ export default function FarmerDashboard({ navigation, route }) {
       t('dashboards.farmer.deleteHarvestTitle'),
       t('dashboards.farmer.deleteHarvestMessage', { name: localizeVegetableName(harvest.vegetable_name, language), qty: harvest.quantity_kg }),
       async () => {
+        if (!requestLock.acquire('BusyId')) return;
         setBusyId(harvest.id);
         try {
           await api.delete(`/api/harvests/${harvest.id}`);
+          beginRead('loadHarvests');
           setHarvests((prev) => prev.filter((h) => h.id !== harvest.id));
           closeEditModal();
         } catch (err) {
           showAlert('Error', err.message);
         } finally {
+          requestLock.release('BusyId');
           setBusyId(null);
         }
       }
@@ -506,6 +538,7 @@ export default function FarmerDashboard({ navigation, route }) {
   };
   const submitPickupRequest = async () => {
     if (cartHarvests.length === 0) { showAlert('Error', t('dashboards.farmer.selectAtLeastOneVeg')); return; }
+    if (!requestLock.acquire('SubmittingPickup')) return;
     setSubmittingPickup(true);
     try {
       for (const h of cartHarvests) {
@@ -513,6 +546,9 @@ export default function FarmerDashboard({ navigation, route }) {
         // (GET /api/pickup-requests) — must be online, can't be offline-queued.
         // eslint-disable-next-line no-await-in-loop
         await api.post('/api/pickup-requests', { harvest_id: h.id });
+        removeFromCart(h.id);
+        beginRead('loadHarvests');
+        setHarvests(prev => prev.map(row => row.id === h.id ? { ...row, status: 'for_pickup' } : row));
         // eslint-disable-next-line no-await-in-loop
         const optimistic = await queueHarvest({ type: 'edit', id: h.id, payload: { status: 'for_pickup' } });
         setHarvests(optimistic);
@@ -525,6 +561,7 @@ export default function FarmerDashboard({ navigation, route }) {
     } catch (err) {
       showAlert('Error', err.message);
     } finally {
+      requestLock.release('SubmittingPickup');
       setSubmittingPickup(false);
     }
   };
@@ -589,7 +626,7 @@ export default function FarmerDashboard({ navigation, route }) {
                     <Text style={styles.emptySubtitle}>{t('dashboards.farmer.nothingAvailableYetMsg')}</Text>
                   </View>
                 ) : (
-                  availableHarvests.map((h) => {
+                  pickupDisplayHarvests.map((h) => {
                     const selected = !!cart[h.id];
                     return (
                       <View key={String(h.id)} style={styles.vegCard}>

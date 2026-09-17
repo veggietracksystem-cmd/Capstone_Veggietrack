@@ -1,9 +1,13 @@
 import ProofDetails from '../components/ProofDetails';
+import { useCallback, useEffect, useState } from 'react';
+import api from '../api/client';
+import useLatestRequest from '../hooks/useLatestRequest';
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
 import { manilaSchedule } from '../lib/deliverySchedule';
-import { Text, View, ScrollView, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, Image, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OrderStepIndicator from '../components/OrderStepIndicator';
-import { peso, shortId } from '../lib/ui';
+import { peso, shortId, showAlert } from '../lib/ui';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
@@ -29,7 +33,25 @@ function Row({ label, value }) {
 
 export default function OrderDetailsScreen({ navigation, route }) {
   const { t, language } = useTranslation();
-  const order = route.params?.order;
+  const [order, setOrder] = useState(route.params?.order);
+  const [refreshing, setRefreshing] = useState(false);
+  const beginRead = useLatestRequest();
+  const orderId = route.params?.order?.id || route.params?.orderId;
+  const refreshOrder = useCallback(async () => {
+    if (!orderId) return;
+    const isCurrent = beginRead('order');
+    setRefreshing(true);
+    try {
+      const data = await api.get(`/api/orders/${orderId}`);
+      if (isCurrent()) setOrder(data);
+    } catch (err) {
+      if (isCurrent()) showAlert(t('common.error'), err.message);
+    } finally {
+      if (isCurrent()) setRefreshing(false);
+    }
+  }, [orderId, t]);
+  useEffect(() => { setOrder(route.params?.order); void refreshOrder(); }, [refreshOrder]);
+  useRefreshOnFocus(refreshOrder);
 
   if (!order) {
     return (
@@ -60,7 +82,7 @@ export default function OrderDetailsScreen({ navigation, route }) {
         <View style={{ width: 50 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshOrder} />}>
         <View style={styles.card}>
           <View style={styles.orderHeader}>
             <Text style={styles.orderId}>{t('dashboards.retailer.orderNumber', { id: shortId(order.id) })}</Text>

@@ -1,13 +1,14 @@
 import {useState,useEffect,useRef} from 'react';
-import {Text,View} from 'react-native';
+import {Text,View,ActivityIndicator} from 'react-native';
 import {AuthPage,AuthButton,AuthInput,authStyles as s} from '../components/AuthForm';
 import {api} from '../api/client';
 import {confirmAction} from '../lib/ui';
 const filters=['pending_approval','active','declined','disabled','unverified'];
 export default function AccountManagementScreen({navigation}){
  const [status,setStatus]=useState('pending_approval'),[users,setUsers]=useState([]),[error,setError]=useState(''),[busy,setBusy]=useState(false),[reasons,setReasons]=useState({}),[audit,setAudit]=useState({});
+ const [loading,setLoading]=useState(false),[auditBusy,setAuditBusy]=useState(null);
  const lock=useRef(false),generation=useRef(0);
- const load=async()=>{const version=++generation.current;setError('');try{const rows=await api.get(`/api/accounts?status=${status}`);if(version===generation.current)setUsers(rows);}catch(e){if(version===generation.current)setError(e.message);}};
+ const load=async()=>{const version=++generation.current;setError('');setLoading(true);try{const rows=await api.get(`/api/accounts?status=${status}`);if(version===generation.current)setUsers(rows);}catch(e){if(version===generation.current)setError(e.message);}finally{if(version===generation.current)setLoading(false);}};
  useEffect(()=>{setUsers([]);void load();return()=>{generation.current++;};},[status]);
  const act=(user,action)=>{
   const reason=(reasons[user.id] || '').trim();
@@ -19,9 +20,10 @@ export default function AccountManagementScreen({navigation}){
  };
  return <AuthPage title="User Management">
   <View style={{flexDirection:'row',flexWrap:'wrap',gap:5}}>{filters.map(f=><AuthButton key={f} title={f.replace('_',' ').toUpperCase()} disabled={busy || status===f} onPress={()=>setStatus(f)}/>)}</View>
-  <AuthButton title="Refresh" disabled={busy} onPress={load}/>
+  <AuthButton title="Refresh" disabled={busy || loading} onPress={load}/>
   {!!error&&<Text style={s.error}>{error}</Text>}
-  {!users.length&&<Text style={s.note}>No accounts in this view.</Text>}
+  {loading&&<ActivityIndicator accessibilityLabel="Loading accounts"/>}
+  {!loading&&!users.length&&<Text style={s.note}>No accounts in this view.</Text>}
   {users.map(u=><View key={u.id} style={{padding:16,backgroundColor:'#fff',borderRadius:10,marginVertical:8}}>
    <Text style={{fontWeight:'bold'}}>{u.full_name} — {u.role==='delivery_personnel'?'Rider':u.role}</Text>
    <Text>{u.phone} · {u.phone_verified_at?'SMS verified':u.legacy_access?'Existing account':'Unverified'}</Text>
@@ -32,7 +34,7 @@ export default function AccountManagementScreen({navigation}){
    {status==='pending_approval'&&<><AuthButton title="Approve" disabled={busy} onPress={()=>act(u,'APPROVED')}/><AuthButton title="Decline" disabled={busy} onPress={()=>act(u,'DECLINED')}/></>}
    {status==='active'&&<AuthButton title="Disable" disabled={busy} onPress={()=>act(u,'DISABLED')}/>}
    {status==='disabled'&&<AuthButton title="Reactivate (fresh login required)" disabled={busy} onPress={()=>act(u,'REACTIVATED')}/>}
-   <AuthButton title="Audit history" onPress={async()=>{try{const rows=await api.get(`/api/accounts/${u.id}/audit`);setAudit(a=>({...a,[u.id]:rows}));}catch(e){setError(e.message);}}}/>
+   <AuthButton title="Audit history" disabled={auditBusy!==null} onPress={async()=>{if(auditBusy!==null)return;setAuditBusy(u.id);try{const rows=await api.get(`/api/accounts/${u.id}/audit`);setAudit(a=>({...a,[u.id]:rows}));}catch(e){setError(e.message);}finally{setAuditBusy(null);}}}/>
    {audit[u.id]?.map(a=><Text key={a.id}>{new Date(a.created_at).toLocaleString()} · {a.action} · {a.previous_status} → {a.resulting_status}{a.reason?' · '+a.reason:''}</Text>)}
   </View>)}
   <AuthButton title="Back" onPress={()=>navigation.goBack()}/>

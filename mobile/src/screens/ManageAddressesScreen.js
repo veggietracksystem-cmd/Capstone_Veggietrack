@@ -1,3 +1,5 @@
+import useLatestRequest from '../hooks/useLatestRequest';
+import useRequestLock from '../hooks/useRequestLock';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
@@ -24,6 +26,8 @@ import MapPinningModal from '../components/MapPinningModal';
 const PRIMARY = colors.leaf700;
 
 export default function ManageAddressesScreen({ navigation }) {
+  const beginRead = useLatestRequest();
+  const requestLock = useRequestLock();
     const { user } = useAuth();
     const { t } = useTranslation();
     const [addresses, setAddresses] = useState([]);
@@ -42,19 +46,21 @@ export default function ManageAddressesScreen({ navigation }) {
     const [mapModalVisible, setMapModalVisible] = useState(false);
 
    const loadAddresses = useCallback(async () => {
+    const isCurrent = beginRead('loadAddresses');
     try {
         const data = await api.get('/api/addresses');
         // If data is null or undefined, use empty array
+        if (!isCurrent()) return;
         setAddresses(data || []);
     } catch (err) {
+      if (!isCurrent()) return;
         console.error('Load addresses error:', err);
         // Only show error if it's a real error, not empty data
         if (err.message && err.message !== 'Request failed (404)') {
             showAlert('Error', 'Could not load addresses');
         }
     } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (isCurrent()) { setLoading(false); setRefreshing(false); }
     }
 }, []);
 
@@ -107,6 +113,8 @@ export default function ManageAddressesScreen({ navigation }) {
         is_default: formIsDefault,
     };
 
+    if (!requestLock.acquire('Saving')) return;
+
     setSaving(true);
     try {
         let result;
@@ -115,7 +123,12 @@ export default function ManageAddressesScreen({ navigation }) {
         } else {
             result = await api.post('/api/addresses', payload);
         }
-        console.log('Address saved:', result);
+
+        beginRead('loadAddresses');
+        setAddresses(prev => {
+            const rows = prev.filter(a => a.id !== result.id);
+            return [result, ...rows.map(a => result.is_default ? { ...a, is_default: false } : a)];
+        });
         setModalVisible(false);
         await loadAddresses();
         showAlert('Success', editingAddress ? 'Address updated' : 'Address added');
@@ -128,6 +141,7 @@ export default function ManageAddressesScreen({ navigation }) {
             showAlert('Error', err.message || 'Failed to save address');
         }
     } finally {
+        requestLock.release('Saving');
         setSaving(false);
     }
 };
@@ -136,18 +150,26 @@ export default function ManageAddressesScreen({ navigation }) {
             'Delete Address',
             `Are you sure you want to delete "${address.label}"?`,
             async () => {
+                if (!requestLock.acquire('Saving')) return;
+                setSaving(true);
                 try {
                     await api.delete(`/api/addresses/${address.id}`);
+                    setAddresses(prev => prev.filter(a => a.id !== address.id));
                     await loadAddresses();
                     showAlert('Success', 'Address deleted');
                 } catch (err) {
                     showAlert('Error', err.message || 'Failed to delete address');
+                } finally {
+                    requestLock.release('Saving');
+                    setSaving(false);
                 }
             }
         );
     };
 
     const setDefaultAddress = async (address) => {
+        if (!requestLock.acquire('Saving')) return;
+        setSaving(true);
         try {
             await api.put(`/api/addresses/${address.id}`, {
                 ...address,
@@ -157,6 +179,9 @@ export default function ManageAddressesScreen({ navigation }) {
             showAlert('Success', 'Default address updated');
         } catch (err) {
             showAlert('Error', err.message || 'Failed to update default');
+        } finally {
+            requestLock.release('Saving');
+            setSaving(false);
         }
     };
 
@@ -206,6 +231,7 @@ export default function ManageAddressesScreen({ navigation }) {
                                 {!addr.is_default && (
                                     <TouchableOpacity
                                         style={[styles.actionBtn, styles.setDefaultBtn]}
+                                        disabled={saving}
                                         onPress={() => setDefaultAddress(addr)}
                                     >
                                         <Text style={styles.actionBtnText}>Set Default</Text>
@@ -213,12 +239,14 @@ export default function ManageAddressesScreen({ navigation }) {
                                 )}
                                 <TouchableOpacity
                                     style={[styles.actionBtn, styles.editBtn]}
+                                    disabled={saving}
                                     onPress={() => openEditModal(addr)}
                                 >
                                     <Text style={styles.actionBtnText}>Edit</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.actionBtn, styles.deleteBtn]}
+                                    disabled={saving}
                                     onPress={() => deleteAddress(addr)}
                                 >
                                     <Text style={[styles.actionBtnText, { color: colors.danger }]}>Delete</Text>
@@ -228,7 +256,8 @@ export default function ManageAddressesScreen({ navigation }) {
                     ))
                 )}
 
-                <TouchableOpacity style={styles.addBtn} onPress={openAddModal}>
+                {saving && <ActivityIndicator color={PRIMARY} />}
+                <TouchableOpacity disabled={saving} style={styles.addBtn} onPress={openAddModal}>
                     <Text style={styles.addBtnText}>+ Add New Address</Text>
                 </TouchableOpacity>
             </ScrollView>

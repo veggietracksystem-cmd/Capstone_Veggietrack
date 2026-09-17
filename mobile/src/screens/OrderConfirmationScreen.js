@@ -1,3 +1,4 @@
+import useRequestLock from '../hooks/useRequestLock';
 import { clearCheckedOutCart } from '../lib/cartStore';
 import { manilaDate, scheduleInstant, validateSchedule } from '../lib/deliverySchedule';
 import { rf } from '../lib/responsive';
@@ -21,6 +22,7 @@ import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 const PRIMARY = colors.leaf700;
 
 export default function OrderConfirmationScreen({ navigation, route }) {
+  const requestLock = useRequestLock();
   const { user } = useAuth();
   const { t, language } = useTranslation();
   const { cart = [], totalItems = 0, totalAmount = 0, defaultAddress = '' } = route.params || {};
@@ -101,7 +103,7 @@ export default function OrderConfirmationScreen({ navigation, route }) {
   const canConfirm = weightValid && !!getFinalAddress().trim() && scheduleValid && latitude != null && longitude != null;
 
   const confirmOrder = async () => {
-    if (confirming) return;
+    if (confirming || success) return;
     if (!weightValid) { showAlert(t('common.error'), t('checkout.minimumWeight')); return; }
     const finalAddress = getFinalAddress();
     if (!finalAddress.trim()) {
@@ -118,6 +120,8 @@ export default function OrderConfirmationScreen({ navigation, route }) {
       preferred_schedule: `${date}T${time}+08:00`,
     };
 
+    if (!requestLock.acquire('Confirming')) return;
+
     setConfirming(true);
     try {
       await api.post('/api/orders', payload);
@@ -126,6 +130,7 @@ export default function OrderConfirmationScreen({ navigation, route }) {
     } catch (err) {
       showAlert(t('dashboards.retailer.orderFailedTitle'), err?.message || t('dashboards.retailer.orderFailedFallback'));
     } finally {
+      requestLock.release('Confirming');
       setConfirming(false);
     }
   };

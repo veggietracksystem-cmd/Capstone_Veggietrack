@@ -1,3 +1,15 @@
+Last reviewed: 2026-09-16
+
+## Current delivery reliability review
+
+This file retains the earlier scheduling/POD implementation record below. Its old 150 m-minus-accuracy policy, 50 m accuracy cap, ten-minute proof age, test counts and rollout instructions are superseded by [DELIVERY_RELIABILITY_REPORT.md](DELIVERY_RELIABILITY_REPORT.md) and [README.md](README.md).
+
+Current policy: 100 m base plus min(accuracy, 50 m), maximum acceptable accuracy 100 m, freshness 60 seconds, multiple fresh fixes within a bounded refinement period. Tracking and completion share destination precedence. Cloudinary/backend failures retain retry state and never become successful delivery. Current-leg LIVE ETA targets warehouse before pickup and retailer afterward.
+
+The read-only September 16 hosted audit found destination/accuracy/POD columns and completion/status functions absent. No hosted migration was applied. Use the complete guarded `backend/sql/delivery_location_policy.sql`; do not apply the old proof function afterward. Local PostgreSQL and application tests cover the new policy. The footer, schedule enforcement, ownership and atomic completion protections described below remain.
+
+## Historical implementation record
+
 The requested scheduling and geotagged POD protections were not already implemented. The existing checkout only required nonempty date/time fields, the order API accepted past schedules, and completion accepted an optional photo without GPS. These gaps are now addressed in the source code and an additive database migration.
 
 Deployment prerequisite: apply `backend/sql/delivery_tracking_maps.sql` if it has not been applied, then `backend/sql/delivery_proof.sql` in Supabase SQL Editor before deploying the updated API and mobile app. The new migration was executed and tested against isolated PostgreSQL via PGlite; it has not been applied to the live Supabase project. This workspace has API credentials but no configured SQL connection or SQL execution connector. No live orders, inventory, or delivery records were changed during testing. Rebuild the native app to include the camera/location permission configuration.

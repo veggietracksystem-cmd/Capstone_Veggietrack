@@ -1,134 +1,97 @@
-﻿# VeggieTrack
+﻿Last reviewed: 2026-09-16
 
-VeggieTrack is a capstone vegetable supply-chain app connecting farmers, a central distributor, retailers, and delivery riders. The Express/Supabase backend serves an Expo/React Native client targeting Android, iOS, and web.
+# VeggieTrack
 
-## Authentication transition
+VeggieTrack connects farmers, a distributor, retailers and riders through an Expo/React Native app, Express API, Supabase Postgres/Auth, Cloudinary, and Leaflet/OSRM maps. The main app is `mobile/`; `VeggieTrack-Clean/` is a separate starter project excluded from EAS uploads.
 
-Supabase phone/password authentication, PhilSMS delivery hook, distributor approval and verified phone changes are implemented in the workspace. Production still requires the reviewed migration, legacy credential import and private provider configuration. Follow [the deployment checklist](AUTH_SUPABASE_SETUP.md); do not deploy the mobile build before its backend/database. The [cleanup report](AUTH_CLEANUP_REPORT.md) describes the earlier preparation checkpoint.
-
-Documentation reviewed: **September 6, 2026**. This describes the current workspace, including delivery-map changes that are still uncommitted. See [STATUS_REPORT.md](STATUS_REPORT.md) for verification and release readiness.
-
-## Roles and features
-
-| Role | Available workflows |
-| --- | --- |
-| Farmer | Record and edit harvests, request pickups, inspect harvest history, export weekly reports |
-| Distributor | Receive pickups into inventory, manage/list stock, approve orders, assign riders, record payments, view inventory reports |
-| Retailer | Browse produce, filter categories, manage cart and saved addresses, select delivery schedules, place/cancel orders, inspect order history and delivery tracking |
-| Delivery personnel | Review assigned pickups/deliveries, accept status workflows, navigate to the hub and retailer, reject deliveries, upload proof and complete deliveries |
-
-Shared functionality includes profile editing, notifications with navigation links, polling-based messaging and unread counts, a user guide, and contact/support screens. A single distributor is enforced by the API and a database constraint.
-
-Inventory supports FIFO batch provenance and stock lifecycle tracking. English and Tagalog translation resources and vegetable-name validation are present; newer tracking screens still contain English-only copy. Offline harvest caching and queued additions/edits support intermittent connectivity; this is not full offline support for every workflow. Reports use PDF printing and sharing, and images use Cloudinary uploads.
-
-The interface uses shared leaf/gold/soil colors, Poppins typography, role dashboards, bottom navigation, cards, modals, and bottom sheets.
-
-## Recent delivery tracking update (pending source commit)
-
-- Shared Leaflet maps use OpenStreetMap tiles in a native WebView or web iframe. The pending changes remove `react-native-maps` and the Android Google Maps metadata.
-- OSRM supplies road geometry, turn instructions, distance, and estimated travel duration through the backend.
-- Rider navigation targets the distributor warehouse before pickup, then the retailer after pickup. GPS is shared while the rider screen is focused and the app is active.
-- Retailer/distributor tracking polls every five seconds and displays the rider, location freshness/accuracy, warehouse, destination, contact, and order items.
-- New orders snapshot the selected delivery pin. Existing orders fall back to a matching saved address, then a matching store location. Missing coordinates produce an explicit message.
-- Tracking access is restricted to the order's retailer, distributor, or assigned rider. Demo simulation does not publish fake GPS or change delivery state.
-- Routing requests are queued, deduplicated, cached, and bounded. GPS remains available if routing fails.
-
-Background/locked-phone tracking, voice guidance, offline navigation, and live traffic are not implemented. Retailer ETA describes the hub-to-destination road route, not a continuously recalculated remaining rider arrival time.
-
-## Tech stack
-
-Versions below are declared in the current package manifests, not claims about the latest upstream releases.
-
-| Layer | Technologies |
-| --- | --- |
-| API | Node.js, Express `^5.2.1`, CommonJS, dotenv, CORS |
-| Database | Supabase PostgreSQL, `@supabase/supabase-js ^2.108.1`, SQL migrations |
-| Authentication | Supabase phone/password Auth, SMS hook, approval flow and verified phone changes; hosted migration/import pending |
-| Client | Expo `^57.0.20`, React Native `0.86.3`, React/React DOM `19.2.3`, React Native Web `^0.21.0` |
-| Navigation/UI | React Navigation 7, safe-area context, gesture handler, Expo vector icons, Poppins fonts |
-| Mapping | Leaflet 1.9.4, OpenStreetMap, OSRM, Nominatim address search, Expo Location, WebView `13.16.1` |
-| Local storage | Expo SQLite, AsyncStorage, NetInfo connectivity detection |
-| Media/reports | Cloudinary unsigned uploads, Expo Image Picker, Print, Sharing |
-| Supporting backend packages | date-fns `^4.4.0`, dotenv, CORS |
-| Builds | Expo CLI, EAS profiles, checked-in Android Gradle project, Expo development client |
+Local implementation is available, but hosted delivery migration, deployment and physical-device acceptance remain pending according to the latest recorded inspection. See [STATUS_REPORT.md](STATUS_REPORT.md) for verification results and release prerequisites.
 
 ## Repository layout
 
-```text
-backend/
-  index.js                 Express API routes
-  lib/                     Vegetable validation and pending tracking service
-  sql/                     Base schema and incremental migrations
-  scripts/                 Maintenance utilities
-  test/                    Pending delivery tracking regression suite
-mobile/
-  App.js                   App entry and navigation
-  android/                 Native Android project
-  EAS_BUILD.md             Build/deployment instructions and known build issues
-  src/api/                 HTTP client and session refresh
-  src/components/          Shared controls and platform-specific map frames
-  src/context/             Authentication state
-  src/hooks/               Pending tracking/GPS hooks
-  src/i18n/                English and Tagalog resources
-  src/lib/                 Maps, geometry, uploads, reports, validation
-  src/offline/             Harvest cache and synchronization queue
-  src/screens/             Role dashboards and workflows
-  src/theme/               Shared design tokens
-VeggieTrack-Clean/          Separate Expo project; main app instructions use mobile/
-```
+| Path | Purpose |
+|---|---|
+| `mobile/` | Main Expo application for all four business roles |
+| `backend/index.js`, `backend/lib/` | Express API, authorization and business logic |
+| `backend/sql/` | Inspections, guarded migrations and historical schema scripts |
+| `backend/test/` | Node regression tests, mobile handler tests and local PGlite integration tests |
+| `VeggieTrack-Clean/` | Separate Expo starter; not the business application |
 
-## Local setup
+## Workflows
 
-Use Node.js compatible with the declared Expo packages, npm, a Supabase project, and Cloudinary configuration for image uploads. Android native development requires the Android SDK/JDK; iOS native builds require macOS/Xcode.
+- Farmer: record harvests, request pickups, view history and export reports. Existing offline harvest caching/queues remain.
+- Distributor: assign pickups, receive traceable inventory batches, list vegetables, approve orders, assign riders, record payments and inspect reports.
+- Retailer: browse listed stock, order at least 5 kg, save a delivery pin and future schedule, and track delivery.
+- Rider: follow the assigned delivery to the warehouse, mark picked up/in transit, then navigate to the order destination and submit proof.
+- Shared: profile photos, messages, notifications, account approval, Supabase phone/password authentication and verified phone changes.
 
-From the repository root, set up the backend:
+## Asynchronous screen updates
 
-```powershell
-cd backend
-npm.cmd ci
-Copy-Item .env.example .env
-```
+The app uses React state and authenticated asynchronous API requests. Updated lists refresh on return while preserving screen selections, and stale responses are ignored. Synchronous request locks protect the updated forms from repeated taps before buttons rerender. Failed operations retain relevant form input or previously loaded data for retry.
 
-Configure `PORT`, `NODE_ENV`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_KEY` in `backend/.env`. Keep service credentials on the backend and never commit `.env` files. No SMS credential is needed for this cleanup.
+The latest updates cover harvests, pickups, inventory, checkout, orders, addresses, profiles, messages and notifications. Farmer offline queue operations are serialized to prevent concurrent replay. Rider pickup cards render across dashboard sections, and order details refresh from the API instead of relying only on navigation snapshots. These UI changes require no additional database migration. See [AJAX_IMPLEMENTATION_REPORT.md](AJAX_IMPLEMENTATION_REPORT.md) for screen-level coverage and limitations.
 
-For a new database, review and apply [schema_complete.sql](backend/sql/schema_complete.sql), then [veggietrack_fixes.sql](backend/sql/veggietrack_fixes.sql) and [fifo_inventory_upgrade.sql](backend/sql/fifo_inventory_upgrade.sql). Review `add_image_urls.sql` and `delivery_reject.sql` for the corresponding schema additions. Existing databases need only applicable migrations; the base schema is not a universal rerunnable installer. `reset_data.sql` is a destructive reset utility, not a setup migration.
+## Delivery, GPS and proof
 
-Before deploying the pending tracking implementation, also apply `backend/sql/delivery_tracking_maps.sql` from that implementation. It adds order destination coordinates and rider GPS accuracy without deleting existing records.
+The backend resolves the destination consistently for tracking and completion: order coordinate snapshot, then one unambiguous matching saved address pin, then a matching store pin. It rejects missing or ambiguous coordinates instead of guessing.
 
-```powershell
-npm.cmd run dev
-```
+| Policy | Value |
+|---|---|
+| `BASE_DELIVERY_RADIUS_METERS` | 100 m |
+| `MAX_ACCURACY_ALLOWANCE_METERS` | 50 m |
+| `STALE_LOCATION_SECONDS` | 60 s |
+| `MAX_ACCEPTABLE_GPS_ACCURACY_METERS` | 100 m |
 
-In another terminal, from the repository root:
+The effective radius is `100 + min(accuracy, 50)` meters. Distance is Haversine/geodesic, never road distance. Accuracy above 100 m cannot widen the fence. The phone requests multiple fresh high-accuracy fixes during a bounded 10-second refinement period and uses the most accurate acceptable sample. Permission/services checks have a separate bounded deadline. Known mocked fixes are rejected. The delivery screen offers **Refresh Location**, distance and accuracy diagnostics.
 
-```powershell
-cd mobile
-npm.cmd ci
-Copy-Item .env.example .env
-```
+The flow is: open delivery -> refine GPS -> verify the actual destination and effective radius -> capture/select proof -> submit -> verify again -> upload to Cloudinary -> refresh GPS after the upload -> backend and PostgreSQL validate -> atomically save proof and delivered statuses -> confirm in the UI. A failed attempt retains the photo; a backend retry reuses its successful upload. Only explicit backend confirmation completes the UI. Duplicate taps share one operation; status changes cannot overlap submission on the screen.
 
-Set `BACKEND_URL` to the backend reachable by the device, plus `CLOUDINARY_CLOUD_NAME` and `CLOUDINARY_UPLOAD_PRESET`. For a physical phone, use your computer's LAN IP during local development rather than `localhost`.
+Cloudinary uploads and API fetches have 30-second timeouts. Upload configuration, file preparation, upload rejection, real offline, unreachable API, expired session, backend rejection and server failure have distinct handling. Only NetInfo reporting offline produces the offline message. Authentication tokens come from the current Supabase session, never a bundled service credential.
 
-```powershell
-npm.cmd start        # Metro / Expo development server
-npm.cmd run android # Build/run the native Android app
-npm.cmd run ios     # Build/run iOS on macOS
-npm.cmd run web     # Web preview
-```
+## Live tracking and ETA
 
-On macOS/Linux use `npm` and copy examples with `cp`. Use a compatible development client for native testing.
+There is one **LIVE ETA** for the current leg: rider to warehouse before pickup; rider to destination after pickup. It uses the current OSRM route duration, rounded to whole minutes/hours. A retained static warehouse route is not a live ETA. Missing routing or stale GPS displays **ETA unavailable**; GPS publishing remains independent of routing.
 
-## Deployment and verification
+Routes refresh on target change, missing route, 50 m movement, 30-second active-route age, or more than 75 m off-route displacement. Static corridor cache age is five minutes; routing failures are cached for 15 seconds. Backend routing is serialized/deduplicated. GPS writes use capture timestamps; polling aborts on cleanup and guards late responses. Tracking runs while the rider navigation screen is focused and the app is active. Locked-phone/background tracking, offline navigation, voice guidance and live traffic are not implemented.
 
-Deploy `backend/` to a Node host with the backend environment variables. For the pending maps implementation, optional variables are `OSRM_BASE_URL`, `MAP_TILE_URL`, `MAP_TILE_ATTRIBUTION`, and `MAPS_USER_AGENT`; `OSRM_BASE_URL=disabled` disables directions while keeping GPS tracking. Default public map services have capacity and availability limits; see [mobile/EAS_BUILD.md](mobile/EAS_BUILD.md) for configuration and deployment sequencing.
+## Setup and configuration
 
-Run EAS from `mobile/`. The `development` profile creates a development client, `preview` is for internal distribution, and `production` is for store delivery. Set the backend URL and Cloudinary variables in the corresponding EAS environment before building. Rebuild the native binary after map dependency changes.
+Install locked dependencies with `npm ci --prefix backend` and `npm ci --prefix mobile`. Copy each `.env.example` to its ignored `.env`, then configure the appropriate variables. Never commit `.env`.
 
-From the repository root, the current workspace can be checked with:
+Mobile variables: `BACKEND_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_UPLOAD_PRESET`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`. Optional: `IOS_BUNDLE_IDENTIFIER`. The Cloudinary preset must allow unsigned image uploads. A device needs a reachable backend URL; localhost refers to the phone itself.
+
+Backend variables: `PORT`, `NODE_ENV`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `CLOUDINARY_CLOUD_NAME`. Authentication/SMS configuration: `SEND_SMS_HOOK_SECRET`, `PHILSMS_API_TOKEN`, `PHILSMS_SENDER_ID`, `PHILSMS_DELIVERY_ENABLED`. Optional mapping/diagnostics: `OSRM_BASE_URL`, `MAP_TILE_URL`, `MAP_TILE_ATTRIBUTION`, `MAPS_USER_AGENT`, `DEBUG_DELIVERY_LOCATION`.
+
+Babel reads the three public upload/API variables from local dotenv or the EAS process environment. The development, preview and production EAS profiles explicitly select matching environments. Supabase public configuration uses Expo public variables. Never put service-role keys, PhilSMS tokens or Cloudinary secrets in mobile. See [EAS build notes](mobile/EAS_BUILD.md) and [Auth setup](AUTH_SUPABASE_SETUP.md).
+
+## Database and deployment
+
+The September 16 read-only hosted inspection recorded in [DELIVERY_RELIABILITY_REPORT.md](DELIVERY_RELIABILITY_REPORT.md) found the destination snapshot columns, rider accuracy, POD column and completion/status RPCs missing. This documentation update did not re-inspect or modify the hosted database. **Deploy the database before the API and rebuilt mobile app.**
+
+Use the complete guarded rollout in [delivery_location_policy.sql](backend/sql/delivery_location_policy.sql). It includes an inspection query and aborts on incompatible schema. It adds only missing required columns and installs the current functions, schedule trigger and access restrictions. It supersedes `delivery_tracking_maps.sql` plus `delivery_proof.sql` for this rollout; do not subsequently reapply the historical proof function and restore its old radius policy. Existing Auth and avatar migrations are separate; do not rerun them blindly. Hosted avatar columns were present in the latest read-only audit.
+
+The older `schema_complete.sql` and incremental inventory scripts are historical setup sources, not a complete universal installer for the current hosted schema. In particular, saved-address/tracking tables and some hosted runtime columns originated outside that base file. Do not run `reset_data.sql` as a migration.
+
+## Run and verify
 
 ```powershell
-node --check backend/index.js
+npm.cmd run dev --prefix backend
+npm.cmd start --prefix mobile
 npm.cmd test --prefix backend
+node --check backend/index.js
+Get-ChildItem backend/lib -Filter *.js | ForEach-Object { node --check $_.FullName }
+cd mobile
+npx.cmd --no-install expo export --platform web --output-dir .expo/delivery-verification/web
 ```
 
-The backend test suite covers authentication boundaries and delivery/checkout/POD regressions. These checks do not validate a live database, production deployment, or device build. The build guide records unresolved local native compilation issues; a successful release APK/EAS build and two-device delivery acceptance check remain to be verified.
+The test suite includes Auth/security, avatars, checkout, cross-role inventory handoff, POD/upload retry, GPS/radius, ETA and local PostgreSQL/PGlite migration checks. Main mobile has no configured lint/typecheck script. A successful web export does not validate a native release or real GPS/camera/provider setup. See [delivery verification report](DELIVERY_RELIABILITY_REPORT.md) for results, remaining deployment work and a rider-phone test script.
+
+The asynchronous UI report also records successful Web, Android and iOS/Hermes production bundles. These are bundle checks, not signed release builds or hosted end-to-end acceptance. For optional starter-only checks, run `npm.cmd run lint --prefix VeggieTrack-Clean`, then run `npx.cmd --no-install tsc --noEmit` from `VeggieTrack-Clean/`.
+
+## Related documentation
+
+- [Current project status](STATUS_REPORT.md)
+- [Asynchronous UI changes and verification](AJAX_IMPLEMENTATION_REPORT.md)
+- [Delivery reliability, guarded SQL and manual rider tests](DELIVERY_RELIABILITY_REPORT.md)
+- [Supabase authentication and SMS setup](AUTH_SUPABASE_SETUP.md)
+- [Profile photo implementation and hosted verification limits](CHUNK1_AVATARS_REPORT.md)
+- [EAS build and environment setup](mobile/EAS_BUILD.md)

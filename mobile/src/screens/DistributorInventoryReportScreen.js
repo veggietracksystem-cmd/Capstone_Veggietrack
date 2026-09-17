@@ -1,3 +1,5 @@
+import useLatestRequest from '../hooks/useLatestRequest';
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -95,6 +97,7 @@ function ReportTable({ columns, rows, emptyLabel }) {
 }
 
 export default function DistributorInventoryReportScreen({ navigation }) {
+  const beginRead = useLatestRequest();
   const { t } = useTranslation();
   const DISTRIBUTOR_TABS = DISTRIBUTOR_TABS_KEYS.map((tab) => ({ ...tab, label: t(tab.labelKey) }));
   const handleBottomTabPress = (tab) => {
@@ -111,10 +114,13 @@ export default function DistributorInventoryReportScreen({ navigation }) {
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
+    const isCurrent = beginRead('load');
     try {
       const data = await api.get('/api/distributor/inventory-report');
+      if (!isCurrent()) return;
       setRows(Array.isArray(data) ? data : []);
     } catch (err) {
+      if (!isCurrent()) return;
       showAlert(t('common.error'), err.message);
     }
   }, [t]);
@@ -126,6 +132,8 @@ export default function DistributorInventoryReportScreen({ navigation }) {
       setLoading(false);
     })();
   }, [load]);
+
+  useRefreshOnFocus(load);
 
   const onRefresh = async () => {
     setRefreshing(true);

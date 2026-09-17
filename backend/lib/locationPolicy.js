@@ -1,4 +1,4 @@
-// Keep these values aligned with mobile/src/lib/locationPolicy.js and
+// Keep these values aligned with mobile/src/lib/deliveryLocation.js and
 // sql/delivery_location_policy.sql. GPS uncertainty is capped, never unlimited.
 const BASE_DELIVERY_RADIUS_METERS = 100;
 const MAX_ACCURACY_ALLOWANCE_METERS = 50;
