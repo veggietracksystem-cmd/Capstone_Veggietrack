@@ -19,7 +19,7 @@ import BottomSheet from '../components/BottomSheet';
 import FarmerProfileTab from './FarmerProfileTab';
 import MessagesScreen from './MessagesScreen';
 import { showAlert, confirmAction } from '../lib/ui';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, radius, shadowCard, fontSize } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 import { getVegetableIcon } from '../lib/vegetableIcons';
@@ -1088,10 +1088,10 @@ const styles = StyleSheet.create({
   content: { padding: 16 },
 
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14 },
-  pageTitle: { fontFamily: fonts.heading, fontSize: rf(20), color: colors.ink },
-  pageSubtitle: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginTop: 2 },
+  pageTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
+  pageSubtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
 
-  notifHeaderTitle: { fontFamily: fonts.heading, fontSize: rf(20), color: colors.ink },
+  notifHeaderTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
 
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20 },
   statusOnline: { backgroundColor: colors.leaf100 },
@@ -1099,7 +1099,7 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusDotOnline: { backgroundColor: colors.leaf500 },
   statusDotOffline: { backgroundColor: colors.inkFaint },
-  statusLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: colors.leaf900 || colors.leaf700 },
+  statusLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf900 || colors.leaf700 },
   statusLabelOffline: { color: colors.inkSoft },
 
   iconBtn: {
@@ -1112,14 +1112,14 @@ const styles = StyleSheet.create({
   },
 
   syncBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.gold100, borderRadius: 12, padding: 10, marginBottom: 14 },
-  syncBannerText: { flex: 1, fontFamily: fonts.body, fontSize: rf(12), color: colors.gold700 },
+  syncBannerText: { flex: 1, fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.gold700 },
 
   summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   statCard: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, ...shadowCard },
   statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(12), color: colors.inkSoft },
-  statValue: { fontFamily: fonts.heading, fontSize: rf(24), marginTop: 6, color: colors.ink },
-  statSub: { fontFamily: fonts.bodySemiBold, fontSize: rf(11.5), marginTop: 2, color: colors.leaf700 },
+  statLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft },
+  statValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), marginTop: 6, color: colors.ink },
+  statSub: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), marginTop: 2, color: colors.leaf700 },
   statSubGold: { color: colors.gold700 },
   weave: { marginTop: 10, height: 7, borderRadius: 6, backgroundColor: colors.leaf100, overflow: 'hidden' },
   weaveFill: { height: '100%', borderRadius: 6, backgroundColor: colors.leaf500 },
@@ -1129,12 +1129,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.leaf700, borderRadius: 16, paddingVertical: 15, marginBottom: 6,
   },
-  addCtaText: { fontFamily: fonts.heading, fontSize: rf(15.5), color: '#fff' },
+  addCtaText: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: '#fff' },
 
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 14 },
-  sectionHeadTitle: { fontFamily: fonts.heading, fontSize: rf(16), color: colors.ink },
+  sectionHeadTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink },
   linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  linkBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: colors.leaf700 },
+  linkBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
 
   vegCard: {
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 14,
@@ -1142,104 +1142,104 @@ const styles = StyleSheet.create({
   },
   vegEmoji: { width: 42, height: 42, borderRadius: 11, backgroundColor: colors.leaf50, alignItems: 'center', justifyContent: 'center' },
   vegInfo: { flex: 1, minWidth: 0 },
-  vegName: { fontFamily: fonts.bodySemiBold, fontSize: rf(14.5), color: colors.ink, textTransform: 'capitalize' },
-  vegMeta: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkSoft, marginTop: 2 },
+  vegName: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
+  vegMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
   pill: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 20 },
-  pillText: { fontFamily: fonts.bodyBold, fontSize: rf(11) },
+  pillText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs) },
   editIconBtn: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
 
   btnOutlineSm: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.4, borderColor: colors.leaf700 },
-  btnOutlineSmText: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: colors.leaf700 },
+  btnOutlineSmText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
 
   btnOutlineBlock: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.card, borderWidth: 1.4, borderColor: colors.leaf700, borderRadius: radius.ctrl,
     paddingVertical: 13, marginBottom: 14,
   },
-  btnOutlineText: { fontFamily: fonts.bodySemiBold, fontSize: rf(14.5), color: colors.leaf700 },
+  btnOutlineText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.leaf700 },
 
   selectToggle: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.4, borderColor: colors.leaf700, backgroundColor: colors.card },
   selectToggleOn: { backgroundColor: colors.leaf700 },
-  selectToggleText: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: colors.leaf700 },
+  selectToggleText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
   selectToggleTextOn: { color: '#fff' },
 
   emptyContainer: { alignItems: 'center', paddingVertical: 50, paddingHorizontal: 24, gap: 6 },
-  emptyTitle: { fontFamily: fonts.bodyBold, fontSize: rf(14.5), color: colors.inkSoft },
-  emptySubtitle: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkFaint, textAlign: 'center' },
+  emptyTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.inkSoft },
+  emptySubtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, textAlign: 'center' },
 
   cartBar: {
     position: 'absolute', left: 12, right: 12, bottom: 88, backgroundColor: colors.ink,
     borderRadius: 16, padding: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 10,
   },
-  cartBarText: { fontFamily: fonts.body, fontSize: rf(13), color: '#fff', flexShrink: 1 },
+  cartBarText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: '#fff', flexShrink: 1 },
   cartBarCount: { fontFamily: fonts.bodyBold, color: colors.gold500 },
   cartBarBtn: { backgroundColor: colors.gold500, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 14 },
-  cartBarBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(13), color: colors.soil800 },
+  cartBarBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), color: colors.soil800 },
 
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(12.5), color: colors.inkSoft, marginBottom: 6, marginTop: 8 },
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 6, marginTop: 8 },
   input: {
     backgroundColor: '#fff', borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.border,
-    padding: 11, fontFamily: fonts.body, fontSize: rf(14.5), color: colors.ink,
+    padding: 11, fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink,
   },
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   chipActive: { backgroundColor: colors.leaf700, borderColor: colors.leaf700 },
-  chipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(13) },
+  chipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(fontSize.sm) },
   chipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
 
   btnPrimaryBlock: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.leaf700, borderRadius: radius.ctrl, paddingVertical: 13, marginTop: 16,
   },
-  btnPrimaryBlockText: { fontFamily: fonts.bodySemiBold, fontSize: rf(14.5), color: '#fff' },
+  btnPrimaryBlockText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: '#fff' },
   btnDisabled: { opacity: 0.6 },
   btnDangerBlock: {
     flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.ctrl,
     paddingVertical: 13, marginTop: 16, backgroundColor: '#fff', borderWidth: 1.4, borderColor: colors.danger,
   },
-  btnDangerBlockText: { fontFamily: fonts.bodySemiBold, fontSize: rf(14.5), color: colors.danger },
+  btnDangerBlockText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.danger },
   formButtons: { flexDirection: 'row', gap: 10 },
   lockedNote: {
-    fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, fontStyle: 'italic',
+    fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, fontStyle: 'italic',
     marginTop: 16, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 12, textAlign: 'center',
   },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end', zIndex: 9999, elevation: 9999 },
   modalCard: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, paddingBottom: 30 },
   modalHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 6 },
-  modalTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, flexShrink: 1 },
+  modalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, flexShrink: 1 },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   stepperBtn: { width: 44, height: 44, borderRadius: radius.ctrl, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
-  stepperBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(20), color: colors.leaf700 },
+  stepperBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.title), color: colors.leaf700 },
   stepperValueBox: { flex: 1, backgroundColor: colors.card, borderWidth: 1.4, borderColor: colors.border, borderRadius: radius.ctrl, paddingVertical: 12, alignItems: 'center' },
-  stepperValueText: { fontFamily: fonts.bodySemiBold, fontSize: rf(15), color: colors.ink },
+  stepperValueText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
 
-  sheetHint: { fontFamily: fonts.body, fontSize: rf(12.5), color: colors.inkSoft, marginBottom: 12, marginTop: -4 },
+  sheetHint: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 12, marginTop: -4 },
   reportWrap: { borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, padding: 6 },
   reportHeaderRow: { flexDirection: 'row', borderBottomWidth: 1.5, borderBottomColor: colors.border, paddingVertical: 6, paddingHorizontal: 6 },
-  reportHeaderCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyBold, fontSize: rf(10.5), color: colors.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3, paddingRight: 6 },
+  reportHeaderCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3, paddingRight: 6 },
   reportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
-  reportCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyMedium, fontSize: rf(12), color: colors.ink, paddingRight: 6 },
+  reportCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.ink, paddingRight: 6 },
   reportActionsRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
   reportActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.leaf700 },
-  reportActionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: colors.leaf700 },
+  reportActionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
 
   historyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
-  historyWeek: { fontFamily: fonts.bodySemiBold, fontSize: rf(14), color: colors.ink },
-  historyKg: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkSoft, marginTop: 2 },
+  historyWeek: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
+  historyKg: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
   historyBreakdown: { marginTop: 10, gap: 6 },
   historyBreakdownRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, paddingHorizontal: 10, backgroundColor: colors.leaf50, borderRadius: 10 },
-  historyBreakdownCrop: { fontFamily: fonts.bodySemiBold, fontSize: rf(12.5), color: colors.ink, flex: 1, marginRight: 8, textTransform: 'capitalize' },
-  historyBreakdownValue: { fontFamily: fonts.bodyBold, fontSize: rf(12), color: colors.leaf700 },
+  historyBreakdownCrop: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.ink, flex: 1, marginRight: 8, textTransform: 'capitalize' },
+  historyBreakdownValue: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
 
   trashBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   cartTotalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 2, borderTopWidth: 1, borderTopColor: colors.border, marginTop: 6 },
-  cartTotalLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(14), color: colors.ink },
-  cartTotalValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(14), color: colors.ink },
+  cartTotalLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
+  cartTotalValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
 
   confirmWrap: { alignItems: 'center', paddingVertical: 20 },
   confirmBadge: { width: 66, height: 66, borderRadius: 33, backgroundColor: colors.leaf100, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  confirmTitle: { fontFamily: fonts.heading, fontSize: rf(19), color: colors.ink, marginBottom: 8 },
-  confirmBody: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, textAlign: 'center', maxWidth: 280, lineHeight: 19, marginBottom: 22 },
+  confirmTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink, marginBottom: 8 },
+  confirmBody: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, textAlign: 'center', maxWidth: 280, lineHeight: 19, marginBottom: 22 },
 });

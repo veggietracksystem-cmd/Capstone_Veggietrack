@@ -12,8 +12,9 @@ import { isOnline } from '../offline/net';
 import DeliveryMapModal from '../components/DeliveryMapModal';
 import ProofPreviewModal from '../components/ProofPreviewModal';
 import CustomModal from '../components/CustomModal';
+import ScreenHeader from '../components/ScreenHeader';
 import { showAlert, peso, shortId } from '../lib/ui';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { statusColor, formatStatus, getDelivery, effectiveStatus, STATUS_RANK } from './DeliveryDashboard';
 import { rf } from '../lib/responsive';
@@ -89,13 +90,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
   if (!order) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={styles.back}>‹ {t('common.back')}</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>{t('deliveryDetails.title')}</Text>
-          <View style={{ width: 50 }} />
-        </View>
+        <ScreenHeader title={t('deliveryDetails.title')} onBack={() => navigation.goBack()} />
       </SafeAreaView>
     );
   }
@@ -244,13 +239,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.back}>‹ {t('common.back')}</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('deliveryDetails.title')}</Text>
-        <View style={{ width: 50 }} />
-      </View>
+      <ScreenHeader title={t('deliveryDetails.title')} onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
@@ -440,54 +429,51 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  back: { color: PRIMARY, fontSize: rf(16), fontFamily: fonts.bodySemiBold, width: 50 },
-  title: { fontSize: rf(19), fontFamily: fonts.heading, color: colors.ink },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
 
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  orderId: { fontFamily: fonts.bodyBold, fontSize: rf(16), color: colors.ink },
+  orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   statusBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(12) },
+  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm) },
 
-  summaryLine: { fontSize: rf(14), marginTop: 4 },
+  summaryLine: { fontSize: rf(fontSize.md), marginTop: 4 },
   summaryLabel: { fontFamily: fonts.body, color: colors.inkSoft },
   summaryValue: { fontFamily: fonts.bodyBold, color: PRIMARY },
 
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 14 },
 
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(15), color: colors.ink, marginBottom: 8 },
-  entityName: { fontFamily: fonts.bodyBold, fontSize: rf(14.5), color: colors.ink, marginBottom: 2 },
-  subLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(11), color: colors.inkFaint, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 },
-  rowMeta: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 8 },
+  entityName: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, marginBottom: 2 },
+  subLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkFaint, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 },
+  rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   routeBtnCentered: { alignSelf: 'center', marginTop: 4, paddingVertical: 10, paddingHorizontal: 28, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY },
-  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(14) },
+  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.md) },
 
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
-  itemName: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: rf(14), color: colors.ink, textTransform: 'capitalize' },
-  itemQty: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginRight: 10 },
-  itemPrice: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft },
+  itemName: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
+  itemQty: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginRight: 10 },
+  itemPrice: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
 
   // Delivery Progress: completed steps render as an indicator row (no action),
   // the single next step renders as the actionable button below it.
   stepDoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
-  stepDoneText: { fontFamily: fonts.bodySemiBold, fontSize: rf(14), color: PRIMARY },
+  stepDoneText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: PRIMARY },
   stepActionBtn: { paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY, backgroundColor: colors.card, marginBottom: 8 },
-  stepActionBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(14) },
+  stepActionBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md) },
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 4 },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15.5) },
+  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
   buttonDisabled: { opacity: 0.6 },
 
   rejectBtn: { paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 10, borderWidth: 1.5, borderColor: colors.danger },
-  rejectBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(13.5) },
+  rejectBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md) },
 
   reasonWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   reasonChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   reasonChipActive: { backgroundColor: colors.danger, borderColor: colors.danger },
-  reasonChipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(13) },
+  reasonChipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(fontSize.sm) },
   reasonChipTextActive: { color: '#fff', fontFamily: fonts.bodySemiBold },
-  reasonInput: { marginTop: 10, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, padding: 10, fontFamily: fonts.body, fontSize: rf(14), color: colors.ink, minHeight: 70, textAlignVertical: 'top' },
+  reasonInput: { marginTop: 10, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, padding: 10, fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink, minHeight: 70, textAlignVertical: 'top' },
 });

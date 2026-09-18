@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { confirmAction } from '../lib/ui';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import CustomModal from '../components/CustomModal';
 import UserGuideModal from '../components/UserGuideModal';
@@ -148,8 +148,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.leaf700,
   },
-  avatarText: { fontFamily: fonts.heading, fontSize: rf(28), color: colors.leaf700 },
-  userName: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 4 },
+  avatarText: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: colors.leaf700 },
+  userName: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 4 },
   roleBadge: {
     backgroundColor: colors.leaf100,
     borderRadius: 12,
@@ -157,9 +157,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 6,
   },
-  roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(11), color: colors.leaf700, letterSpacing: 0.5 },
-  phoneText: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft },
-  locationText: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginTop: 2 },
+  roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.leaf700, letterSpacing: 0.5 },
+  phoneText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
+  locationText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
 
   // Section Card
   sectionCard: {
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadowCard,
   },
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(16), color: colors.ink, marginBottom: 12 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 12 },
 
   menuItem: {
     flexDirection: 'row',
@@ -182,13 +182,13 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   menuItemLast: { borderBottomWidth: 0 },
-  menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(14), color: colors.ink },
-  chevron: { fontSize: rf(18), color: colors.inkFaint, fontWeight: '600' },
+  menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
+  chevron: { fontSize: rf(fontSize.xl), color: colors.inkFaint, fontWeight: '600' },
 
   dangerSection: { gap: 10 },
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   buttonOutline: { borderWidth: 1.4, borderColor: colors.leaf700, backgroundColor: colors.card },
-  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(15) },
+  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(fontSize.lg) },
 
   // Language modal rows
   langRow: {
@@ -199,6 +199,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  langRowText: { fontFamily: fonts.bodySemiBold, fontSize: rf(15), color: colors.ink },
-  langCheck: { fontFamily: fonts.bodyBold, fontSize: rf(16), color: colors.leaf700 },
+  langRowText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
+  langCheck: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.leaf700 },
 });

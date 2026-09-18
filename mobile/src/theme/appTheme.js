@@ -1,30 +1,49 @@
-// Shared design tokens for the whole app, matching the approved Farmer
-// module mockup (leaf/gold/soil palette, Baloo 2 headings + Inter body).
-// Applied system-wide so every role's UI shares one visual language.
+// Shared design tokens for the whole app. These are the implementation-safe
+// parts of the approved redesign: the same palette can be used by every role
+// without changing any authentication, inventory, delivery, or offline flow.
 export const colors = {
-  bgScreen: '#FDFDFD',
-  leaf900: '#1F4A27',
+  bgScreen: '#FBF7EE',
+  leaf900: '#123005',
   leaf700: '#1E4E09',
-  leaf500: '#3F8A4C',
-  leaf100: '#E1EEDD',
-  leaf50: '#EEF5EA',
-  gold700: '#B9791E',
-  gold500: '#E3A23C',
-  gold100: '#FBEBCE',
-  soil800: '#4A3221',
-  soil600: '#7A5233',
-  soil300: '#C9B79E',
-  ink: '#2B2620',
-  inkSoft: '#6B6255',
-  inkFaint: '#9A9182',
+  leaf500: '#3C7A1E',
+  leaf100: '#E7F0DD',
+  leaf50: '#F2F7ED',
+  gold700: '#B4740E',
+  gold500: '#F2A93B',
+  gold100: '#FBF0DA',
+  soil800: '#24301C',
+  soil600: '#6E7566',
+  soil300: '#E8E2D2',
+  ink: '#24301C',
+  inkSoft: '#6E7566',
+  inkFaint: '#9AA290',
   card: '#FFFFFF',
-  border: '#E7DFCE',
-  danger: '#B94A3B',
+  border: '#E8E2D2',
+  danger: '#B3261E',
+  dangerSoft: '#FBE7E5',
+  info: '#1D4ED8',
+  infoSoft: '#E4EBFB',
+  purple: '#6D28D9',
+  purpleSoft: '#EEE7FB',
 };
 
 export const radius = {
-  card: 18,
-  ctrl: 12,
+  card: 14,
+  ctrl: 10,
+  sheet: 22,
+};
+
+// Single font-size scale for the whole app. Every screen should reference
+// these tokens (via rf(fontSize.x)) instead of ad hoc numeric sizes, so
+// headers/body/labels/buttons read consistently across every role.
+export const fontSize = {
+  xs: 11,
+  sm: 12.5,
+  md: 14,
+  lg: 16,
+  xl: 18,
+  title: 20,
+  h1: 26,
 };
 
 export const fonts = {
@@ -38,9 +57,7 @@ export const fonts = {
 };
 
 export const shadowCard = {
-  shadowColor: '#2B2620',
-  shadowOffset: { width: 0, height: 6 },
-  shadowOpacity: 0.06,
-  shadowRadius: 16,
-  elevation: 2,
+  // Supported by current Expo/RN targets and maps to the redesign's soft,
+  // green-tinted card shadow on native and web.
+  boxShadow: '0 6px 20px rgba(30, 78, 9, 0.12)',
 };

@@ -40,12 +40,18 @@ export function AuthProvider({ children }) {
   const {data:{subscription}}=supabase.auth.onAuthStateChange(()=>{setTimeout(()=>{if(alive.current)void refreshProfile();},0);});
   const timer=setInterval(()=>{if(AppState.currentState==='active')void refreshProfile();},15000);
   const appSub=AppState.addEventListener('change',state=>{
-   if(state==='active'){supabase.auth.startAutoRefresh();setUser(null);void refreshProfile();}
+   // Re-check status in the background on foreground, but don't blank the
+   // already-known user first - that briefly routed active users through
+   // ApplicationStatusScreen on every app open before refreshProfile()
+   // resolved. refreshProfile() still clears/updates user itself once the
+   // recheck completes, so a real status change is never missed.
+   if(state==='active'){supabase.auth.startAutoRefresh();void refreshProfile();}
    else {supabase.auth.stopAutoRefresh();setUser(null);}
   });
   return ()=>{alive.current=false;generation.current++;subscription.unsubscribe();appSub.remove();clearInterval(timer);setUnauthorizedHandler(null);setBlockedHandler(null);setTokenProvider(null);};
  },[]);
  const signIn=async(phone,password)=>{const {error}=await supabase.auth.signInWithPassword({phone,password});if(error)throw error;await refreshProfile();};
- return <AuthContext.Provider value={{user,session,token:session?.access_token,loading,initialRoute,statusError,recoveryMode,setRecoveryMode,signIn,signOut,refreshProfile,updateUser:refreshProfile}}>{children}</AuthContext.Provider>;
+ const signInWithEmail=async(email,password)=>{const {error}=await supabase.auth.signInWithPassword({email,password});if(error)throw error;await refreshProfile();};
+ return <AuthContext.Provider value={{user,session,token:session?.access_token,loading,initialRoute,statusError,recoveryMode,setRecoveryMode,signIn,signInWithEmail,signOut,refreshProfile,updateUser:refreshProfile}}>{children}</AuthContext.Provider>;
 }
 export function useAuth(){return useContext(AuthContext);}

@@ -26,7 +26,7 @@ import AddToCartFlyOverlay from '../components/AddToCartFlyOverlay';
 import { getVegetableTile, getVegetableIcon } from '../lib/vegetableIcons';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { useAutoSync } from '../sync/SyncProvider';
 
@@ -686,29 +686,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  minimalTitle: { fontFamily: fonts.heading, fontSize: rf(19), color: colors.ink },
+  minimalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontFamily: fonts.heading, fontSize: rf(22), color: colors.ink },
-  subtitle: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
+  title: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
+  subtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
   content: { padding: 16, paddingBottom: 40 },
 
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(17), color: colors.ink, marginBottom: 10 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 10 },
   emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
   // Search bar
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 16 },
-  searchIcon: { fontSize: rf(16), marginRight: 8 },
-  searchInput: { flex: 1, paddingVertical: Platform.OS === 'ios' ? 12 : 8, fontFamily: fonts.body, fontSize: rf(15), color: colors.ink },
-  searchClear: { fontSize: rf(16), color: colors.inkFaint, paddingLeft: 8 },
+  searchIcon: { fontSize: rf(fontSize.lg), marginRight: 8 },
+  searchInput: { flex: 1, paddingVertical: Platform.OS === 'ios' ? 12 : 8, fontFamily: fonts.body, fontSize: rf(fontSize.lg), color: colors.ink },
+  searchClear: { fontSize: rf(fontSize.lg), color: colors.inkFaint, paddingLeft: 8 },
 
   rowCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, gap: 12, ...shadowCard },
   rowTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  rowTileIcon: { fontSize: rf(22) },
-  rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.ink, textTransform: 'capitalize' },
-  rowMeta: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
+  rowTileIcon: { fontSize: rf(fontSize.title) },
+  rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
+  rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
   // Home tab: KPI-style product grid (2 columns).
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
@@ -718,62 +718,62 @@ const styles = StyleSheet.create({
   },
   kpiIconWrap: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   productPhoto: { width: 62, height: 62, borderRadius: 16, marginBottom: 8, backgroundColor: colors.leaf50 },
-  kpiIcon: { fontSize: rf(26) },
-  kpiName: { fontFamily: fonts.bodyBold, fontSize: rf(14.5), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
-  kpiPrice: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: PRIMARY, marginTop: 4, textAlign: 'center' },
-  kpiMeta: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkSoft, marginTop: 2, textAlign: 'center' },
+  kpiIcon: { fontSize: rf(fontSize.h1) },
+  kpiName: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
+  kpiPrice: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY, marginTop: 4, textAlign: 'center' },
+  kpiMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2, textAlign: 'center' },
   kpiAddBtn: { marginTop: 10, backgroundColor: PRIMARY, paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, alignSelf: 'stretch' },
-  kpiAddBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(13), textAlign: 'center' },
+  kpiAddBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm), textAlign: 'center' },
   productModalPhoto: { width: '100%', height: 210, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 },
   productModalFallback: { height: 160, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   productModalIcon: { fontSize: rf(72) },
-  productModalPrice: { fontFamily: fonts.heading, fontSize: rf(19), color: PRIMARY, marginTop: 12 },
+  productModalPrice: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: PRIMARY, marginTop: 12 },
   productModalMeta: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, marginTop: 4 },
-  productModalHint: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(13), marginTop: 10 },
+  productModalHint: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(fontSize.sm), marginTop: 10 },
 
   smallBtnFilled: { backgroundColor: PRIMARY, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.ctrl },
-  smallBtnFilledText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(13) },
+  smallBtnFilledText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm) },
 
   cartCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: colors.border, gap: 12, ...shadowCard },
   qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   qtyBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1.4, borderColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
-  qtyBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(18) },
-  qtyValue: { minWidth: 24, textAlign: 'center', fontFamily: fonts.bodySemiBold, fontSize: rf(15), color: colors.ink },
+  qtyBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.xl) },
+  qtyValue: { minWidth: 24, textAlign: 'center', fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
   removeBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#FBEAE8', alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
-  removeBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(14) },
+  removeBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md) },
 
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: colors.border },
-  summaryLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(15), color: colors.ink },
-  summaryTotal: { fontFamily: fonts.heading, fontSize: rf(19), color: PRIMARY },
+  summaryLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
+  summaryTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: PRIMARY },
 
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(12.5), color: colors.inkSoft, marginTop: 10, marginBottom: 6 },
-  input: { backgroundColor: colors.card, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: rf(15), borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 10, marginBottom: 6 },
+  input: { backgroundColor: colors.card, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: rf(fontSize.lg), borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center' },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15.5) },
+  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
   buttonDisabled: { opacity: 0.6 },
 
   orderCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  orderId: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.ink },
-  orderTotal: { fontFamily: fonts.heading, fontSize: rf(17), color: PRIMARY, marginBottom: 4 },
+  orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
+  orderTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: PRIMARY, marginBottom: 4 },
   statusBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(12), textTransform: 'capitalize' },
+  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm), textTransform: 'capitalize' },
   itemsBox: { backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10, marginTop: 8 },
-  itemLine: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginBottom: 2 },
-  cancelledNote: { fontFamily: fonts.body, fontSize: rf(13), color: colors.danger, fontStyle: 'italic', marginTop: 8 },
+  itemLine: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 2 },
+  cancelledNote: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.danger, fontStyle: 'italic', marginTop: 8 },
   proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 8 },
   proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: colors.border },
-  proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: PRIMARY },
+  proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
   trackBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY },
-  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(13.5) },
+  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md) },
   cancelBtn: { borderColor: colors.danger, backgroundColor: colors.card },
-  cancelBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(13.5) },
+  cancelBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md) },
   detailsBtn: { borderColor: colors.border, backgroundColor: colors.leaf50 },
-  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(13.5) },
+  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
 
   ordersHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   viewHistoryBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY },
-  viewHistoryBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(13) },
+  viewHistoryBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm) },
 });

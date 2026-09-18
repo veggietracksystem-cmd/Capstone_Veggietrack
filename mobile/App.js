@@ -1,6 +1,6 @@
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -41,6 +41,15 @@ import FarmerPickupTrackingScreen from './src/screens/FarmerPickupTrackingScreen
 
 const Stack = createStackNavigator();
 
+// One consistent, fast (250ms) slide-from-right transition for every pushed
+// screen across the auth stack and all four role stacks - no screen opts
+// out or gets a different timing/style.
+const SCREEN_TRANSITION_MS = 250;
+const screenTransitionSpec = {
+  open: { animation: 'timing', config: { duration: SCREEN_TRANSITION_MS } },
+  close: { animation: 'timing', config: { duration: SCREEN_TRANSITION_MS } },
+};
+
 // Maps backend role strings to their dashboard component + route name.
 const ROLE_SCREENS = {
   farmer: { name: 'FarmerDashboard', component: FarmerDashboard },
@@ -66,7 +75,12 @@ function RootNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        screenOptions={{ headerShown: false, cardStyle: { flex: 1 } }}
+        screenOptions={{
+          headerShown: false,
+          cardStyle: { flex: 1 },
+          transitionSpec: screenTransitionSpec,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
         initialRouteName={roleScreen ? roleScreen.name : initialRoute}
       >
         {session && !recoveryMode && !roleScreen ? (<Stack.Screen name="ApplicationStatus" component={ApplicationStatusScreen}/>) : roleScreen ? (

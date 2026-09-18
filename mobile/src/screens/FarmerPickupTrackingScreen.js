@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { rf } from '../lib/responsive';
 import { useAutoSync } from '../sync/SyncProvider';
 import DeliveryTrackingMap from '../components/DeliveryTrackingMap';
 import usePickupTracking from '../hooks/usePickupTracking';
+import ScreenHeader from '../components/ScreenHeader';
 
 const STATUS = {
   requested: ['Pending', 'Your request is waiting for distributor action.'],
@@ -41,7 +43,7 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
   const { data: trackingData, error: trackingError } = usePickupTracking(trackable ? id : null);
   const [label, detail] = STATUS[pickup?.status] || [String(pickup?.status || 'Pending').replace(/_/g, ' '), 'Pickup status updated.'];
   return <SafeAreaView style={s.container}>
-    <View style={s.header}><TouchableOpacity onPress={() => navigation.goBack()}><Text style={s.back}>‹ Back</Text></TouchableOpacity><Text style={s.title}>Pickup Tracking</Text><View style={{ width: 40 }} /></View>
+    <ScreenHeader title="Pickup Tracking" onBack={() => navigation.goBack()} />
     <ScrollView contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false); }} />}>
       {loading && !pickup ? <ActivityIndicator color={colors.leaf700} style={{ padding: 32 }} /> : <>
         <Card><Text style={s.status}>{label}</Text><Text style={s.muted}>{detail}</Text><Text style={s.muted}>Requested {date(pickup?.requested_at)}</Text></Card>
@@ -61,4 +63,4 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
 }
 function Card({ title, children }) { return <View style={s.card}>{title && <Text style={s.cardTitle}>{title}</Text>}{children}</View>; }
 function Row({ label, value }) { return <View style={s.row}><Text style={s.muted}>{label}</Text><Text style={s.value}>{value}</Text></View>; }
-const s = StyleSheet.create({ container:{flex:1,backgroundColor:colors.bgScreen},header:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',padding:16},back:{fontFamily:fonts.bodySemiBold,color:colors.leaf700},title:{fontFamily:fonts.heading,fontSize:18,color:colors.ink},content:{padding:16,gap:12,paddingBottom:32},card:{backgroundColor:colors.card,borderRadius:radius.card,padding:16,gap:9,borderWidth:1,borderColor:colors.border,...shadowCard},cardTitle:{fontFamily:fonts.heading,fontSize:16,color:colors.ink},status:{fontFamily:fonts.heading,fontSize:19,color:colors.leaf700},row:{flexDirection:'row',justifyContent:'space-between',gap:12},muted:{fontFamily:fonts.body,fontSize:13,color:colors.inkSoft,flexShrink:1},value:{fontFamily:fonts.bodySemiBold,fontSize:13,color:colors.ink,flexShrink:1,textAlign:'right'},error:{fontFamily:fonts.body,color:colors.danger},photo:{width:'100%',height:210,borderRadius:radius.ctrl,resizeMode:'cover'},map:{height:380,flex:0,marginTop:4} });
+const s = StyleSheet.create({ container:{flex:1,backgroundColor:colors.bgScreen},content:{padding:16,gap:12,paddingBottom:32},card:{backgroundColor:colors.card,borderRadius:radius.card,padding:16,gap:9,borderWidth:1,borderColor:colors.border,...shadowCard},cardTitle:{fontFamily:fonts.heading,fontSize:rf(fontSize.lg),color:colors.ink},status:{fontFamily:fonts.heading,fontSize:rf(fontSize.title),color:colors.leaf700},row:{flexDirection:'row',justifyContent:'space-between',gap:12},muted:{fontFamily:fonts.body,fontSize:rf(fontSize.sm),color:colors.inkSoft,flexShrink:1},value:{fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.sm),color:colors.ink,flexShrink:1,textAlign:'right'},error:{fontFamily:fonts.body,color:colors.danger},photo:{width:'100%',height:210,borderRadius:radius.ctrl,resizeMode:'cover'},map:{height:380,flex:0,marginTop:4} });

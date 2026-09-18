@@ -11,8 +11,9 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { showAlert } from '../lib/ui';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
+import ScreenHeader from '../components/ScreenHeader';
 
 const roleLabel = (r) => (r ? r.replace('_', ' ') : '');
 
@@ -166,17 +167,10 @@ export default function MessagesScreen({ navigation, embedded }) {
 
   return (
     <Wrapper style={styles.container}>
-      <View style={styles.header}>
-        {(view === 'thread' || !embedded) ? (
-          <TouchableOpacity onPress={handleBack} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="arrow-back" size={rf(20)} color={colors.ink} />
-          </TouchableOpacity>
-        ) : <View style={{ width: 20 }} />}
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {view === 'thread' ? (active?.full_name || t('messages.chat')) : t('messages.title')}
-        </Text>
-        <View style={{ width: 20 }} />
-      </View>
+      <ScreenHeader
+        title={view === 'thread' ? (active?.full_name || t('messages.chat')) : t('messages.title')}
+        onBack={(view === 'thread' || !embedded) ? handleBack : undefined}
+      />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -302,25 +296,16 @@ export default function MessagesScreen({ navigation, embedded }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen, minHeight: 0 },
   bodyFlex: { flex: 1, minHeight: 0 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    paddingTop: 6,
-    paddingBottom: 14,
-  },
-  headerTitle: { fontFamily: fonts.heading, fontSize: rf(20), color: colors.ink, flex: 1, textAlign: 'center' },
 
   scrollArea: { flex: 1, minHeight: 0 },
   content: { paddingHorizontal: 2, paddingBottom: 16 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, marginBottom: 12 },
-  searchInput: { flex: 1, minWidth: 0, paddingVertical: 10, fontFamily: fonts.body, color: colors.ink, fontSize: rf(14) },
+  searchInput: { flex: 1, minWidth: 0, paddingVertical: 10, fontFamily: fonts.body, color: colors.ink, fontSize: rf(fontSize.md) },
 
   emptyContainer: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 24 },
   emptyIcon: { marginBottom: 12 },
-  emptyTitle: { fontFamily: fonts.bodyBold, fontSize: rf(14.5), color: colors.inkSoft, marginBottom: 4 },
-  emptySubtitle: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkFaint, textAlign: 'center' },
+  emptyTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.inkSoft, marginBottom: 4 },
+  emptySubtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, textAlign: 'center' },
 
   contactRow: {
     backgroundColor: colors.card,
@@ -341,10 +326,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { fontFamily: fonts.headingBold, color: colors.gold700, fontSize: rf(17) },
+  avatarText: { fontFamily: fonts.headingBold, color: colors.gold700, fontSize: rf(fontSize.lg) },
   contactInfo: { flex: 1, minWidth: 0 },
-  contactName: { fontFamily: fonts.bodySemiBold, fontSize: rf(14.5), color: colors.ink },
-  contactRole: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkSoft, marginTop: 2, textTransform: 'capitalize' },
+  contactName: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
+  contactRole: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2, textTransform: 'capitalize' },
   contactRight: { alignItems: 'flex-end' },
   contactBadge: {
     minWidth: 20,
@@ -355,20 +340,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
-  contactBadgeText: { fontFamily: fonts.bodyBold, color: colors.soil800, fontSize: rf(11) },
+  contactBadgeText: { fontFamily: fonts.bodyBold, color: colors.soil800, fontSize: rf(fontSize.xs) },
 
   threadContent: { paddingHorizontal: 2, paddingBottom: 8, flexGrow: 1 },
   dateSeparator: { alignItems: 'center', marginTop: 12, marginBottom: 8 },
-  dateLabel: { fontFamily: fonts.bodyMedium, fontSize: rf(12), color: colors.inkSoft, backgroundColor: colors.leaf50, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4, textAlign: 'center' },
+  dateLabel: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.inkSoft, backgroundColor: colors.leaf50, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4, textAlign: 'center' },
   bubbleRow: { flexDirection: 'row', marginVertical: 3 },
   rowMine: { justifyContent: 'flex-end' },
   rowTheirs: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '78%', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 16, ...shadowCard },
   bubbleMine: { backgroundColor: colors.leaf700, borderBottomRightRadius: 4 },
   bubbleTheirs: { backgroundColor: colors.card, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: colors.border },
-  bubbleText: { fontFamily: fonts.body, fontSize: rf(14.5), color: colors.ink },
+  bubbleText: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink },
   bubbleTextMine: { color: '#ffffff' },
-  messageTime: { fontFamily: fonts.body, fontSize: rf(11), color: colors.inkSoft, marginTop: 4, alignSelf: 'flex-end' },
+  messageTime: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginTop: 4, alignSelf: 'flex-end' },
   messageTimeMine: { color: colors.leaf100 },
 
   inputRow: {
@@ -388,7 +373,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 11,
     fontFamily: fonts.body,
-    fontSize: rf(14.5),
+    fontSize: rf(fontSize.md),
     color: colors.ink,
   },
   sendBtn: {

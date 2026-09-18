@@ -8,12 +8,14 @@ import { Text, View, ScrollView, TouchableOpacity, Image, StyleSheet, RefreshCon
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OrderStepIndicator from '../components/OrderStepIndicator';
 import { peso, shortId, showAlert } from '../lib/ui';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
-import { statusColor, getProofUrl, getDelivery } from './RetailerDashboard';
+import { getProofUrl, getDelivery } from './RetailerDashboard';
 import { rf } from '../lib/responsive';
 import { useAutoSync } from '../sync/SyncProvider';
+import ScreenHeader from '../components/ScreenHeader';
+import StatusBadge from '../components/ui/StatusBadge';
 
 const PRIMARY = colors.leaf700;
 
@@ -58,13 +60,7 @@ export default function OrderDetailsScreen({ navigation, route }) {
   if (!order) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={styles.back}>‹ {t('common.back')}</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>{t('orderDetails.title')}</Text>
-          <View style={{ width: 50 }} />
-        </View>
+        <ScreenHeader title={t('orderDetails.title')} onBack={() => navigation.goBack()} />
       </SafeAreaView>
     );
   }
@@ -76,21 +72,13 @@ export default function OrderDetailsScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.back}>‹ {t('common.back')}</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('orderDetails.title')}</Text>
-        <View style={{ width: 50 }} />
-      </View>
+      <ScreenHeader title={t('orderDetails.title')} onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshOrder} />}>
         <View style={styles.card}>
           <View style={styles.orderHeader}>
             <Text style={styles.orderId}>{t('dashboards.retailer.orderNumber', { id: shortId(order.id) })}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor(order.status) }]}>
-              <Text style={styles.statusBadgeText}>{order.status}</Text>
-            </View>
+            <StatusBadge status={order.status} />
           </View>
           <Text style={styles.total}>{peso(order.total_amount)}</Text>
 
@@ -155,31 +143,26 @@ export default function OrderDetailsScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  back: { color: PRIMARY, fontSize: rf(16), fontFamily: fonts.bodySemiBold, width: 50 },
-  title: { fontSize: rf(19), fontFamily: fonts.heading, color: colors.ink },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
 
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  orderId: { fontFamily: fonts.bodyBold, fontSize: rf(16), color: colors.ink },
-  total: { fontFamily: fonts.heading, fontSize: rf(20), color: PRIMARY, marginBottom: 4 },
-  statusBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(12), textTransform: 'capitalize' },
-  cancelledNote: { fontFamily: fonts.body, fontSize: rf(13), color: colors.danger, fontStyle: 'italic', marginTop: 8 },
+  orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
+  total: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: PRIMARY, marginBottom: 4 },
+  cancelledNote: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.danger, fontStyle: 'italic', marginTop: 8 },
   trackBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY },
-  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(13.5) },
+  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md) },
 
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(15), color: colors.ink, marginBottom: 8 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 8 },
 
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
-  itemName: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: rf(14), color: colors.ink, textTransform: 'capitalize' },
-  itemQty: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginRight: 10 },
-  itemPrice: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft },
+  itemName: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
+  itemQty: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginRight: 10 },
+  itemPrice: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
 
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
-  detailLabel: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkFaint },
-  detailValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: colors.ink, flexShrink: 1, textAlign: 'right' },
+  detailLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
+  detailValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.ink, flexShrink: 1, textAlign: 'right' },
 
   proofImage: { width: '100%', height: 200, borderRadius: radius.ctrl, backgroundColor: colors.border },
 });

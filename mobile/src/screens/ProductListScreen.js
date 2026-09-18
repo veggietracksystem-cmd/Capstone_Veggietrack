@@ -11,11 +11,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
+import ScreenHeader from '../components/ScreenHeader';
 import { showAlert, confirmAction, peso } from '../lib/ui';
 import { CATEGORIES, getCategory } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import { localizeVegetableName } from '../lib/vegetableNames';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
@@ -186,14 +187,7 @@ export default function ProductListScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.back}>‹ {t('common.back')}</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('productList.title')}</Text>
-        <View style={{ width: 50 }} />
-      </View>
+      <ScreenHeader title={t('productList.title')} onBack={() => navigation.goBack()} />
 
       {loading ? (
         <View style={styles.center}>
@@ -329,28 +323,24 @@ export default function ProductListScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: colors.bgScreen },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
-
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  back: { color: PRIMARY, fontSize: rf(16), fontWeight: '600', width: 50 },
-  title: { fontSize: rf(20), fontWeight: 'bold', color: PRIMARY },
 
   filterChipRow: { gap: 8, paddingBottom: 16 },
   filterChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ccc', backgroundColor: '#f8faf8' },
   filterChipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  filterChipText: { color: '#555', fontSize: rf(13) },
+  filterChipText: { color: colors.inkSoft, fontSize: rf(fontSize.sm) },
   filterChipTextActive: { color: '#fff', fontWeight: '600' },
 
   rowCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: radius.card, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   productTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  productTileIcon: { fontSize: rf(22) },
-  rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(16), color: colors.ink, textTransform: 'capitalize' },
-  rowMeta: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
+  productTileIcon: { fontSize: rf(fontSize.title) },
+  rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
+  rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
   smallBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
-  smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(13) },
+  smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm) },
   btnDisabled: { opacity: 0.5 },
 
   // Edit modal
@@ -359,18 +349,18 @@ const styles = StyleSheet.create({
   modalCard: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
   modalScroll: { flexGrow: 0, flexShrink: 1 },
   modalCloseBtn: { position: 'absolute', top: 14, right: 14, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.leaf50, zIndex: 1 },
-  modalCloseText: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.inkSoft },
+  modalCloseText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.inkSoft },
 
   modalHeader: { alignItems: 'center', marginBottom: 18, marginTop: 4 },
   modalTile: { width: 60, height: 60, borderRadius: 16, marginBottom: 10 },
-  modalTileIcon: { fontSize: rf(30) },
-  modalVegName: { fontFamily: fonts.headingBold, fontSize: rf(18), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
+  modalTileIcon: { fontSize: rf(fontSize.h1) },
+  modalVegName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.xl), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
 
-  modalLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: colors.inkSoft, marginTop: 12, marginBottom: 6 },
+  modalLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 12, marginBottom: 6 },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  modalInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, fontFamily: fonts.body, fontSize: rf(14), color: colors.ink, backgroundColor: colors.card },
+  modalInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink, backgroundColor: colors.card },
   modalInputDisabled: { opacity: 0.5 },
 
   removeBtn: { marginTop: 22, borderWidth: 1.4, borderColor: colors.danger, borderRadius: radius.ctrl, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  removeBtnText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(14) },
+  removeBtnText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.md) },
 });

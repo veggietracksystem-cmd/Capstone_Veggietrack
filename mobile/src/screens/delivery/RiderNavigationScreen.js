@@ -1,3 +1,4 @@
+import { rf } from '../../lib/responsive';
 import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -5,9 +6,11 @@ import api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from '../../i18n/useTranslation';
 import DeliveryTrackingMap from '../../components/DeliveryTrackingMap';
+import ScreenHeader from '../../components/ScreenHeader';
 import useDeliveryTracking from '../../hooks/useDeliveryTracking';
 import useRiderLocation from '../../hooks/useRiderLocation';
 import { coordinate, routePoints, routeProgress } from '../../lib/trackingGeometry';
+import { colors, fonts, fontSize, radius } from '../../theme/appTheme';
 
 export default function RiderNavigationScreen({ route, navigation }) {
   const { orderId } = route.params || {};
@@ -38,9 +41,9 @@ export default function RiderNavigationScreen({ route, navigation }) {
       navigation.navigate('DeliveryDetails', { order });
     } catch (err) { setActionError(err.message); } finally { setOpening(false); }
   };
-  return <SafeAreaView style={styles.container}>
-    <View style={styles.header}><TouchableOpacity accessibilityRole="button" onPress={() => navigation.goBack()}><Text style={styles.back}>‹ {t('common.back')}</Text></TouchableOpacity><Text style={styles.title}>Rider navigation</Text></View>
-    {loading && !data ? <ActivityIndicator style={{ padding: 30 }} color="#218258" /> : <ScrollView contentContainerStyle={styles.content}>
+  return <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <ScreenHeader title="Rider navigation" onBack={() => navigation.goBack()} />
+    {loading && !data ? <ActivityIndicator style={{ padding: 30 }} color={colors.leaf700} /> : <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.instruction}>
         <Text style={styles.turn}>{metrics?.demo ? 'Demo playback • return to live for navigation' : !metrics?.live ? 'Waiting for fresh rider GPS' : offRoute ? 'Off route • waiting for updated road guidance' : guidance?.instruction || nav.navigation_error || 'Waiting for a road route'}</Text>
         {metrics?.live && !metrics?.demo && !offRoute && turnDistance != null && <Text style={styles.turnDistance}>In {turnDistance < 1000 ? `${Math.round(turnDistance)} m` : `${(turnDistance / 1000).toFixed(1)} km`}</Text>}
@@ -55,10 +58,15 @@ export default function RiderNavigationScreen({ route, navigation }) {
   </SafeAreaView>;
 }
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f2f6f0' }, header: { padding: 16, flexDirection: 'row', gap: 16, alignItems: 'center', backgroundColor: '#fff' },
-  back: { color: '#245636', fontSize: 16 }, title: { color: '#245636', fontWeight: '700', fontSize: 18 }, content: { padding: 12, gap: 10, paddingBottom: 30 },
-  instruction: { borderRadius: 12, padding: 16, backgroundColor: '#245636' }, turn: { fontSize: 19, fontWeight: '700', color: '#fff' },
-  turnDistance: { fontSize: 22, color: '#fff', marginTop: 6 }, destination: { color: '#d6e7d8', fontSize: 12, marginTop: 8 }, map: { height: 510, flex: 0 },
-  action: { padding: 16, backgroundColor: '#245636', borderRadius: 10, alignItems: 'center' }, actionText: { color: '#fff', fontWeight: '700' },
-  note: { fontSize: 11, color: '#66746b' }, error: { color: '#85530b', padding: 10, backgroundColor: '#fff3da' },
+  container: { flex: 1, backgroundColor: colors.bgScreen },
+  content: { padding: 12, gap: 10, paddingBottom: 30 },
+  instruction: { borderRadius: radius.card, padding: 16, backgroundColor: colors.leaf700 },
+  turn: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xl), color: '#fff' },
+  turnDistance: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.h1), color: '#fff', marginTop: 6 },
+  destination: { fontFamily: fonts.body, color: colors.leaf100, fontSize: rf(fontSize.sm), marginTop: 8 },
+  map: { height: 510, flex: 0 },
+  action: { padding: 16, backgroundColor: colors.leaf700, borderRadius: radius.ctrl, alignItems: 'center' },
+  actionText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(fontSize.md) },
+  note: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkSoft },
+  error: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.gold700, padding: 10, backgroundColor: colors.gold100, borderRadius: radius.ctrl },
 });

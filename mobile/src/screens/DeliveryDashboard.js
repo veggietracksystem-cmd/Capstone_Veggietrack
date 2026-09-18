@@ -21,7 +21,7 @@ import ProofPreviewModal from '../components/ProofPreviewModal';
 import EmptyState from '../components/EmptyState';
 import BottomNavBar from '../components/BottomNavBar';
 import { showAlert, peso, shortId } from '../lib/ui';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { useAutoSync } from '../sync/SyncProvider';
@@ -573,43 +573,43 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  minimalTitle: { fontFamily: fonts.heading, fontSize: rf(19), color: colors.ink },
+  minimalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontFamily: fonts.heading, fontSize: rf(22), color: colors.ink },
-  subtitle: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
+  title: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
+  subtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
   content: { padding: 16, paddingBottom: 40 },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(17), color: colors.ink, marginBottom: 10 },
-  seeAllText: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: PRIMARY },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 10 },
+  seeAllText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
   emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
   orderCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  orderId: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.ink },
-  orderTotal: { fontFamily: fonts.heading, fontSize: rf(17), color: PRIMARY, marginBottom: 4 },
-  rowMeta: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
+  orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
+  orderTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: PRIMARY, marginBottom: 4 },
+  rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   routeBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY },
-  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(13) },
+  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm) },
 
   statusBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(12), textTransform: 'capitalize' },
+  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm), textTransform: 'capitalize' },
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 4 },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15.5) },
+  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
   buttonDisabled: { opacity: 0.6 },
 
   detailsBtn: { paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 8, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.leaf50 },
-  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(13.5) },
+  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
 
   tabContainer: { flexDirection: 'row', backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 4, marginBottom: 16 },
   tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
   tabButtonActive: { backgroundColor: colors.card, ...shadowCard },
-  tabButtonText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(14) },
+  tabButtonText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
   tabButtonTextActive: { color: PRIMARY },
 
 // ===== NEW STYLES FOR NAVIGATE BUTTON =====
@@ -629,7 +629,7 @@ navigateBtn: {
 navigateBtnText: {
   fontFamily: fonts.bodyBold,
   color: '#fff',
-  fontSize: rf(13.5),
+  fontSize: rf(fontSize.md),
 },
 // ===== END NEW STYLES =====
 });

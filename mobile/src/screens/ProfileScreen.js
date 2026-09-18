@@ -12,7 +12,8 @@ import UserGuideModal from '../components/UserGuideModal';
 import ContactUsModal from '../components/ContactUsModal';
 import CustomModal from '../components/CustomModal';
 import BottomNavBar from '../components/BottomNavBar';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import ScreenHeader from '../components/ScreenHeader';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 
 // Profile is a bottom-tab destination (pushed from the dashboard's "profile"
 // tab) for every role except Farmer, whose profile is an embedded dashboard
@@ -76,14 +77,7 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.back}>‹ {t('common.back')}</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('profile.title')}</Text>
-        <View style={{ width: 50 }} />
-      </View>
+      <ScreenHeader title={t('profile.title')} onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* User Card */}
@@ -194,15 +188,6 @@ export default function ProfileScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  back: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(15), width: 50 },
-  title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
   content: { padding: 16, paddingBottom: 100 },
 
   // User Profile Card
@@ -227,8 +212,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.leaf700,
   },
-  avatarText: { fontFamily: fonts.heading, fontSize: rf(28), color: colors.leaf700 },
-  userName: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 4 },
+  avatarText: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: colors.leaf700 },
+  userName: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 4 },
   roleBadge: {
     backgroundColor: colors.leaf100,
     borderRadius: 12,
@@ -236,8 +221,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 6,
   },
-  roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(11), color: colors.leaf700, letterSpacing: 0.5 },
-  phoneText: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft },
+  roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.leaf700, letterSpacing: 0.5 },
+  phoneText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
 
   // Section Card
   sectionCard: {
@@ -249,7 +234,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadowCard,
   },
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(16), color: colors.ink, marginBottom: 12 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 12 },
 
   menuItem: {
     flexDirection: 'row',
@@ -260,13 +245,13 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   menuItemLast: { borderBottomWidth: 0 },
-  menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(14), color: colors.ink },
-  chevron: { fontSize: rf(18), color: colors.inkFaint, fontWeight: '600' },
+  menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
+  chevron: { fontSize: rf(fontSize.xl), color: colors.inkFaint, fontWeight: '600' },
 
   dangerSection: { gap: 10 },
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   buttonOutline: { borderWidth: 1.4, borderColor: colors.leaf700, backgroundColor: colors.card },
-  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(15) },
+  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(fontSize.md) },
 
   // Language modal rows
   langRow: {
@@ -277,6 +262,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  langRowText: { fontFamily: fonts.bodySemiBold, fontSize: rf(15), color: colors.ink },
-  langCheck: { fontFamily: fonts.bodyBold, fontSize: rf(16), color: colors.leaf700 },
+  langRowText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
+  langCheck: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.leaf700 },
 });

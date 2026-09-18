@@ -11,10 +11,12 @@ import api from '../api/client';
 import EmptyState from '../components/EmptyState';
 import ImageViewerModal from '../components/ImageViewerModal';
 import { showAlert, peso, shortId } from '../lib/ui';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
-import { statusColor, getProofUrl, getDelivery, isOldCompleted } from './RetailerDashboard';
+import { getProofUrl, getDelivery, isOldCompleted } from './RetailerDashboard';
+import ScreenHeader from '../components/ScreenHeader';
+import StatusBadge from '../components/ui/StatusBadge';
 
 const PRIMARY = colors.leaf700;
 
@@ -58,13 +60,7 @@ export default function OrderHistoryScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.back}>‹ {t('common.back')}</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('orderHistory.title')}</Text>
-        <View style={{ width: 50 }} />
-      </View>
+      <ScreenHeader title={t('orderHistory.title')} onBack={() => navigation.goBack()} />
 
       {loading ? (
         <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
@@ -80,9 +76,7 @@ export default function OrderHistoryScreen({ navigation }) {
               <View key={o.id} style={styles.orderCard}>
                 <View style={styles.orderHeader}>
                   <Text style={styles.orderId}>{t('dashboards.retailer.orderNumber', { id: shortId(o.id) })}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: statusColor(o.status) }]}>
-                    <Text style={styles.statusBadgeText}>{o.status}</Text>
-                  </View>
+                  <StatusBadge status={o.status} />
                 </View>
                 <Text style={styles.orderTotal}>{peso(o.total_amount)}</Text>
                 {o.delivery_address ? (
@@ -126,23 +120,18 @@ export default function OrderHistoryScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  back: { color: PRIMARY, fontSize: rf(16), fontFamily: fonts.bodySemiBold, width: 50 },
-  title: { fontSize: rf(19), fontFamily: fonts.heading, color: colors.ink },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
 
   orderCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  orderId: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.ink },
-  orderTotal: { fontFamily: fonts.heading, fontSize: rf(17), color: PRIMARY, marginBottom: 4 },
-  rowMeta: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
-  statusBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(12), textTransform: 'capitalize' },
+  orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
+  orderTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: PRIMARY, marginBottom: 4 },
+  rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   itemsBox: { backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10, marginTop: 8 },
-  itemLine: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginBottom: 2 },
+  itemLine: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 2 },
   proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 8 },
   proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: colors.border },
-  proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: PRIMARY },
+  proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
   detailsBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: colors.border, backgroundColor: colors.leaf50 },
-  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(13.5) },
+  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
 });

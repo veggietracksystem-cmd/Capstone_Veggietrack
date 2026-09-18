@@ -13,7 +13,8 @@ import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert, confirmAction } from '../lib/ui';
 import MapPinningModal from '../components/MapPinningModal';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import ScreenHeader from '../components/ScreenHeader';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 
 export default function EditProfileScreen({ navigation }) {
   const requestLock = useRequestLock();
@@ -24,7 +25,6 @@ export default function EditProfileScreen({ navigation }) {
     farmer: { key: 'farm_location', label: t('auth.register.farmLocation') },
     distributor: { key: 'warehouse_location', label: t('auth.register.warehouseLocation') },
     retailer: { key: 'store_location', label: t('auth.register.storeLocation') },
-    delivery_personnel: { key: 'service_area', label: t('auth.register.serviceArea') },
   };
 
   const loc = ROLE_LOCATION[user?.role] || null;
@@ -58,7 +58,10 @@ export default function EditProfileScreen({ navigation }) {
     }
 
 
-    const updates = { full_name: name, email: email.trim() };
+    const updates = { full_name: name };
+    // Rider accounts use mobile authentication and have no profile-email field.
+    // Avoid sending an empty email that could overwrite an existing value.
+    if (user?.role !== 'delivery_personnel') updates.email = email.trim();
     if (avatarChanged) updates.avatar_url = avatarUrl;
     if (loc) updates[loc.key] = location.trim();
     if (latitude != null && longitude != null) {
@@ -89,14 +92,7 @@ export default function EditProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="arrow-back" size={rf(20)} color={colors.ink} />
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('editProfile.title')}</Text>
-        <View style={{ width: 20 }} />
-      </View>
+      <ScreenHeader title={t('editProfile.title')} onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Profile Details Card */}
@@ -114,15 +110,19 @@ export default function EditProfileScreen({ navigation }) {
             editable={!saving && !deleting}
           />
 
-          <Text style={styles.fieldLabel}>{t('editProfile.emailLabel')}</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            editable={!saving && !deleting}
-          />
+          {user?.role !== 'delivery_personnel' && (
+            <>
+              <Text style={styles.fieldLabel}>{t('editProfile.emailLabel')}</Text>
+              <TextInput
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                editable={!saving && !deleting}
+              />
+            </>
+          )}
 
           <Text style={styles.fieldLabel}>{t('auth.register.phoneLabel')}</Text>
           <TextInput
@@ -201,14 +201,6 @@ export default function EditProfileScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
   content: { padding: 16, paddingBottom: 40 },
 
   // Section Card
@@ -221,20 +213,20 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadowCard,
   },
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(16), color: colors.ink, marginBottom: 12 },
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(12.5), color: colors.inkSoft, marginBottom: 6, marginTop: 8 },
+  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 12 },
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 6, marginTop: 8 },
   input: {
     backgroundColor: '#fff',
     borderRadius: radius.ctrl,
     padding: 12,
     fontFamily: fonts.body,
-    fontSize: rf(14.5),
+    fontSize: rf(fontSize.md),
     color: colors.ink,
     marginBottom: 4,
     borderWidth: 1.4,
     borderColor: colors.border,
   },
-  phoneHint: { fontFamily: fonts.body, fontSize: rf(11.5), color: colors.inkFaint, marginBottom: 4 },
+  phoneHint: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint, marginBottom: 4 },
   // alignItems: 'stretch' (not 'center') so the pin button is forced to the
   // exact same height as the TextInput next to it, rather than eyeballing a
   // matching paddingVertical that drifts once fonts/line-heights change.
@@ -248,8 +240,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.leaf700,
     borderRadius: radius.ctrl,
   },
-  pinBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(13) },
-  coordsLabel: { fontFamily: fonts.body, color: colors.leaf700, fontSize: rf(12.5), fontWeight: '600', marginTop: 4, marginBottom: 4 },
+  pinBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm) },
+  coordsLabel: { fontFamily: fonts.body, color: colors.leaf700, fontSize: rf(fontSize.sm), fontWeight: '600', marginTop: 4, marginBottom: 4 },
 
   menuItem: {
     flexDirection: 'row',
@@ -260,17 +252,17 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   menuItemLast: { borderBottomWidth: 0 },
-  menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(14), color: colors.ink },
-  chevron: { fontSize: rf(18), color: colors.inkFaint, fontWeight: '600' },
+  menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
+  chevron: { fontSize: rf(fontSize.xl), color: colors.inkFaint, fontWeight: '600' },
 
   dangerSection: { gap: 10 },
   button: { paddingVertical: 13, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   buttonPrimary: { backgroundColor: colors.leaf700, marginTop: 8 },
-  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(14.5) },
+  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.md) },
   buttonOutline: { borderWidth: 1.4, borderColor: colors.leaf700, backgroundColor: colors.card },
-  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(14.5) },
+  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(fontSize.md) },
   buttonDanger: { backgroundColor: '#fff5f5', borderWidth: 1, borderColor: '#ffcdd2' },
-  buttonDangerText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(14.5) },
+  buttonDangerText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.md) },
   buttonDisabled: { opacity: 0.6 },
 
   // Change-password modal
@@ -278,7 +270,7 @@ const styles = StyleSheet.create({
   pwBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end' },
   pwSheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingBottom: 30, maxHeight: '90%' },
   pwScroll: { flexGrow: 0, flexShrink: 1 },
-  pwTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 6 },
-  pwHint: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginBottom: 12 },
+  pwTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 6 },
+  pwHint: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 12 },
   pwActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
 });

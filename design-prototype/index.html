@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VeggieTrack — Redesign Prototype (Not the real app)</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ============== CONTROL PANEL (prototype navigation aid — not part of the app design) ============== -->
+  <aside class="control-panel">
+    <span class="proto-badge">PROTOTYPE · NOT IMPLEMENTED</span>
+    <h1>VeggieTrack Redesign</h1>
+    <p class="subtitle">Interactive visual mockup of the proposed UI/UX. Nothing here is wired to the real VeggieTrack app, backend, or database.</p>
+
+    <div class="disclaimer-box">
+      <b>Proposed design only.</b> Statuses like <b>OTW</b>, <b>Rider Assigned</b>, and screens like <b>Batch Photo</b> represent proposed functionality for your review — they do not confirm what currently exists in the production backend. Look for the <span class="proposed-tag">✦ Proposed</span> tag on screens introducing new workflow states. The Onboarding flow (Landing/Login/Register/OTP/Pending) restyles screens that already exist today — same fields, same validation — except the tagged Confirm Password field.
+    </div>
+
+    <div class="panel-section" id="roleButtons">
+      <div class="panel-label">1 · Start here (pre-login)</div>
+      <div class="role-btn" data-role="auth" style="width:100%; margin-bottom:14px; padding:10px 8px;"><span class="emoji">🌱</span>Onboarding — Landing → Login → Sign Up</div>
+      <div class="panel-label">2 · Or jump into a role (post-login)</div>
+      <div class="role-grid">
+        <div class="role-btn" data-role="farmer"><span class="emoji">👨‍🌾</span>Farmer</div>
+        <div class="role-btn" data-role="distributor"><span class="emoji">🏢</span>Distributor</div>
+        <div class="role-btn" data-role="rider"><span class="emoji">🛵</span>Rider</div>
+        <div class="role-btn" data-role="retailer"><span class="emoji">🍽️</span>Retailer</div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-label">3 · Jump to any screen</div>
+      <div class="screen-jump" id="screenJump"></div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-label">Simulate connectivity</div>
+      <div class="role-grid" id="connectivityButtons" style="grid-template-columns: 1fr 1fr 1fr;">
+        <div class="role-btn" data-conn="synced" style="padding:8px 4px;">Synced</div>
+        <div class="role-btn" data-conn="syncing" style="padding:8px 4px;">Syncing</div>
+        <div class="role-btn" data-conn="offline" style="padding:8px 4px;">Offline</div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-label">Demo states</div>
+      <div class="screen-jump" style="max-height:none;">
+        <div class="screen-jump-item" data-jump="demo-error">⚠️ Error state</div>
+      </div>
+    </div>
+
+    <button class="btn btn-outline btn-block" id="resetProtoBtn" style="border-color:rgba(255,255,255,0.3); color:#fff;">↺ Reset Prototype</button>
+
+    <p class="panel-footnote">Tap anywhere inside the phone to navigate — cards, rows, and buttons are all clickable. Use the back arrow (‹) or bottom navigation to move around, just like a real phone.</p>
+  </aside>
+
+  <!-- ============== PHONE MOCKUP ============== -->
+  <div class="stage">
+    <div class="device">
+      <div class="device-screen" id="phoneRoot">
+        <div class="statusbar">
+          <span>9:41</span>
+          <div class="camera-dot"></div>
+          <div class="statusbar-icons"><span>••••</span><span>📶</span><span>🔋</span></div>
+        </div>
+
+        <div class="content-scroll" id="screenContent"></div>
+
+        <div class="bottomnav" id="bottomNav"></div>
+        <div class="gesture-bar" id="gestureBar"></div>
+
+        <div class="sheet-overlay" id="sheetOverlay">
+          <div class="sheet" id="sheet"></div>
+        </div>
+
+        <div class="toast" id="toast"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="icons.js"></script>
+<script src="data.js"></script>
+<script src="components.js"></script>
+<script src="screens.farmer.js"></script>
+<script src="screens.distributor.js"></script>
+<script src="screens.rider.js"></script>
+<script src="screens.retailer.js"></script>
+<script src="screens.auth.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -11,9 +11,11 @@ Local implementation is available, but hosted delivery migration, deployment and
 | Path | Purpose |
 |---|---|
 | `mobile/` | Main Expo application for all four business roles |
+| `mobile/src/components/` and `mobile/src/theme/` | Shared screen headers, status UI, navigation and redesign tokens |
 | `backend/index.js`, `backend/lib/` | Express API, authorization and business logic |
 | `backend/sql/` | Inspections, guarded migrations and historical schema scripts |
 | `backend/test/` | Node regression tests, mobile handler tests and local PGlite integration tests |
+| `design-prototype/` | Standalone click-through visual prototype using fictional sample data |
 | `VeggieTrack-Clean/` | Separate Expo starter; not the business application |
 
 ## Workflows
@@ -29,6 +31,8 @@ Local implementation is available, but hosted delivery migration, deployment and
 The app uses React state and authenticated asynchronous API requests. Updated lists refresh on return while preserving screen selections, and stale responses are ignored. Synchronous request locks protect the updated forms from repeated taps before buttons rerender. Failed operations retain relevant form input or previously loaded data for retry.
 
 The latest updates cover harvests, pickups, inventory, checkout, orders, addresses, profiles, messages and notifications. Farmer offline queue operations are serialized to prevent concurrent replay. Rider pickup cards render across dashboard sections, and order details refresh from the API instead of relying only on navigation snapshots. These UI changes require no additional database migration. See [AJAX_IMPLEMENTATION_REPORT.md](AJAX_IMPLEMENTATION_REPORT.md) for screen-level coverage and limitations.
+
+The current mobile redesign is applied through shared theme tokens and reusable UI components, including the cream surfaces, leaf-green actions, semantic status colors, rounded controls and elevated bottom navigation used across all roles. The implementation review is recorded in [DESIGN_INTEGRATION_REVIEW.md](DESIGN_INTEGRATION_REVIEW.md). The standalone [design prototype](design-prototype/README.md) is for visual review only; it is not connected to the API, Supabase or the production app, and its proposed states are not production functionality.
 
 ## Delivery, GPS and proof
 

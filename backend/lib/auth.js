@@ -1,4 +1,6 @@
-const TRUSTED_DISTRIBUTOR = '0a417507-1437-4d71-9e11-185f13a0a262';
+// The active hosted distributor profile. The former seed UUID does not match
+// the migrated profile, causing valid administrator sessions to be rejected.
+const TRUSTED_DISTRIBUTOR = '86d9d317-b099-430c-be21-824d0a3434b6';
 let admin;
 function configureAuth(client) { admin = client; }
 function createVerifier(client, statusOnly = false) {

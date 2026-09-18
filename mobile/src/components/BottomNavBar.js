@@ -107,6 +107,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: 10,
+    // Keep the navigation visually distinct from the cream screen surface
+    // without adding a hard divider or platform-specific elevation.
+    boxShadow: '0 -1px 2px rgba(30, 78, 9, 0.06)',
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -116,7 +119,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 3,
   },
   label: {
     fontFamily: fonts.bodySemiBold,

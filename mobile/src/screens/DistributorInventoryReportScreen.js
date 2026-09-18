@@ -11,9 +11,10 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
 import BottomNavBar from '../components/BottomNavBar';
+import ScreenHeader from '../components/ScreenHeader';
 import { exportReportPdf, printReport } from '../lib/reportPdf';
 import { showAlert, peso } from '../lib/ui';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
@@ -162,13 +163,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.back}>‹ {t('common.back')}</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('inventoryReport.title')}</Text>
-        <View style={{ width: 50 }} />
-      </View>
+      <ScreenHeader title={t('inventoryReport.title')} onBack={() => navigation.goBack()} />
 
       <View style={styles.tabRow}>
         <TouchableOpacity
@@ -236,26 +231,23 @@ export default function DistributorInventoryReportScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  back: { color: PRIMARY, fontSize: rf(16), fontFamily: fonts.bodySemiBold, width: 50 },
-  title: { fontSize: rf(19), fontFamily: fonts.heading, color: colors.ink },
   content: { padding: 16, paddingBottom: 100, flexGrow: 1 },
 
   tabRow: { flexDirection: 'row', backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 4, marginHorizontal: 16, marginBottom: 12 },
   tabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
   tabBtnActive: { backgroundColor: colors.card, ...shadowCard },
-  tabBtnText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(14) },
+  tabBtnText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
   tabBtnTextActive: { color: PRIMARY },
 
   reportWrap: { borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, padding: 6 },
   reportHeaderRow: { flexDirection: 'row', borderBottomWidth: 1.5, borderBottomColor: colors.border, paddingVertical: 6, paddingHorizontal: 6 },
-  reportHeaderCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyBold, fontSize: rf(10.5), color: colors.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3, paddingRight: 6 },
+  reportHeaderCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3, paddingRight: 6 },
   reportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
-  reportCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyMedium, fontSize: rf(12), color: colors.ink, paddingRight: 6 },
+  reportCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.ink, paddingRight: 6 },
   emptySubtitle: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', padding: 16, textAlign: 'center' },
 
   reportActionsRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
   reportActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY },
-  reportActionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(13.5), color: PRIMARY },
+  reportActionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: PRIMARY },
   btnDisabled: { opacity: 0.6 },
 });

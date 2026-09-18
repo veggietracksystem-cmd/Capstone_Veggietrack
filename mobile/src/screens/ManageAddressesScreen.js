@@ -18,10 +18,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { showAlert, confirmAction } from '../lib/ui';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { rf } from '../lib/responsive';
 import MapPinningModal from '../components/MapPinningModal';
+import ScreenHeader from '../components/ScreenHeader';
 
 const PRIMARY = colors.leaf700;
 
@@ -195,13 +196,7 @@ export default function ManageAddressesScreen({ navigation }) {
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                    <Text style={styles.backBtnText}>←</Text>
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>My Addresses</Text>
-                <View style={{ width: 40 }} />
-            </View>
+            <ScreenHeader title="My Addresses" onBack={() => navigation.goBack()} />
 
             <ScrollView contentContainerStyle={styles.content}>
                 {addresses.length === 0 ? (
@@ -365,24 +360,11 @@ export default function ManageAddressesScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: colors.bgScreen,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-    },
-    backBtn: { padding: 4 },
-    backBtnText: { fontSize: 24, color: colors.ink },
-    headerTitle: { fontSize: rf(19), fontFamily: fonts.heading, color: colors.ink },
     content: { padding: 16, paddingBottom: 40 },
     empty: { alignItems: 'center', marginTop: 60 },
     emptyIcon: { fontSize: 48, marginBottom: 16 },
-    emptyTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
-    emptyMessage: { fontFamily: fonts.body, fontSize: rf(14), color: colors.inkSoft, textAlign: 'center', marginTop: 8 },
+    emptyTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink },
+    emptyMessage: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, textAlign: 'center', marginTop: 8 },
     addressCard: {
         backgroundColor: colors.card,
         borderRadius: radius.card,
@@ -393,17 +375,17 @@ const styles = StyleSheet.create({
         ...shadowCard,
     },
     addressHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-    addressLabel: { fontFamily: fonts.bodyBold, fontSize: rf(16), color: colors.ink },
+    addressLabel: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
     defaultBadge: { backgroundColor: PRIMARY, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-    defaultBadgeText: { color: '#fff', fontSize: rf(10), fontWeight: 'bold' },
-    addressText: { fontFamily: fonts.body, fontSize: rf(14), color: colors.inkSoft, marginTop: 2 },
-    coordsText: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkFaint, marginTop: 4 },
+    defaultBadgeText: { color: '#fff', fontSize: rf(fontSize.xs), fontWeight: 'bold' },
+    addressText: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
+    coordsText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 4 },
     addressActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
     actionBtn: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: radius.ctrl, borderWidth: 1 },
     setDefaultBtn: { borderColor: PRIMARY },
     editBtn: { borderColor: colors.border },
     deleteBtn: { borderColor: colors.danger },
-    actionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(12), color: colors.ink },
+    actionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.ink },
     addBtn: {
         backgroundColor: PRIMARY,
         borderRadius: radius.ctrl,
@@ -411,7 +393,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: 8,
     },
-    addBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15) },
+    addBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
     modalOverlay: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0,0,0,0.4)',
@@ -427,8 +409,8 @@ const styles = StyleSheet.create({
         maxWidth: 400,
         ...shadowCard,
     },
-    modalTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 16 },
-    fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(12), color: colors.inkSoft, marginTop: 10, marginBottom: 4 },
+    modalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 16 },
+    fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 10, marginBottom: 4 },
     input: {
         backgroundColor: colors.card,
         borderRadius: radius.ctrl,
@@ -436,7 +418,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
         fontFamily: fonts.body,
-        fontSize: rf(14),
+        fontSize: rf(fontSize.md),
         color: colors.ink,
     },
     addressInput: { minHeight: 50, textAlignVertical: 'top' },
@@ -451,11 +433,11 @@ const styles = StyleSheet.create({
         borderRadius: radius.ctrl,
         marginTop: 4,
     },
-    pinBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(12) },
+    pinBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm) },
     checkboxRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
     checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: PRIMARY, marginRight: 10 },
     checkboxChecked: { backgroundColor: PRIMARY },
-    checkboxLabel: { fontFamily: fonts.body, fontSize: rf(14), color: colors.ink },
+    checkboxLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink },
     modalButtons: { flexDirection: 'row', gap: 10, marginTop: 16 },
     modalBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center' },
     modalCancel: { borderWidth: 1, borderColor: colors.border },

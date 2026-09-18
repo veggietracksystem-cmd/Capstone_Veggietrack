@@ -13,8 +13,9 @@ import EmptyState from '../components/EmptyState';
 import BatchPhotoField from '../components/BatchPhotoField';
 import CustomModal from '../components/CustomModal';
 import BottomNavBar from '../components/BottomNavBar';
+import ScreenHeader from '../components/ScreenHeader';
 import { showAlert, confirmAction, peso } from '../lib/ui';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
@@ -22,9 +23,9 @@ import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 const PRIMARY = colors.leaf700;
 
 const STATUS_STYLE = {
-  received: { bg: '#FFF3E0', fg: '#E65100' },
-  listed: { bg: '#E8F5E9', fg: '#1E4E09' },
-  sold_out: { bg: '#FFEBEE', fg: '#C62828' },
+  received: { bg: colors.gold100, fg: colors.gold700 },
+  listed: { bg: colors.leaf100, fg: colors.leaf700 },
+  sold_out: { bg: colors.dangerSoft, fg: colors.danger },
 };
 
 const DISTRIBUTOR_TABS_KEYS = [
@@ -307,21 +308,21 @@ export default function StocksScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.back}>‹ {t('common.back')}</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('stocks.title')}</Text>
-        <TouchableOpacity
-          onPress={openAddProduct}
-          accessibilityRole="button"
-          accessibilityLabel={t('stocks.addProductBtn')}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          style={styles.addProductBtn}
-        >
-          <Text style={styles.addProductBtnText}>+</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title={t('stocks.title')}
+        onBack={() => navigation.goBack()}
+        right={
+          <TouchableOpacity
+            onPress={openAddProduct}
+            accessibilityRole="button"
+            accessibilityLabel={t('stocks.addProductBtn')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.addProductBtn}
+          >
+            <Text style={styles.addProductBtnText}>+</Text>
+          </TouchableOpacity>
+        }
+      />
 
       {loading ? (
         <View style={styles.center}>
@@ -421,32 +422,29 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16, paddingBottom: 100, flexGrow: 1 },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  back: { color: PRIMARY, fontSize: rf(16), fontFamily: fonts.bodySemiBold, width: 50 },
-  title: { fontSize: rf(20), fontFamily: fonts.heading, color: PRIMARY },
   addProductBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
-  addProductBtnText: { color: '#fff', fontSize: rf(20), fontFamily: fonts.bodySemiBold, lineHeight: rf(22) },
+  addProductBtnText: { color: '#fff', fontSize: rf(fontSize.title), fontFamily: fonts.bodySemiBold, lineHeight: rf(22) },
 
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 14, marginBottom: 12, ...shadowCard },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  product: { fontSize: rf(16), fontFamily: fonts.bodySemiBold, color: colors.ink },
+  product: { fontSize: rf(fontSize.lg), fontFamily: fonts.bodySemiBold, color: colors.ink },
 
   statusPill: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 12 },
-  statusPillText: { fontSize: rf(12), fontFamily: fonts.bodySemiBold },
+  statusPillText: { fontSize: rf(fontSize.sm), fontFamily: fonts.bodySemiBold },
 
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  label: { fontSize: rf(13), color: colors.inkFaint },
-  value: { fontSize: rf(13), color: colors.ink, fontFamily: fonts.bodySemiBold },
+  label: { fontSize: rf(fontSize.sm), color: colors.inkFaint },
+  value: { fontSize: rf(fontSize.sm), color: colors.ink, fontFamily: fonts.bodySemiBold },
 
   addBtn: { marginTop: 10, backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 10, alignItems: 'center' },
   addBtnDisabled: { opacity: 0.6 },
-  addBtnText: { color: '#fff', fontFamily: fonts.bodySemiBold, fontSize: rf(14) },
+  addBtnText: { color: '#fff', fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md) },
   editBtn: { marginTop: 8, borderWidth: 1, borderColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 9, alignItems: 'center' },
-  editBtnText: { color: PRIMARY, fontFamily: fonts.bodySemiBold, fontSize: rf(14) },
+  editBtnText: { color: PRIMARY, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md) },
 
-  modalHint: { fontSize: rf(13), color: colors.inkFaint, marginBottom: 10 },
-  priceInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, fontSize: rf(15) },
+  modalHint: { fontSize: rf(fontSize.sm), color: colors.inkFaint, marginBottom: 10 },
+  priceInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, fontSize: rf(fontSize.lg) },
   editPriceLabel: { fontFamily: fonts.bodySemiBold, color: colors.ink, marginTop: 14, marginBottom: 7 },
   removePhotoBtn: { alignSelf: 'flex-start', marginTop: 4, paddingVertical: 6 },
-  removePhotoText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(13) },
+  removePhotoText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.sm) },
 });
