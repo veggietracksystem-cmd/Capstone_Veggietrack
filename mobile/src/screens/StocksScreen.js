@@ -17,6 +17,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import { showAlert, confirmAction, peso } from '../lib/ui';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
@@ -345,7 +346,7 @@ export default function StocksScreen({ navigation }) {
           contentContainerStyle={styles.content}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
-            <EmptyState icon="📦" title={t('stocks.emptyTitle')} message={t('stocks.emptyMessage')} />
+            <EmptyState iconElement={<MaterialCommunityIcons name="package-variant" size={rf(44)} color={colors.inkFaint} />} title={t('stocks.emptyTitle')} message={t('stocks.emptyMessage')} />
           }
         />
       )}
@@ -427,7 +428,7 @@ export default function StocksScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgScreen },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16, paddingBottom: 100, flexGrow: 1 },
 

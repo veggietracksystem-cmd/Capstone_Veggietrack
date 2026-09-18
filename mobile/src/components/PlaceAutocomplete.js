@@ -63,11 +63,11 @@ export default function PlaceAutocomplete({ visible, onSelect }) {
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 16, marginBottom: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0', borderRadius: 8, paddingHorizontal: 8 },
-  input: { flex: 1, minWidth: 0, paddingVertical: 10, fontSize: rf(14), color: '#222' },
-  clear: { padding: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', minHeight: 48, backgroundColor: '#f0f0f0', borderRadius: 8, paddingHorizontal: 8 },
+  input: { flex: 1, minWidth: 0, paddingHorizontal: 4, paddingVertical: 10, fontSize: rf(14), color: '#222', textAlignVertical: 'center' },
+  clear: { width: 34, height: 40, alignItems: 'center', justifyContent: 'center' },
   clearText: { color: '#666', fontSize: rf(18) },
-  button: { backgroundColor: '#1E4E09', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 6, marginLeft: 4 },
+  button: { backgroundColor: '#1E4E09', minHeight: 38, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 6, marginLeft: 4, alignItems: 'center', justifyContent: 'center' },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: rf(13) },
   dropdown: { backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#ddd', marginTop: 4, overflow: 'hidden' },
   list: { maxHeight: 180 },

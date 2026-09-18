@@ -192,7 +192,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
           {activeRows.length === 0 ? (
-            <EmptyState icon="📊" title={t('inventoryReport.emptyTitle')} message={t('inventoryReport.emptyMessage')} />
+            <EmptyState iconElement={<Ionicons name="bar-chart-outline" size={rf(44)} color={colors.inkFaint} />} title={t('inventoryReport.emptyTitle')} message={t('inventoryReport.emptyMessage')} />
           ) : (
             <ReportTable columns={columns} rows={activeRows.map(formatRow)} emptyLabel={t('inventoryReport.emptyTitle')} />
           )}
@@ -231,6 +231,9 @@ export default function DistributorInventoryReportScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+  back: { color: PRIMARY, fontSize: rf(16), fontFamily: fonts.bodySemiBold, width: 50 },
+  title: { fontSize: rf(19), fontFamily: fonts.heading, color: colors.ink },
   content: { padding: 16, paddingBottom: 100, flexGrow: 1 },
 
   tabRow: { flexDirection: 'row', backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 4, marginHorizontal: 16, marginBottom: 12 },

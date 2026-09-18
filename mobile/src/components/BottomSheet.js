@@ -1,29 +1,32 @@
 import { rf } from '../lib/responsive';
 import {
   Text, View, TouchableOpacity, ScrollView, Modal, Platform, StyleSheet,
-  KeyboardAvoidingView,
+  KeyboardAvoidingView, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, radius } from '../theme/appTheme';
+import { useBottomSheetMotion } from '../lib/motion';
 
 // Matches the mockup's .overlay/.sheet: dimmed backdrop, rounded-top sheet
 // sliding up from the bottom, drag handle, title + close (X) button.
 export default function BottomSheet({ visible, onClose, title, children, scroll = true }) {
   const Body = scroll ? ScrollView : View;
+  const { backdropStyle, sheetStyle } = useBottomSheetMotion(visible);
+
   return (
     <Modal
       visible={visible}
       transparent
-      animationType={Platform.OS === 'web' ? 'none' : 'slide'}
+      animationType="none"
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
         style={styles.kav}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.backdrop}>
+        <Animated.View style={[styles.backdrop, backdropStyle]}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
-          <View style={styles.sheet}>
+          <Animated.View style={[styles.sheet, sheetStyle]}>
             <View style={styles.handle} />
             <View style={styles.head}>
               <Text style={styles.title} numberOfLines={1}>{title}</Text>
@@ -38,8 +41,8 @@ export default function BottomSheet({ visible, onClose, title, children, scroll 
             >
               {children}
             </Body>
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );

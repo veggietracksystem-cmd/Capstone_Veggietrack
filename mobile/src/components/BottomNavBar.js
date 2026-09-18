@@ -79,7 +79,7 @@ export default function BottomNavBar({ tabs, activeTab, onTabPress, onTabMeasure
             onLayout={() => reportMeasure(tab.id)}
             activeOpacity={0.7}
           >
-            <View>
+            <View style={styles.iconWrap}>
               <IconComponent
                 name={tab.iconName}
                 size={rf(21)}
@@ -121,10 +121,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 3,
   },
+  iconWrap: {
+    minHeight: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   label: {
     fontFamily: fonts.bodySemiBold,
     fontSize: rf(11),
     color: colors.inkFaint,
+    lineHeight: 15,
   },
   labelActive: {
     color: colors.leaf700,

@@ -46,6 +46,8 @@ function CustomerTrackingView({ route, navigation }) {
 }
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, backgroundColor: colors.card },
+  back: { fontSize: 16, color: colors.leaf700 }, title: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.leaf700 },
   content: { padding: 12, gap: 12, paddingBottom: 30 }, status: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 },
   statusText: { textTransform: 'capitalize', fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.leaf700 },
   note: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkSoft },

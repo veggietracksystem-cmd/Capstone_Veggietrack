@@ -1,5 +1,6 @@
 import { rf } from '../lib/responsive';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, radius } from '../theme/appTheme';
 
 const PRIMARY = colors.leaf700;
@@ -8,20 +9,21 @@ const PRIMARY = colors.leaf700;
  * Reusable empty-state placeholder for any list that can be empty.
  *
  * Props:
- *  - icon:     emoji/string shown above the title (default 🌱)
+ *  - icon:     legacy string shown above the title
+ *  - iconElement: optional vector icon shown above the title (default sprout)
  *  - title:    bold headline (e.g. "No harvests yet")
  *  - message:  optional secondary line (e.g. "Tap + to add one.")
  *  - actionLabel + onAction: optional call-to-action button
  *
  * Usage:
  *   {list.length === 0
- *     ? <EmptyState icon="🥬" title="No harvests yet" message="Tap “Add Harvest Update”." />
+ *     ? <EmptyState icon="🥬" title="No harvests yet" message="Tap “Add Harvest Update.”" />
  *     : list.map(...)}
  */
-export default function EmptyState({ icon = '🌱', title, message, actionLabel, onAction }) {
+export default function EmptyState({ icon, iconElement, title, message, actionLabel, onAction }) {
   return (
     <View style={styles.wrap}>
-      <Text style={styles.icon}>{icon}</Text>
+      {iconElement || (icon ? <Text style={styles.icon}>{icon}</Text> : <MaterialCommunityIcons name="sprout" size={rf(44)} color={colors.inkFaint} style={styles.icon} />)}
       {title ? <Text style={styles.title}>{title}</Text> : null}
       {message ? <Text style={styles.message}>{message}</Text> : null}
       {actionLabel && onAction ? (

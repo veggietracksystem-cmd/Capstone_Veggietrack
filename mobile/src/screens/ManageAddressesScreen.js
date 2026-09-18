@@ -201,7 +201,7 @@ export default function ManageAddressesScreen({ navigation }) {
             <ScrollView contentContainerStyle={styles.content}>
                 {addresses.length === 0 ? (
                     <View style={styles.empty}>
-                        <Text style={styles.emptyIcon}>📍</Text>
+                        <Ionicons name="location-outline" size={rf(44)} color={colors.inkFaint} />
                         <Text style={styles.emptyTitle}>No saved addresses</Text>
                         <Text style={styles.emptyMessage}>Add your home, office, or other delivery locations</Text>
                     </View>
@@ -218,9 +218,12 @@ export default function ManageAddressesScreen({ navigation }) {
                             </View>
                             <Text style={styles.addressText}>{addr.address}</Text>
                             {addr.latitude && addr.longitude && (
-                                <Text style={styles.coordsText}>
-                                    📍 {addr.latitude.toFixed(4)}, {addr.longitude.toFixed(4)}
-                                </Text>
+                                <View style={styles.coordsRow}>
+                                    <Ionicons name="location-outline" size={rf(16)} color={colors.inkFaint} />
+                                    <Text style={styles.coordsText}>
+                                        {addr.latitude.toFixed(4)}, {addr.longitude.toFixed(4)}
+                                    </Text>
+                                </View>
                             )}
                             <View style={styles.addressActions}>
                                 {!addr.is_default && (
@@ -358,7 +361,7 @@ export default function ManageAddressesScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgScreen },
+    container: { flex: 1, backgroundColor: '#FFFFFF' },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     content: { padding: 16, paddingBottom: 40 },
     empty: { alignItems: 'center', marginTop: 60 },
@@ -380,6 +383,7 @@ const styles = StyleSheet.create({
     defaultBadgeText: { color: '#fff', fontSize: rf(fontSize.xs), fontWeight: 'bold' },
     addressText: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
     coordsText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 4 },
+    coordsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     addressActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
     actionBtn: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: radius.ctrl, borderWidth: 1 },
     setDefaultBtn: { borderColor: PRIMARY },

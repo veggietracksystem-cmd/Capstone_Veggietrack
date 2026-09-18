@@ -2,6 +2,7 @@ import useLatestRequest from '../hooks/useLatestRequest';
 import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { SharedScreenTransition } from '../lib/motion';
 import {
   Text, View, ScrollView, TouchableOpacity, Platform,
   ActivityIndicator, StyleSheet, RefreshControl,
@@ -29,6 +30,7 @@ import { currentProofLocation, captureProofPhoto } from '../lib/podCapture';
 import { createProofSubmission, proofFailureMessage } from '../lib/podSubmission';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { isOnline } from '../offline/net';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const PRIMARY = colors.leaf700;
 
@@ -377,6 +379,7 @@ export default function DeliveryDashboard({ navigation, route }) {
         style={[styles.tabButton, mode === 'deliveries' && styles.tabButtonActive]}
         onPress={() => setMode('deliveries')}
       >
+        <MaterialCommunityIcons name="truck-delivery-outline" size={rf(18)} color={colors.inkSoft} />
         <Text style={[styles.tabButtonText, mode === 'deliveries' && styles.tabButtonTextActive]}>
           {t('dashboards.delivery.modeDeliveries')}
         </Text>
@@ -385,6 +388,7 @@ export default function DeliveryDashboard({ navigation, route }) {
         style={[styles.tabButton, mode === 'pickups' && styles.tabButtonActive]}
         onPress={() => setMode('pickups')}
       >
+        <MaterialCommunityIcons name="tractor" size={rf(18)} color={colors.inkSoft} />
         <Text style={[styles.tabButtonText, mode === 'pickups' && styles.tabButtonTextActive]}>
           {t('dashboards.delivery.modePickups')}
         </Text>
@@ -403,13 +407,14 @@ export default function DeliveryDashboard({ navigation, route }) {
         </View>
       </View>
 
-      <ScrollView
+  <SharedScreenTransition style={{ flex: 1 }} visible>
+    <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: 90 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <OfflineBanner offline={syncState === 'offline'} />
 
-        {activeBottomTab === 'home' && (
+          {activeBottomTab === 'home' && (
           <View>
             <View style={styles.greetingRow}>
               <Text style={styles.greetingEyebrow}>{t('dashboards.delivery.greetingHome')}</Text>
@@ -428,7 +433,7 @@ export default function DeliveryDashboard({ navigation, route }) {
               <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 24, marginBottom: 24 }} />
             ) : activeOrders.length === 0 ? (
               <EmptyState
-                icon="🚚"
+                iconElement={<MaterialCommunityIcons name="truck-delivery-outline" size={rf(44)} color={colors.inkFaint} />}
                 title={t('dashboards.delivery.noDeliveriesTitle', { filter: '' })}
                 message={t('dashboards.delivery.noDeliveriesMessage')}
               />
@@ -446,7 +451,7 @@ export default function DeliveryDashboard({ navigation, route }) {
             </View>
             {loading ? null : activePickups.length === 0 ? (
               <EmptyState
-                icon="🚜"
+                iconElement={<MaterialCommunityIcons name="tractor" size={rf(44)} color={colors.inkFaint} />}
                 title={t('dashboards.delivery.noAssignedPickupsTitle')}
                 message={t('dashboards.delivery.noAssignedPickupsMessage')}
               />
@@ -467,7 +472,7 @@ export default function DeliveryDashboard({ navigation, route }) {
                   <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
                 ) : activeOrders.length === 0 ? (
                   <EmptyState
-                    icon="🚚"
+                    iconElement={<MaterialCommunityIcons name="truck-delivery-outline" size={rf(44)} color={colors.inkFaint} />}
                     title={t('dashboards.delivery.noDeliveriesTitle', { filter: '' })}
                     message={t('dashboards.delivery.noDeliveriesMessage')}
                   />
@@ -482,7 +487,7 @@ export default function DeliveryDashboard({ navigation, route }) {
                   <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
                 ) : activePickups.length === 0 ? (
                   <EmptyState
-                    icon="🚜"
+                    iconElement={<MaterialCommunityIcons name="tractor" size={rf(44)} color={colors.inkFaint} />}
                     title={t('dashboards.delivery.noAssignedPickupsTitle')}
                     message={t('dashboards.delivery.noAssignedPickupsMessage')}
                   />
@@ -505,7 +510,7 @@ export default function DeliveryDashboard({ navigation, route }) {
                   <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
                 ) : historyOrders.length === 0 ? (
                   <EmptyState
-                    icon="🚚"
+                    iconElement={<MaterialCommunityIcons name="truck-delivery-outline" size={rf(44)} color={colors.inkFaint} />}
                     title={t('dashboards.delivery.noHistoryTitle')}
                     message={t('dashboards.delivery.noHistoryMessage')}
                   />
@@ -520,7 +525,7 @@ export default function DeliveryDashboard({ navigation, route }) {
                   <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
                 ) : pickupHistory.length === 0 ? (
                   <EmptyState
-                    icon="🚜"
+                    iconElement={<MaterialCommunityIcons name="tractor" size={rf(44)} color={colors.inkFaint} />}
                     title={t('dashboards.delivery.noPickupHistoryTitle')}
                     message={t('dashboards.delivery.noPickupHistoryMessage')}
                   />
@@ -530,8 +535,9 @@ export default function DeliveryDashboard({ navigation, route }) {
               </>
             )}
           </View>
-        )}
-      </ScrollView>
+          )}
+          </ScrollView>
+        </SharedScreenTransition>
 
       <DeliveryMapModal
         visible={!!mapAddress}
@@ -565,7 +571,7 @@ export default function DeliveryDashboard({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgScreen },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
 
   headerIcons: { flexDirection: 'row', alignItems: 'center' },
 
@@ -616,7 +622,7 @@ const styles = StyleSheet.create({
   detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
 
   tabContainer: { flexDirection: 'row', backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 4, marginBottom: 16 },
-  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
+  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8, gap: 3 },
   tabButtonActive: { backgroundColor: colors.card, ...shadowCard },
   tabButtonText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
   tabButtonTextActive: { color: PRIMARY },

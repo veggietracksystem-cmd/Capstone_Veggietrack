@@ -3,10 +3,13 @@ import { useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, TextInput,
   ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform,
+  Animated,
 } from 'react-native';
 import { showAlert } from '../lib/ui';
 import { colors, fonts, radius } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
+import { Ionicons } from '@expo/vector-icons';
+import { useBottomSheetMotion } from '../lib/motion';
 
 const PRIMARY = colors.leaf700;
 
@@ -15,6 +18,7 @@ export default function ContactUsModal({ visible, onClose }) {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const { backdropStyle, sheetStyle } = useBottomSheetMotion(visible);
 
   const handleSend = () => {
     const s = subject.trim();
@@ -41,15 +45,16 @@ export default function ContactUsModal({ visible, onClose }) {
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
+        <Animated.View style={[styles.backdrop, backdropStyle]}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
+          <Animated.View style={[styles.sheet, sheetStyle]}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>{t('contactUs.title')}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeText}>✕</Text>
+              <Ionicons name="close" size={rf(22)} color={colors.ink} />
             </TouchableOpacity>
           </View>
 
@@ -59,22 +64,22 @@ export default function ContactUsModal({ visible, onClose }) {
               <Text style={styles.cardTitle}>{t('contactUs.hubName')}</Text>
 
               <View style={styles.infoRow}>
-                <Text style={styles.icon}>📍</Text>
+                <Ionicons name="location-outline" size={rf(20)} color={PRIMARY} style={styles.icon} />
                 <Text style={styles.infoText}>San Pablo City Central Warehouse, Laguna, Philippines</Text>
               </View>
 
               <View style={styles.infoRow}>
-                <Text style={styles.icon}>📞</Text>
+                <Ionicons name="call-outline" size={rf(20)} color={PRIMARY} style={styles.icon} />
                 <Text style={styles.infoText}>+63 917 123 4567 / (049) 501-2345</Text>
               </View>
 
               <View style={styles.infoRow}>
-                <Text style={styles.icon}>✉️</Text>
+                <Ionicons name="mail-outline" size={rf(20)} color={PRIMARY} style={styles.icon} />
                 <Text style={styles.infoText}>support@veggietrack.ph</Text>
               </View>
 
               <View style={styles.infoRow}>
-                <Text style={styles.icon}>⏰</Text>
+                <Ionicons name="time-outline" size={rf(20)} color={PRIMARY} style={styles.icon} />
                 <Text style={styles.infoText}>{t('contactUs.hours')}</Text>
               </View>
             </View>
@@ -115,8 +120,8 @@ export default function ContactUsModal({ visible, onClose }) {
               )}
             </TouchableOpacity>
           </ScrollView>
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -138,9 +143,9 @@ const styles = StyleSheet.create({
   infoText: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, flex: 1 },
   formTitle: { fontFamily: fonts.heading, fontSize: rf(16), color: colors.ink, marginBottom: 12 },
   label: { fontFamily: fonts.bodySemiBold, fontSize: rf(12.5), color: colors.inkSoft, marginBottom: 6, marginTop: 4 },
-  input: { backgroundColor: colors.card, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: rf(14), marginBottom: 14, borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
+  input: { backgroundColor: colors.card, borderRadius: radius.ctrl, minHeight: 48, paddingHorizontal: 12, paddingVertical: 12, fontFamily: fonts.body, fontSize: rf(14), marginBottom: 14, borderWidth: 1.4, borderColor: colors.border, color: colors.ink, textAlignVertical: 'center' },
   textArea: { height: 100, textAlignVertical: 'top' },
-  button: { backgroundColor: PRIMARY, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 10 },
+  button: { backgroundColor: PRIMARY, minHeight: 48, paddingHorizontal: 14, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15.5) },
 });

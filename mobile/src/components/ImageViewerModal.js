@@ -2,6 +2,7 @@ import ProofDetails from './ProofDetails';
 import { rf } from '../lib/responsive';
 import { Modal, View, Image, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { fonts, radius } from '../theme/appTheme';
+import { Ionicons } from '@expo/vector-icons';
 
 // Full-screen image viewer. Pass a uri to show; onClose dismisses it.
 export default function ImageViewerModal({ uri, visible, onClose, proof }) {
@@ -13,7 +14,8 @@ export default function ImageViewerModal({ uri, visible, onClose, proof }) {
         {uri ? <Image source={{ uri }} style={styles.image} resizeMode="contain" /> : null}
         {uri && <ProofDetails proof={proof} />}
         <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-          <Text style={styles.closeText}>Close ✕</Text>
+          <Text style={styles.closeText}>Close</Text>
+          <Ionicons name="close" size={rf(20)} color="#fff" />
         </TouchableOpacity>
       </View>
     </Modal>

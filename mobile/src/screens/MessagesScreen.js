@@ -294,7 +294,7 @@ export default function MessagesScreen({ navigation, embedded }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgScreen, minHeight: 0 },
+  container: { flex: 1, backgroundColor: '#FFFFFF', minHeight: 0 },
   bodyFlex: { flex: 1, minHeight: 0 },
 
   scrollArea: { flex: 1, minHeight: 0 },

@@ -14,6 +14,8 @@ import EmptyState from '../components/EmptyState';
 import { showAlert, confirmAction } from '../lib/ui';
 import { useTranslation } from '../i18n/useTranslation';
 import { getVegetableTile } from '../lib/vegetableIcons';
+import VegetableImage from '../components/VegetableImage';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 const PRIMARY = '#1E4E09';
 
@@ -120,7 +122,7 @@ export default function HarvestListScreen({ navigation }) {
       >
         {/* Search Input Bar (Marketplace Style) */}
         <View style={styles.searchRow}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Ionicons name="search-outline" size={rf(19)} color="#999" />
           <TextInput
             style={styles.searchInput}
             placeholder={t('harvestList.searchPlaceholder')}
@@ -130,7 +132,7 @@ export default function HarvestListScreen({ navigation }) {
           />
           {searchQuery ? (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Text style={styles.searchClear}>✕</Text>
+              <Ionicons name="close-circle-outline" size={rf(20)} color="#999" />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -141,7 +143,7 @@ export default function HarvestListScreen({ navigation }) {
           </View>
         ) : filteredHarvests.length === 0 ? (
           <EmptyState
-            icon="🥬"
+            iconElement={<MaterialCommunityIcons name="sprout" size={rf(44)} color="#9aa39a" />}
             title={t('harvestList.emptyTitle')}
             message={t('harvestList.emptyMessage')}
           />
@@ -158,7 +160,7 @@ export default function HarvestListScreen({ navigation }) {
                     <Image source={{ uri: h.image_url }} style={styles.tileContainer} resizeMode="cover" />
                   ) : (
                     <View style={[styles.tileContainer, { backgroundColor: tile.bg }]}>
-                      <Text style={styles.tileIcon}>{tile.icon}</Text>
+                      <VegetableImage source={tile.source} style={styles.tileIcon} fallbackSize={rf(32)} />
                     </View>
                   )}
 
@@ -185,6 +187,7 @@ export default function HarvestListScreen({ navigation }) {
                       disabled={busy}
                       activeOpacity={0.85}
                     >
+                      <Ionicons name="create-outline" size={rf(16)} color="#fff" />
                       <Text style={styles.manageBtnText}>{t('harvestList.editBtn')}</Text>
                     </TouchableOpacity>
 
@@ -195,6 +198,7 @@ export default function HarvestListScreen({ navigation }) {
                         disabled={busy}
                         activeOpacity={0.85}
                       >
+                        <MaterialCommunityIcons name="truck-delivery-outline" size={rf(16)} color={PRIMARY} />
                         <Text style={styles.pickupBtnText}>{t('harvestList.pickupBtn')}</Text>
                       </TouchableOpacity>
                     )}
@@ -208,7 +212,10 @@ export default function HarvestListScreen({ navigation }) {
                       {busy ? (
                         <ActivityIndicator color="#c62828" size="small" />
                       ) : (
-                        <Text style={styles.deleteBtnText}>{t('harvestList.deleteBtn')}</Text>
+                        <>
+                          <Ionicons name="trash-outline" size={rf(16)} color="#c62828" />
+                          <Text style={styles.deleteBtnText}>{t('harvestList.deleteBtn')}</Text>
+                        </>
                       )}
                     </TouchableOpacity>
                   </View>
@@ -223,7 +230,7 @@ export default function HarvestListScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8faf8' },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200 },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
 
@@ -295,7 +302,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 8,
   },
-  tileIcon: { fontSize: rf(32) },
+  tileIcon: { width: 72, height: 72 },
   cropTitle: {
     fontSize: rf(15),
     fontWeight: '700',

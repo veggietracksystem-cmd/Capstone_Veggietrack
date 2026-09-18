@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert, peso } from '../lib/ui';
 import { getVegetableTile } from '../lib/vegetableIcons';
+import VegetableImage from '../components/VegetableImage';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import DeliveryDateTimeFields from '../components/DeliveryDateTimeFields';
 import CustomModal from '../components/CustomModal';
@@ -144,7 +145,7 @@ export default function OrderConfirmationScreen({ navigation, route }) {
             return (
               <View key={c.vegetable_name} style={styles.itemRow}>
                 <View style={[styles.itemTile, { backgroundColor: tile.bg }]}>
-                  <Text style={styles.itemTileIcon}>{tile.icon}</Text>
+                  <VegetableImage source={tile.source} style={styles.itemTileIcon} fallbackSize={rf(18)} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.itemName}>{localizeVegetableName(c.name, language)}</Text>
@@ -242,6 +243,14 @@ export default function OrderConfirmationScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
   content: { padding: 16, paddingBottom: 40 },
 
   sectionCard: {
@@ -327,7 +336,7 @@ const styles = StyleSheet.create({
 
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
   itemTile: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  itemTileIcon: { fontSize: rf(fontSize.xl) },
+  itemTileIcon: { width: 28, height: 28 },
   itemName: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
   itemMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 1 },
   itemSubtotal: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },

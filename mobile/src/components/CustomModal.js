@@ -1,11 +1,11 @@
 import { rf } from '../lib/responsive';
-import { useEffect, useRef } from 'react';
 import {
-  Modal, View, Text, TouchableOpacity, Animated, StyleSheet,
+  Modal, View, Text, TouchableOpacity, StyleSheet, Animated,
   KeyboardAvoidingView, ScrollView, Platform,
 } from 'react-native';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
+import { useSharedModalMotion } from '../lib/motion';
 
 const PRIMARY = colors.leaf700;
 
@@ -36,33 +36,19 @@ export default function CustomModal({
 }) {
   const { t } = useTranslation();
   const resolvedCancelLabel = cancelLabel ?? t('common.close');
-  const scale = useRef(new Animated.Value(0.9)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (visible) {
-      const useNativeDriver = Platform.OS !== 'web';
-      Animated.parallel([
-        Animated.spring(scale, { toValue: 1, useNativeDriver, friction: 7 }),
-        Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver }),
-      ]).start();
-    } else {
-      scale.setValue(0.9);
-      opacity.setValue(0);
-    }
-  }, [visible, scale, opacity]);
+  const { backdropStyle, cardStyle } = useSharedModalMotion(visible);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={busy ? undefined : onCancel}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={busy ? undefined : onCancel}>
       <KeyboardAvoidingView
         style={styles.kav}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Animated.View style={[styles.backdrop, { opacity }]}>
+        <Animated.View style={[styles.backdrop, backdropStyle]}>
           {/* Tapping the backdrop dismisses (unless busy). */}
           <TouchableOpacity style={[StyleSheet.absoluteFill, styles.backdropDismiss]} activeOpacity={1} onPress={busy ? undefined : onCancel} />
 
-          <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
+          <Animated.View style={[styles.card, cardStyle]}>
             {title ? <Text style={styles.title}>{title}</Text> : null}
             <ScrollView
               style={styles.bodyScroll}
@@ -108,8 +94,8 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 12 },
   bodyScroll: { flexGrow: 0, flexShrink: 1 },
   body: { marginBottom: 6 },
-  actions: { flexDirection: 'row', gap: 12, marginTop: 16 },
-  btn: { flex: 1, paddingVertical: 13, borderRadius: radius.ctrl, alignItems: 'center' },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  btn: { flex: 1, minWidth: 0, minHeight: 48, paddingHorizontal: 8, paddingVertical: 13, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   btnPrimary: { backgroundColor: PRIMARY },
   btnPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15) },
   btnOutline: { borderWidth: 1.5, borderColor: PRIMARY },

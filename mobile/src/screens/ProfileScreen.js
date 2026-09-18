@@ -15,6 +15,7 @@ import CustomModal from '../components/CustomModal';
 import BottomNavBar from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { Ionicons } from '@expo/vector-icons';
 
 // Profile is a bottom-tab destination (pushed from the dashboard's "profile"
 // tab) for every role except Farmer, whose profile is an embedded dashboard
@@ -88,8 +89,8 @@ export default function ProfileScreen({ navigation }) {
           <View style={styles.roleBadge}>
             <Text style={styles.roleBadgeText}>{(user?.role || 'user').replace(/_/g, ' ').toUpperCase()}</Text>
           </View>
-          <View style={styles.contactRow}>
-            <Ionicons name="call-outline" size={rf(13)} color={colors.inkSoft} />
+          <View style={styles.infoRow}>
+            <Ionicons name="call-outline" size={rf(16)} color={colors.inkSoft} />
             <Text style={styles.phoneText}>{user?.phone || '—'}</Text>
           </View>
         </View>
@@ -118,7 +119,10 @@ export default function ProfileScreen({ navigation }) {
               style={[styles.menuItem, styles.menuItemLast]}
               onPress={() => navigation.navigate('ManageAddresses')}
             >
-              <Text style={styles.menuItemText}>Manage Addresses</Text>
+              <View style={styles.menuItemContent}>
+                <Ionicons name="location-outline" size={rf(18)} color={colors.inkSoft} />
+                <Text style={styles.menuItemText}>Manage Addresses</Text>
+              </View>
               <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
           )}
@@ -175,7 +179,7 @@ export default function ProfileScreen({ navigation }) {
             onPress={() => { setLanguage(opt.code); setLangOpen(false); }}
           >
             <Text style={styles.langRowText}>{opt.label}</Text>
-            {language === opt.code ? <Text style={styles.langCheck}>✓</Text> : null}
+            {language === opt.code ? <Ionicons name="checkmark" size={rf(18)} color={colors.leaf700} /> : null}
           </TouchableOpacity>
         ))}
       </CustomModal>
@@ -193,6 +197,15 @@ export default function ProfileScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  back: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(15), width: 50 },
+  title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
   content: { padding: 16, paddingBottom: 100 },
 
   // User Profile Card
@@ -206,6 +219,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadowCard,
   },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   avatarCircle: {
     width: 68,
     height: 68,
@@ -250,6 +264,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  menuItemContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   menuItemLast: { borderBottomWidth: 0 },
   menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
   chevron: { fontSize: rf(fontSize.xl), color: colors.inkFaint, fontWeight: '600' },

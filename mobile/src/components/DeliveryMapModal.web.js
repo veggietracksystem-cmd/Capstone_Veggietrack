@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { colors, fonts, radius } from '../theme/appTheme';
 import { coordinate } from '../lib/trackingGeometry';
+import { Ionicons } from '@expo/vector-icons';
 
 const PRIMARY = colors.leaf700;
 const SAN_PABLO = { latitude: 14.0683, longitude: 121.3256 };
@@ -135,10 +136,18 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
         <View style={styles.header}>
           <Text style={styles.title}>Map Navigation</Text>
           <TouchableOpacity onPress={onClose}>
-            <Text style={styles.close}>Close ✕</Text>
+            <View style={styles.closeLabel}>
+              <Text style={styles.close}>Close</Text>
+              <Ionicons name="close" size={rf(20)} color={PRIMARY} />
+            </View>
           </TouchableOpacity>
         </View>
-        {address ? <Text style={styles.addr}>📍 {address}</Text> : null}
+        {address ? (
+          <View style={styles.addrRow}>
+            <Ionicons name="location-outline" size={rf(18)} color={PRIMARY} />
+            <Text style={styles.addr}>{address}</Text>
+          </View>
+        ) : null}
         <Text style={styles.note}>{gpsError || (courier ? 'Green dot: you (device GPS). Pin: destination.' : 'Waiting for your device GPS. Pin: destination.')}</Text>
 
         {loading ? (
@@ -161,7 +170,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
   title: { fontFamily: fonts.heading, fontSize: rf(19), color: colors.ink },
   close: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15) },
-  addr: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, paddingHorizontal: 16, marginBottom: 8 },
+  closeLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  addrRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginBottom: 8 },
+  addr: { flex: 1, fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft },
   mapContainer: { flex: 1, margin: 16, borderRadius: radius.card, overflow: 'hidden', backgroundColor: colors.leaf50, minHeight: 300 },
   note: { fontFamily: fonts.body, color: colors.gold700, fontSize: rf(12), padding: 10, fontStyle: 'italic', backgroundColor: colors.gold100, textAlign: 'center' },
 });
