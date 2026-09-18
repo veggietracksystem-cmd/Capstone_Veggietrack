@@ -31,7 +31,9 @@ app.use('/api', (req, res, next) => {
   next();
 });
 // Raw body is required for Standard Webhooks signature verification.
-app.post('/api/hooks/send-sms', express.raw({ type: 'application/json', limit: '32kb' }), createSmsHook());
+app.post('/api/hooks/send-sms', express.raw({ type: 'application/json', limit: '32kb' }), createSmsHook({
+  report: status => console.info(`SMS hook status: ${status}`),
+}));
 app.use(express.json());
 
 // Admin Supabase client (service_role) – bypasses RLS for authenticated API calls

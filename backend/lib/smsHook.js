@@ -1,15 +1,17 @@
 const { Webhook } = require('standardwebhooks');
 const { normalizePhone, isValidPhone } = require('../../mobile/src/lib/phone');
-function createSmsHook({ env = process.env, fetchImpl = global.fetch } = {}) {
+function createSmsHook({ env = process.env, fetchImpl = global.fetch, report = () => {} } = {}) {
   return async (req, res) => {
     const fail = (status, message) => res.status(status).json({ error: { http_code: status, message } });
     const isProduction = String(env.NODE_ENV || '').toLowerCase() === 'production';
     const deliveryEnabled = env.PHILSMS_DELIVERY_ENABLED === 'true';
     if (!env.SEND_SMS_HOOK_SECRET || !env.PHILSMS_API_TOKEN || !env.PHILSMS_SENDER_ID) {
+      report('configuration_missing');
       if (!isProduction) return res.status(200).json({ ok: true, mode: 'development-skip', message: 'PhilSMS is disabled in development mode.' });
       return fail(503, 'SMS delivery is not configured.');
     }
     if (!deliveryEnabled) {
+      report('delivery_disabled');
       if (!isProduction) return res.status(200).json({ ok: true, mode: 'development-skip', message: 'PhilSMS is disabled in development mode.' });
       return fail(503, 'SMS delivery is not configured.');
     }
@@ -31,11 +33,21 @@ function createSmsHook({ env = process.env, fetchImpl = global.fetch } = {}) {
         body: JSON.stringify({ recipient: phone.slice(1), sender_id: env.PHILSMS_SENDER_ID, type: 'plain', message: `Your VeggieTrack verification code is ${otp}. Do not share this code.` }),
         signal: AbortSignal.timeout(4000),
       });
-      if (!response.ok) return fail(502, 'SMS delivery failed. Please try again later.');
+      if (!response.ok) {
+        report(`provider_http_${response.status}`);
+        return fail(502, 'SMS delivery failed. Please try again later.');
+      }
       const result = await response.json();
-      if (result?.status !== 'success') return fail(502, 'SMS delivery failed. Please try again later.');
+      if (result?.status !== 'success') {
+        report('provider_rejected');
+        return fail(502, 'SMS delivery failed. Please try again later.');
+      }
+      report('sent');
       return res.status(200).json({});
-    } catch { return fail(502, 'SMS delivery failed. Please try again later.'); }
+    } catch {
+      report('provider_network_failure');
+      return fail(502, 'SMS delivery failed. Please try again later.');
+    }
   };
 }
 module.exports = { createSmsHook };

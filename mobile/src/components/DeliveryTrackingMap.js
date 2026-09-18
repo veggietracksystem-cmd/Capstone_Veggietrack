@@ -101,7 +101,7 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
         if (event.type === 'error') { setMapReady(true); setMapError(event.message); }
         if (event.type === 'manual-pan') setAutoRecenter(false);
       }} />
-      {!mapReady && <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#218258" /><Text>Loading map…</Text></View>}
+      {!mapReady && <View style={[styles.loading, { pointerEvents: 'none' }]}><ActivityIndicator color="#218258" /><Text>Loading map…</Text></View>}
     </View>
     <View style={styles.metrics}>
       <Text style={styles.metric}>{remainingKm != null ? `${remainingKm.toFixed(2)} km remaining` : points.length > 1 ? `${(length / 1000).toFixed(2)} km route` : 'Road route unavailable'}</Text>

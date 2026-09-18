@@ -12,6 +12,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const [loadingAddress, setLoadingAddress] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
+  const [locationError, setLocationError] = useState('');
 
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -51,7 +52,11 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
   }, [visible]);
 
   const handleDetectLocation = () => {
-    if (typeof window === 'undefined' || !navigator.geolocation) return;
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      setLocationError('Location is unavailable in this browser. Search or place the pin on the map instead.');
+      return;
+    }
+    setLocationError('');
     setDetectingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -66,7 +71,9 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
         }
       },
       (err) => {
-        console.warn('[MapPinningModal] Geolocation error or denied:', err);
+        setLocationError(err?.code === 1
+          ? 'Location access is blocked. Allow location for this site in your browser, then try again.'
+          : 'Could not get your location. Search or place the pin on the map instead.');
         setDetectingLocation(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
@@ -206,6 +213,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
               <Text style={styles.locateBtnText}>📍 My Location</Text>
             )}
           </TouchableOpacity>
+          {locationError ? <Text style={styles.locationError}>{locationError}</Text> : null}
         </View>
 
         <View style={styles.footer}>
@@ -232,8 +240,9 @@ const styles = StyleSheet.create({
   close: { color: '#c62828', fontSize: rf(16), fontWeight: '600' },
 
   mapContainer: { flex: 1, marginHorizontal: 16, marginBottom: 12, borderRadius: 12, overflow: 'hidden', backgroundColor: '#f9f9f9', minHeight: 280, position: 'relative' },
-  locateBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ddd', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3, zIndex: 1000 },
+  locateBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ddd', boxShadow: '0px 2px 3px rgba(0, 0, 0, 0.15)', zIndex: 1000 },
   locateBtnText: { color: PRIMARY, fontWeight: '700', fontSize: rf(13) },
+  locationError: { position: 'absolute', top: 54, left: 12, right: 12, padding: 8, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.94)', color: '#8a3b12', fontSize: rf(12), textAlign: 'center' },
 
   footer: { padding: 16, borderTopWidth: 1, borderColor: '#eee', backgroundColor: '#fafafa' },
   addressLabel: { fontSize: rf(13), fontWeight: '700', color: '#555' },
