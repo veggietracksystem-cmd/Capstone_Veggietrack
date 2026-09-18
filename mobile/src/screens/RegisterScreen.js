@@ -21,14 +21,12 @@ export default function RegisterScreen({ navigation, route }) {
   const ROLES = [
     { value: 'farmer', label: t('auth.register.roleFarmer'), locationKey: 'farm_location', locationLabel: t('auth.register.farmLocation') },
     { value: 'retailer', label: t('auth.register.roleRetailer'), locationKey: 'store_location', locationLabel: t('auth.register.storeLocation') },
-    // Riders authenticate with their mobile number and do not need a profile
-    // address/service area. Operational pickup and delivery locations are
-    // collected from their respective workflows.
+    // Operational pickup and delivery locations are collected from rider workflows.
     { value: 'delivery_personnel', label: t('auth.register.roleDelivery') },
   ];
 
+  const [email,setEmail]=useState(''), [password,setPassword]=useState(''), [confirmPassword,setConfirmPassword]=useState('');
   const [phone,setPhone]=useState('');
-  const [password,setPassword]=useState('');
   const lock=useRef(false);
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('farmer');
@@ -43,19 +41,22 @@ export default function RegisterScreen({ navigation, route }) {
   const register = async () => {
     if(lock.current)return;
     if(!authConfigured){showAlert('Configuration required','Configure Supabase before registering.');return;}
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())){showAlert('Email','Enter a valid email address.');return;}
     if(!isValidPhone(phone)){showAlert('Mobile number',PHONE_HINT);return;}
-    if(!fullName.trim() || (roleConfig.locationKey && !location.trim()) || password.length<8){showAlert('Check your details', roleConfig.locationKey ? 'Enter your name, location and a password of at least 8 characters.' : 'Enter your name and a password of at least 8 characters.');return;}
+    if(password.length<8 || password!==confirmPassword){showAlert('Password','Enter matching passwords of at least 8 characters.');return;}
+    if(!fullName.trim() || (roleConfig.locationKey && !location.trim())){showAlert('Check your details', roleConfig.locationKey ? 'Enter your name and location.' : 'Enter your name.');return;}
     lock.current=true;setLoading(true);
     try {
-      const profileData = { full_name: fullName.trim(), role };
+      const profileData = { full_name: fullName.trim(), role, phone: normalizePhone(phone) };
       if (roleConfig.locationKey) {
         profileData[roleConfig.locationKey] = location.trim();
         profileData.latitude = latitude;
         profileData.longitude = longitude;
       }
-      const {error}=await supabase.auth.signUp({phone:normalizePhone(phone),password,options:{data:profileData}});
+      const {data,error}=await supabase.auth.signUp({email:email.trim(),password,options:{data:profileData}});
       if(error)throw error;
-      setPassword('');navigation.navigate('PhoneOtp',{phone:normalizePhone(phone)});
+      setPassword('');setConfirmPassword('');
+      showAlert('Registration', data.session ? 'Account created. Please wait for distributor approval.' : 'Account created. Check your email to confirm your account, then sign in.', () => navigation.navigate('Login'));
     } catch(error){showAlert('Registration',authError(error));}
     finally{lock.current=false;setLoading(false);}
   };
@@ -75,11 +76,13 @@ export default function RegisterScreen({ navigation, route }) {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
-          <Text style={styles.subtitle}>Verify your mobile number, then wait for distributor approval.</Text>
+          <Text style={styles.subtitle}>Create your VeggieTrack account with email and password. Your mobile number is used for contact and delivery coordination.</Text>
 
           <Text style={styles.sectionLabel}>Account Details</Text>
-          <TextInput style={styles.input} placeholderTextColor={colors.inkFaint} placeholder="Mobile number" accessibilityLabel="Mobile number" keyboardType="phone-pad" value={phone} onChangeText={setPhone} editable={!loading}/>
+          <TextInput style={styles.input} placeholderTextColor={colors.inkFaint} placeholder="Email" accessibilityLabel="Email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} editable={!loading}/>
           <TextInput style={styles.input} placeholderTextColor={colors.inkFaint} placeholder="Password (at least 8 characters)" accessibilityLabel="Password" secureTextEntry value={password} onChangeText={setPassword} editable={!loading}/>
+          <TextInput style={styles.input} placeholderTextColor={colors.inkFaint} placeholder="Confirm password" accessibilityLabel="Confirm password" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} editable={!loading}/>
+          <TextInput style={styles.input} placeholderTextColor={colors.inkFaint} placeholder="Mobile number" accessibilityLabel="Mobile number" keyboardType="phone-pad" value={phone} onChangeText={setPhone} editable={!loading}/>
 
           <View style={styles.divider} />
 

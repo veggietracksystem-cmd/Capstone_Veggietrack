@@ -34,11 +34,11 @@ const PRIMARY = colors.leaf700;
 
 export function statusColor(status) {
   switch (status) {
-    case 'assigned': return '#1976d2';
-    case 'in_transit': return '#7b1fa2';
+    case 'assigned': return colors.info;
+    case 'in_transit': return colors.purple;
     case 'delivered': return PRIMARY;
     case 'pending': return colors.gold500;
-    default: return '#607d8b';
+    default: return colors.soil600;
   }
 }
 
@@ -102,6 +102,7 @@ export default function DeliveryDashboard({ navigation, route }) {
   const requestLock = useRequestLock();
   const { user } = useAuth();
   const { t, language } = useTranslation();
+  const riderDisplayName = user?.full_name || user?.name || t('dashboards.delivery.defaultName');
 
   const RIDER_TABS = [
     { id: 'home', iconName: 'home-outline', label: t('dashboards.delivery.tabHome') },
@@ -335,7 +336,7 @@ export default function DeliveryDashboard({ navigation, route }) {
             onPress={() => navigation.navigate('RiderNavigation', { orderId: order.id })}
             activeOpacity={0.8}
           >
-            <Text style={styles.navigateBtnText}>🗺️ Navigate</Text>
+            <Text style={styles.navigateBtnText}>{t('dashboards.delivery.navigateBtn')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -410,6 +411,11 @@ export default function DeliveryDashboard({ navigation, route }) {
 
         {activeBottomTab === 'home' && (
           <View>
+            <View style={styles.greetingRow}>
+              <Text style={styles.greetingEyebrow}>{t('dashboards.delivery.greetingHome')}</Text>
+              <Text style={styles.greetingName} numberOfLines={1}>{riderDisplayName}</Text>
+            </View>
+
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>{t('dashboards.delivery.homeActiveDeliveries')}</Text>
               {activeOrders.length > 3 && (
@@ -581,6 +587,9 @@ const styles = StyleSheet.create({
   subtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
   content: { padding: 16, paddingBottom: 40 },
+  greetingRow: { marginBottom: 14 },
+  greetingEyebrow: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
+  greetingName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.title), color: colors.leaf900 || colors.leaf700, marginTop: 1 },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 10 },
   seeAllText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
@@ -622,8 +631,8 @@ flexButton: {
   flex: 1,
 },
 navigateBtn: {
-  backgroundColor: '#2196f3',
-  borderColor: '#2196f3',
+  backgroundColor: colors.info,
+  borderColor: colors.info,
   flex: 1,
 },
 navigateBtnText: {

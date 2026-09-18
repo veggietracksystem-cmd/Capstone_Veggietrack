@@ -4,7 +4,7 @@ import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Text, View, FlatList, TouchableOpacity,
+  Text, View, Image, FlatList, TouchableOpacity,
   ActivityIndicator, StyleSheet, RefreshControl, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +19,7 @@ import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
+import { getVegetableTile } from '../lib/vegetableIcons';
 
 const PRIMARY = colors.leaf700;
 
@@ -254,10 +255,18 @@ export default function StocksScreen({ navigation }) {
   const renderItem = ({ item: b }) => {
     const busy = busyId != null;
     const statusStyle = STATUS_STYLE[b.status] || STATUS_STYLE.received;
+    const tile = getVegetableTile(b.vegetable_name);
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={styles.product}>{localizeVegetableName(b.vegetable_name, language)}</Text>
+          {b.batch_photo_url ? (
+            <Image source={{ uri: b.batch_photo_url }} style={styles.thumb} />
+          ) : (
+            <View style={[styles.thumb, styles.thumbFallback, { backgroundColor: tile.bg }]}>
+              <Text style={styles.thumbIcon}>{tile.icon}</Text>
+            </View>
+          )}
+          <Text style={[styles.product, { flex: 1 }]} numberOfLines={1}>{localizeVegetableName(b.vegetable_name, language)}</Text>
           <View style={[styles.statusPill, { backgroundColor: statusStyle.bg }]}>
             <Text style={[styles.statusPillText, { color: statusStyle.fg }]}>{statusLabel(b.status)}</Text>
           </View>
@@ -426,7 +435,10 @@ const styles = StyleSheet.create({
   addProductBtnText: { color: '#fff', fontSize: rf(fontSize.title), fontFamily: fonts.bodySemiBold, lineHeight: rf(22) },
 
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 14, marginBottom: 12, ...shadowCard },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 8 },
+  thumb: { width: 42, height: 42, borderRadius: 11 },
+  thumbFallback: { alignItems: 'center', justifyContent: 'center' },
+  thumbIcon: { fontSize: rf(18) },
   product: { fontSize: rf(fontSize.lg), fontFamily: fonts.bodySemiBold, color: colors.ink },
 
   statusPill: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 12 },

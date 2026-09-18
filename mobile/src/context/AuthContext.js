@@ -50,8 +50,7 @@ export function AuthProvider({ children }) {
   });
   return ()=>{alive.current=false;generation.current++;subscription.unsubscribe();appSub.remove();clearInterval(timer);setUnauthorizedHandler(null);setBlockedHandler(null);setTokenProvider(null);};
  },[]);
- const signIn=async(phone,password)=>{const {error}=await supabase.auth.signInWithPassword({phone,password});if(error)throw error;await refreshProfile();};
  const signInWithEmail=async(email,password)=>{const {error}=await supabase.auth.signInWithPassword({email,password});if(error)throw error;await refreshProfile();};
- return <AuthContext.Provider value={{user,session,token:session?.access_token,loading,initialRoute,statusError,recoveryMode,setRecoveryMode,signIn,signInWithEmail,signOut,refreshProfile,updateUser:refreshProfile}}>{children}</AuthContext.Provider>;
+ return <AuthContext.Provider value={{user,session,token:session?.access_token,loading,initialRoute,statusError,recoveryMode,setRecoveryMode,signInWithEmail,signOut,refreshProfile,updateUser:refreshProfile}}>{children}</AuthContext.Provider>;
 }
 export function useAuth(){return useContext(AuthContext);}

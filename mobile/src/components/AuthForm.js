@@ -8,13 +8,19 @@ export const authStyles = StyleSheet.create({
  title:{fontFamily:fonts.headingBold,fontSize:rf(fontSize.h1),color:colors.leaf700,marginBottom:16,textAlign:'center'},
  note:{fontFamily:fonts.body,fontSize:rf(fontSize.md),color:colors.inkSoft,marginBottom:16},
  input:{backgroundColor:colors.card,borderWidth:1,borderColor:colors.border,borderRadius:radius.ctrl,padding:14,marginBottom:16,fontFamily:fonts.body,fontSize:rf(fontSize.lg),color:colors.ink},
- // Button variants: primary (solid, default) / outline (bordered) / ghost (text-only, lowest emphasis).
+ // Button variants: primary (solid, default) / outline (bordered) / ghost (text-only, lowest emphasis) / danger (destructive actions).
+ // `size="sm"` (see AuthButton) shrinks padding/font for dense admin lists — the
+ // default size stays exactly as before for every existing auth-screen call site.
  button:{backgroundColor:colors.leaf700,padding:16,borderRadius:radius.ctrl,alignItems:'center',marginVertical:6},
  buttonOutline:{backgroundColor:'transparent',borderWidth:1.5,borderColor:colors.leaf700,padding:16,borderRadius:radius.ctrl,alignItems:'center',marginVertical:6},
  buttonGhost:{backgroundColor:'transparent',paddingVertical:10,alignItems:'center',marginVertical:2},
+ buttonDanger:{backgroundColor:'transparent',borderWidth:1.5,borderColor:colors.danger,padding:16,borderRadius:radius.ctrl,alignItems:'center',marginVertical:6},
+ buttonSm:{paddingVertical:8,paddingHorizontal:14,marginVertical:3,alignSelf:'flex-start',borderRadius:10},
  white:{color:'#fff',fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.lg)},
  textOutline:{color:colors.leaf700,fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.lg)},
  textGhost:{color:colors.leaf700,fontFamily:fonts.bodyMedium,fontSize:rf(fontSize.md)},
+ textDanger:{color:colors.danger,fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.lg)},
+ textSm:{fontSize:rf(fontSize.sm)},
  error:{fontFamily:fonts.bodyMedium,fontSize:rf(fontSize.md),color:colors.danger,marginVertical:12},
  link:{textAlign:'center',padding:14,fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.md),color:colors.leaf700},
  adminLoginRow:{alignItems:'flex-end',marginBottom:12},adminLoginButton:{flexDirection:'row',alignItems:'center',gap:6,paddingVertical:6,paddingHorizontal:2},
@@ -31,9 +37,10 @@ const AUTH_BUTTON_VARIANTS = {
  primary:[authStyles.button,authStyles.white],
  outline:[authStyles.buttonOutline,authStyles.textOutline],
  ghost:[authStyles.buttonGhost,authStyles.textGhost],
+ danger:[authStyles.buttonDanger,authStyles.textDanger],
 };
-export function AuthButton({title,onPress,disabled,variant='primary'}) {
+export function AuthButton({title,onPress,disabled,variant='primary',size}) {
  const [btnStyle,textStyle]=AUTH_BUTTON_VARIANTS[variant]||AUTH_BUTTON_VARIANTS.primary;
- return <TouchableOpacity accessibilityRole="button" disabled={disabled} onPress={onPress} style={[btnStyle,disabled && {opacity:.5}]}><Text style={textStyle}>{title}</Text></TouchableOpacity>;
+ return <TouchableOpacity accessibilityRole="button" disabled={disabled} onPress={onPress} style={[btnStyle,size==='sm' && authStyles.buttonSm,disabled && {opacity:.5}]}><Text style={[textStyle,size==='sm' && authStyles.textSm]}>{title}</Text></TouchableOpacity>;
 }
 export function AuthInput(props) { return <TextInput style={authStyles.input} placeholderTextColor={colors.inkFaint} autoCapitalize="none" {...props}/>; }

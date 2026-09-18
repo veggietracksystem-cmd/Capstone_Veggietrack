@@ -357,7 +357,7 @@ export default function DistributorDashboard({ navigation, route }) {
       <View style={styles.minimalHeader}>
         <Text style={styles.minimalTitle}>{t('dashboards.distributor.hubTitle')}</Text>
         <View style={styles.headerIcons}>
-          <TouchableOpacity onPress={() => navigation.navigate('AccountManagement')} accessibilityLabel="User Management"><Ionicons name="people-outline" size={24} color="#1E4E09" /></TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('AccountManagement')} accessibilityLabel="User Management"><Ionicons name="people-outline" size={24} color={colors.leaf700} /></TouchableOpacity>
           <MessagesIcon />
           <NotificationBell />
         </View>
@@ -374,6 +374,7 @@ export default function DistributorDashboard({ navigation, route }) {
 
         {tab === 'home' && (
           <HomeTab
+            user={user}
             refreshProducts={refreshProducts}
             pendingOrderCount={orders.length}
             pendingPickupCount={pendingReceiveCount}
@@ -559,13 +560,20 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
 // Product List (price editing) embedded inline — it used to be a separate
 // screen reached via a "Product List →" button; it now lives directly here.
 function HomeTab({
+  user,
   refreshProducts,
   pendingOrderCount, pendingPickupCount, unpaidCount,
   onViewOrders, onViewPickups, onViewPayments,
 }) {
   const { t } = useTranslation();
+  const displayName = user?.full_name || user?.name || t('dashboards.distributor.defaultName');
   return (
     <View>
+      <View style={styles.greetingRow}>
+        <Text style={styles.greetingEyebrow}>{t('dashboards.distributor.greetingHome')}</Text>
+        <Text style={styles.greetingName} numberOfLines={1}>{displayName}</Text>
+      </View>
+
       <View style={styles.homeStatsRow}>
         <TouchableOpacity style={styles.homeStatCard} onPress={onViewOrders} activeOpacity={0.85}>
           <Text style={styles.homeStatValue}>{pendingOrderCount}</Text>
@@ -1238,6 +1246,9 @@ const styles = StyleSheet.create({
 
   content: { padding: 16, paddingBottom: 40 },
 
+  greetingRow: { marginBottom: 14 },
+  greetingEyebrow: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
+  greetingName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.title), color: colors.leaf900 || colors.leaf700, marginTop: 1 },
   homeStatsRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
   homeStatCard: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, paddingVertical: 16, alignItems: 'center', ...shadowCard },
   homeStatValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: PRIMARY },
@@ -1279,7 +1290,7 @@ const styles = StyleSheet.create({
   formTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 8 },
   fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 8, marginBottom: 6 },
   input: { backgroundColor: colors.bgScreen, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: rf(fontSize.lg), borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
-  inputDisabled: { backgroundColor: '#EFEAE2', color: colors.inkFaint },
+  inputDisabled: { backgroundColor: colors.soil300, color: colors.inkFaint },
   hint: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 4 },
   formButtons: { flexDirection: 'row', gap: 10, marginTop: 16 },
   button: { flex: 1, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center' },

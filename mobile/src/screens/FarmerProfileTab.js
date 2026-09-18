@@ -1,6 +1,7 @@
 import UserAvatar from '../components/UserAvatar';
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { confirmAction } from '../lib/ui';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
@@ -37,9 +38,15 @@ export default function FarmerProfileTab({ navigation }) {
         <View style={styles.roleBadge}>
           <Text style={styles.roleBadgeText}>{(user?.role || 'farmer').replace(/_/g, ' ').toUpperCase()}</Text>
         </View>
-        <Text style={styles.phoneText}>📞 {user?.phone || '—'}</Text>
+        <View style={styles.contactRow}>
+          <Ionicons name="call-outline" size={rf(13)} color={colors.inkSoft} />
+          <Text style={styles.phoneText}>{user?.phone || '—'}</Text>
+        </View>
         {user?.farm_location ? (
-          <Text style={styles.locationText}>📍 {user.farm_location}</Text>
+          <View style={styles.contactRow}>
+            <Ionicons name="location-outline" size={rf(13)} color={colors.inkSoft} />
+            <Text style={styles.locationText}>{user.farm_location}</Text>
+          </View>
         ) : null}
       </View>
 
@@ -158,8 +165,9 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.leaf700, letterSpacing: 0.5 },
+  contactRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   phoneText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
-  locationText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
+  locationText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
 
   // Section Card
   sectionCard: {

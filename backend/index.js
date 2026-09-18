@@ -6,7 +6,6 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const { createClient } = require('@supabase/supabase-js');
 const { verifyToken, configureAuth } = require('./lib/auth');
-const { createSmsHook } = require('./lib/smsHook');
 const { mountAccountRoutes } = require('./lib/accountRoutes');
 const { isVegetable, VEGETABLE_VALIDATION_MESSAGE } = require('./lib/vegetables');
 const { coordinate, destinationFor, loadDestination, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
@@ -30,10 +29,6 @@ app.use('/api', (req, res, next) => {
   if (req.method === 'GET') res.set('Cache-Control', 'no-store, max-age=0');
   next();
 });
-// Raw body is required for Standard Webhooks signature verification.
-app.post('/api/hooks/send-sms', express.raw({ type: 'application/json', limit: '32kb' }), createSmsHook({
-  report: status => console.info(`SMS hook status: ${status}`),
-}));
 app.use(express.json());
 
 // Admin Supabase client (service_role) – bypasses RLS for authenticated API calls

@@ -131,12 +131,14 @@
   "dashboards": {
     "delivery": {
       "title": "Delivery Dashboard",
+      "greetingHome": "Ngayon",
+      "defaultName": "Rider",
       "tabHome": "Home",
       "tabTasks": "Mga Gawain",
       "tabHistory": "History",
       "tabProfile": "Profile",
-      "modeDeliveries": "📦 Mga Delivery",
-      "modePickups": "🚜 Pickup ng Magsasaka",
+      "modeDeliveries": "Mga Delivery",
+      "modePickups": "Pickup ng Magsasaka",
       "filterAll": "Lahat",
       "filterActive": "Aktibo",
       "filterCompleted": "Tapos na",
@@ -156,6 +158,7 @@
       "pickupFromWarehouse": "1. Pickup mula sa Warehouse:",
       "deliverToRetailer": "2. Ihatid sa Retailer:",
       "viewRoute": "Tingnan ang Ruta",
+      "navigateBtn": "Mag-navigate",
       "scheduleLabel": "Oras: {schedule}",
       "etaText": "🕒 ETA: 10–15 minuto",
       "liveStatusInTransit": "Nasa Delivery",
@@ -336,6 +339,7 @@
       "deleteHarvestMessage": "Alisin ang {name} ({qty}kg)? Hindi na ito mababawi.",
       "offlinePrefixClean": "Offline — ipinapakita ang naka-save na datos. ",
       "defaultFarmerName": "Magsasaka",
+      "greetingHome": "Magandang umaga",
       "profileContactLabel": "Contact",
       "profileEmailLabel": "Email",
       "profileLocationFallback": "Walang naka-set na lokasyon",
@@ -347,6 +351,8 @@
     },
     "distributor": {
       "hubTitle": "Distributor Hub",
+      "greetingHome": "Maligayang pagbabalik",
+      "defaultName": "Distributor",
       "tabHome": "Home",
       "tabOrders": "Mga Order",
       "tabStocks": "Stocks",
@@ -460,6 +466,8 @@
     },
     "retailer": {
       "storeTitle": "Tindahan ng Retailer",
+      "greetingHome": "Mag-order ng sariwang gulay",
+      "defaultName": "Retailer",
       "tabHome": "Home",
       "tabCart": "Cart",
       "tabOrders": "Mga Order",
@@ -746,7 +754,7 @@
     "delivered": "Naihatid"
   },
   "language": {
-    "menuLabel": "🌐 Wika",
+    "menuLabel": "Wika",
     "modalTitle": "Pumili ng Wika",
     "english": "Ingles",
     "tagalog": "Tagalog"
@@ -760,10 +768,10 @@
   "profile": {
     "title": "Profile ng Account",
     "account": "Account",
-    "editProfile": "✏️ I-edit ang Profile",
+    "editProfile": "I-edit ang Profile",
     "helpSupport": "Tulong at Suporta",
-    "userGuide": "📖 Paano Gumagana ang VeggieTrack (Gabay ng Gumagamit)",
-    "contactUs": "📞 Makipag-ugnayan sa Suporta",
+    "userGuide": "Paano Gumagana ang VeggieTrack (Gabay ng Gumagamit)",
+    "contactUs": "Makipag-ugnayan sa Suporta",
     "logout": "Mag-log Out",
     "logoutConfirmTitle": "Mag-log out",
     "logoutConfirmMessage": "Sigurado ka bang gusto mong mag-log out?"

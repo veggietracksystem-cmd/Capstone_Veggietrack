@@ -42,11 +42,11 @@ export function statusColor(status) {
   switch (status) {
     case 'pending': return colors.gold500;
     case 'approved':
-    case 'assigned': return '#1976d2';
-    case 'in_transit': return '#7b1fa2';
+    case 'assigned': return colors.info;
+    case 'in_transit': return colors.purple;
     case 'delivered': return PRIMARY;
     case 'cancelled': return colors.danger;
-    default: return '#607d8b';
+    default: return colors.soil600;
   }
 }
 
@@ -358,6 +358,7 @@ export default function RetailerDashboard({ navigation, route }) {
 
         {tab === 'shop' && (
           <HomeTab
+            user={user}
             loading={loadingProducts}
             products={products}
             searchQuery={searchQuery} setSearchQuery={setSearchQuery}
@@ -418,8 +419,9 @@ export default function RetailerDashboard({ navigation, route }) {
 }
 
 // ================= Home tab (browse only) =================
-function HomeTab({ loading, products, searchQuery, setSearchQuery, onAdd, onSelect }) {
+function HomeTab({ user, loading, products, searchQuery, setSearchQuery, onAdd, onSelect }) {
   const { t, language } = useTranslation();
+  const displayName = user?.full_name || user?.name || t('dashboards.retailer.defaultName');
 
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
@@ -431,6 +433,11 @@ function HomeTab({ loading, products, searchQuery, setSearchQuery, onAdd, onSele
 
   return (
     <View>
+      <View style={styles.greetingRow}>
+        <Text style={styles.greetingEyebrow}>{t('dashboards.retailer.greetingHome')}</Text>
+        <Text style={styles.greetingName} numberOfLines={1}>{displayName}</Text>
+      </View>
+
       {/* Search bar */}
       <View style={styles.searchRow}>
         <Text style={styles.searchIcon}>🔍</Text>
@@ -698,6 +705,10 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 10 },
   emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
+  greetingRow: { marginBottom: 14 },
+  greetingEyebrow: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
+  greetingName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.title), color: colors.leaf900 || colors.leaf700, marginTop: 1 },
+
   // Search bar
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 16 },
   searchIcon: { fontSize: rf(fontSize.lg), marginRight: 8 },
@@ -739,7 +750,7 @@ const styles = StyleSheet.create({
   qtyBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1.4, borderColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
   qtyBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.xl) },
   qtyValue: { minWidth: 24, textAlign: 'center', fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
-  removeBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#FBEAE8', alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
+  removeBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: colors.dangerSoft, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
   removeBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md) },
 
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: colors.border },

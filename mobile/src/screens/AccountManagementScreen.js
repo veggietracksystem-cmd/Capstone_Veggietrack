@@ -26,8 +26,8 @@ export default function AccountManagementScreen({navigation}){
  return <SafeAreaView style={styles.page} edges={['top','left','right']}>
   <ScreenHeader title="User Management" onBack={()=>navigation.goBack()}/>
   <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-  <View style={{flexDirection:'row',flexWrap:'wrap',gap:5,marginBottom:8}}>{filters.map(f=><AuthButton key={f} title={f.replace('_',' ').toUpperCase()} disabled={busy || status===f} onPress={()=>setStatus(f)}/>)}</View>
-  <AuthButton title="Refresh" disabled={busy || loading} onPress={load}/>
+  <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginBottom:8}}>{filters.map(f=><AuthButton key={f} title={f.replace('_',' ').toUpperCase()} size="sm" variant={status===f?'primary':'outline'} disabled={busy || status===f} onPress={()=>setStatus(f)}/>)}</View>
+  <AuthButton title="Refresh" size="sm" variant="outline" disabled={busy || loading} onPress={load}/>
   {!!error&&<Text style={s.error}>{error}</Text>}
   {loading&&<ActivityIndicator accessibilityLabel="Loading accounts" color={colors.leaf700}/>}
   {!loading&&!users.length&&<Text style={s.note}>No accounts in this view.</Text>}
@@ -41,10 +41,10 @@ export default function AccountManagementScreen({navigation}){
    {!!u.status_reason&&<Text style={styles.meta}>{u.status_reason}</Text>}
    {!!u.unfinished_assignments?.length&&<Text style={s.error}>Distributor attention: {u.unfinished_assignments.length} unfinished assignments. {u.unfinished_assignments.map(a=>`${a.type} ${a.id.slice(0,8)} (${a.status})`).join(', ')}</Text>}
    {['active','pending_approval'].includes(status)&&<AuthInput placeholder="Reason (visible to this user)" maxLength={500} value={reasons[u.id] || ''} onChangeText={v=>setReasons(r=>({...r,[u.id]:v}))}/>}
-   {status==='pending_approval'&&<><AuthButton title="Approve" disabled={busy} onPress={()=>act(u,'APPROVED')}/><AuthButton title="Decline" disabled={busy} onPress={()=>act(u,'DECLINED')}/></>}
-   {status==='active'&&<AuthButton title="Disable" disabled={busy} onPress={()=>act(u,'DISABLED')}/>}
-   {status==='disabled'&&<AuthButton title="Reactivate (fresh login required)" disabled={busy} onPress={()=>act(u,'REACTIVATED')}/>}
-   <AuthButton title="Audit history" disabled={auditBusy!==null} onPress={async()=>{if(auditBusy!==null)return;setAuditBusy(u.id);try{const rows=await api.get(`/api/accounts/${u.id}/audit`);setAudit(a=>({...a,[u.id]:rows}));}catch(e){setError(e.message);}finally{setAuditBusy(null);}}}/>
+   {status==='pending_approval'&&<View style={styles.actionRow}><AuthButton title="Approve" size="sm" disabled={busy} onPress={()=>act(u,'APPROVED')}/><AuthButton title="Decline" size="sm" variant="danger" disabled={busy} onPress={()=>act(u,'DECLINED')}/></View>}
+   {status==='active'&&<AuthButton title="Disable" size="sm" variant="danger" disabled={busy} onPress={()=>act(u,'DISABLED')}/>}
+   {status==='disabled'&&<AuthButton title="Reactivate (fresh login required)" size="sm" disabled={busy} onPress={()=>act(u,'REACTIVATED')}/>}
+   <AuthButton title="Audit history" size="sm" variant="ghost" disabled={auditBusy!==null} onPress={async()=>{if(auditBusy!==null)return;setAuditBusy(u.id);try{const rows=await api.get(`/api/accounts/${u.id}/audit`);setAudit(a=>({...a,[u.id]:rows}));}catch(e){setError(e.message);}finally{setAuditBusy(null);}}}/>
    {audit[u.id]?.map(a=><Text key={a.id} style={styles.meta}>{new Date(a.created_at).toLocaleString()} · {a.action} · {a.previous_status} → {a.resulting_status}{a.reason?' · '+a.reason:''}</Text>)}
   </View>)}
   </ScrollView>
@@ -55,6 +55,7 @@ const styles=StyleSheet.create({
  content:{padding:20},
  card:{padding:16,backgroundColor:colors.card,borderRadius:radius.card,marginVertical:8,borderWidth:1,borderColor:colors.border,...shadowCard},
  cardHeaderRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:4},
+ actionRow:{flexDirection:'row',gap:8,marginTop:4},
  name:{flex:1,fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.md),color:colors.ink},
  meta:{fontFamily:fonts.body,fontSize:rf(fontSize.sm),color:colors.inkSoft,marginTop:2},
 });

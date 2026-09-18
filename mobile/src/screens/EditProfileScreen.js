@@ -59,7 +59,7 @@ export default function EditProfileScreen({ navigation }) {
 
 
     const updates = { full_name: name };
-    // Rider accounts use mobile authentication and have no profile-email field.
+    // Keep the contact profile update separate from Supabase Auth credentials.
     // Avoid sending an empty email that could overwrite an existing value.
     if (user?.role !== 'delivery_personnel') updates.email = email.trim();
     if (avatarChanged) updates.avatar_url = avatarUrl;

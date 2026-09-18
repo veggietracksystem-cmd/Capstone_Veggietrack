@@ -63,9 +63,9 @@ Install locked dependencies with `npm ci --prefix backend` and `npm ci --prefix 
 
 Mobile variables: `BACKEND_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_UPLOAD_PRESET`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`. Optional: `IOS_BUNDLE_IDENTIFIER`. The Cloudinary preset must allow unsigned image uploads. A device needs a reachable backend URL; localhost refers to the phone itself.
 
-Backend variables: `PORT`, `NODE_ENV`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `CLOUDINARY_CLOUD_NAME`. Authentication/SMS configuration: `SEND_SMS_HOOK_SECRET`, `PHILSMS_API_TOKEN`, `PHILSMS_SENDER_ID`, `PHILSMS_DELIVERY_ENABLED`. Optional mapping/diagnostics: `OSRM_BASE_URL`, `MAP_TILE_URL`, `MAP_TILE_ATTRIBUTION`, `MAPS_USER_AGENT`, `DEBUG_DELIVERY_LOCATION`.
+Backend variables: `PORT`, `NODE_ENV`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `CLOUDINARY_CLOUD_NAME`. Optional mapping/diagnostics: `OSRM_BASE_URL`, `MAP_TILE_URL`, `MAP_TILE_ATTRIBUTION`, `MAPS_USER_AGENT`, `DEBUG_DELIVERY_LOCATION`.
 
-Babel reads the three public upload/API variables from local dotenv or the EAS process environment. The development, preview and production EAS profiles explicitly select matching environments. Supabase public configuration uses Expo public variables. Never put service-role keys, PhilSMS tokens or Cloudinary secrets in mobile. See [EAS build notes](mobile/EAS_BUILD.md) and [Auth setup](AUTH_SUPABASE_SETUP.md).
+Babel reads the three public upload/API variables from local dotenv or the EAS process environment. The development, preview and production EAS profiles explicitly select matching environments. Supabase public configuration uses Expo public variables. Never put service-role keys or Cloudinary secrets in mobile. See [EAS build notes](mobile/EAS_BUILD.md).
 
 ## Database and deployment
 
@@ -96,6 +96,5 @@ The asynchronous UI report also records successful Web, Android and iOS/Hermes p
 - [Current project status](STATUS_REPORT.md)
 - [Asynchronous UI changes and verification](AJAX_IMPLEMENTATION_REPORT.md)
 - [Delivery reliability, guarded SQL and manual rider tests](DELIVERY_RELIABILITY_REPORT.md)
-- [Supabase authentication and SMS setup](AUTH_SUPABASE_SETUP.md)
 - [Profile photo implementation and hosted verification limits](CHUNK1_AVATARS_REPORT.md)
 - [EAS build and environment setup](mobile/EAS_BUILD.md)

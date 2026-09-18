@@ -43,7 +43,7 @@ The September 16 read-only hosted inspection recorded in the delivery report fou
 
 Avatar columns were present in the latest recorded hosted inspection. The avatar implementation is complete locally; real-device upload and hosted trigger/RLS definitions remain unverified. See [CHUNK1_AVATARS_REPORT.md](CHUNK1_AVATARS_REPORT.md); its current-status note supersedes older findings in that file.
 
-Supabase authentication remains the current implementation; [AUTH_SUPABASE_SETUP.md](AUTH_SUPABASE_SETUP.md) contains its separate deployment/manual validation requirements. The asynchronous UI updates require no new migration. No migration, deployment, SMS or real photo upload was performed during this documentation update.
+Supabase authentication remains the current implementation. The asynchronous UI updates require no new migration. No migration, deployment, SMS or real photo upload was performed during this documentation update.
 
 ## Remaining acceptance checks
 

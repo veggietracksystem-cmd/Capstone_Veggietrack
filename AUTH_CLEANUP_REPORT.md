@@ -2,7 +2,7 @@ Last reviewed: 2026-09-16
 
 ## Historical checkpoint
 
-The cleanup report below describes an earlier checkpoint, not current authentication behavior. Supabase Auth is implemented; follow [AUTH_SUPABASE_SETUP.md](AUTH_SUPABASE_SETUP.md). The current delivery/GPS/POD/ETA changes and verification are in [DELIVERY_RELIABILITY_REPORT.md](DELIVERY_RELIABILITY_REPORT.md). No authentication rules or security tests were removed by that task.
+The cleanup report below describes an earlier checkpoint, not current authentication behavior. The current delivery/GPS/POD/ETA changes and verification are in [DELIVERY_RELIABILITY_REPORT.md](DELIVERY_RELIABILITY_REPORT.md). No authentication rules or security tests were removed by that task.
 
 # Authentication cleanup report
 
@@ -10,7 +10,7 @@ Date: September 15, 2026
 
 ## Result and scope
 
-Removed the abandoned Firebase phone-auth implementation. Supabase database access and unrelated delivery, checkout, tracking, proof-of-delivery, profile, and offline code remain. Authentication is deliberately paused: this is a preparation checkpoint, not a functioning Supabase Auth release. PhilSMS was not implemented, no SMS credentials were requested or added, and no live database or deployment was changed.
+Removed the abandoned Firebase phone-auth implementation. Supabase database access and unrelated delivery, checkout, tracking, proof-of-delivery, profile, and offline code remain. Authentication is deliberately paused: this is a preparation checkpoint, not a functioning Supabase Auth release. No SMS credentials were requested or added, and no live database or deployment was changed.
 
 ## Inspection and provenance
 
@@ -68,7 +68,7 @@ The existing server client and database operations remain. `SUPABASE_ANON_KEY` e
 
 Later work must connect SDK-managed OTP/session lifecycle, validate Supabase access tokens on Express, and map `auth.users` identities to existing `public.users.id` without breaking foreign keys. Existing users have required legacy `password_hash` fields; future registration needs a reviewed migration rather than invented passwords. Preserve account UUIDs and review RLS/profile provisioning when implementing that work.
 
-The intended later flow is mobile -> Supabase Auth -> Send SMS Hook -> server-side PhilSMS delivery; the code returns to Supabase Auth for verification/session creation. SMS credentials belong only in server-side secrets. This report does not implement any of those steps.
+This report does not implement a future phone-verification flow.
 
 ## 7–8. Current UI and authentication behavior
 
@@ -120,4 +120,4 @@ The post-cleanup search included case-insensitive `firebase`, `google-services`,
 
 ## 12. Decisions and input
 
-No further input is needed to finish this cleanup. Before the next auth implementation, verify the deployed database state: the previous audit reported the removed migration unapplied, but no remote inspection was performed here. If someone applied it separately, its live UID/linking objects and permissions need a reviewed follow-up migration; do not drop them blindly. Supabase account mapping, RLS and new-profile schema work remain for the next authorized task. Authentication stays paused until that integration is implemented. No PhilSMS implementation or deployment was started.
+No further input is needed to finish this cleanup. Before the next auth implementation, verify the deployed database state: the previous audit reported the removed migration unapplied, but no remote inspection was performed here. If someone applied it separately, its live UID/linking objects and permissions need a reviewed follow-up migration; do not drop them blindly. Supabase account mapping, RLS and new-profile schema work remain for the next authorized task. Authentication stays paused until that integration is implemented.

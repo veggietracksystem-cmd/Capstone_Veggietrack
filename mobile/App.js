@@ -13,7 +13,6 @@ import AlertModalHost from './src/components/AlertModalHost';
 import LandingScreen from './src/screens/LandingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
-import PhoneOtpScreen from './src/screens/PhoneOtpScreen';
 import ApplicationStatusScreen from './src/screens/ApplicationStatusScreen';
 import AccountManagementScreen from './src/screens/AccountManagementScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
@@ -129,7 +128,6 @@ function RootNavigator() {
             <Stack.Screen name="Landing" component={LandingScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
-            <Stack.Screen name="PhoneOtp" component={PhoneOtpScreen} />
             <Stack.Screen name="CompleteProfile" component={RegisterScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           </>

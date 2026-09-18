@@ -110,7 +110,7 @@ Local tests apply the baseline/inventory/image/status/tracking scripts, the hist
 
 Mobile: BACKEND_URL, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET, EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, IOS_BUNDLE_IDENTIFIER.
 
-Backend: PORT, NODE_ENV, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY, CLOUDINARY_CLOUD_NAME, SEND_SMS_HOOK_SECRET, PHILSMS_API_TOKEN, PHILSMS_SENDER_ID, PHILSMS_DELIVERY_ENABLED.
+Backend: PORT, NODE_ENV, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY, CLOUDINARY_CLOUD_NAME.
 
 Optional: OSRM_BASE_URL, MAP_TILE_URL, MAP_TILE_ATTRIBUTION, MAPS_USER_AGENT, DEBUG_DELIVERY_LOCATION.
 
@@ -156,7 +156,7 @@ Not testable here: installed Android/iOS app, real camera/content-URI transport,
 
 ## 11. Documentation updated
 
-README.md, STATUS_REPORT.md, DELIVERY_POD_AUDIT.md, CHUNK1_AVATARS_REPORT.md, AUTH_SUPABASE_SETUP.md, AUTH_CLEANUP_REPORT.md, AUTH_MIGRATION_INSPECTION.md, mobile/EAS_BUILD.md, DELIVERY_RELIABILITY_REPORT.md. Each has a Last reviewed line. Historical reports are retained with explicit superseding notes rather than silently presented as current deployment state.
+README.md, STATUS_REPORT.md, DELIVERY_POD_AUDIT.md, CHUNK1_AVATARS_REPORT.md, AUTH_CLEANUP_REPORT.md, AUTH_MIGRATION_INSPECTION.md, mobile/EAS_BUILD.md, DELIVERY_RELIABILITY_REPORT.md. Each has a Last reviewed line. Historical reports are retained with explicit superseding notes rather than silently presented as current deployment state.
 
 References used for API/build review: [repository-required Expo 56](https://docs.expo.dev/versions/v56.0.0/), [starter Expo 57](https://docs.expo.dev/versions/v57.0.0/), and [EAS environments](https://docs.expo.dev/eas/environment-variables/). Runtime/API assertions above are verified against repository code and local tests.
 

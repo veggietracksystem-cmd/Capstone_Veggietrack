@@ -35,8 +35,10 @@ const getVegEmoji = getVegetableIcon;
 
 function getStatusPillStyle(status, t) {
   switch (status) {
-    case 'available': return { label: t('dashboards.farmer.statusAvailable'), bg: '#EAF2FB', color: '#1E5A96' };
-    case 'reserved': return { label: t('dashboards.farmer.statusReserved'), bg: '#EAF2FB', color: '#1E5A96' };
+    // Distinct from for_pickup (gold) and picked_up (green) below so all four
+    // harvest states read as visually different at a glance in the same list.
+    case 'available': return { label: t('dashboards.farmer.statusAvailable'), bg: colors.infoSoft, color: colors.info };
+    case 'reserved': return { label: t('dashboards.farmer.statusReserved'), bg: colors.purpleSoft, color: colors.purple };
     case 'for_pickup': return { label: t('dashboards.farmer.statusForPickup'), bg: colors.gold100, color: colors.gold700 };
     case 'picked_up': return { label: t('dashboards.farmer.statusPickedUp'), bg: colors.leaf100, color: colors.leaf900 || colors.leaf700 };
     default: return { label: status || t('dashboards.farmer.statusUnknown'), bg: colors.leaf100, color: colors.leaf700 };
@@ -165,6 +167,7 @@ export default function FarmerDashboard({ navigation, route }) {
   const requestLock = useRequestLock();
   const { user } = useAuth();
   const { t, language } = useTranslation();
+  const farmerDisplayName = user?.full_name || user?.name || t('dashboards.farmer.defaultFarmerName');
   const [activeTab, setActiveTab] = useState('home');
   const [messagesUnreadCount, setMessagesUnreadCount] = useState(0);
 
@@ -707,6 +710,10 @@ export default function FarmerDashboard({ navigation, route }) {
             ) : (
               <>
                 {/* HOME */}
+                <View style={styles.greetingRow}>
+                  <Text style={styles.greetingEyebrow}>{t('dashboards.farmer.greetingHome')}</Text>
+                  <Text style={styles.greetingName} numberOfLines={1}>{farmerDisplayName}</Text>
+                </View>
                 <View style={styles.topbar}>
                   <View style={[styles.statusBadge, syncState === 'offline' ? styles.statusOffline : styles.statusOnline]}>
                     <View style={[styles.statusDot, syncState === 'offline' ? styles.statusDotOffline : styles.statusDotOnline]} />
@@ -1087,6 +1094,9 @@ const styles = StyleSheet.create({
   scrollArea: { flex: 1, minHeight: 0 },
   content: { padding: 16 },
 
+  greetingRow: { marginBottom: 10 },
+  greetingEyebrow: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
+  greetingName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.title), color: colors.leaf900 || colors.leaf700, marginTop: 1 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14 },
   pageTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
   pageSubtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
@@ -1095,7 +1105,7 @@ const styles = StyleSheet.create({
 
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20 },
   statusOnline: { backgroundColor: colors.leaf100 },
-  statusOffline: { backgroundColor: '#EFEAE2' },
+  statusOffline: { backgroundColor: colors.soil300 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusDotOnline: { backgroundColor: colors.leaf500 },
   statusDotOffline: { backgroundColor: colors.inkFaint },

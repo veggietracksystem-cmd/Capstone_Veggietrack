@@ -131,12 +131,14 @@
   "dashboards": {
     "delivery": {
       "title": "Delivery Dashboard",
+      "greetingHome": "Today",
+      "defaultName": "Rider",
       "tabHome": "Home",
       "tabTasks": "Tasks",
       "tabHistory": "History",
       "tabProfile": "Profile",
-      "modeDeliveries": "📦 Deliveries",
-      "modePickups": "🚜 Farmer Pickups",
+      "modeDeliveries": "Deliveries",
+      "modePickups": "Farmer Pickups",
       "filterAll": "All",
       "filterActive": "Active",
       "filterCompleted": "Completed",
@@ -156,6 +158,7 @@
       "pickupFromWarehouse": "1. Pickup from Warehouse:",
       "deliverToRetailer": "2. Deliver to Retailer:",
       "viewRoute": "View Route",
+      "navigateBtn": "Navigate",
       "scheduleLabel": "Schedule: {schedule}",
       "etaText": "🕒 ETA: 10–15 mins",
       "liveStatusInTransit": "In Transit",
@@ -336,6 +339,7 @@
       "deleteHarvestMessage": "Remove {name} ({qty}kg)? This can't be undone.",
       "offlinePrefixClean": "Offline — showing saved data. ",
       "defaultFarmerName": "Farmer",
+      "greetingHome": "Good morning",
       "profileContactLabel": "Contact",
       "profileEmailLabel": "Email",
       "profileLocationFallback": "Location not set",
@@ -347,6 +351,8 @@
     },
     "distributor": {
       "hubTitle": "Distributor Hub",
+      "greetingHome": "Welcome back",
+      "defaultName": "Distributor",
       "tabHome": "Home",
       "tabOrders": "Orders",
       "tabStocks": "Stocks",
@@ -460,6 +466,8 @@
     },
     "retailer": {
       "storeTitle": "Retailer Store",
+      "greetingHome": "Order fresh produce",
+      "defaultName": "Retailer",
       "tabHome": "Home",
       "tabCart": "Cart",
       "tabOrders": "Orders",
@@ -746,7 +754,7 @@
     "delivered": "Delivered"
   },
   "language": {
-    "menuLabel": "🌐 Language",
+    "menuLabel": "Language",
     "modalTitle": "Choose Language",
     "english": "English",
     "tagalog": "Tagalog"
@@ -760,10 +768,10 @@
   "profile": {
     "title": "Account Profile",
     "account": "Account",
-    "editProfile": "✏️ Edit Profile",
+    "editProfile": "Edit Profile",
     "helpSupport": "Help & Support",
-    "userGuide": "📖 How VeggieTrack Works (User Guide)",
-    "contactUs": "📞 Contact Us & Support",
+    "userGuide": "How VeggieTrack Works (User Guide)",
+    "contactUs": "Contact Us & Support",
     "logout": "Log Out",
     "logoutConfirmTitle": "Log out",
     "logoutConfirmMessage": "Are you sure you want to log out?"

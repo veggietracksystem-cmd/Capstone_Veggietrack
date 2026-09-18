@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   Text, TouchableOpacity, View, ScrollView, StyleSheet,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n/useTranslation';
@@ -87,7 +88,10 @@ export default function ProfileScreen({ navigation }) {
           <View style={styles.roleBadge}>
             <Text style={styles.roleBadgeText}>{(user?.role || 'user').replace(/_/g, ' ').toUpperCase()}</Text>
           </View>
-          <Text style={styles.phoneText}>📞 {user?.phone || '—'}</Text>
+          <View style={styles.contactRow}>
+            <Ionicons name="call-outline" size={rf(13)} color={colors.inkSoft} />
+            <Text style={styles.phoneText}>{user?.phone || '—'}</Text>
+          </View>
         </View>
 
         {/* Account Actions Card */}
@@ -103,7 +107,7 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.menuItem, styles.menuItemLast]}
+            style={[styles.menuItem, (user?.role === 'distributor' || user?.role === 'delivery_personnel') && styles.menuItemLast]}
             onPress={() => setLangOpen(true)}
           >
             <Text style={styles.menuItemText}>{t('language.menuLabel')}</Text>
@@ -111,10 +115,11 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
           {user?.role !== 'distributor' && user?.role !== 'delivery_personnel' && (
             <TouchableOpacity
-              style={styles.menuItem}
+              style={[styles.menuItem, styles.menuItemLast]}
               onPress={() => navigation.navigate('ManageAddresses')}
             >
-              <Text style={styles.menuItemText}>📍 Manage Addresses</Text>
+              <Text style={styles.menuItemText}>Manage Addresses</Text>
+              <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -222,6 +227,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.leaf700, letterSpacing: 0.5 },
+  contactRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   phoneText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
 
   // Section Card

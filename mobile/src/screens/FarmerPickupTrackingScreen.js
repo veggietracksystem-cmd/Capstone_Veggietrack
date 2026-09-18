@@ -55,7 +55,7 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
         <Card title="Vegetables"><Row label="Product" value={pickup?.harvests?.vegetable_name || 'Vegetables'} /><Row label="Quantity" value={`${pickup?.harvests?.quantity_kg ?? '—'} kg`} /><Row label="Pickup schedule" value={date(pickup?.requested_at)} /></Card>
         <Card title="Pickup location"><Text style={s.value}>{pickup?.pickup_location?.address || 'Farm location not available'}</Text></Card>
         <Card title="Rider"><Row label="Assigned rider" value={pickup?.rider?.full_name || 'Not assigned yet'} />{!!pickup?.rider?.phone && <Row label="Contact" value={pickup.rider.phone} />}<Text style={s.muted}>ETA will appear when live rider-route data is available.</Text></Card>
-        <Card title="Status updates"><Row label="Request submitted" value={date(pickup?.requested_at)} />{pickup?.delivery_personnel_id && <Row label="Rider assigned" value="Assigned" />}{pickup?.status === 'otw' && <Row label="Rider on the way" value="In progress" />}{pickup?.received_at && <Row label="Picked up" value={date(pickup.received_at)} />}</Card>
+        <Card title="Status updates"><Timeline status={pickup?.status} pickup={pickup} /></Card>
         {(pickup?.proof_photo_url || pickup?.pod) && <Card title="Proof of pickup">{pickup?.proof_photo_url && <Image source={{ uri: pickup.proof_photo_url }} style={s.photo} />}<Text style={s.muted}>{pickup?.pod?.submitted_at ? `Recorded ${date(pickup.pod.submitted_at)}` : 'Pickup proof recorded'}</Text>{pickup?.pod?.latitude != null && <Text style={s.muted}>Location: {Number(pickup.pod.latitude).toFixed(5)}, {Number(pickup.pod.longitude).toFixed(5)}</Text>}</Card>}
       </>}
     </ScrollView>
@@ -63,4 +63,49 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
 }
 function Card({ title, children }) { return <View style={s.card}>{title && <Text style={s.cardTitle}>{title}</Text>}{children}</View>; }
 function Row({ label, value }) { return <View style={s.row}><Text style={s.muted}>{label}</Text><Text style={s.value}>{value}</Text></View>; }
-const s = StyleSheet.create({ container:{flex:1,backgroundColor:colors.bgScreen},content:{padding:16,gap:12,paddingBottom:32},card:{backgroundColor:colors.card,borderRadius:radius.card,padding:16,gap:9,borderWidth:1,borderColor:colors.border,...shadowCard},cardTitle:{fontFamily:fonts.heading,fontSize:rf(fontSize.lg),color:colors.ink},status:{fontFamily:fonts.heading,fontSize:rf(fontSize.title),color:colors.leaf700},row:{flexDirection:'row',justifyContent:'space-between',gap:12},muted:{fontFamily:fonts.body,fontSize:rf(fontSize.sm),color:colors.inkSoft,flexShrink:1},value:{fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.sm),color:colors.ink,flexShrink:1,textAlign:'right'},error:{fontFamily:fonts.body,color:colors.danger},photo:{width:'100%',height:210,borderRadius:radius.ctrl,resizeMode:'cover'},map:{height:380,flex:0,marginTop:4} });
+
+// Same 5 real statuses the STATUS map above already understands — this only
+// changes how they're *drawn* (connected dots instead of a flat list), it
+// does not add, remove, or reorder any pickup state.
+const STATUS_ORDER = ['requested', 'assigned', 'otw', 'picked_up', 'completed'];
+function Timeline({ status, pickup }) {
+  const currentIndex = Math.max(0, STATUS_ORDER.indexOf(status || 'requested'));
+  return (
+    <View>
+      {STATUS_ORDER.map((key, i) => {
+        const state = i < currentIndex ? 'done' : i === currentIndex ? 'active' : 'upcoming';
+        const sub = key === 'requested' ? date(pickup?.requested_at)
+          : key === 'assigned' ? (pickup?.rider?.full_name ? `Assigned to ${pickup.rider.full_name}` : '')
+          : key === 'picked_up' ? (pickup?.received_at ? date(pickup.received_at) : '')
+          : '';
+        return (
+          <View key={key} style={s.tlStep}>
+            <View style={s.tlMarker}>
+              <View style={[s.tlDot, state !== 'upcoming' && s.tlDotFilled]}>
+                {state === 'done' && <Text style={s.tlCheck}>✓</Text>}
+              </View>
+              {i < STATUS_ORDER.length - 1 && <View style={[s.tlLine, state === 'done' && s.tlLineFilled]} />}
+            </View>
+            <View style={s.tlBody}>
+              <Text style={[s.tlTitle, state === 'upcoming' && s.tlTitleUpcoming]}>{STATUS[key][0]}</Text>
+              {!!sub && <Text style={s.muted}>{sub}</Text>}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+const s = StyleSheet.create({ container:{flex:1,backgroundColor:colors.bgScreen},content:{padding:16,gap:12,paddingBottom:32},card:{backgroundColor:colors.card,borderRadius:radius.card,padding:16,gap:9,borderWidth:1,borderColor:colors.border,...shadowCard},cardTitle:{fontFamily:fonts.heading,fontSize:rf(fontSize.lg),color:colors.ink},status:{fontFamily:fonts.heading,fontSize:rf(fontSize.title),color:colors.leaf700},row:{flexDirection:'row',justifyContent:'space-between',gap:12},muted:{fontFamily:fonts.body,fontSize:rf(fontSize.sm),color:colors.inkSoft,flexShrink:1},value:{fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.sm),color:colors.ink,flexShrink:1,textAlign:'right'},error:{fontFamily:fonts.body,color:colors.danger},photo:{width:'100%',height:210,borderRadius:radius.ctrl,resizeMode:'cover'},map:{height:380,flex:0,marginTop:4},
+  tlStep:{flexDirection:'row',gap:10},
+  tlMarker:{alignItems:'center'},
+  tlDot:{width:20,height:20,borderRadius:10,borderWidth:2,borderColor:colors.border,backgroundColor:colors.card,alignItems:'center',justifyContent:'center'},
+  tlDotFilled:{backgroundColor:colors.leaf700,borderColor:colors.leaf700},
+  tlCheck:{color:'#fff',fontSize:rf(fontSize.xs),fontFamily:fonts.bodyBold},
+  tlLine:{width:2,flex:1,minHeight:20,backgroundColor:colors.border},
+  tlLineFilled:{backgroundColor:colors.leaf700},
+  tlBody:{flex:1,paddingBottom:14},
+  tlTitle:{fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.sm),color:colors.ink},
+  tlTitleUpcoming:{color:colors.inkFaint,fontFamily:fonts.body},
+});
