@@ -9,6 +9,7 @@ import CustomModal from '../components/CustomModal';
 import UserGuideModal from '../components/UserGuideModal';
 import ContactUsModal from '../components/ContactUsModal';
 import { rf } from '../lib/responsive';
+import { Ionicons } from '@expo/vector-icons';
 
 // Farmer-only Profile tab, restyled to match the shared ProfileScreen design
 // (used by Retailer/Distributor/Delivery Personnel) so all four roles look
@@ -37,9 +38,15 @@ export default function FarmerProfileTab({ navigation }) {
         <View style={styles.roleBadge}>
           <Text style={styles.roleBadgeText}>{(user?.role || 'farmer').replace(/_/g, ' ').toUpperCase()}</Text>
         </View>
-        <Text style={styles.phoneText}>📞 {user?.phone || '—'}</Text>
+        <View style={styles.infoRow}>
+          <Ionicons name="call-outline" size={rf(16)} color={colors.inkSoft} />
+          <Text style={styles.phoneText}>{user?.phone || '—'}</Text>
+        </View>
         {user?.farm_location ? (
-          <Text style={styles.locationText}>📍 {user.farm_location}</Text>
+          <View style={styles.infoRow}>
+            <Ionicons name="location-outline" size={rf(16)} color={colors.inkSoft} />
+            <Text style={styles.locationText}>{user.farm_location}</Text>
+          </View>
         ) : null}
       </View>
 
@@ -114,7 +121,7 @@ export default function FarmerProfileTab({ navigation }) {
             onPress={() => { setLanguage(opt.code); setLangOpen(false); }}
           >
             <Text style={styles.langRowText}>{opt.label}</Text>
-            {language === opt.code ? <Text style={styles.langCheck}>✓</Text> : null}
+            {language === opt.code ? <Ionicons name="checkmark" size={rf(18)} color={colors.leaf700} /> : null}
           </TouchableOpacity>
         ))}
       </CustomModal>
@@ -137,6 +144,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadowCard,
   },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   avatarCircle: {
     width: 68,
     height: 68,

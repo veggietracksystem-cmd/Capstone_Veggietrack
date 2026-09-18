@@ -5,6 +5,7 @@ import { readCart, saveCart, subscribeCart, reconcileCart } from '../lib/cartSto
 import { manilaSchedule } from '../lib/deliverySchedule';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
+import { SharedScreenTransition } from '../lib/motion';
 import {
   Text, View, ScrollView, TextInput, TouchableOpacity, Image,
   ActivityIndicator, StyleSheet, Platform, RefreshControl,
@@ -23,12 +24,14 @@ import CustomModal from '../components/CustomModal';
 import OrderStepIndicator from '../components/OrderStepIndicator';
 import EmptyState from '../components/EmptyState';
 import AddToCartFlyOverlay from '../components/AddToCartFlyOverlay';
+import VegetableImage from '../components/VegetableImage';
 import { getVegetableTile, getVegetableIcon } from '../lib/vegetableIcons';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { useAutoSync } from '../sync/SyncProvider';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 const PRIMARY = colors.leaf700;
 
@@ -254,7 +257,7 @@ export default function RetailerDashboard({ navigation, route }) {
       const flightId = `${Date.now()}-${Math.random()}`;
       setFlights((prev) => [
         ...prev,
-        { id: flightId, startX, startY, icon: getVegetableIcon(product.vegetable_name) },
+        { id: flightId, startX, startY, source: getVegetableIcon(product.vegetable_name) },
       ]);
     }
   };
@@ -348,50 +351,50 @@ export default function RetailerDashboard({ navigation, route }) {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: 90 }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Only flag offline when the device is actually disconnected AND we're
-            falling back to cached data — not merely because a request was slow. */}
-        <OfflineBanner offline={syncState === 'offline' && (tab === 'shop' ? shopOffline : tab === 'orders' ? ordersOffline : false)} />
+      <SharedScreenTransition style={{ flex: 1 }} visible>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: 90 }]}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
+          {/* Only flag offline when the device is actually disconnected AND we're
+              falling back to cached data — not merely because a request was slow. */}
+          <OfflineBanner offline={syncState === 'offline' && (tab === 'shop' ? shopOffline : tab === 'orders' ? ordersOffline : false)} />
 
-        {tab === 'shop' && (
-          <HomeTab
-            loading={loadingProducts}
-            products={products}
-            searchQuery={searchQuery} setSearchQuery={setSearchQuery}
-            onAdd={addToCart}
-            onSelect={setSelectedProduct}
-          />
-        )}
+          {tab === 'shop' && (
+            <HomeTab
+              loading={loadingProducts}
+              products={products}
+              searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+              onAdd={addToCart}
+              onSelect={setSelectedProduct}
+            />
+          )}
 
-        {tab === 'cart' && (
-          <CartTab
-            cart={cart}
-            totalItems={totalItems}
-            totalAmount={totalAmount}
-            onChangeQty={changeQty}
-            onRemove={removeFromCart}
-            onCheckout={goToCheckout}
-          />
-        )}
+          {tab === 'cart' && (
+            <CartTab
+              cart={cart}
+              totalItems={totalItems}
+              totalAmount={totalAmount}
+              onChangeQty={changeQty}
+              onRemove={removeFromCart}
+              onCheckout={goToCheckout}
+            />
+          )}
 
-        {tab === 'orders' && (
-          <OrdersTab
-            loading={loadingOrders}
-            orders={orders}
-            onViewProof={setProofUri}
-           onTrack={(o) => navigation.navigate('ShopeeTracking', {
-    orderId: o.id,
-})}
-            cancelling={cancelling}
-            onCancel={cancelOrder}
-            onViewDetails={(o) => navigation.navigate('OrderDetails', { order: o })}
-            onViewHistory={() => navigation.navigate('OrderHistory')}
-          />
-        )}
-      </ScrollView>
+          {tab === 'orders' && (
+            <OrdersTab
+              loading={loadingOrders}
+              orders={orders}
+              onViewProof={setProofUri}
+              onTrack={(o) => navigation.navigate('ShopeeTracking', { orderId: o.id })}
+              cancelling={cancelling}
+              onCancel={cancelOrder}
+              onViewDetails={(o) => navigation.navigate('OrderDetails', { order: o })}
+              onViewHistory={() => navigation.navigate('OrderHistory')}
+            />
+          )}
+        </ScrollView>
+      </SharedScreenTransition>
 
       <ImageViewerModal
         uri={proofUri?.proof_photo_url} proof={proofUri?.pod}
@@ -433,7 +436,7 @@ function HomeTab({ loading, products, searchQuery, setSearchQuery, onAdd, onSele
     <View>
       {/* Search bar */}
       <View style={styles.searchRow}>
-        <Text style={styles.searchIcon}>🔍</Text>
+        <Ionicons name="search-outline" size={rf(19)} color="#999" />
         <TextInput
           style={styles.searchInput}
           placeholder={t('dashboards.retailer.searchPlaceholder')}
@@ -444,7 +447,7 @@ function HomeTab({ loading, products, searchQuery, setSearchQuery, onAdd, onSele
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.searchClear}>✕</Text>
+            <Ionicons name="close-circle-outline" size={rf(20)} color="#999" />
           </TouchableOpacity>
         )}
       </View>
@@ -453,7 +456,7 @@ function HomeTab({ loading, products, searchQuery, setSearchQuery, onAdd, onSele
       <Text style={styles.sectionTitle}>{t('dashboards.retailer.availableProducts')}</Text>
       {products.length === 0 ? (
         <EmptyState
-          icon="🥬"
+          iconElement={<MaterialCommunityIcons name="sprout" size={rf(44)} color={colors.inkFaint} />}
           title={t('dashboards.retailer.noProductsTitle')}
           message={t('dashboards.retailer.noProductsMessage')}
         />
@@ -467,13 +470,9 @@ function HomeTab({ loading, products, searchQuery, setSearchQuery, onAdd, onSele
             const tile = getVegetableTile(p.vegetable_name);
             return (
               <TouchableOpacity key={p.vegetable_name} style={styles.kpiCard} onPress={() => onSelect(p)} activeOpacity={0.82} accessibilityRole="button" accessibilityLabel={`View ${p.vegetable_name} details`}>
-                {p.batch_photo_url ? (
-                  <Image source={{ uri: p.batch_photo_url }} style={styles.productPhoto} resizeMode="cover" accessibilityLabel={`${p.vegetable_name} thumbnail`} />
-                ) : (
-                  <View style={[styles.kpiIconWrap, { backgroundColor: tile.bg }]}>
-                    <Text style={styles.kpiIcon}>{tile.icon}</Text>
-                  </View>
-                )}
+                <View style={[styles.kpiIconWrap, { backgroundColor: tile.bg }]}>
+                  <VegetableImage source={tile.source} style={styles.kpiIcon} fallbackSize={rf(26)} />
+                </View>
                 <Text style={styles.kpiName} numberOfLines={1}>{localizeVegetableName(p.vegetable_name, language)}</Text>
                 <Text style={styles.kpiPrice}>{peso(p.price_per_kg)} / kg</Text>
                 <Text style={styles.kpiMeta}>{t('dashboards.retailer.kgAvailable', { qty: p.available_kg })}</Text>
@@ -496,7 +495,7 @@ function CartTab({ cart, totalItems, totalAmount, onChangeQty, onRemove, onCheck
   if (cart.length === 0) {
     return (
       <EmptyState
-        icon="🛒"
+        iconElement={<Ionicons name="cart-outline" size={rf(44)} color={colors.inkFaint} />}
         title={t('dashboards.retailer.cart')}
         message={t('dashboards.retailer.cartEmpty')}
       />
@@ -513,7 +512,7 @@ function CartTab({ cart, totalItems, totalAmount, onChangeQty, onRemove, onCheck
         return (
           <View key={c.vegetable_name} style={styles.cartCard}>
             <View style={[styles.rowTile, { backgroundColor: tile.bg }]}>
-              <Text style={styles.rowTileIcon}>{tile.icon}</Text>
+              <VegetableImage source={tile.source} style={styles.rowTileIcon} fallbackSize={rf(22)} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>{localizeVegetableName(c.name, language)}</Text>
@@ -528,7 +527,7 @@ function CartTab({ cart, totalItems, totalAmount, onChangeQty, onRemove, onCheck
                 <Text style={styles.qtyBtnText}>+</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.removeBtn} onPress={() => onRemove(c.vegetable_name)}>
-                <Text style={styles.removeBtnText}>✕</Text>
+                <Ionicons name="close" size={rf(18)} color={colors.danger} />
               </TouchableOpacity>
             </View>
           </View>
@@ -672,7 +671,7 @@ function OrdersTab({ loading, cancelling, orders, onViewProof, onTrack, onCancel
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgScreen },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
 
   headerIcons: { flexDirection: 'row', alignItems: 'center' },
 
@@ -706,7 +705,7 @@ const styles = StyleSheet.create({
 
   rowCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, gap: 12, ...shadowCard },
   rowTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  rowTileIcon: { fontSize: rf(fontSize.title) },
+  rowTileIcon: { width: 30, height: 30 },
   rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
@@ -717,8 +716,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, alignItems: 'center', minHeight: 244, ...shadowCard,
   },
   kpiIconWrap: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  productPhoto: { width: 62, height: 62, borderRadius: 16, marginBottom: 8, backgroundColor: colors.leaf50 },
-  kpiIcon: { fontSize: rf(fontSize.h1) },
+  kpiIcon: { width: 38, height: 38 },
   kpiName: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
   kpiPrice: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY, marginTop: 4, textAlign: 'center' },
   kpiMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2, textAlign: 'center' },

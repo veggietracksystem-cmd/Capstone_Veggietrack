@@ -315,11 +315,11 @@ const styles = StyleSheet.create({
   bellBtn: { padding: 6, marginRight: 4 },
 
   // Full-screen variant (farmer bottom-nav "Notifications" tab)
-  screenContainer: { flex: 1, minHeight: 0, backgroundColor: colors.bgScreen },
+  screenContainer: { flex: 1, minHeight: 0, backgroundColor: '#FFFFFF' },
   screenHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 14,
-    backgroundColor: colors.bgScreen, borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   screenTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
   markAllText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(13) },

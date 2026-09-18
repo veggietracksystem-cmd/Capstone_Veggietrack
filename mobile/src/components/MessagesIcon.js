@@ -51,7 +51,7 @@ export default function MessagesIcon() {
 }
 
 const styles = StyleSheet.create({
-  iconBtn: { padding: 6, marginRight: 4 },
+  iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
   badge: {
     position: 'absolute', top: 0, right: 0, minWidth: 18, height: 18, borderRadius: 9,
     backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,

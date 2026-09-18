@@ -2,9 +2,12 @@ import { rf } from '../lib/responsive';
 import { useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  Animated,
 } from 'react-native';
 import { colors, fonts, radius } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
+import { Ionicons } from '@expo/vector-icons';
+import { useBottomSheetMotion } from '../lib/motion';
 
 const PRIMARY = colors.leaf700;
 
@@ -14,6 +17,7 @@ export default function UserGuideModal({ visible, onClose }) {
   const { t, tRaw } = useTranslation();
   const [activeTab, setActiveTab] = useState('farmer');
   const [expandedFaq, setExpandedFaq] = useState(null);
+  const { backdropStyle, sheetStyle } = useBottomSheetMotion(visible);
 
   const toggleFaq = (index) => {
     setExpandedFaq(expandedFaq === index ? null : index);
@@ -26,14 +30,15 @@ export default function UserGuideModal({ visible, onClose }) {
   const faqs = tRaw('userGuide.faqs') || [];
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <Animated.View style={[styles.backdrop, backdropStyle]}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
+        <Animated.View style={[styles.sheet, sheetStyle]}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>{t('userGuide.title')}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeText}>✕</Text>
+              <Ionicons name="close" size={rf(22)} color={colors.ink} />
             </TouchableOpacity>
           </View>
 
@@ -135,8 +140,8 @@ export default function UserGuideModal({ visible, onClose }) {
               </View>
             )}
           </ScrollView>
-        </View>
-      </View>
+        </Animated.View>
+      </Animated.View>
     </Modal>
   );
 }

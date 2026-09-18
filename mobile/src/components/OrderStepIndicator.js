@@ -1,6 +1,7 @@
 import { rf } from '../lib/responsive';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts } from '../theme/appTheme';
+import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
@@ -55,7 +56,7 @@ export default function OrderStepIndicator({ status }) {
 
             <View style={[styles.circle, done && styles.circleDone, isCurrent && styles.circleCurrent]}>
               <Text style={[styles.circleText, done && styles.circleTextDone]}>
-                {done ? '✓' : i + 1}
+                {done ? <Ionicons name="checkmark-circle" size={rf(20)} color="#fff" /> : i + 1}
               </Text>
             </View>
 

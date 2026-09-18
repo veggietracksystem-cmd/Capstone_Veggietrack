@@ -1,9 +1,9 @@
 import ProofDetails from './ProofDetails';
 import { useTranslation } from '../i18n/useTranslation';
 import { rf } from '../lib/responsive';
-import { useEffect, useRef } from 'react';
 import { Modal, View, Text, Image, TouchableOpacity, ActivityIndicator, Animated, StyleSheet } from 'react-native';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { useSharedModalMotion } from '../lib/motion';
 
 const PRIMARY = colors.leaf700;
 
@@ -27,25 +27,12 @@ export default function ProofPreviewModal({
   title = 'Confirm Delivery', confirmIdleLabel = 'Confirm Delivery',
 }) {
   const { t } = useTranslation();
-  // Subtle scale/fade entrance for a smoother feel (Issue 1).
-  const scale = useRef(new Animated.Value(0.9)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 7 }),
-        Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
-      ]).start();
-    } else {
-      scale.setValue(0.9);
-      opacity.setValue(0);
-    }
-  }, [visible, scale, opacity]);
+  const { backdropStyle, cardStyle } = useSharedModalMotion(visible);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={busy ? undefined : onCancel}>
-      <Animated.View style={[styles.backdrop, { opacity }]}>
-        <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={busy ? undefined : onCancel}>
+      <Animated.View style={[styles.backdrop, backdropStyle]}>
+        <Animated.View style={[styles.card, cardStyle]}>
           <Text style={styles.title}>{title}</Text>
           {orderLabel ? <Text style={styles.subtitle}>Order {orderLabel}</Text> : null}
 

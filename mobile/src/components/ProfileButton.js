@@ -21,5 +21,5 @@ export default function ProfileButton() {
 }
 
 const styles = StyleSheet.create({
-  iconBtn: { padding: 6, marginRight: 2 },
+  iconBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
 });

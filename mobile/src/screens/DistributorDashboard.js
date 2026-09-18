@@ -4,12 +4,14 @@ import useRequestLock from '../hooks/useRequestLock';
 import UserAvatar from '../components/UserAvatar';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { SharedScreenTransition } from '../lib/motion';
 import {
   Text, View, ScrollView, TextInput, TouchableOpacity, Modal, Image,
   ActivityIndicator, StyleSheet, RefreshControl, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +27,7 @@ import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
 import { colors, fonts, radius, shadowCard, fontSize } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { getVegetableTile } from '../lib/vegetableIcons';
+import VegetableImage from '../components/VegetableImage';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { useAutoSync } from '../sync/SyncProvider';
 
@@ -363,70 +366,72 @@ export default function DistributorDashboard({ navigation, route }) {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        <OfflineBanner
-          offline={syncState === 'offline'}
-          pendingCount={0}
-        />
-
-        {tab === 'home' && (
-          <HomeTab
-            refreshProducts={refreshProducts}
-            pendingOrderCount={orders.length}
-            pendingPickupCount={pendingReceiveCount}
-            unpaidCount={unpaidOrders.length}
-            onViewOrders={() => setTab('orders')}
-            onViewPickups={() => setTab('pickups')}
-            onViewPayments={() => setTab('payments')}
+      <SharedScreenTransition style={{ flex: 1 }} visible>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
+          <OfflineBanner
+            offline={syncState === 'offline'}
+            pendingCount={0}
           />
-        )}
 
-        {tab === 'orders' && (
-          <OrdersTab
-            loading={loadingOrders}
-            orders={orders}
-            activeOrders={activeOrders}
-            personnel={personnel}
-            selectedPersonnel={selectedPersonnel}
-            setSelectedPersonnel={setSelectedPersonnel}
-            busyOrderId={busyOrderId}
-            onApprove={approveOrder}
-            onReject={rejectOrder}
-            onAssign={assignDelivery}
-            onTrack={(o) => navigation.navigate('ShopeeTracking', { orderId: o.id })}
-            onViewProof={setProofUri}
-          />
-        )}
+          {tab === 'home' && (
+            <HomeTab
+              refreshProducts={refreshProducts}
+              pendingOrderCount={orders.length}
+              pendingPickupCount={pendingReceiveCount}
+              unpaidCount={unpaidOrders.length}
+              onViewOrders={() => setTab('orders')}
+              onViewPickups={() => setTab('pickups')}
+              onViewPayments={() => setTab('payments')}
+            />
+          )}
 
-        {tab === 'pickups' && (
-          <PickupRequestsTab
-            loading={loadingOrders}
-            requests={pickupRequests}
-            busyId={receiveBusyId}
-            onApprove={openReceive}
-          />
-        )}
+          {tab === 'orders' && (
+            <OrdersTab
+              loading={loadingOrders}
+              orders={orders}
+              activeOrders={activeOrders}
+              personnel={personnel}
+              selectedPersonnel={selectedPersonnel}
+              setSelectedPersonnel={setSelectedPersonnel}
+              busyOrderId={busyOrderId}
+              onApprove={approveOrder}
+              onReject={rejectOrder}
+              onAssign={assignDelivery}
+              onTrack={(o) => navigation.navigate('ShopeeTracking', { orderId: o.id })}
+              onViewProof={setProofUri}
+            />
+          )}
 
-        {tab === 'payments' && (
-          <PaymentsTab
-            loading={loadingPayments}
-            sub={paymentsSub}
-            setSub={setPaymentsSub}
-            unpaidOrders={unpaidOrders}
-            payments={payments}
-            recordingId={recordingId}
-            amountInput={amountInput}
-            setAmountInput={setAmountInput}
-            recordBusy={recordBusy}
-            onStartRecord={startRecord}
-            onCancelRecord={() => { setRecordingId(null); setAmountInput(''); }}
-            onRecord={recordPayment}
-          />
-        )}
-      </ScrollView>
+          {tab === 'pickups' && (
+            <PickupRequestsTab
+              loading={loadingOrders}
+              requests={pickupRequests}
+              busyId={receiveBusyId}
+              onApprove={openReceive}
+            />
+          )}
+
+          {tab === 'payments' && (
+            <PaymentsTab
+              loading={loadingPayments}
+              sub={paymentsSub}
+              setSub={setPaymentsSub}
+              unpaidOrders={unpaidOrders}
+              payments={payments}
+              recordingId={recordingId}
+              amountInput={amountInput}
+              setAmountInput={setAmountInput}
+              recordBusy={recordBusy}
+              onStartRecord={startRecord}
+              onCancelRecord={() => { setRecordingId(null); setAmountInput(''); }}
+              onRecord={recordPayment}
+            />
+          )}
+        </ScrollView>
+      </SharedScreenTransition>
 
       <ImageViewerModal
         uri={proofUri?.proof_photo_url} proof={proofUri?.pod}
@@ -513,7 +518,7 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
       <Text style={styles.sectionTitle}>{t('dashboards.distributor.pickupRequests')}</Text>
       {pending.length === 0 ? (
         <EmptyState
-          icon="🚜"
+          iconElement={<MaterialCommunityIcons name="tractor" size={rf(44)} color={colors.inkFaint} />}
           title={t('dashboards.distributor.noPendingPickups')}
           message={t('dashboards.distributor.noPendingPickupsMessage')}
         />
@@ -725,7 +730,7 @@ function ProductListSection({ refreshProducts }) {
     <View>
       {listings.length === 0 ? (
         <EmptyState
-          icon="📦"
+          iconElement={<MaterialCommunityIcons name="package-variant" size={rf(44)} color={colors.inkFaint} />}
           title={t('productList.emptyTitleNone')}
           message={t('productList.emptyMessageNoneStocks')}
         />
@@ -737,7 +742,7 @@ function ProductListSection({ refreshProducts }) {
             <View key={l.vegetable_name} style={styles.productRowCard}>
               <View style={styles.productRowTop}>
                 <View style={[styles.productTile, { backgroundColor: tile.bg }]}>
-                  <Text style={styles.productTileIcon}>{tile.icon}</Text>
+                  <VegetableImage source={tile.source} style={styles.productTileIcon} fallbackSize={rf(22)} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.productRowTitle}>{localizeVegetableName(l.vegetable_name, language)}</Text>
@@ -750,6 +755,7 @@ function ProductListSection({ refreshProducts }) {
                   </Text>
                 </View>
                 <TouchableOpacity style={styles.smallBtn} onPress={() => openEditModal(l)}>
+                  <Ionicons name="create-outline" size={rf(16)} color={PRIMARY} />
                   <Text style={styles.smallBtnText}>{t('productList.editBtn')}</Text>
                 </TouchableOpacity>
               </View>
@@ -774,7 +780,7 @@ function ProductListSection({ refreshProducts }) {
                 onPress={closeEditModal}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={styles.modalCloseText}>✕</Text>
+                <Ionicons name="close" size={rf(22)} color={colors.ink} />
               </TouchableOpacity>
 
               {activeListing ? (
@@ -785,7 +791,7 @@ function ProductListSection({ refreshProducts }) {
                 >
                   <View style={styles.modalHeader}>
                     <View style={[styles.productTile, styles.modalTile, { backgroundColor: modalTile.bg }]}>
-                      <Text style={styles.modalTileIcon}>{modalTile.icon}</Text>
+                      <VegetableImage source={modalTile.source} style={styles.modalTileIcon} fallbackSize={rf(30)} />
                     </View>
                     <Text style={styles.modalVegName}>{localizeVegetableName(activeListing.vegetable_name, language)}</Text>
                   </View>
@@ -909,7 +915,7 @@ function OrdersTab({
 
       {sub === 'pending' && (
         orders.length === 0 ? (
-          <EmptyState icon="✅" title={t('dashboards.distributor.noPendingOrders')} message={t('dashboards.distributor.noPendingOrdersMessage')} />
+          <EmptyState iconElement={<Ionicons name="checkmark-circle-outline" size={rf(44)} color={colors.inkFaint} />} title={t('dashboards.distributor.noPendingOrders')} message={t('dashboards.distributor.noPendingOrdersMessage')} />
         ) : orders.map((order) => {
           const busy = busyOrderId != null;
           const isApproved = order.status === 'approved';
@@ -1001,7 +1007,7 @@ function OrdersTab({
 
       {sub === 'approved' && (
         approved.length === 0 ? (
-          <EmptyState icon="🚚" title={t('dashboards.distributor.noApprovedOrders')} message={t('dashboards.distributor.noApprovedOrdersMessage')} />
+          <EmptyState iconElement={<MaterialCommunityIcons name="truck-delivery-outline" size={rf(44)} color={colors.inkFaint} />} title={t('dashboards.distributor.noApprovedOrders')} message={t('dashboards.distributor.noApprovedOrdersMessage')} />
         ) : approved.map((order) => (
           <View key={order.id} style={styles.orderCard}>
             <View style={styles.orderHeader}>
@@ -1204,7 +1210,7 @@ function PaymentsTab({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgScreen },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
 
   headerIcons: { flexDirection: 'row', alignItems: 'center' },
 
@@ -1252,7 +1258,7 @@ const styles = StyleSheet.create({
   productRowCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   productRowTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   productTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  productTileIcon: { fontSize: rf(fontSize.title) },
+  productTileIcon: { width: 34, height: 34 },
   productRowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
   productRowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
@@ -1269,7 +1275,7 @@ const styles = StyleSheet.create({
   modalCloseText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.inkSoft },
   modalHeader: { alignItems: 'center', marginBottom: 18, marginTop: 4 },
   modalTile: { width: 60, height: 60, borderRadius: 16, marginBottom: 10 },
-  modalTileIcon: { fontSize: rf(fontSize.h1) },
+  modalTileIcon: { width: 48, height: 48 },
   modalVegName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.xl), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
   modalLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 12, marginBottom: 6 },
   modalInputDisabled: { opacity: 0.5 },

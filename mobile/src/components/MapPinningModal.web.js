@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { rf } from '../lib/responsive';
 import PlaceAutocomplete from './PlaceAutocomplete';
+import { Ionicons } from '@expo/vector-icons';
 
 const PRIMARY = '#1E4E09';
 const SAN_PABLO = { latitude: 14.0683, longitude: 121.3256 };
@@ -210,7 +211,10 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
             {detectingLocation ? (
               <ActivityIndicator color={PRIMARY} size="small" />
             ) : (
-              <Text style={styles.locateBtnText}>📍 My Location</Text>
+              <View style={styles.locateBtnContent}>
+                <Ionicons name="locate-outline" size={rf(18)} color={PRIMARY} />
+                <Text style={styles.locateBtnText}>My Location</Text>
+              </View>
             )}
           </TouchableOpacity>
           {locationError ? <Text style={styles.locationError}>{locationError}</Text> : null}
@@ -240,13 +244,14 @@ const styles = StyleSheet.create({
   close: { color: '#c62828', fontSize: rf(16), fontWeight: '600' },
 
   mapContainer: { flex: 1, marginHorizontal: 16, marginBottom: 12, borderRadius: 12, overflow: 'hidden', backgroundColor: '#f9f9f9', minHeight: 280, position: 'relative' },
-  locateBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ddd', boxShadow: '0px 2px 3px rgba(0, 0, 0, 0.15)', zIndex: 1000 },
+  locateBtn: { position: 'absolute', top: 12, right: 12, minHeight: 40, backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ddd', alignItems: 'center', justifyContent: 'center', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3, zIndex: 1000 },
+  locateBtnContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   locateBtnText: { color: PRIMARY, fontWeight: '700', fontSize: rf(13) },
   locationError: { position: 'absolute', top: 54, left: 12, right: 12, padding: 8, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.94)', color: '#8a3b12', fontSize: rf(12), textAlign: 'center' },
 
   footer: { padding: 16, borderTopWidth: 1, borderColor: '#eee', backgroundColor: '#fafafa' },
   addressLabel: { fontSize: rf(13), fontWeight: '700', color: '#555' },
   addressText: { fontSize: rf(14), color: '#222', marginVertical: 6, lineHeight: 20 },
-  btn: { backgroundColor: PRIMARY, paddingVertical: 14, borderRadius: 8, alignItems: 'center', marginTop: 8 },
+  btn: { backgroundColor: PRIMARY, minHeight: 48, paddingVertical: 14, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   btnText: { color: '#fff', fontWeight: '700', fontSize: rf(16) },
 });

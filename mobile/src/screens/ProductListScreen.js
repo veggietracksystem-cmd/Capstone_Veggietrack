@@ -15,9 +15,11 @@ import ScreenHeader from '../components/ScreenHeader';
 import { showAlert, confirmAction, peso } from '../lib/ui';
 import { CATEGORIES, getCategory } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
+import VegetableImage from '../components/VegetableImage';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 const PRIMARY = colors.leaf700;
 
@@ -163,7 +165,7 @@ export default function ProductListScreen({ navigation }) {
     return (
       <View style={styles.rowCard}>
         <View style={[styles.productTile, { backgroundColor: tile.bg }]}>
-          <Text style={styles.productTileIcon}>{tile.icon}</Text>
+          <VegetableImage source={tile.source} style={styles.productTileIcon} fallbackSize={rf(22)} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.rowTitle}>{localizeVegetableName(l.vegetable_name, language)}</Text>
@@ -176,6 +178,7 @@ export default function ProductListScreen({ navigation }) {
           </Text>
         </View>
         <TouchableOpacity style={styles.smallBtn} onPress={() => openEditModal(l)}>
+          <Ionicons name="create-outline" size={rf(16)} color={PRIMARY} />
           <Text style={styles.smallBtnText}>{t('productList.editBtn')}</Text>
         </TouchableOpacity>
       </View>
@@ -223,7 +226,7 @@ export default function ProductListScreen({ navigation }) {
           }
           ListEmptyComponent={
             <EmptyState
-              icon="📦"
+              iconElement={<MaterialCommunityIcons name="package-variant" size={rf(44)} color={colors.inkFaint} />}
               title={listings.length === 0
                 ? t('productList.emptyTitleNone')
                 : t('productList.emptyTitleFiltered', { category: t(`categories.${category}`) })}
@@ -251,7 +254,7 @@ export default function ProductListScreen({ navigation }) {
                 onPress={closeEditModal}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={styles.modalCloseText}>✕</Text>
+                <Ionicons name="close" size={rf(22)} color={colors.ink} />
               </TouchableOpacity>
 
               {activeListing ? (
@@ -262,7 +265,7 @@ export default function ProductListScreen({ navigation }) {
                 >
                   <View style={styles.modalHeader}>
                     <View style={[styles.productTile, styles.modalTile, { backgroundColor: modalTile.bg }]}>
-                      <Text style={styles.modalTileIcon}>{modalTile.icon}</Text>
+                      <VegetableImage source={modalTile.source} style={styles.modalTileIcon} fallbackSize={rf(30)} />
                     </View>
                     <Text style={styles.modalVegName}>{localizeVegetableName(activeListing.vegetable_name, language)}</Text>
                   </View>
@@ -335,7 +338,7 @@ const styles = StyleSheet.create({
 
   rowCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: radius.card, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   productTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  productTileIcon: { fontSize: rf(fontSize.title) },
+  productTileIcon: { width: 34, height: 34 },
   rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
@@ -353,7 +356,7 @@ const styles = StyleSheet.create({
 
   modalHeader: { alignItems: 'center', marginBottom: 18, marginTop: 4 },
   modalTile: { width: 60, height: 60, borderRadius: 16, marginBottom: 10 },
-  modalTileIcon: { fontSize: rf(fontSize.h1) },
+  modalTileIcon: { width: 48, height: 48 },
   modalVegName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.xl), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
 
   modalLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 12, marginBottom: 6 },

@@ -1,9 +1,12 @@
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Platform, Image, Easing } from 'react-native';
+import { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
+import { createStackNavigator } from '@react-navigation/stack';
+import { sharedScreenCardInterpolator, SCREEN_TRANSITION_DURATION, SCREEN_TRANSITION_DISTANCE } from './src/lib/motion';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import { Ionicons } from '@expo/vector-icons';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { LanguageProvider } from './src/i18n/LanguageProvider';
@@ -41,14 +44,14 @@ import FarmerPickupTrackingScreen from './src/screens/FarmerPickupTrackingScreen
 
 const Stack = createStackNavigator();
 
-// One consistent, fast (250ms) slide-from-right transition for every pushed
-// screen across the auth stack and all four role stacks - no screen opts
-// out or gets a different timing/style.
-const SCREEN_TRANSITION_MS = 250;
-const screenTransitionSpec = {
-  open: { animation: 'timing', config: { duration: SCREEN_TRANSITION_MS } },
-  close: { animation: 'timing', config: { duration: SCREEN_TRANSITION_MS } },
-};
+const REQUIRED_FONT_FAMILIES = [
+  'Poppins_400Regular',
+  'Poppins_500Medium',
+  'Poppins_600SemiBold',
+  'Poppins_700Bold',
+  'ionicons',
+];
+const PUBLIC_LOGO_ASSET = require('./assets/new_logo.png');
 
 // Maps backend role strings to their dashboard component + route name.
 const ROLE_SCREENS = {
@@ -77,9 +80,25 @@ function RootNavigator() {
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
-          cardStyle: { flex: 1 },
-          transitionSpec: screenTransitionSpec,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          cardStyle: { flex: 1, backgroundColor: '#fff' },
+          cardStyleInterpolator: sharedScreenCardInterpolator,
+          transitionSpec: {
+            open: {
+              animation: 'timing',
+              config: {
+                duration: SCREEN_TRANSITION_DURATION,
+                easing: Easing.out(Easing.quad),
+              },
+            },
+            close: {
+              animation: 'timing',
+              config: {
+                duration: SCREEN_TRANSITION_DURATION,
+                easing: Easing.out(Easing.quad),
+              },
+            },
+          },
+          gestureDirection: 'horizontal',
         }}
         initialRouteName={roleScreen ? roleScreen.name : initialRoute}
       >
@@ -145,11 +164,44 @@ export default function App() {
     Poppins_500Medium,
     Poppins_600SemiBold,
     Poppins_700Bold,
+    ...Ionicons.font,
   });
+  const [webFontsReady, setWebFontsReady] = useState(Platform.OS !== 'web');
+  const [publicAssetsReady, setPublicAssetsReady] = useState(Platform.OS !== 'web');
 
-  if (!fontsLoaded) {
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !fontsLoaded) return undefined;
+
+    let mounted = true;
+    const waitForBrowserFonts = async () => {
+      if (!document.fonts) {
+        if (mounted) setWebFontsReady(true);
+        return;
+      }
+
+      await Promise.all(REQUIRED_FONT_FAMILIES.map((family) => document.fonts.load(`16px "${family}"`)));
+      if (mounted) setWebFontsReady(true);
+    };
+
+    waitForBrowserFonts().catch(() => undefined);
+
+    return () => {
+      mounted = false;
+    };
+  }, [fontsLoaded]);
+
+  const preloadLogo = Platform.OS === 'web' && !publicAssetsReady ? (
+    <Image
+      source={PUBLIC_LOGO_ASSET}
+      style={styles.preloadImage}
+      onLoad={() => setPublicAssetsReady(true)}
+    />
+  ) : null;
+
+  if (!fontsLoaded || !webFontsReady || !publicAssetsReady) {
     return (
       <View style={styles.loadingContainer}>
+        {preloadLogo}
         <ActivityIndicator size="large" color="#1E4E09" />
       </View>
     );
@@ -177,5 +229,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  preloadImage: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
 });

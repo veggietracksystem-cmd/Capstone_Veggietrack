@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, Animated, Easing, StyleSheet, Dimensions, Platform } from 'react-native';
+import { View, Animated, Easing, StyleSheet, Dimensions, Platform } from 'react-native';
 import { rf } from '../lib/responsive';
+import VegetableImage from './VegetableImage';
 
-// Renders a short-lived "flying" emoji for each active add-to-cart tap,
+// Renders a short-lived flying vegetable image for each active add-to-cart tap,
 // animating from the tapped card to the Cart tab in the bottom nav bar as a
 // visual confirmation. `target` is the Cart tab icon's real on-screen center,
 // measured by BottomNavBar via measureInWindow and passed down from
@@ -66,7 +67,7 @@ function Flight({ flight, target, onDone }) {
         },
       ]}
     >
-      <Text style={styles.flightIcon}>{flight.icon}</Text>
+      <VegetableImage source={flight.source} style={styles.flightIcon} fallbackSize={rf(26)} />
     </Animated.View>
   );
 }
@@ -85,5 +86,5 @@ export default function AddToCartFlyOverlay({ flights, target, onDone }) {
 const styles = StyleSheet.create({
   flight: { position: 'absolute', left: -18, top: -18, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   overlay: { pointerEvents: 'none' },
-  flightIcon: { fontSize: rf(26) },
+  flightIcon: { width: 32, height: 32 },
 });

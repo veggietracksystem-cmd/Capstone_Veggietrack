@@ -1,6 +1,6 @@
 import { rf } from '../lib/responsive';
 import { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/appTheme';
 
@@ -18,16 +18,18 @@ export default function PasswordInput({
   value,
   onChangeText,
   placeholder,
+  visibilityLabel = 'password',
   editable = true,
   autoCapitalize = 'none',
   ...rest
 }) {
   const [show, setShow] = useState(false);
+  const inputStyle = StyleSheet.flatten(style) || {};
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { marginBottom: inputStyle.marginBottom || 0 }]}>
       <TextInput
-        style={[style, styles.input]}
+        style={[style, styles.input, styles.inputSpacing, Platform.OS === 'web' && styles.webInput]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -39,6 +41,8 @@ export default function PasswordInput({
       <TouchableOpacity
         style={styles.eyeBtn}
         onPress={() => setShow((s) => !s)}
+        accessibilityRole="button"
+        accessibilityLabel={`${show ? 'Hide' : 'Show'} ${visibilityLabel}`}
         disabled={!editable}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         activeOpacity={0.6}
@@ -51,9 +55,8 @@ export default function PasswordInput({
 
 const styles = StyleSheet.create({
   wrap: { position: 'relative', justifyContent: 'center' },
-  // Reserve room on the right for the eye button.
   input: { paddingRight: 46 },
-  // Pinned near the top so it lines up with the input's first text line
-  // regardless of the marginBottom baked into each screen's `styles.input`.
-  eyeBtn: { position: 'absolute', right: 12, top: 12, padding: 2 },
+  inputSpacing: { marginBottom: 0 },
+  webInput: { appearance: 'none', WebkitAppearance: 'none' },
+  eyeBtn: { position: 'absolute', right: 10, top: '50%', minHeight: 28, padding: 2, justifyContent: 'center', transform: [{ translateY: -14 }] },
 });

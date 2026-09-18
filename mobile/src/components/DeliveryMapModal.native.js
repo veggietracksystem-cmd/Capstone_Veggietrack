@@ -7,6 +7,7 @@ import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { colors, fonts } from '../theme/appTheme';
 import { buildStaticMapHtml } from '../lib/leafletMapHtml';
+import { Ionicons } from '@expo/vector-icons';
 
 const PRIMARY = colors.leaf700;
 // Default center (Metro Manila) used until we have the courier's position.
@@ -86,10 +87,18 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
         <View style={styles.header}>
           <Text style={styles.title}>Delivery Route</Text>
           <TouchableOpacity onPress={onClose}>
-            <Text style={styles.close}>Close ✕</Text>
+            <View style={styles.closeLabel}>
+              <Text style={styles.close}>Close</Text>
+              <Ionicons name="close" size={rf(20)} color={PRIMARY} />
+            </View>
           </TouchableOpacity>
         </View>
-        {address ? <Text style={styles.addr}>📍 {address}</Text> : null}
+        {address ? (
+          <View style={styles.addrRow}>
+            <Ionicons name="location-outline" size={rf(18)} color={PRIMARY} />
+            <Text style={styles.addr}>{address}</Text>
+          </View>
+        ) : null}
 
         {loading ? (
           <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
@@ -121,7 +130,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
   title: { fontFamily: fonts.heading, fontSize: rf(19), color: colors.ink },
   close: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15) },
-  addr: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, paddingHorizontal: 16, marginBottom: 8 },
+  closeLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  addrRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginBottom: 8 },
+  addr: { flex: 1, fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft },
   error: { fontFamily: fonts.body, color: colors.danger, paddingHorizontal: 16, marginBottom: 8 },
   note: { fontFamily: fonts.body, color: colors.inkFaint, fontSize: rf(13), padding: 12, fontStyle: 'italic' },
   map: { flex: 1 },

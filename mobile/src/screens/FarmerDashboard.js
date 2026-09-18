@@ -2,6 +2,7 @@ import useLatestRequest from '../hooks/useLatestRequest';
 import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { SharedScreenTransition } from '../lib/motion';
 import {
   Text, View, ScrollView, TextInput, TouchableOpacity,
   ActivityIndicator, StyleSheet, RefreshControl, Platform, Modal,
@@ -22,7 +23,8 @@ import { showAlert, confirmAction } from '../lib/ui';
 import { colors, fonts, radius, shadowCard, fontSize } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
-import { getVegetableIcon } from '../lib/vegetableIcons';
+import { getVegetableTile } from '../lib/vegetableIcons';
+import VegetableImage from '../components/VegetableImage';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { exportReportPdf, printReport } from '../lib/reportPdf';
 import { useAutoSync } from '../sync/SyncProvider';
@@ -31,7 +33,7 @@ import { useAutoSync } from '../sync/SyncProvider';
 // set automatically by the pickup request/completion workflow, not by the farmer.
 const STATUS_OPTIONS = ['available', 'reserved'];
 
-const getVegEmoji = getVegetableIcon;
+const getVegTile = getVegetableTile;
 
 function getStatusPillStyle(status, t) {
   switch (status) {
@@ -587,37 +589,36 @@ export default function FarmerDashboard({ navigation, route }) {
     <SafeAreaView style={styles.container}>
       <View style={styles.bodyFlex}>
         {activeTab === 'notifications' ? (
-          <View style={styles.bodyFlex}>
-            <View style={styles.topbar}>
-              <TouchableOpacity onPress={() => setActiveTab('home')} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="arrow-back" size={rf(20)} color={colors.ink} />
-              </TouchableOpacity>
-              <Text style={styles.notifHeaderTitle}>{t('dashboards.farmer.notificationsTitle')}</Text>
-              <View style={{ width: 20 }} />
+          <SharedScreenTransition style={styles.bodyFlex} visible>
+            <View style={styles.bodyFlex}>
+              <View style={styles.topbar}>
+                <TouchableOpacity onPress={() => setActiveTab('home')} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="arrow-back" size={rf(20)} color={colors.ink} />
+                </TouchableOpacity>
+                <Text style={styles.notifHeaderTitle}>{t('dashboards.farmer.notificationsTitle')}</Text>
+                <View style={{ width: 20 }} />
+              </View>
+              <NotificationBell fullScreen />
             </View>
-            <NotificationBell fullScreen />
-          </View>
+          </SharedScreenTransition>
         ) : activeTab === 'profile' ? (
-          <View style={[styles.bodyFlex, styles.content]}>
+          <SharedScreenTransition style={[styles.bodyFlex, styles.content]} visible>
             <View style={styles.topbar}><Text style={styles.pageTitle}>{t('dashboards.farmer.tabProfile')}</Text></View>
             <FarmerProfileTab navigation={navigation} />
-          </View>
+          </SharedScreenTransition>
         ) : activeTab === 'messages' ? (
-          // BottomNavBar is position:absolute (see BottomNavBar.js) so it doesn't
-          // reserve layout space — every other tab compensates with bottom
-          // padding/margin. Without it here, the message input row renders right
-          // at the screen edge and the nav bar paints over it, hiding it entirely.
-          <View style={[styles.bodyFlex, styles.content, { paddingBottom: 90 }]}>
+          <SharedScreenTransition style={[styles.bodyFlex, styles.content, { paddingBottom: 90 }]} visible>
             <MessagesScreen embedded navigation={navigation} />
-          </View>
+          </SharedScreenTransition>
         ) : (
-          <ScrollView
-            style={styles.scrollArea}
-            contentContainerStyle={[styles.content, { paddingBottom: 90 }]}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-            showsVerticalScrollIndicator={false}
-          >
-            {activeTab === 'pickup' ? (
+          <SharedScreenTransition style={styles.bodyFlex} visible>
+            <ScrollView
+              style={styles.scrollArea}
+              contentContainerStyle={[styles.content, { paddingBottom: 90 }]}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+              showsVerticalScrollIndicator={false}
+            >
+              {activeTab === 'pickup' ? (
               <>
                 <View style={styles.topbar}>
                   <View>
@@ -637,7 +638,7 @@ export default function FarmerDashboard({ navigation, route }) {
                     const selected = !!cart[h.id];
                     return (
                       <View key={String(h.id)} style={styles.vegCard}>
-                        <View style={styles.vegEmoji}><Text style={{ fontSize: rf(20) }}>{getVegEmoji(h.vegetable_name)}</Text></View>
+                        <View style={styles.vegEmoji}><VegetableImage source={getVegTile(h.vegetable_name).source} style={styles.vegEmojiImage} fallbackSize={rf(20)} /></View>
                         <View style={styles.vegInfo}>
                           <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
                           <Text style={styles.vegMeta}>{t('dashboards.farmer.harvestedMeta', { qty: h.quantity_kg, date: formatDate(h.recorded_at) })}</Text>
@@ -686,7 +687,7 @@ export default function FarmerDashboard({ navigation, route }) {
                     const pill = getStatusPillStyle(h.status, t);
                     return (
                       <View key={String(h.id)} style={styles.vegCard}>
-                        <View style={styles.vegEmoji}><Text style={{ fontSize: rf(20) }}>{getVegEmoji(h.vegetable_name)}</Text></View>
+                        <View style={styles.vegEmoji}><VegetableImage source={getVegTile(h.vegetable_name).source} style={styles.vegEmojiImage} fallbackSize={rf(20)} /></View>
                         <View style={styles.vegInfo}>
                           <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
                           <Text style={styles.vegMeta}>{t('dashboards.farmer.harvestedMeta', { qty: h.quantity_kg, date: formatDate(h.recorded_at) })}</Text>
@@ -776,7 +777,7 @@ export default function FarmerDashboard({ navigation, route }) {
                 ) : (
                   availableHarvests.slice(0, 3).map((h) => (
                     <View key={String(h.id)} style={styles.vegCard}>
-                      <View style={styles.vegEmoji}><Text style={{ fontSize: rf(20) }}>{getVegEmoji(h.vegetable_name)}</Text></View>
+                      <View style={styles.vegEmoji}><VegetableImage source={getVegTile(h.vegetable_name).source} style={styles.vegEmojiImage} fallbackSize={rf(20)} /></View>
                       <View style={styles.vegInfo}>
                         <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
                         <Text style={styles.vegMeta}>{t('dashboards.farmer.availableKg', { kg: h.quantity_kg })}</Text>
@@ -789,7 +790,8 @@ export default function FarmerDashboard({ navigation, route }) {
                 )}
               </>
             )}
-          </ScrollView>
+            </ScrollView>
+          </SharedScreenTransition>
         )}
       </View>
 
@@ -1028,7 +1030,7 @@ export default function FarmerDashboard({ navigation, route }) {
       <BottomSheet visible={showCartSheet} onClose={() => setShowCartSheet(false)} title={t('dashboards.farmer.pickupRequestSheetTitle')}>
         {cartHarvests.map((h) => (
           <View key={String(h.id)} style={styles.vegCard}>
-            <View style={styles.vegEmoji}><Text style={{ fontSize: rf(20) }}>{getVegEmoji(h.vegetable_name)}</Text></View>
+            <View style={styles.vegEmoji}><VegetableImage source={getVegTile(h.vegetable_name).source} style={styles.vegEmojiImage} fallbackSize={rf(20)} /></View>
             <View style={styles.vegInfo}>
               <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
               <Text style={styles.vegMeta}>{t('dashboards.farmer.selectedKg', { qty: h.quantity_kg })}</Text>
@@ -1081,8 +1083,8 @@ export default function FarmerDashboard({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgScreen },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bgScreen },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
   bodyFlex: { flex: 1, minHeight: 0 },
   scrollArea: { flex: 1, minHeight: 0 },
   content: { padding: 16 },
@@ -1141,6 +1143,7 @@ const styles = StyleSheet.create({
     padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 9,
   },
   vegEmoji: { width: 42, height: 42, borderRadius: 11, backgroundColor: colors.leaf50, alignItems: 'center', justifyContent: 'center' },
+  vegEmojiImage: { width: 32, height: 32 },
   vegInfo: { flex: 1, minWidth: 0 },
   vegName: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
   vegMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },

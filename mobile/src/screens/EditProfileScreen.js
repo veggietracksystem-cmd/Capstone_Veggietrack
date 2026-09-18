@@ -152,13 +152,16 @@ export default function EditProfileScreen({ navigation }) {
                   disabled={saving || deleting}
                 >
                   <Ionicons name="location" size={rf(16)} color="#fff" />
-                  <Text style={styles.pinBtnText}>{t('auth.register.pinMap').replace(/^📍\s*/, '')}</Text>
+                  <Text style={styles.pinBtnText}>{t('auth.register.pinMap')}</Text>
                 </TouchableOpacity>
               </View>
               {latitude != null && longitude != null ? (
-                <Text style={styles.coordsLabel}>
-                  {t('auth.register.coordsPinned', { lat: Number(latitude).toFixed(4), lng: Number(longitude).toFixed(4) })}
-                </Text>
+                <View style={styles.coordsRow}>
+                  <Ionicons name="checkmark-circle-outline" size={rf(17)} color={colors.leaf700} />
+                  <Text style={styles.coordsLabel}>
+                    {t('auth.register.coordsPinned', { lat: Number(latitude).toFixed(4), lng: Number(longitude).toFixed(4) })}
+                  </Text>
+                </View>
               ) : null}
             </>
           )}
@@ -201,6 +204,14 @@ export default function EditProfileScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
   content: { padding: 16, paddingBottom: 40 },
 
   // Section Card
@@ -241,6 +252,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.ctrl,
   },
   pinBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm) },
+  coordsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   coordsLabel: { fontFamily: fonts.body, color: colors.leaf700, fontSize: rf(fontSize.sm), fontWeight: '600', marginTop: 4, marginBottom: 4 },
 
   menuItem: {
