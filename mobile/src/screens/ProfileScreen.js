@@ -115,12 +115,14 @@ export default function ProfileScreen({ navigation }) {
             <Text style={styles.menuItemText}>{t('language.menuLabel')}</Text>
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-    style={styles.menuItem}
-    onPress={() => navigation.navigate('ManageAddresses')}
->
-    <Text style={styles.menuItemText}>📍 Manage Addresses</Text>
-</TouchableOpacity>
+          {user?.role !== 'distributor' && user?.role !== 'delivery_personnel' && (
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate('ManageAddresses')}
+            >
+              <Text style={styles.menuItemText}>📍 Manage Addresses</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Support & Actions Card */}

@@ -116,6 +116,14 @@ export default function MessagesScreen({ navigation, embedded }) {
     }
   };
 
+  // Messaging is intentionally online-only — unlike harvests (fire-and-forget
+  // records with no real-time expectation), a chat message implies the
+  // recipient sees it promptly; silently queuing it for delivery minutes or
+  // hours later when connectivity returns would be surprising, not helpful,
+  // and would need thread-merge/ordering logic this feature doesn't warrant.
+  // What IS preserved on failure: the typed draft is never cleared unless
+  // the send actually succeeds (see the try/catch below), so a failed send
+  // never loses the user's text — they see the error and can retry.
   const send = async () => {
     const body = input.trim();
     if (!body || !active) return;

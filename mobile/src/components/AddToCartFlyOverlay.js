@@ -32,15 +32,16 @@ function Flight({ flight, target, onDone }) {
     };
 
     const to = target || FALLBACK_TARGET;
+    const useNativeDriver = Platform.OS !== 'web';
     Animated.parallel([
       Animated.timing(pos, {
         toValue: { x: to.x, y: to.y },
         duration: 650,
         easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
+        useNativeDriver,
       }),
-      Animated.timing(scale, { toValue: 0.2, duration: 650, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0, duration: 300, delay: 350, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 0.2, duration: 650, easing: Easing.out(Easing.quad), useNativeDriver }),
+      Animated.timing(opacity, { toValue: 0, duration: 300, delay: 350, useNativeDriver }),
     ]).start(finish);
 
     // Safety net: if the animation's own completion callback never fires
@@ -53,7 +54,6 @@ function Flight({ flight, target, onDone }) {
 
   return (
     <Animated.View
-      pointerEvents="none"
       style={[
         styles.flight,
         {
@@ -74,7 +74,7 @@ function Flight({ flight, target, onDone }) {
 export default function AddToCartFlyOverlay({ flights, target, onDone }) {
   if (!flights || flights.length === 0) return null;
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, styles.overlay]}>
       {flights.map((f) => (
         <Flight key={f.id} flight={f} target={target} onDone={onDone} />
       ))}
@@ -84,5 +84,6 @@ export default function AddToCartFlyOverlay({ flights, target, onDone }) {
 
 const styles = StyleSheet.create({
   flight: { position: 'absolute', left: -18, top: -18, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  overlay: { pointerEvents: 'none' },
   flightIcon: { fontSize: rf(26) },
 });

@@ -59,7 +59,8 @@ test('checkout saves address with pin, reuses matching address and blocks on add
    if(table==='products') return Promise.resolve({data:[{id:'batch',vegetable_name:'vegetable0',stock_kg:10,price_per_kg:20,distributor_id:'d'}]}).then(resolve);
    if(table==='delivery_addresses') return Promise.resolve(mode==='failure'?{error:{message:'offline'}}:{data:mode==='existing'?[{address:'Store',latitude:7.1,longitude:125.6}]:[]}).then(resolve);
    return Promise.resolve({data:table==='orders'?{id:'order',status:'pending'}:[]}).then(resolve);
-  }};return q;}};
+  }};return q;},
+  rpc(name,args){writes.push({rpc:name,args});return Promise.resolve({data:{id:args.p_product_id,stock_kg:10-(args.p_quantity||0)},error:null});}};
   const res=response();await orderEndpoint(db)(request(5),res);
   assert.equal(res.statusCode,mode==='failure'?500:201);
   const addresses=writes.filter(w=>w.table==='delivery_addresses');

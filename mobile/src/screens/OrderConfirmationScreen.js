@@ -4,7 +4,7 @@ import { manilaDate, scheduleInstant, validateSchedule } from '../lib/deliverySc
 import { rf } from '../lib/responsive';
 import { useState, useEffect } from 'react';
 import {
-  Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet,
+  Text, View, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,7 +15,6 @@ import { showAlert, peso } from '../lib/ui';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import DeliveryDateTimeFields from '../components/DeliveryDateTimeFields';
-import MapPinningModal from '../components/MapPinningModal';
 import CustomModal from '../components/CustomModal';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 
@@ -26,16 +25,13 @@ export default function OrderConfirmationScreen({ navigation, route }) {
   const { user } = useAuth();
   const { t, language } = useTranslation();
   const { cart = [], totalItems = 0, totalAmount = 0, defaultAddress = '' } = route.params || {};
-
   // Address state
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [loadingAddresses, setLoadingAddresses] = useState(true);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
-  const [useManualAddress, setUseManualAddress] = useState(false);
   const [address, setAddress] = useState(defaultAddress || user?.store_location || '');
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
-  const [mapModalVisible, setMapModalVisible] = useState(false);
   
   const [date, setDate] = useState(manilaDate());
   const [time, setTime] = useState('');
@@ -48,18 +44,19 @@ export default function OrderConfirmationScreen({ navigation, route }) {
   // Load saved addresses
   useEffect(() => {
     loadAddresses();
-  }, []);
+    return navigation.addListener('focus', loadAddresses);
+  }, [navigation]);
 
   const loadAddresses = async () => {
     try {
       const data = await api.get('/api/addresses');
       setSavedAddresses(data || []);
-      const defaultAddr = data?.find(a => a.is_default);
-      if (defaultAddr) {
-        setSelectedAddressId(defaultAddr.id);
-        setAddress(defaultAddr.address);
-        setLatitude(defaultAddr.latitude ?? null);
-        setLongitude(defaultAddr.longitude ?? null);
+      const preferredAddress = data?.find(a => a.is_default) || data?.[0];
+      if (preferredAddress) {
+        setSelectedAddressId(preferredAddress.id);
+        setAddress(preferredAddress.address);
+        setLatitude(preferredAddress.latitude ?? null);
+        setLongitude(preferredAddress.longitude ?? null);
       }
     } catch (err) {
       console.error('Load addresses error:', err);
@@ -73,30 +70,11 @@ export default function OrderConfirmationScreen({ navigation, route }) {
     setAddress(addr.address);
     setLatitude(addr.latitude ?? null);
     setLongitude(addr.longitude ?? null);
-    setUseManualAddress(false);
-  };
-
-  const handleUseManual = () => {
-    setUseManualAddress(true);
-    setSelectedAddressId(null);
-    setAddress('');
-    setLatitude(null);
-    setLongitude(null);
-  };
-
-  const handleMapConfirm = ({ latitude: lat, longitude: lng, address: addr }) => {
-    setLatitude(lat);
-    setLongitude(lng);
-    setAddress(addr);
-    setUseManualAddress(true);
-    setSelectedAddressId(null);
-    setMapModalVisible(false);
   };
 
   const getFinalAddress = () => {
-    if (useManualAddress) return address;
     const selected = savedAddresses.find(a => a.id === selectedAddressId);
-    return selected?.address || address;
+    return selected?.address || '';
   };
 
   const weightValid = cart.length > 0 && cart.every(c => Number.isFinite(c.quantity) && c.quantity > 0) && cart.reduce((sum, c) => sum + c.quantity, 0) >= 5;
@@ -128,7 +106,17 @@ export default function OrderConfirmationScreen({ navigation, route }) {
       await clearCheckedOutCart(user.id).catch(() => showAlert(t('common.error'), t('checkout.cartStorageError')));
       setSuccess(true);
     } catch (err) {
-      showAlert(t('dashboards.retailer.orderFailedTitle'), err?.message || t('dashboards.retailer.orderFailedFallback'));
+      const code = err?.code || err?.data?.code;
+      const message = err?.status === 401
+        ? 'Your session has expired. Please log in again.'
+        : !err?.status
+          ? (err?.message === 'insufficient stock' ? err.message : 'Unable to connect to the server. Please check your internet connection and try again.')
+          : code === 'ADDRESS_LOCATION_REQUIRED'
+            ? 'Your delivery address needs a map location. Update it in Manage Address.'
+            : err?.data?.field === 'preferred_schedule'
+              ? 'Your selected delivery schedule is no longer available.'
+              : err?.message || 'We could not create your order. Please try again.';
+      showAlert(t('dashboards.retailer.orderFailedTitle'), message);
     } finally {
       requestLock.release('Confirming');
       setConfirming(false);
@@ -211,53 +199,14 @@ export default function OrderConfirmationScreen({ navigation, route }) {
                 </TouchableOpacity>
               ))}
 
-              <TouchableOpacity
-                style={[styles.addressOption, useManualAddress && styles.addressOptionSelected]}
-                onPress={handleUseManual}
-                disabled={confirming}
-              >
-                <View style={styles.addressRadio}>
-                  {useManualAddress && <View style={styles.addressRadioSelected} />}
-                </View>
-                <View style={styles.addressInfo}>
-                  <Text style={styles.addressLabel}>+ {t('dashboards.retailer.useDifferentAddress')}</Text>
-                </View>
-              </TouchableOpacity>
             </>
           ) : (
-            <Text style={styles.noAddressesText}>{t('dashboards.retailer.noSavedAddresses')}</Text>
+            <Text style={styles.noAddressesText}>No saved delivery address. Add one before placing your order.</Text>
           )}
 
-          {(useManualAddress || savedAddresses.length === 0) && (
-            <View style={styles.manualAddressContainer}>
-              <View style={styles.addressRow}>
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  placeholder={t('dashboards.retailer.deliveryAddressPlaceholder')}
-                  value={address}
-                  onChangeText={(value) => { setAddress(value); setLatitude(null); setLongitude(null); }}
-                  editable={!confirming}
-                  multiline
-                />
-                <TouchableOpacity
-                  style={styles.pinBtn}
-                  onPress={() => setMapModalVisible(true)}
-                  disabled={confirming}
-                >
-                  <Ionicons name="location" size={rf(16)} color="#fff" />
-                  <Text style={styles.pinBtnText}>{t('dashboards.retailer.pinLocation')}</Text>
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity
-                style={styles.manageAddressesLink}
-                onPress={() => navigation.navigate('ManageAddresses')}
-                disabled={confirming}
-              >
-                <Text style={styles.manageAddressesLinkText}>📋 {t('dashboards.retailer.manageAddresses')}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <TouchableOpacity style={styles.manageAddressesLink} onPress={() => navigation.navigate('ManageAddresses')} disabled={confirming}>
+            <Text style={styles.manageAddressesLinkText}>Manage Address</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Preferred Schedule */}
@@ -265,7 +214,7 @@ export default function OrderConfirmationScreen({ navigation, route }) {
           <Text style={styles.sectionTitle}>{t('dashboards.retailer.preferredTimeLabel')}</Text>
           <DeliveryDateTimeFields date={date} onDateChange={setDate} time={time} onTimeChange={setTime} disabled={confirming} />
           {!!date && !!time && !scheduleValid && <Text style={{ color: colors.danger }}>{t('pod.pastSchedule')}</Text>}
-          {(latitude == null || longitude == null) && <Text style={{ color: colors.danger }}>{t('pod.pinRequired')}</Text>}
+          {(latitude == null || longitude == null) && <Text style={{ color: colors.danger }}>Choose a saved address with a map location, or update it in Manage Address.</Text>}
         </View>
 
         {!weightValid && <Text style={{ color: colors.danger }}>{t('checkout.minimumWeight')}</Text>}
@@ -280,14 +229,6 @@ export default function OrderConfirmationScreen({ navigation, route }) {
             : <Text style={styles.buttonPrimaryText}>{t('dashboards.retailer.confirmOrder')}</Text>}
         </TouchableOpacity>
       </ScrollView>
-
-      <MapPinningModal
-        visible={mapModalVisible}
-        onConfirm={handleMapConfirm}
-        onClose={() => setMapModalVisible(false)}
-        initialCoords={latitude != null && longitude != null ? { latitude: Number(latitude), longitude: Number(longitude) } : null}
-        initialAddress={address || null}
-      />
 
       <CustomModal
         visible={success}

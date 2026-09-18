@@ -35,12 +35,25 @@ function validateProof(body = {}, destination, now = Date.now()) {
     location_status: 'verified', distance_meters: distance, effective_radius_meters: radius,
     coordinate_source: destination.coordinate_source || 'order_snapshot', address: null };
 }
-function proofImageUrl(url, proof, cloud = process.env.CLOUDINARY_CLOUD_NAME) {
+// GPS/photo/timestamp capture is mandatory for pickup exactly as it is for
+// delivery; only the destination-proximity requirement differs (a farmer's
+// farm location pin is optional, so the caller checks distance separately —
+// see complete_pickup_with_proof in sql/pickup_tracking_proof.sql).
+function validatePickupProof(body = {}, now = Date.now()) {
+  const point = coordinate(body);
+  if (!point || typeof body.latitude !== 'number' || typeof body.longitude !== 'number') throw proofError('GPS_REQUIRED', 'Current GPS coordinates are required.');
+  if (typeof body.accuracy !== 'number' || !Number.isFinite(body.accuracy) || body.accuracy < 0 || body.accuracy > MAX_ACCEPTABLE_GPS_ACCURACY_METERS) throw proofError('GPS_INACCURATE', 'Your current GPS signal is too inaccurate to verify your location. Refresh your location and try again.');
+  const captured = typeof body.captured_at === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(body.captured_at) ? Date.parse(body.captured_at) : NaN;
+  if (!Number.isFinite(captured) || now - captured > STALE_LOCATION_SECONDS * 1000 || captured - now > 30000) throw proofError('GPS_STALE', 'Your GPS location has expired. Refresh your location and try again.');
+  return { latitude: point.latitude, longitude: point.longitude, accuracy: body.accuracy,
+    captured_at: new Date(captured).toISOString(), submitted_at: new Date(now).toISOString() };
+}
+function proofImageUrl(url, proof, cloud = process.env.CLOUDINARY_CLOUD_NAME, kind = 'Delivery') {
   // Restrict to original Cloudinary uploads; never fetch arbitrary client URLs.
   if (typeof url !== 'string' || !/^https:\/\/res\.cloudinary\.com\/[\w-]+\/image\/upload\/v\d+\/[\w/.-]+$/.test(url) || url.includes('..')) throw new Error('A valid uploaded proof photo is required.');
   if (cloud && new URL(url).pathname.split('/')[1] !== cloud) throw new Error('Upload proof to the configured VeggieTrack photo storage.');
   const date = new Date(proof.submitted_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
-  const label = `VeggieTrack | Delivery proof\nSubmitted: ${date} PHT\nGPS: ${proof.latitude.toFixed(6)}, ${proof.longitude.toFixed(6)}`;
+  const label = `VeggieTrack | ${kind} proof\nSubmitted: ${date} PHT\nGPS: ${proof.latitude.toFixed(6)}, ${proof.longitude.toFixed(6)}`;
   const text = encodeURIComponent(encodeURIComponent(label));
   return url.replace('/image/upload/', `/image/upload/c_pad,w_1200,h_900,b_rgb:1E4E09/l_text:Arial_24:${text},co_white,b_rgb:1E4E09/fl_layer_apply,g_south,y_12/`);
 }
@@ -50,7 +63,7 @@ async function ensureProofImage(url, fetchImpl = fetch) {
   await response.body?.cancel();
   if (!valid) throw new Error('Proof image could not be generated. Retry uploading the photo.');
 }
-module.exports = { scheduleInstant, validateSchedule, distanceMeters, validateProof, proofImageUrl, ensureProofImage,
+module.exports = { scheduleInstant, validateSchedule, distanceMeters, validateProof, validatePickupProof, proofImageUrl, ensureProofImage,
   BASE_DELIVERY_RADIUS_METERS, MAX_ACCURACY_ALLOWANCE_METERS, STALE_LOCATION_SECONDS,
   MAX_ACCEPTABLE_GPS_ACCURACY_METERS, effectiveRadius,
   RADIUS_METERS: BASE_DELIVERY_RADIUS_METERS + MAX_ACCURACY_ALLOWANCE_METERS,

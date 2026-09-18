@@ -64,7 +64,9 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
   const data = {
     origin, destination, rider: { ...shownRider, name: rider.name || 'Delivery rider', live: live || demo, label, accuracy },
     viewer, viewerToken, route: points, completed: offRoute ? [] : progress.completed,
-    focusPoints: mode === 'navigation' ? [shownRider, navigationTarget] : undefined,
+    // Once the rider has picked up the order, the retailer's map is a
+    // destination view: rider -> retailer, never the earlier warehouse leg.
+    focusPoints: mode === 'navigation' ? [shownRider, navigationTarget] : phase === 'delivery' ? [shownRider, destination] : undefined,
     autoRecenter, fitToken, tileConfig: trackingData?.map_config, riderEmoji: mode === 'tracking' ? '🚛' : '🛵',
   };
   const acquire = async () => {

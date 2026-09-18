@@ -74,6 +74,9 @@ export default function EditProfileScreen({ navigation }) {
       await updateUser({ ...data.user, name: data.user.full_name });
       setAvatarChanged(false);
       showAlert(t('common.saved'), t('editProfile.saved'));
+      // Every role uses this shared editor. Return only after both the API
+      // update and the shared profile refresh have succeeded.
+      navigation.goBack();
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {

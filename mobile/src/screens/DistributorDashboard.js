@@ -26,6 +26,7 @@ import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import { localizeVegetableName } from '../lib/vegetableNames';
+import { useAutoSync } from '../sync/SyncProvider';
 
 const PRIMARY = colors.leaf700;
 
@@ -172,6 +173,10 @@ export default function DistributorDashboard({ navigation, route }) {
     setPaymentsOffline(unpaidRes.source === 'cache' || paidRes.source === 'cache');
   }, []);
 
+  const { syncState } = useAutoSync('distributor-dashboard', useCallback(async () => {
+    await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPayments(), loadPickupRequests(), refreshProducts.current?.()]);
+  }, [loadOrders, loadActiveOrders, loadPersonnel, loadPayments, loadPickupRequests]));
+
   useEffect(() => {
     (async () => {
       setLoadingOrders(true);
@@ -193,13 +198,6 @@ export default function DistributorDashboard({ navigation, route }) {
       loadPayments();
     });
   }, [navigation, loadPickupRequests, loadOrders, loadActiveOrders, loadPayments]);
-
-  // Issue 10: poll orders every 30s so the Approved-tab statuses (picked up /
-  // in transit / delivered) update without a manual pull-to-refresh.
-  useEffect(() => {
-    const id = setInterval(() => { loadOrders(); loadActiveOrders(); }, 30000);
-    return () => clearInterval(id);
-  }, [loadOrders, loadActiveOrders]);
 
   const onRefresh = async () => {
     if (!requestLock.acquire('refresh')) return;
@@ -370,7 +368,7 @@ export default function DistributorDashboard({ navigation, route }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <OfflineBanner
-          offline={tab === 'orders' ? ordersOffline : tab === 'payments' ? paymentsOffline : false}
+          offline={syncState === 'offline'}
           pendingCount={0}
         />
 

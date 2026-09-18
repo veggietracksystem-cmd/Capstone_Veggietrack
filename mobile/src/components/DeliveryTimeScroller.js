@@ -4,6 +4,10 @@ import { useTranslation } from '../i18n/useTranslation';
 import { colors, fonts } from '../theme/appTheme';
 
 const pad = value => String(value).padStart(2, '0');
+const hourLabel = value => {
+  const hour = Number(value);
+  return `${hour % 12 || 12} ${hour < 12 ? 'AM' : 'PM'}`;
+};
 // All 24 hours and all 60 minutes are available; no fixed delivery slots.
 export default function DeliveryTimeScroller({ date, time, onTimeChange, disabled }) {
   const { t } = useTranslation();
@@ -25,10 +29,10 @@ export default function DeliveryTimeScroller({ date, time, onTimeChange, disable
             const selected = value === column.selected;
             const unavailable = disabled || !column.available(value);
             return <TouchableOpacity key={value} accessibilityRole="button"
-              accessibilityLabel={`${column.label} ${value}`} accessibilityState={{ selected, disabled: unavailable }}
+              accessibilityLabel={`${column.label} ${column.label === t('checkout.hour') ? hourLabel(value) : value}`} accessibilityState={{ selected, disabled: unavailable }}
               disabled={unavailable} onPress={() => column.choose(value)}
               style={[styles.option, selected && styles.selected, unavailable && { opacity: 0.35 }]}>
-              <Text style={[styles.value, selected && { color: '#fff' }]}>{value}</Text>
+              <Text style={[styles.value, selected && { color: '#fff' }]}>{column.label === t('checkout.hour') ? hourLabel(value) : value}</Text>
             </TouchableOpacity>;
           })}
         </ScrollView>

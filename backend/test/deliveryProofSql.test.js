@@ -18,7 +18,8 @@ test('PostgreSQL migration, scheduling triggers, atomic progression/POD, permiss
       CREATE TABLE users(id uuid PRIMARY KEY, latitude double precision, longitude double precision, store_location text);
       CREATE TABLE delivery_addresses(user_id uuid, address text, latitude double precision, longitude double precision);
       CREATE TABLE orders(id uuid PRIMARY KEY, retailer_id uuid, delivery_personnel_id uuid, status order_status,
-        preferred_schedule timestamptz, delivery_address text, delivery_latitude double precision, delivery_longitude double precision, distributor_id uuid);
+        preferred_schedule timestamptz, delivery_address text, delivery_latitude double precision, delivery_longitude double precision, distributor_id uuid,
+        assigned_at timestamptz, in_transit_at timestamptz, delivered_at timestamptz);
       CREATE TABLE deliveries(id uuid PRIMARY KEY, order_id uuid REFERENCES orders(id), delivery_personnel_id uuid,
         status text, proof_photo_url text, delivered_at timestamptz);
       GRANT ALL ON orders, deliveries TO anon, authenticated;
@@ -45,9 +46,13 @@ test('PostgreSQL migration, scheduling triggers, atomic progression/POD, permiss
     const advance = status => db.query('SELECT advance_delivery_status($1,$2,$3)', [delivery,rider,status]);
     await assert.rejects(advance('in_transit'), /transition/);
     await advance('picked_up');
-    assert.equal((await db.query('SELECT status FROM orders')).rows[0].status, 'in_transit');
+    // The order must actually pass through 'picked_up' (a distinct order_status
+    // value, shown as its own step in the retailer/distributor UI) rather than
+    // jumping straight to 'in_transit'.
+    assert.equal((await db.query('SELECT status FROM orders')).rows[0].status, 'picked_up');
     await advance('picked_up'); // Retry safe.
     await advance('in_transit');
+    assert.equal((await db.query('SELECT status FROM orders')).rows[0].status, 'in_transit');
     const pod = { latitude:7.1, longitude:125.6, accuracy:10, captured_at:new Date().toISOString(), submitted_at:new Date().toISOString() };
     const complete = (patch = {}, person = rider) => db.query('SELECT complete_delivery_with_proof($1,$2,$3,$4)', [delivery,person,'https://res.cloudinary.com/demo/image/upload/proof.jpg',JSON.stringify({...pod,...patch})]);
     await assert.rejects(complete({}, retailer), /assigned/);

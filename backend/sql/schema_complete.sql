@@ -117,6 +117,8 @@ CREATE TABLE IF NOT EXISTS pickup_requests (
     note TEXT,
     received_by UUID REFERENCES users(id) ON DELETE SET NULL,
     received_at TIMESTAMP WITH TIME ZONE,
+    proof_photo_url TEXT,
+    pod JSONB,
     amount NUMERIC,
     payment_status TEXT DEFAULT 'unpaid', -- unpaid, paid
     paid_at TIMESTAMP WITH TIME ZONE

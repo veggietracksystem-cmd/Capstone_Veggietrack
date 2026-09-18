@@ -41,9 +41,10 @@ export default function CustomModal({
 
   useEffect(() => {
     if (visible) {
+      const useNativeDriver = Platform.OS !== 'web';
       Animated.parallel([
-        Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 7 }),
-        Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+        Animated.spring(scale, { toValue: 1, useNativeDriver, friction: 7 }),
+        Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver }),
       ]).start();
     } else {
       scale.setValue(0.9);
@@ -59,7 +60,7 @@ export default function CustomModal({
       >
         <Animated.View style={[styles.backdrop, { opacity }]}>
           {/* Tapping the backdrop dismisses (unless busy). */}
-          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={busy ? undefined : onCancel} />
+          <TouchableOpacity style={[StyleSheet.absoluteFill, styles.backdropDismiss]} activeOpacity={1} onPress={busy ? undefined : onCancel} />
 
           <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
             {title ? <Text style={styles.title}>{title}</Text> : null}
@@ -102,6 +103,7 @@ export default function CustomModal({
 const styles = StyleSheet.create({
   kav: { flex: 1 },
   backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  backdropDismiss: { pointerEvents: 'auto' },
   card: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
   title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 12 },
   bodyScroll: { flexGrow: 0, flexShrink: 1 },

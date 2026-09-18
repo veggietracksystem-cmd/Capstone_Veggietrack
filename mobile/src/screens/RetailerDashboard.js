@@ -10,7 +10,6 @@ import {
   ActivityIndicator, StyleSheet, Platform, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import NetInfo from '@react-native-community/netinfo';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +19,7 @@ import MessagesIcon from '../components/MessagesIcon';
 import BottomNavBar from '../components/BottomNavBar';
 import OfflineBanner from '../components/OfflineBanner';
 import ImageViewerModal from '../components/ImageViewerModal';
+import CustomModal from '../components/CustomModal';
 import OrderStepIndicator from '../components/OrderStepIndicator';
 import EmptyState from '../components/EmptyState';
 import AddToCartFlyOverlay from '../components/AddToCartFlyOverlay';
@@ -28,6 +28,7 @@ import { localizeVegetableName } from '../lib/vegetableNames';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
+import { useAutoSync } from '../sync/SyncProvider';
 
 const PRIMARY = colors.leaf700;
 
@@ -159,18 +160,8 @@ export default function RetailerDashboard({ navigation, route }) {
   const [refreshing, setRefreshing] = useState(false);
   const [shopOffline, setShopOffline] = useState(false);
   const [ordersOffline, setOrdersOffline] = useState(false);
-  const [isConnected, setIsConnected] = useState(true); // real device connectivity
   const [proofUri, setProofUri] = useState(null); // proof-of-delivery image being viewed
-
-  // Track real connectivity so the offline banner only shows when truly offline.
-  // A slow/failed request alone (source === 'cache') must NOT flag us as offline.
-  useEffect(() => {
-    const apply = (state) =>
-      setIsConnected(state.isConnected !== false && state.isInternetReachable !== false);
-    NetInfo.fetch().then(apply);
-    const unsubscribe = NetInfo.addEventListener(apply);
-    return unsubscribe;
-  }, []);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   // ---------- Loaders (read-through cache; placing an order stays online) ----------
   const loadProducts = useCallback(async () => {
@@ -194,6 +185,10 @@ export default function RetailerDashboard({ navigation, route }) {
     setOrdersOffline(source === 'cache');
   }, []);
 
+  const { syncState } = useAutoSync('retailer-dashboard', useCallback(async () => {
+    await Promise.all([loadProducts(), loadOrders()]);
+  }, [loadProducts, loadOrders]));
+
   useEffect(() => {
     (async () => {
       setLoadingProducts(true);
@@ -203,13 +198,6 @@ export default function RetailerDashboard({ navigation, route }) {
       setLoadingOrders(false);
     })();
   }, [loadProducts, loadOrders]);
-
-  // Issue 10: poll My Orders every 30s so the progress stepper advances live as
-  // the rider updates status (picked up / in transit / delivered).
-  useEffect(() => {
-    const id = setInterval(() => { loadOrders(); }, 30000);
-    return () => clearInterval(id);
-  }, [loadOrders]);
 
   useRefreshOnFocus(() => Promise.all([loadProducts(), loadOrders()]));
 
@@ -366,7 +354,7 @@ export default function RetailerDashboard({ navigation, route }) {
       >
         {/* Only flag offline when the device is actually disconnected AND we're
             falling back to cached data — not merely because a request was slow. */}
-        <OfflineBanner offline={!isConnected && (tab === 'shop' ? shopOffline : tab === 'orders' ? ordersOffline : false)} />
+        <OfflineBanner offline={syncState === 'offline' && (tab === 'shop' ? shopOffline : tab === 'orders' ? ordersOffline : false)} />
 
         {tab === 'shop' && (
           <HomeTab
@@ -374,6 +362,7 @@ export default function RetailerDashboard({ navigation, route }) {
             products={products}
             searchQuery={searchQuery} setSearchQuery={setSearchQuery}
             onAdd={addToCart}
+            onSelect={setSelectedProduct}
           />
         )}
 
@@ -416,12 +405,20 @@ export default function RetailerDashboard({ navigation, route }) {
         onTabMeasure={handleTabMeasure}
       />
       <AddToCartFlyOverlay flights={flights} target={cartIconTarget} onDone={removeFlight} />
+      <CustomModal visible={!!selectedProduct} title={selectedProduct ? localizeVegetableName(selectedProduct.vegetable_name, language) : ''}
+        cancelLabel={t('common.close')} onCancel={() => setSelectedProduct(null)}
+        confirmLabel={t('dashboards.retailer.addToCart')} onConfirm={() => { addToCart(selectedProduct); setSelectedProduct(null); }}>
+        {selectedProduct?.batch_photo_url ? <Image source={{ uri: selectedProduct.batch_photo_url }} style={styles.productModalPhoto} resizeMode="cover" /> : <View style={[styles.productModalFallback, { backgroundColor: getVegetableTile(selectedProduct?.vegetable_name).bg }]}><Text style={styles.productModalIcon}>{getVegetableTile(selectedProduct?.vegetable_name).icon}</Text></View>}
+        <Text style={styles.productModalPrice}>{peso(selectedProduct?.price_per_kg)} / kg</Text>
+        <Text style={styles.productModalMeta}>{t('dashboards.retailer.kgAvailable', { qty: selectedProduct?.available_kg || 0 })}</Text>
+        <Text style={styles.productModalHint}>Tap Add to Cart to include this product in your order.</Text>
+      </CustomModal>
     </SafeAreaView>
   );
 }
 
 // ================= Home tab (browse only) =================
-function HomeTab({ loading, products, searchQuery, setSearchQuery, onAdd }) {
+function HomeTab({ loading, products, searchQuery, setSearchQuery, onAdd, onSelect }) {
   const { t, language } = useTranslation();
 
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
@@ -469,9 +466,9 @@ function HomeTab({ loading, products, searchQuery, setSearchQuery, onAdd }) {
           {filteredProducts.map((p) => {
             const tile = getVegetableTile(p.vegetable_name);
             return (
-              <View key={p.vegetable_name} style={styles.kpiCard}>
+              <TouchableOpacity key={p.vegetable_name} style={styles.kpiCard} onPress={() => onSelect(p)} activeOpacity={0.82} accessibilityRole="button" accessibilityLabel={`View ${p.vegetable_name} details`}>
                 {p.batch_photo_url ? (
-                  <Image source={{ uri: p.batch_photo_url }} style={styles.productPhoto} resizeMode="cover" accessibilityLabel={`${p.vegetable_name} recent batch`} />
+                  <Image source={{ uri: p.batch_photo_url }} style={styles.productPhoto} resizeMode="cover" accessibilityLabel={`${p.vegetable_name} thumbnail`} />
                 ) : (
                   <View style={[styles.kpiIconWrap, { backgroundColor: tile.bg }]}>
                     <Text style={styles.kpiIcon}>{tile.icon}</Text>
@@ -483,7 +480,7 @@ function HomeTab({ loading, products, searchQuery, setSearchQuery, onAdd }) {
                 <TouchableOpacity style={styles.kpiAddBtn} onPress={(e) => onAdd(p, e.nativeEvent)}>
                   <Text style={styles.kpiAddBtnText}>{t('dashboards.retailer.addToCart')}</Text>
                 </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -717,16 +714,22 @@ const styles = StyleSheet.create({
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   kpiCard: {
     width: '47%', backgroundColor: colors.card, borderRadius: radius.card, padding: 14,
-    borderWidth: 1, borderColor: colors.border, alignItems: 'center', ...shadowCard,
+    borderWidth: 1, borderColor: colors.border, alignItems: 'center', minHeight: 244, ...shadowCard,
   },
   kpiIconWrap: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  productPhoto: { width: '100%', height: 118, borderRadius: 16, marginBottom: 8, backgroundColor: colors.leaf50 },
+  productPhoto: { width: 62, height: 62, borderRadius: 16, marginBottom: 8, backgroundColor: colors.leaf50 },
   kpiIcon: { fontSize: rf(26) },
   kpiName: { fontFamily: fonts.bodyBold, fontSize: rf(14.5), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
   kpiPrice: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: PRIMARY, marginTop: 4, textAlign: 'center' },
   kpiMeta: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkSoft, marginTop: 2, textAlign: 'center' },
   kpiAddBtn: { marginTop: 10, backgroundColor: PRIMARY, paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, alignSelf: 'stretch' },
   kpiAddBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(13), textAlign: 'center' },
+  productModalPhoto: { width: '100%', height: 210, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 },
+  productModalFallback: { height: 160, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
+  productModalIcon: { fontSize: rf(72) },
+  productModalPrice: { fontFamily: fonts.heading, fontSize: rf(19), color: PRIMARY, marginTop: 12 },
+  productModalMeta: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, marginTop: 4 },
+  productModalHint: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(13), marginTop: 10 },
 
   smallBtnFilled: { backgroundColor: PRIMARY, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.ctrl },
   smallBtnFilledText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(13) },

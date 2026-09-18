@@ -1,12 +1,13 @@
 import useLatestRequest from '../hooks/useLatestRequest';
 import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Text, View, ScrollView, TouchableOpacity,
+  Text, View, ScrollView, TouchableOpacity, Platform,
   ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
@@ -16,12 +17,18 @@ import MessagesIcon from '../components/MessagesIcon';
 import ProfileButton from '../components/ProfileButton';
 import OfflineBanner from '../components/OfflineBanner';
 import DeliveryMapModal from '../components/DeliveryMapModal';
+import ProofPreviewModal from '../components/ProofPreviewModal';
 import EmptyState from '../components/EmptyState';
 import BottomNavBar from '../components/BottomNavBar';
 import { showAlert, peso, shortId } from '../lib/ui';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
+import { useAutoSync } from '../sync/SyncProvider';
+import { currentProofLocation, captureProofPhoto } from '../lib/podCapture';
+import { createProofSubmission, proofFailureMessage } from '../lib/podSubmission';
+import { uploadToCloudinary } from '../lib/cloudinary';
+import { isOnline } from '../offline/net';
 
 const PRIMARY = colors.leaf700;
 
@@ -39,6 +46,7 @@ const STATUS_LABELS = {
   pending: 'Pending',
   approved: 'Approved',
   assigned: 'Assigned',
+  otw: 'On the Way',
   picked_up: 'Picked Up',
   in_transit: 'In Transit',
   delivered: 'Completed',
@@ -109,7 +117,6 @@ export default function DeliveryDashboard({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
-  const [offline, setOffline] = useState(false);
   const [mapAddress, setMapAddress] = useState(null); // address shown in the map modal (Farmer Pickups mode)
   const [mapCoords, setMapCoords] = useState(null); // coordinates shown in the map modal (Farmer Pickups mode)
   // Which bottom-nav tab's content is showing. This is the single source of
@@ -143,7 +150,7 @@ export default function DeliveryDashboard({ navigation, route }) {
     );
     if (!isCurrent()) return;
     setOrders(list);
-    setOffline(source === 'cache');
+    // A cache fallback can be a server error; it is not proof of no internet.
   }, []);
 
   const loadAll = useCallback(async () => {
@@ -152,6 +159,10 @@ export default function DeliveryDashboard({ navigation, route }) {
     catch (err) { showAlert(t('common.error'), err.message); }
     finally { setLoading(false); }
   }, [loadOrders, loadPickups]);
+
+  // This fixes the rider's stale-assignment path: the same central lifecycle
+  // that refreshes every role now revalidates both pickup and delivery feeds.
+  const { syncState } = useAutoSync('delivery-dashboard', loadAll);
 
   useEffect(() => {
     loadAll();
@@ -182,20 +193,92 @@ export default function DeliveryDashboard({ navigation, route }) {
     }
   };
 
-  const handleMarkPickedUp = async (pickupId) => {
-    if (!requestLock.acquire('BusyId')) return;
+  // Proof-of-pickup: same photo + GPS capture flow as delivery completion,
+  // reusing the shared podCapture/podSubmission/cloudinary helpers so the
+  // rider cannot mark a pickup complete without a verified photo + location.
+  const [pickupProofVisible, setPickupProofVisible] = useState(false);
+  const [pickupPhoto, setPickupPhoto] = useState(null);
+  const [activePickup, setActivePickup] = useState(null);
+  const [pickupBusy, setPickupBusy] = useState(false);
+  const pickupSubmissionRef = useRef(null);
+  const pickupActionRef = useRef(null);
+
+  const acquirePickupLocation = async () => currentProofLocation(t);
+
+  // "On the way" is informational for the farmer (see PUT
+  // /api/pickup-requests/:id/status) — the rider can still complete the
+  // pickup directly from 'assigned' without visiting this step.
+  const handleStartPickup = async (pickupId) => {
+    if (!requestLock.acquire('BusyId') || busyId != null) return;
     setBusyId(pickupId);
     try {
-      await api.post(`/api/pickup-requests/${pickupId}/pickup`);
+      await api.put(`/api/pickup-requests/${pickupId}/status`, { status: 'otw' });
       beginRead('loadPickups');
-      setPickups(prev => prev.map(p => p.id === pickupId ? { ...p, status: 'picked_up' } : p));
-      await Promise.all([loadOrders(), loadPickups()]);
-      showAlert(t('common.success'), t('dashboards.delivery.pickedUpSuccessMessage'));
+      setPickups(prev => prev.map(p => p.id === pickupId ? { ...p, status: 'otw' } : p));
+      await loadPickups();
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
       requestLock.release('BusyId');
       setBusyId(null);
+    }
+  };
+
+  const openPickupProof = async (pickup) => {
+    if (pickupActionRef.current || busyId != null) return;
+    pickupActionRef.current = 'location'; setBusyId(pickup.id);
+    try {
+      await acquirePickupLocation();
+      setActivePickup(pickup);
+      setPickupPhoto(null);
+      pickupSubmissionRef.current = null;
+      setPickupProofVisible(true);
+    } catch (err) {
+      showAlert(t('common.error'), err.message);
+    } finally {
+      pickupActionRef.current = null; setBusyId(null);
+    }
+  };
+
+  const pickPickupPhoto = async () => {
+    if (pickupActionRef.current) return;
+    pickupActionRef.current = 'photo'; setPickupBusy(true);
+    try {
+      const selected = await captureProofPhoto(t, ImagePicker, Platform.OS, setPickupPhoto);
+      if (selected) setPickupPhoto(selected);
+    } catch (err) {
+      if (err.selectedPhoto) setPickupPhoto(err.selectedPhoto);
+      showAlert(t('common.error'), err.message || t('dashboards.delivery.cameraErrorFallback'));
+    } finally {
+      pickupActionRef.current = null; setPickupBusy(false);
+    }
+  };
+
+  const confirmPickupCompletion = async () => {
+    if (pickupActionRef.current || !activePickup) return;
+    pickupActionRef.current = 'complete'; setPickupBusy(true);
+    const pickupId = activePickup.id;
+    try {
+      if (!pickupSubmissionRef.current || pickupSubmissionRef.current.id !== pickupId) {
+        pickupSubmissionRef.current = { id: pickupId, controller: createProofSubmission({
+          upload: uploadToCloudinary, isOnline,
+          complete: body => api.post(`/api/pickup-requests/${pickupId}/pickup`, body),
+          isConfirmed: (result) => !!result && (result.request?.status === 'picked_up' ||
+            ['Pickup completed successfully and inventory updated', 'Pickup marked complete, but the batch could not be added to Stocks — contact support', 'Pickup already completed'].includes(result.message)),
+        }) };
+      }
+      await pickupSubmissionRef.current.controller.submit({ photo: pickupPhoto, getLocation: acquirePickupLocation });
+      beginRead('loadPickups');
+      setPickups(prev => prev.map(p => p.id === pickupId ? { ...p, status: 'picked_up' } : p));
+      setPickupProofVisible(false);
+      setPickupPhoto(null);
+      setActivePickup(null);
+      await Promise.all([loadOrders(), loadPickups()]);
+      showAlert(t('common.success'), t('dashboards.delivery.pickedUpSuccessMessage'));
+    } catch (err) {
+      showAlert(t('common.error'), proofFailureMessage(err));
+    } finally {
+      pickupActionRef.current = null; setPickupBusy(false);
     }
   };
 
@@ -205,9 +288,9 @@ export default function DeliveryDashboard({ navigation, route }) {
     const s = effectiveStatus(o);
     return s === 'delivered' || s === 'cancelled';
   });
-  // Pickups: still assigned (actionable) vs already picked up (history).
-  const activePickups = pickups.filter((p) => p.status === 'assigned');
-  const pickupHistory = pickups.filter((p) => p.status !== 'assigned');
+  // Pickups: still actionable (assigned or on the way) vs already picked up (history).
+  const activePickups = pickups.filter((p) => p.status === 'assigned' || p.status === 'otw');
+  const pickupHistory = pickups.filter((p) => p.status !== 'assigned' && p.status !== 'otw');
 
   const handleBottomTabPress = (tab) => {
     if (tab.id === 'profile') {
@@ -276,7 +359,10 @@ export default function DeliveryDashboard({ navigation, route }) {
             setMapAddress(pickup.farmer_address);
             setMapCoords(pickup.farmer_coords);
           }}><Text style={styles.routeBtnText}>{t('dashboards.delivery.viewRoute')}</Text></TouchableOpacity>}
-          {actionable && <TouchableOpacity style={styles.detailsBtn} disabled={busyId != null} onPress={() => handleMarkPickedUp(pickup.id)}>
+          {actionable && pickup.status === 'assigned' && <TouchableOpacity style={styles.detailsBtn} disabled={busyId != null} onPress={() => handleStartPickup(pickup.id)}>
+            {busyId === pickup.id ? <ActivityIndicator color={PRIMARY} /> : <Text style={styles.detailsBtnText}>{t('dashboards.delivery.startPickupBtn')}</Text>}
+          </TouchableOpacity>}
+          {actionable && pickup.status === 'otw' && <TouchableOpacity style={styles.detailsBtn} disabled={busyId != null} onPress={() => openPickupProof(pickup)}>
             {busyId === pickup.id ? <ActivityIndicator color={PRIMARY} /> : <Text style={styles.detailsBtnText}>{t('dashboards.delivery.markPickedUpBtn')}</Text>}
           </TouchableOpacity>}
         </View>
@@ -320,7 +406,7 @@ export default function DeliveryDashboard({ navigation, route }) {
         contentContainerStyle={[styles.content, { paddingBottom: 90 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <OfflineBanner offline={offline} />
+        <OfflineBanner offline={syncState === 'offline'} />
 
         {activeBottomTab === 'home' && (
           <View>
@@ -449,6 +535,18 @@ export default function DeliveryDashboard({ navigation, route }) {
           setMapAddress(null);
           setMapCoords(null);
         }}
+      />
+
+      <ProofPreviewModal
+        visible={pickupProofVisible}
+        orderLabel={activePickup ? `#${shortId(activePickup.id)}` : ''}
+        photo={pickupPhoto}
+        busy={pickupBusy}
+        title={t('dashboards.delivery.confirmPickupTitle')}
+        confirmIdleLabel={t('dashboards.delivery.confirmPickupTitle')}
+        onPickPhoto={pickPickupPhoto}
+        onConfirm={confirmPickupCompletion}
+        onCancel={() => { if (!pickupBusy) { setPickupProofVisible(false); setActivePickup(null); setPickupPhoto(null); } }}
       />
 
       <BottomNavBar

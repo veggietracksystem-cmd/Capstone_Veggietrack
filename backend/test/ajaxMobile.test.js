@@ -102,14 +102,25 @@ test('retailer checkout sends once and preserves cart on server rejection', asyn
   assert.equal(clears, 0); assert.equal(success, false); assert.equal(busy, false);
 });
 
-test('rider pickup completion refreshes both lists without navigation or duplicate writes', async () => {
+test('rider pickup completion submits proof once, refreshes both lists and blocks a duplicate tap while in flight', async () => {
   const pending = deferred(); let writes = 0, refreshes = 0;
-  const submit = handler('DeliveryDashboard', 'handleMarkPickedUp', {
-    ...base(), setBusyId() {}, setPickups() {}, api: { post: () => { writes++; return pending.promise; } },
+  const submit = handler('DeliveryDashboard', 'confirmPickupCompletion', {
+    ...base(), setPickupBusy() {}, setPickups() {}, setPickupProofVisible() {}, setPickupPhoto() {},
+    setActivePickup() {}, proofFailureMessage: e => e.message,
+    activePickup: { id: 'pickup' }, pickupPhoto: { uri: 'file:///proof.jpg' },
+    pickupActionRef: { current: null }, pickupSubmissionRef: { current: null },
+    uploadToCloudinary: async () => 'hosted-url', isOnline: async () => true,
+    acquirePickupLocation: async () => ({ latitude: 1, longitude: 2, accuracy: 5, captured_at: new Date().toISOString() }),
+    // The dedup under test is confirmPickupCompletion's own pickupActionRef
+    // guard (same pattern as DeliveryDetailsScreen's actionRef) — this stub
+    // just needs to call through to `complete` once submitted.
+    createProofSubmission: ({ complete }) => ({ submit: async () => complete({}) }),
+    api: { post: () => { writes++; return pending.promise; } },
     loadOrders: async () => refreshes++, loadPickups: async () => refreshes++,
   });
-  const first = submit('pickup'); await submit('pickup'); assert.equal(writes, 1);
-  pending.resolve({}); await first; assert.equal(refreshes, 2);
+  const first = submit(); await submit(); assert.equal(writes, 1);
+  pending.resolve({ message: 'Pickup completed successfully and inventory updated' }); await first;
+  assert.equal(refreshes, 2);
 });
 
 test('stock price dialog remains open on failure and closes only after confirmation', async () => {
@@ -147,18 +158,26 @@ test('rider pickup card renders its existing completion action and disables repe
     configFile: false, babelrc: false,
     plugins: [require.resolve('../../mobile/node_modules/@babel/plugin-transform-react-jsx')],
   }).code;
-  let picked;
+  let picked, started;
   const scope = {
     ...base(), result: null, React: { createElement: (type, props, ...children) => ({ type, props, children }) },
     View: 'View', Text: 'Text', TouchableOpacity: 'TouchableOpacity', ActivityIndicator: 'ActivityIndicator',
     styles: {}, busyId: 'another', PRIMARY: 'green', formatStatus: s => s, language: 'en',
-    localizeVegetableName: n => n, handleMarkPickedUp: id => { picked=id; },
+    localizeVegetableName: n => n, openPickupProof: pickup => { picked = pickup.id; },
+    handleStartPickup: id => { started = id; },
   };
   vm.runInNewContext(code, scope);
-  const card = scope.result({ id: 'pickup', status: 'assigned', harvests: { vegetable_name: 'Carrot', quantity_kg: 8 } }, { actionable: true });
   const find = node => node?.type === 'TouchableOpacity' ? node : node?.children?.map(find).find(Boolean);
-  const action = find(card); assert.ok(action); assert.equal(action.props.disabled, true);
-  action.props.onPress(); assert.equal(picked, 'pickup');
+
+  // Still 'assigned': the actionable button starts the pickup (marks 'otw').
+  const assignedCard = scope.result({ id: 'pickup', status: 'assigned', harvests: { vegetable_name: 'Carrot', quantity_kg: 8 } }, { actionable: true });
+  const startAction = find(assignedCard); assert.ok(startAction); assert.equal(startAction.props.disabled, true);
+  startAction.props.onPress(); assert.equal(started, 'pickup');
+
+  // 'otw': the actionable button now opens the proof-of-pickup capture flow.
+  const otwCard = scope.result({ id: 'pickup', status: 'otw', harvests: { vegetable_name: 'Carrot', quantity_kg: 8 } }, { actionable: true });
+  const completeAction = find(otwCard); assert.ok(completeAction); assert.equal(completeAction.props.disabled, true);
+  completeAction.props.onPress(); assert.equal(picked, 'pickup');
 });
 
 test('overlapping offline sync and queue writes neither replay twice nor lose a new harvest', async () => {

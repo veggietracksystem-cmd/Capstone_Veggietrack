@@ -108,7 +108,11 @@ async function replayPending() {
   for (const m of [...queue]) {
     try {
       if (m.type === 'add') {
-        await api.post('/api/harvests', m.payload);
+        // The queue id doubles as an idempotency key: if this exact mutation
+        // already reached the server on a previous attempt (the response was
+        // simply lost to a timeout/dropped connection), the backend returns
+        // the existing harvest instead of creating a duplicate.
+        await api.post('/api/harvests', { ...m.payload, client_request_id: m._qid });
       } else if (m.type === 'edit') {
         await api.put(`/api/harvests/${m.id}`, m.payload);
       }

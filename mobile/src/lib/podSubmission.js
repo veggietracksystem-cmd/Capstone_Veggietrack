@@ -20,9 +20,14 @@ export function proofFailureMessage(error) {
   return error?.message || POD_MESSAGES.upload;
 }
 
-// One controller belongs to one delivery screen. The same photo reuses its
-// successful upload after a rejected/timed-out completion; replacing it resets it.
-export function createProofSubmission({ upload, complete, isOnline }) {
+const isDeliveryConfirmed = (result) =>
+  !!result && (result.status === 'delivered' || ['Delivery marked as completed', 'Delivery already completed'].includes(result.message));
+
+// One controller belongs to one delivery/pickup completion screen. The same
+// photo reuses its successful upload after a rejected/timed-out completion;
+// replacing it resets it. `isConfirmed` lets pickup completion (different
+// success message shape) reuse this same controller instead of duplicating it.
+export function createProofSubmission({ upload, complete, isOnline, isConfirmed = isDeliveryConfirmed }) {
   let inFlight = null;
   let uploadedPhoto = null;
   let uploadedUrl = null;
@@ -48,7 +53,7 @@ export function createProofSubmission({ upload, complete, isOnline }) {
         const location = await getLocation();
         try {
           const result = await complete({ proof_photo_url: uploadedUrl, ...location });
-          if (!result || (result.status !== 'delivered' && !['Delivery marked as completed', 'Delivery already completed'].includes(result.message))) {
+          if (!isConfirmed(result)) {
             throw Object.assign(new Error('The server did not confirm delivery completion.'), { code: 'COMPLETION_UNCONFIRMED' });
           }
           completed = result;

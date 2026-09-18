@@ -13,6 +13,7 @@ import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { statusColor, getProofUrl, getDelivery } from './RetailerDashboard';
 import { rf } from '../lib/responsive';
+import { useAutoSync } from '../sync/SyncProvider';
 
 const PRIMARY = colors.leaf700;
 
@@ -50,6 +51,7 @@ export default function OrderDetailsScreen({ navigation, route }) {
       if (isCurrent()) setRefreshing(false);
     }
   }, [orderId, t]);
+  useAutoSync(`order-details-${orderId || 'unknown'}`, refreshOrder);
   useEffect(() => { setOrder(route.params?.order); void refreshOrder(); }, [refreshOrder]);
   useRefreshOnFocus(refreshOrder);
 

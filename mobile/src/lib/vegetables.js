@@ -32,10 +32,13 @@ const VEGETABLE_KEYWORDS = [
   { keyword: 'cauliflower', category: 'Cruciferous Vegetables' },
   { keyword: 'bell pepper', category: 'Fruiting Vegetables' },
   { keyword: 'chili pepper', category: 'Fruiting Vegetables' },
+  { keyword: 'sili', category: 'Fruiting Vegetables' },
   { keyword: 'carrot', category: 'Root Vegetables' },
   { keyword: 'karot', category: 'Root Vegetables' },
   { keyword: 'sweet potato', category: 'Root Vegetables' },
+  { keyword: 'kamote', category: 'Root Vegetables' },
   { keyword: 'potato', category: 'Root Vegetables' },
+  { keyword: 'patatas', category: 'Root Vegetables' },
   { keyword: 'onion', category: 'Root Vegetables' },
   { keyword: 'sibuyas', category: 'Root Vegetables' },
   { keyword: 'garlic', category: 'Root Vegetables' },
@@ -53,7 +56,9 @@ const VEGETABLE_KEYWORDS = [
   { keyword: 'string beans', category: 'Fruiting Vegetables' },
   { keyword: 'sitaw', category: 'Fruiting Vegetables' },
   { keyword: 'radish', category: 'Root Vegetables' },
+  { keyword: 'labanos', category: 'Root Vegetables' },
   { keyword: 'cucumber', category: 'Fruiting Vegetables' },
+  { keyword: 'pipino', category: 'Fruiting Vegetables' },
   { keyword: 'celery', category: 'Leafy Greens' },
   { keyword: 'mustard greens', category: 'Cruciferous Vegetables' },
   { keyword: 'mustasa', category: 'Cruciferous Vegetables' },
@@ -62,16 +67,28 @@ const VEGETABLE_KEYWORDS = [
   { keyword: 'basil', category: 'Herbs' },
   { keyword: 'oregano', category: 'Herbs' },
   { keyword: 'cilantro', category: 'Herbs' },
+  { keyword: 'wansoy', category: 'Herbs' },
   { keyword: 'mint', category: 'Herbs' },
   { keyword: 'parsley', category: 'Herbs' },
 ].sort((a, b) => b.keyword.length - a.keyword.length);
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Whole-word match (with an optional plural suffix), not raw substring —
+// "basilica" must not match "basil", "upon" must not match "upo". Keep this
+// matching rule identical to backend/lib/vegetables.js.
+function matchesKeyword(key, keyword) {
+  return new RegExp(`\\b${escapeRegExp(keyword)}(?:es|s)?\\b`).test(key);
+}
+
 // Returns the matching category, or null if `name` doesn't look like a
 // known vegetable.
 export function getCategory(name) {
-  const key = String(name || '').toLowerCase().trim();
-  if (!key) return null;
-  const match = VEGETABLE_KEYWORDS.find((v) => key.includes(v.keyword));
+  const key = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  if (!key || key.length > 80) return null;
+  const match = VEGETABLE_KEYWORDS.find((v) => matchesKeyword(key, v.keyword));
   return match ? match.category : null;
 }
 

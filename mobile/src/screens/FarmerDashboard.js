@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../api/client';
 import {
-  fetchHarvests, queueHarvest, syncPending, getQueue, onReconnect,
+  fetchHarvests, queueHarvest, syncPending, getQueue,
 } from '../offline/harvestStore';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from '../components/NotificationBell';
@@ -25,6 +25,7 @@ import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 import { getVegetableIcon } from '../lib/vegetableIcons';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { exportReportPdf, printReport } from '../lib/reportPdf';
+import { useAutoSync } from '../sync/SyncProvider';
 
 // Manually selectable only — 'for_pickup'/'picked_up' are system-driven states
 // set automatically by the pickup request/completion workflow, not by the farmer.
@@ -224,6 +225,7 @@ export default function FarmerDashboard({ navigation, route }) {
   const [showCartSheet, setShowCartSheet] = useState(false);
   const [showConfirmSheet, setShowConfirmSheet] = useState(false);
   const [submittingPickup, setSubmittingPickup] = useState(false);
+  const [pickupRequests, setPickupRequests] = useState([]);
 
   const refreshPendingCount = useCallback(async () => {
     setPendingCount((await getQueue()).length);
@@ -234,9 +236,13 @@ export default function FarmerDashboard({ navigation, route }) {
     const { list, source } = await fetchHarvests();
     if (!isCurrent()) return;
     setHarvests(list);
-    setOffline(source === 'cache');
+    // A cache fallback can be a server error; it is not proof of no internet.
     await refreshPendingCount();
   }, [refreshPendingCount]);
+
+  const loadPickupRequests = useCallback(async () => {
+    try { const list = await api.get('/api/pickup-requests'); setPickupRequests(Array.isArray(list) ? list : []); } catch { /* harvest actions remain usable if tracking is temporarily unavailable */ }
+  }, []);
 
   const loadMessagesUnreadCount = useCallback(async () => {
     const isCurrent = beginRead('loadMessagesUnreadCount');
@@ -285,34 +291,33 @@ export default function FarmerDashboard({ navigation, route }) {
     return result;
   }, [loadHarvests, refreshPendingCount]);
 
+  // Global coordinator handles reconnect, foreground and periodic refreshes.
+  // Keep this reader comprehensive so cross-role pickup changes reach every
+  // farmer tab without a manual pull-to-refresh.
+  const { syncState } = useAutoSync('farmer-dashboard', useCallback(async () => {
+    await Promise.all([loadHarvests(), loadPickupRequests(), loadMessagesUnreadCount(), loadNotifUnreadCount()]);
+  }, [loadHarvests, loadPickupRequests, loadMessagesUnreadCount, loadNotifUnreadCount]));
+
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await Promise.all([loadHarvests(), loadMessagesUnreadCount(), loadNotifUnreadCount(), loadDistributorName()]);
+      await Promise.all([loadHarvests(), loadPickupRequests(), loadMessagesUnreadCount(), loadNotifUnreadCount(), loadDistributorName()]);
       await trySync();
       setLoading(false);
     })();
 
-    const unsubscribe = onReconnect(() => { trySync(); });
-    return unsubscribe;
-  }, [loadHarvests, loadMessagesUnreadCount, loadNotifUnreadCount, loadDistributorName, trySync]);
-
-  // Poll unread messages so the Messages tab badge updates without needing
-  // to leave and refocus the screen (mirrors MessagesIcon's poll for the
-  // other dashboards, which don't have a farmer-style embedded tab).
-  useEffect(() => {
-    const id = setInterval(loadMessagesUnreadCount, 30000);
-    return () => clearInterval(id);
-  }, [loadMessagesUnreadCount]);
+    return undefined;
+  }, [loadHarvests, loadPickupRequests, loadMessagesUnreadCount, loadNotifUnreadCount, loadDistributorName, trySync]);
 
   useEffect(() => {
     if (!navigation?.addListener) return undefined;
     return navigation.addListener('focus', () => {
       loadHarvests();
+      loadPickupRequests();
       loadMessagesUnreadCount();
       loadNotifUnreadCount();
     });
-  }, [navigation, loadHarvests, loadMessagesUnreadCount, loadNotifUnreadCount]);
+  }, [navigation, loadHarvests, loadPickupRequests, loadMessagesUnreadCount, loadNotifUnreadCount]);
 
   const onRefresh = async () => {
     if (!requestLock.acquire('refresh')) return;
@@ -320,6 +325,7 @@ export default function FarmerDashboard({ navigation, route }) {
     try {
       await Promise.all([loadHarvests(), loadMessagesUnreadCount(), loadNotifUnreadCount()]);
       await trySync();
+      await loadPickupRequests();
     } catch (err) {
       showAlert(t('common.error'), err.message);
     } finally {
@@ -557,6 +563,7 @@ export default function FarmerDashboard({ navigation, route }) {
       setCart({});
       setShowCartSheet(false);
       await trySync();
+      await loadPickupRequests();
       setShowConfirmSheet(true);
     } catch (err) {
       showAlert('Error', err.message);
@@ -648,6 +655,7 @@ export default function FarmerDashboard({ navigation, route }) {
                     );
                   })
                 )}
+                {pickupRequests.length > 0 && <><View style={styles.sectionHead}><Text style={styles.sectionHeadTitle}>Your pickup tracking</Text></View>{pickupRequests.map((pickup) => <TouchableOpacity key={pickup.id} style={styles.vegCard} onPress={() => navigation.navigate('FarmerPickupTracking', { pickupId: pickup.id, pickup })}><View style={styles.vegInfo}><Text style={styles.vegName}>{pickup.harvests?.vegetable_name || 'Vegetables'}</Text><Text style={styles.vegMeta}>{pickup.harvests?.quantity_kg ?? '—'} kg · {(pickup.status || 'requested').replace(/_/g, ' ')}</Text></View><Ionicons name="chevron-forward" size={rf(18)} color={colors.inkSoft} /></TouchableOpacity>)}</>}
               </>
             ) : activeTab === 'harvest' ? (
               <>
@@ -700,9 +708,9 @@ export default function FarmerDashboard({ navigation, route }) {
               <>
                 {/* HOME */}
                 <View style={styles.topbar}>
-                  <View style={[styles.statusBadge, offline ? styles.statusOffline : styles.statusOnline]}>
-                    <View style={[styles.statusDot, offline ? styles.statusDotOffline : styles.statusDotOnline]} />
-                    <Text style={[styles.statusLabel, offline && styles.statusLabelOffline]}>{offline ? t('dashboards.farmer.offlineStatus') : t('dashboards.farmer.onlineStatus')}</Text>
+                  <View style={[styles.statusBadge, syncState === 'offline' ? styles.statusOffline : styles.statusOnline]}>
+                    <View style={[styles.statusDot, syncState === 'offline' ? styles.statusDotOffline : styles.statusDotOnline]} />
+                    <Text style={[styles.statusLabel, syncState === 'offline' && styles.statusLabelOffline]}>{syncState === 'offline' ? t('dashboards.farmer.offlineStatus') : t('dashboards.farmer.onlineStatus')}</Text>
                   </View>
                   <TouchableOpacity style={styles.iconBtn} onPress={() => setActiveTab('notifications')} activeOpacity={0.7}>
                     <Ionicons name="notifications-outline" size={rf(19)} color={colors.soil800} />
@@ -710,11 +718,11 @@ export default function FarmerDashboard({ navigation, route }) {
                   </TouchableOpacity>
                 </View>
 
-                {(offline || pendingCount > 0) && (
+                {(syncState === 'offline' || pendingCount > 0) && (
                   <View style={styles.syncBanner}>
-                    <Ionicons name={offline ? 'cloud-offline-outline' : 'sync-outline'} size={rf(15)} color={colors.gold700} />
+                    <Ionicons name={syncState === 'offline' ? 'cloud-offline-outline' : 'sync-outline'} size={rf(15)} color={colors.gold700} />
                     <Text style={styles.syncBannerText}>
-                      {offline ? t('dashboards.farmer.offlinePrefixClean') : ''}
+                      {syncState === 'offline' ? t('dashboards.farmer.offlinePrefixClean') : ''}
                       {pendingCount > 0
                         ? t('dashboards.farmer.changesWaiting', { count: pendingCount, plural: pendingCount > 1 ? 's' : '' })
                         : t('dashboards.farmer.willSyncAuto')}

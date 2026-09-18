@@ -7,6 +7,7 @@ import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { LanguageProvider } from './src/i18n/LanguageProvider';
+import { SyncProvider } from './src/sync/SyncProvider';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import AlertModalHost from './src/components/AlertModalHost';
 import LandingScreen from './src/screens/LandingScreen';
@@ -36,6 +37,7 @@ import MessagesScreen from './src/screens/MessagesScreen';
 import RiderNavigationScreen from './src/screens/delivery/RiderNavigationScreen';
 import ShopeeTrackingScreen from './src/screens/Retailer/ShopeeTrackingScreen';
 import ManageAddressesScreen from './src/screens/ManageAddressesScreen';
+import FarmerPickupTrackingScreen from './src/screens/FarmerPickupTrackingScreen';
 
 const Stack = createStackNavigator();
 
@@ -101,6 +103,7 @@ function RootNavigator() {
             <Stack.Screen name="ShopeeTracking" component={ShopeeTrackingScreen} />
             {/* Manage Addresses - for all users (saved delivery addresses). */}
             <Stack.Screen name="ManageAddresses" component={ManageAddressesScreen} />
+            <Stack.Screen name="FarmerPickupTracking" component={FarmerPickupTrackingScreen} />
             {/* Distributor/Retailer/Delivery: pushed from the header Messages icon.
                 Farmer instead embeds MessagesScreen as a bottom tab. */}
             <Stack.Screen name="Messages" component={MessagesScreen} />
@@ -143,8 +146,10 @@ export default function App() {
       <ErrorBoundary>
         <LanguageProvider>
           <AuthProvider>
-            <RootNavigator />
-            <AlertModalHost />
+            <SyncProvider>
+              <RootNavigator />
+              <AlertModalHost />
+            </SyncProvider>
           </AuthProvider>
         </LanguageProvider>
       </ErrorBoundary>

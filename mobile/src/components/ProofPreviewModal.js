@@ -24,6 +24,7 @@ const PRIMARY = colors.leaf700;
  */
 export default function ProofPreviewModal({
   visible, orderLabel, photo, busy, onPickPhoto, onConfirm, onCancel,
+  title = 'Confirm Delivery', confirmIdleLabel = 'Confirm Delivery',
 }) {
   const { t } = useTranslation();
   // Subtle scale/fade entrance for a smoother feel (Issue 1).
@@ -45,7 +46,7 @@ export default function ProofPreviewModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={busy ? undefined : onCancel}>
       <Animated.View style={[styles.backdrop, { opacity }]}>
         <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
-          <Text style={styles.title}>Confirm Delivery</Text>
+          <Text style={styles.title}>{title}</Text>
           {orderLabel ? <Text style={styles.subtitle}>Order {orderLabel}</Text> : null}
 
           {photo ? (
@@ -70,7 +71,7 @@ export default function ProofPreviewModal({
           >
             {busy
               ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.buttonPrimaryText}>{photo ? 'Confirm & Upload' : 'Confirm Delivery'}</Text>}
+              : <Text style={styles.buttonPrimaryText}>{photo ? 'Confirm & Upload' : confirmIdleLabel}</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity

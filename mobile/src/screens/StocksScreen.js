@@ -17,6 +17,7 @@ import { showAlert, confirmAction, peso } from '../lib/ui';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
+import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 
 const PRIMARY = colors.leaf700;
 
@@ -60,6 +61,17 @@ export default function StocksScreen({ navigation }) {
   const [batchPhotoState, setBatchPhotoState] = useState('ready');
   const [editPriceInput, setEditPriceInput] = useState('');
   const [photoBusy, setPhotoBusy] = useState(false);
+
+  // Add Product — the direct-creation entry point for POST /api/products
+  // (independent of the pickup-intake flow above: this batch is listed
+  // immediately, not received as 'received' first).
+  const [addProductVisible, setAddProductVisible] = useState(false);
+  const [addVegName, setAddVegName] = useState('');
+  const [addPrice, setAddPrice] = useState('');
+  const [addStock, setAddStock] = useState('');
+  const [addPhotoUrl, setAddPhotoUrl] = useState('');
+  const [addPhotoState, setAddPhotoState] = useState('ready');
+  const [addBusy, setAddBusy] = useState(false);
 
   const loadBatches = useCallback(async () => {
     const isCurrent = beginRead('loadBatches');
@@ -202,6 +214,42 @@ export default function StocksScreen({ navigation }) {
     }
   };
 
+  const openAddProduct = () => {
+    setAddVegName(''); setAddPrice(''); setAddStock('');
+    setAddPhotoUrl(''); setAddPhotoState('ready');
+    setAddProductVisible(true);
+  };
+
+  const submitAddProduct = async () => {
+    const name = addVegName.trim();
+    const price = Number(addPrice);
+    const stock = Number(addStock);
+    if (!name) { showAlert(t('common.error'), t('stocks.vegetableNameRequired')); return; }
+    if (!isVegetable(name)) { showAlert(t('common.error'), VEGETABLE_VALIDATION_MESSAGE); return; }
+    if (!price || price <= 0 || !Number.isFinite(price)) { showAlert(t('common.error'), t('stocks.priceRequired')); return; }
+    if (!stock || stock <= 0 || !Number.isFinite(stock)) { showAlert(t('common.error'), t('stocks.stockRequired')); return; }
+    if (!addPhotoUrl || addPhotoState !== 'ready') {
+      showAlert(t('common.error'), addPhotoState === 'uploading' ? 'Please wait for the recent batch photo to finish uploading.' : t('stocks.photoRequired'));
+      return;
+    }
+    if (!requestLock.acquire('addProduct')) return;
+    setAddBusy(true);
+    try {
+      const { product } = await api.post('/api/products', {
+        vegetable_name: name, price_per_kg: price, stock_kg: stock, batch_photo_url: addPhotoUrl,
+      });
+      beginRead('loadBatches');
+      setBatches((prev) => [product, ...prev]);
+      setAddProductVisible(false);
+      showAlert(t('common.success'), t('stocks.addProductSuccess'));
+    } catch (err) {
+      showBatchPhotoError(err);
+    } finally {
+      requestLock.release('addProduct');
+      setAddBusy(false);
+    }
+  };
+
   const renderItem = ({ item: b }) => {
     const busy = busyId != null;
     const statusStyle = STATUS_STYLE[b.status] || STATUS_STYLE.received;
@@ -264,7 +312,15 @@ export default function StocksScreen({ navigation }) {
           <Text style={styles.back}>‹ {t('common.back')}</Text>
         </TouchableOpacity>
         <Text style={styles.title}>{t('stocks.title')}</Text>
-        <View style={{ width: 50 }} />
+        <TouchableOpacity
+          onPress={openAddProduct}
+          accessibilityRole="button"
+          accessibilityLabel={t('stocks.addProductBtn')}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={styles.addProductBtn}
+        >
+          <Text style={styles.addProductBtnText}>+</Text>
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -313,6 +369,44 @@ export default function StocksScreen({ navigation }) {
         </TouchableOpacity>}
       </CustomModal>
 
+      <CustomModal
+        visible={addProductVisible}
+        title={t('stocks.addProductModalTitle')}
+        confirmLabel={t('stocks.addProductBtn')}
+        onConfirm={submitAddProduct}
+        onCancel={() => setAddProductVisible(false)}
+        busy={addBusy}
+      >
+        <Text style={styles.editPriceLabel}>{t('stocks.vegetableNameLabel')}</Text>
+        <TextInput
+          style={styles.priceInput}
+          value={addVegName}
+          onChangeText={setAddVegName}
+          placeholder={t('stocks.vegetableNamePlaceholder')}
+          editable={!addBusy}
+        />
+        <Text style={styles.editPriceLabel}>{t('stocks.priceLabel')}</Text>
+        <TextInput
+          style={styles.priceInput}
+          value={addPrice}
+          onChangeText={setAddPrice}
+          placeholder={t('stocks.priceLabel')}
+          keyboardType="decimal-pad"
+          editable={!addBusy}
+        />
+        <Text style={styles.editPriceLabel}>{t('stocks.stockLabel')}</Text>
+        <TextInput
+          style={styles.priceInput}
+          value={addStock}
+          onChangeText={setAddStock}
+          placeholder={t('stocks.stockLabel')}
+          keyboardType="decimal-pad"
+          editable={!addBusy}
+        />
+        <Text style={styles.editPriceLabel}>{t('stocks.batchPhotoLabel')}</Text>
+        <BatchPhotoField value={addPhotoUrl} onChange={setAddPhotoUrl} onStateChange={setAddPhotoState} disabled={addBusy} />
+      </CustomModal>
+
       <BottomNavBar
         tabs={DISTRIBUTOR_TABS}
         activeTab="stocks"
@@ -330,6 +424,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
   back: { color: PRIMARY, fontSize: rf(16), fontFamily: fonts.bodySemiBold, width: 50 },
   title: { fontSize: rf(20), fontFamily: fonts.heading, color: PRIMARY },
+  addProductBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
+  addProductBtnText: { color: '#fff', fontSize: rf(20), fontFamily: fonts.bodySemiBold, lineHeight: rf(22) },
 
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 14, marginBottom: 12, ...shadowCard },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },

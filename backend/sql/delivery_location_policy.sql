@@ -42,6 +42,11 @@ ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_latitude double prec
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_longitude double precision;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS current_location_accuracy double precision;
 ALTER TABLE public.deliveries ADD COLUMN IF NOT EXISTS pod jsonb;
+-- Timeline timestamps read by the retailer tracking view (deliveryTracking.js).
+-- Without these the tracking timeline always showed null for these two stages.
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS assigned_at timestamp with time zone;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS in_transit_at timestamp with time zone;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivered_at timestamp with time zone;
 
 -- Validate on insertion/rescheduling, not on unrelated updates to old orders.
 CREATE OR REPLACE FUNCTION public.validate_delivery_schedule() RETURNS trigger
@@ -131,7 +136,7 @@ BEGIN
     'submitted_at',clock_timestamp());
   UPDATE deliveries SET status = 'delivered', delivered_at = clock_timestamp(),
     proof_photo_url = p_photo_url, pod = p_pod WHERE id = d.id;
-  UPDATE orders SET status = 'delivered' WHERE id = o.id;
+  UPDATE orders SET status = 'delivered', delivered_at = clock_timestamp() WHERE id = o.id;
   RETURN p_pod;
 END; $$;
 REVOKE ALL ON FUNCTION public.complete_delivery_with_proof(uuid,uuid,text,jsonb) FROM PUBLIC, anon, authenticated;
@@ -157,7 +162,9 @@ BEGIN
     RAISE EXCEPTION 'Invalid delivery status transition' USING ERRCODE = '22023';
   END IF;
   UPDATE deliveries SET status = p_status WHERE id = d.id;
-  UPDATE orders SET status = 'in_transit' WHERE id = o.id;
+  UPDATE orders SET status = p_status::order_status,
+    in_transit_at = CASE WHEN p_status = 'in_transit' THEN clock_timestamp() ELSE in_transit_at END
+    WHERE id = o.id;
 END; $$;
 REVOKE ALL ON FUNCTION public.advance_delivery_status(uuid,uuid,text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.advance_delivery_status(uuid,uuid,text) TO service_role;

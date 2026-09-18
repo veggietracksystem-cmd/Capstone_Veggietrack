@@ -82,7 +82,8 @@ function handler(path, endMarker, deps = {}) {
   vm.runInNewContext(source.slice(start, end), {
     app: { get: (_, auth, cb) => { callback = cb; }, post: (_, auth, cb) => { callback = cb; }, put: (_, auth, cb) => { callback = cb; } },
     verifyToken() {}, validateSchedule, validateProof, proofImageUrl: (url, pod) => proofImageUrl(url, pod, 'demo'),
-    ensureProofImage: async () => {}, createNotification: async () => {}, loadDestination, destinationFor, coordinate, missingColumn, STALE_LOCATION_SECONDS, Date, console, ...deps,
+    ensureProofImage: async () => {}, createNotification: async () => {}, loadDestination, destinationFor, coordinate, missingColumn, STALE_LOCATION_SECONDS, Date, console,
+    cancelExpiredRetailerOrders: async () => {}, ...deps,
   });
   return callback;
 }

@@ -26,10 +26,13 @@ const VEGETABLE_ICONS = [
   { keyword: 'cauliflower', icon: '🥦', bg: '#f5f5f5' }, // no cauliflower emoji — closest cruciferous relative
   { keyword: 'bell pepper', icon: '🫑', bg: '#ffebee' },
   { keyword: 'chili pepper', icon: '🌶️', bg: '#ffebee' },
+  { keyword: 'sili', icon: '🌶️', bg: '#ffebee' },
   { keyword: 'carrot', icon: '🥕', bg: '#fff3e0' },
   { keyword: 'karot', icon: '🥕', bg: '#fff3e0' },
   { keyword: 'sweet potato', icon: '🍠', bg: '#fbe9e7' },
+  { keyword: 'kamote', icon: '🍠', bg: '#fbe9e7' },
   { keyword: 'potato', icon: '🥔', bg: '#fbe9e7' },
+  { keyword: 'patatas', icon: '🥔', bg: '#fbe9e7' },
   { keyword: 'onion', icon: '🧅', bg: '#f3e5f5' },
   { keyword: 'sibuyas', icon: '🧅', bg: '#f3e5f5' },
   { keyword: 'garlic', icon: '🧄', bg: '#f5f5f5' },
@@ -47,7 +50,9 @@ const VEGETABLE_ICONS = [
   { keyword: 'string beans', icon: '🫛', bg: '#e8f5e9' },
   { keyword: 'sitaw', icon: '🫛', bg: '#e8f5e9' },
   { keyword: 'radish', icon: '🥕', bg: '#fce4ec' }, // no radish emoji — closest root-vegetable shape
+  { keyword: 'labanos', icon: '🥕', bg: '#fce4ec' },
   { keyword: 'cucumber', icon: '🥒', bg: '#e8f5e9' },
+  { keyword: 'pipino', icon: '🥒', bg: '#e8f5e9' },
   { keyword: 'celery', icon: '🥬', bg: '#e8f5e9' },
   { keyword: 'mustard greens', icon: '🥬', bg: '#e8f5e9' },
   { keyword: 'mustasa', icon: '🥬', bg: '#e8f5e9' },
@@ -56,6 +61,7 @@ const VEGETABLE_ICONS = [
   { keyword: 'basil', icon: '🌿', bg: '#e8f5e9' },
   { keyword: 'oregano', icon: '🌿', bg: '#e8f5e9' },
   { keyword: 'cilantro', icon: '🌿', bg: '#e8f5e9' },
+  { keyword: 'wansoy', icon: '🌿', bg: '#e8f5e9' },
   { keyword: 'mint', icon: '🌿', bg: '#e8f5e9' },
   { keyword: 'parsley', icon: '🌿', bg: '#e8f5e9' },
 ].sort((a, b) => b.keyword.length - a.keyword.length);

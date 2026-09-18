@@ -1,6 +1,6 @@
 const { validateOrderItems } = require('./lib/orderRules');
 const { validateAvatarUrl, validateBatchPhotoUrl } = require('./lib/avatar');
-const { validateSchedule, validateProof, proofImageUrl, ensureProofImage } = require('./lib/deliveryProof');
+const { validateSchedule, validateProof, validatePickupProof, proofImageUrl, ensureProofImage } = require('./lib/deliveryProof');
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -10,7 +10,10 @@ const { createSmsHook } = require('./lib/smsHook');
 const { mountAccountRoutes } = require('./lib/accountRoutes');
 const { isVegetable, VEGETABLE_VALIDATION_MESSAGE } = require('./lib/vegetables');
 const { coordinate, destinationFor, loadDestination, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
+const { createPickupTrackingHandler } = require('./lib/pickupTracking');
 const { STALE_LOCATION_SECONDS } = require('./lib/locationPolicy');
+const { sendDbError } = require('./lib/errors');
+const { isPositiveQuantity, isNonNegativeQuantity } = require('./lib/validation');
 
 dotenv.config();
 
@@ -21,6 +24,12 @@ const port = process.env.PORT || 3000;
 // browser. Without this, the browser blocks the preflight OPTIONS request and
 // the fetch fails silently — even though curl works fine.
 app.use(cors());
+// The mobile client deliberately owns its offline cache. Dynamic API reads
+// must therefore reach Supabase instead of being replayed by a browser/proxy.
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET') res.set('Cache-Control', 'no-store, max-age=0');
+  next();
+});
 // Raw body is required for Standard Webhooks signature verification.
 app.post('/api/hooks/send-sms', express.raw({ type: 'application/json', limit: '32kb' }), createSmsHook());
 app.use(express.json());
@@ -32,6 +41,19 @@ const supabaseAdmin = createClient(
 );
 configureAuth(supabaseAdmin);
 mountAccountRoutes(app, supabaseAdmin);
+
+// A schedule is a commitment only until delivery begins.  Check it on every
+// order read/write so an expired pending assignment cannot stay actionable
+// while the retailer app is closed.  In-transit and terminal orders are never
+// touched here.
+async function cancelExpiredRetailerOrders(retailerId = null) {
+  let query = supabaseAdmin.from('orders').update({ status: 'cancelled' })
+    .in('status', ['pending', 'approved', 'assigned'])
+    .lt('preferred_schedule', new Date().toISOString());
+  if (retailerId) query = query.eq('retailer_id', retailerId);
+  const { error } = await query;
+  if (error) console.error('Could not expire overdue orders:', error.message);
+}
 
 
 // ========== HELPER: CREATE NOTIFICATION ==========
@@ -54,18 +76,35 @@ app.use('/api/auth', (req, res) => res.status(410).json({ error: 'Use Supabase A
 
 // ========== FARMER HARVEST ROUTES ==========
 app.post('/api/harvests', verifyToken, async (req, res) => {
-  const { vegetable_name, quantity_kg, status, harvest_date, image_url } = req.body;
+  const { vegetable_name, quantity_kg, status, harvest_date, image_url, client_request_id } = req.body;
   const farmerId = req.user.userId;
   const role = req.user.role;
 
   if (role !== 'farmer') {
     return res.status(403).json({ error: 'Only farmers can add harvests' });
   }
-  if (!vegetable_name || !quantity_kg) {
+  if (!vegetable_name || quantity_kg === undefined || quantity_kg === null) {
     return res.status(400).json({ error: 'Vegetable name and quantity required' });
+  }
+  if (!isPositiveQuantity(quantity_kg)) {
+    return res.status(400).json({ error: 'Quantity must be a positive number in kg.' });
   }
   if (!isVegetable(vegetable_name)) {
     return res.status(400).json({ error: VEGETABLE_VALIDATION_MESSAGE });
+  }
+
+  // Idempotency: a queued offline "add" that actually reached the server but
+  // whose response was lost (timeout, dropped connection) must not create a
+  // second harvest when the client retries the same queued mutation.
+  if (client_request_id) {
+    const { data: existing, error: dupeError } = await supabaseAdmin
+      .from('harvests')
+      .select('*')
+      .eq('farmer_id', farmerId)
+      .eq('client_request_id', client_request_id)
+      .maybeSingle();
+    if (dupeError) return sendDbError(res, dupeError);
+    if (existing) return res.status(200).json({ message: 'Harvest recorded', harvest: existing });
   }
 
   // The harvest date (recorded_at) is set once, here, by the farmer — never
@@ -74,7 +113,8 @@ app.post('/api/harvests', verifyToken, async (req, res) => {
     farmer_id: farmerId,
     vegetable_name,
     quantity_kg,
-    status: status || 'available'
+    status: status || 'available',
+    client_request_id: client_request_id || null,
   };
   if (image_url) insertPayload.image_url = image_url;
   if (harvest_date) {
@@ -91,7 +131,16 @@ app.post('/api/harvests', verifyToken, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    // A concurrent retry of the same queued mutation can race past the check
+    // above; the unique index is the actual guarantee — fall back to it.
+    if (error.code === '23505' && client_request_id) {
+      const { data: existing } = await supabaseAdmin.from('harvests').select('*')
+        .eq('farmer_id', farmerId).eq('client_request_id', client_request_id).maybeSingle();
+      if (existing) return res.status(200).json({ message: 'Harvest recorded', harvest: existing });
+    }
+    return sendDbError(res, error);
+  }
   res.status(201).json({ message: 'Harvest recorded', harvest: data });
 });
 
@@ -105,7 +154,7 @@ app.get('/api/harvests', verifyToken, async (req, res) => {
     .eq('farmer_id', req.user.userId)
     .order('recorded_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json(data);
 });
 
@@ -124,7 +173,7 @@ app.get('/api/harvests/weekly-report', verifyToken, async (req, res) => {
   if (!fullRange) query = query.gte('recorded_at', oneWeekAgo.toISOString());
   const { data, error } = await query;
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
 
   const summary = {};
   data.forEach(item => {
@@ -207,6 +256,9 @@ app.put('/api/harvests/:id', verifyToken, async (req, res) => {
   if (vegetable_name !== undefined && !isVegetable(vegetable_name)) {
     return res.status(400).json({ error: VEGETABLE_VALIDATION_MESSAGE });
   }
+  if (quantity_kg !== undefined && !isPositiveQuantity(quantity_kg)) {
+    return res.status(400).json({ error: 'Quantity must be a positive number in kg.' });
+  }
 
   // Once a pickup has been requested for this harvest (status 'for_pickup')
   // or it has actually been picked up ('picked_up'), its identity (name/qty)
@@ -233,7 +285,7 @@ app.put('/api/harvests/:id', verifyToken, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json({ message: 'Harvest updated', harvest: data });
 });
 
@@ -267,7 +319,7 @@ app.delete('/api/harvests/:id', verifyToken, async (req, res) => {
     .delete()
     .eq('id', id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json({ message: 'Harvest deleted' });
 });
 
@@ -279,8 +331,21 @@ app.post('/api/pickup-requests', verifyToken, async (req, res) => {
   const { harvest_id, note } = req.body || {};
   if (harvest_id) {
     const { data: ownedHarvest, error: ownershipError } = await supabaseAdmin.from('harvests')
-      .select('id').eq('id', harvest_id).eq('farmer_id', req.user.userId).maybeSingle();
-    if (ownershipError || !ownedHarvest) return res.status(404).json({ error: 'Harvest not found or not owned by you' });
+      .select('id, status').eq('id', harvest_id).eq('farmer_id', req.user.userId).maybeSingle();
+    if (ownershipError) return sendDbError(res, ownershipError);
+    if (!ownedHarvest) return res.status(404).json({ error: 'Harvest not found or not owned by you' });
+    if (ownedHarvest.status !== 'available') {
+      return res.status(409).json({ error: 'A pickup has already been requested for this harvest.' });
+    }
+    // Atomically flip available -> for_pickup: the WHERE clause is the guard
+    // against a double-tap or a retried request racing this exact check —
+    // only one concurrent caller can ever win the conditional update.
+    const { data: locked, error: lockError } = await supabaseAdmin.from('harvests')
+      .update({ status: 'for_pickup' })
+      .eq('id', harvest_id).eq('status', 'available')
+      .select('id').maybeSingle();
+    if (lockError) return sendDbError(res, lockError);
+    if (!locked) return res.status(409).json({ error: 'A pickup has already been requested for this harvest.' });
   }
 
   const { data: request, error } = await supabaseAdmin
@@ -294,7 +359,12 @@ app.post('/api/pickup-requests', verifyToken, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    // The harvest was already flipped to for_pickup above; if the pickup
+    // request itself could not be created, that lock must not be left behind.
+    if (harvest_id) await supabaseAdmin.from('harvests').update({ status: 'available' }).eq('id', harvest_id);
+    return sendDbError(res, error);
+  }
 
   // Build a label for the notification.
   let label = 'available harvests';
@@ -333,11 +403,26 @@ app.get('/api/pickup-requests', verifyToken, async (req, res) => {
   if (role === 'farmer') {
     const { data, error } = await supabaseAdmin
       .from('pickup_requests')
-      .select('id, harvest_id, note, status, requested_at, harvests (vegetable_name, quantity_kg)')
+      .select('id, farmer_id, harvest_id, note, status, requested_at, delivery_personnel_id, received_by, received_at, proof_photo_url, pod, harvests (vegetable_name, quantity_kg)')
       .eq('farmer_id', req.user.userId)
       .order('requested_at', { ascending: false });
-    if (error) return res.status(500).json({ error: error.message });
-    return res.json(data);
+    if (error) return sendDbError(res, error);
+    const participantIds = [...new Set((data || []).flatMap((p) => [p.delivery_personnel_id, p.received_by]).filter(Boolean))];
+    let peopleById = {};
+    if (participantIds.length) {
+      const { data: people } = await supabaseAdmin.from('users')
+        .select('id, full_name, phone').in('id', participantIds);
+      peopleById = Object.fromEntries((people || []).map((person) => [person.id, person]));
+    }
+    const { data: farmerProfile } = await supabaseAdmin.from('users')
+      .select('farm_location, latitude, longitude').eq('id', req.user.userId).maybeSingle();
+    return res.json((data || []).map((pickup) => ({
+      ...pickup,
+      rider: pickup.delivery_personnel_id ? peopleById[pickup.delivery_personnel_id] || null : null,
+      distributor: pickup.received_by ? peopleById[pickup.received_by] || null : null,
+      // The farmer profile is the source of truth for this pickup location.
+      pickup_location: { address: farmerProfile?.farm_location || null, latitude: farmerProfile?.latitude || null, longitude: farmerProfile?.longitude || null },
+    })));
   }
 
   // Distributor sees ALL requests. Farmer names are attached.
@@ -346,7 +431,7 @@ app.get('/api/pickup-requests', verifyToken, async (req, res) => {
       .from('pickup_requests')
       .select('id, farmer_id, harvest_id, note, status, requested_at, harvests (vegetable_name, quantity_kg)')
       .order('requested_at', { ascending: false });
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) return sendDbError(res, error);
 
     const farmerIds = [...new Set((data || []).map((r) => r.farmer_id).filter(Boolean))];
     let nameById = {};
@@ -373,7 +458,7 @@ app.get('/api/pickup-requests', verifyToken, async (req, res) => {
       .select('id, farmer_id, harvest_id, note, status, requested_at, harvests (vegetable_name, quantity_kg)')
       .eq('delivery_personnel_id', req.user.userId)
       .order('requested_at', { ascending: false });
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) return sendDbError(res, error);
 
     const farmerIds = [...new Set((data || []).map((r) => r.farmer_id).filter(Boolean))];
     let nameById = {};
@@ -421,6 +506,10 @@ app.put('/api/pickup-requests/:id/assign', verifyToken, async (req, res) => {
     return res.status(400).json({ error: `Pickup request is already ${request.status}` });
   }
 
+  // Atomic guard: a double-tap or retried assignment call can only ever win
+  // this conditional update once — the WHERE clause re-checks 'requested' at
+  // the moment of the write, not just at the read above, so two concurrent
+  // assign calls can never both succeed and create conflicting assignments.
   const { data: updated, error: updErr } = await supabaseAdmin
     .from('pickup_requests')
     .update({
@@ -430,10 +519,14 @@ app.put('/api/pickup-requests/:id/assign', verifyToken, async (req, res) => {
       received_by: req.user.userId
     })
     .eq('id', id)
+    .eq('status', 'requested')
     .select()
-    .single();
+    .maybeSingle();
 
-  if (updErr) return res.status(500).json({ error: updErr.message });
+  if (updErr) return sendDbError(res, updErr);
+  if (!updated) {
+    return res.status(409).json({ error: 'This pickup request has already been assigned.' });
+  }
 
   await createNotification(
     request.farmer_id,
@@ -459,11 +552,12 @@ app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
     return res.status(403).json({ error: 'Only riders can mark pickups as completed' });
   }
   const { id } = req.params;
+  const { proof_photo_url } = req.body || {};
 
   const { data: request, error: fetchErr } = await supabaseAdmin
     .from('pickup_requests')
     .select(`
-      id, status, farmer_id, harvest_id, amount, received_by,
+      id, status, farmer_id, harvest_id, amount, received_by, pod,
       harvests (vegetable_name, quantity_kg, recorded_at)
     `)
     .eq('id', id)
@@ -471,22 +565,30 @@ app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
     .single();
 
   if (fetchErr || !request) return res.status(404).json({ error: 'Pickup request not found' });
-  if (request.status !== 'assigned') {
+  if (request.status === 'picked_up') return res.json({ message: 'Pickup already completed', request, pod: request.pod });
+  // Completion is allowed directly from 'assigned' as well as after the rider
+  // has marked 'otw' — the on-the-way step is informational for the farmer,
+  // not a mandatory gate the rider must pass through first.
+  if (!['assigned', 'otw'].includes(request.status)) {
     return res.status(400).json({ error: `Pickup request cannot be picked up (status: ${request.status})` });
   }
 
-  const { data: updated, error: updErr } = await supabaseAdmin
-    .from('pickup_requests')
-    .update({
-      status: 'picked_up',
-      received_at: new Date()
-    })
-    .eq('id', id)
-    .eq('delivery_personnel_id', req.user.userId)
-    .select()
-    .single();
+  // Same proof-of-pickup requirement as delivery: GPS + photo + timestamp are
+  // mandatory and validated before anything is persisted (see
+  // complete_pickup_with_proof, which also checks proximity to the farmer's
+  // saved location when one exists).
+  let pod, photoUrl;
+  try { pod = validatePickupProof(req.body); photoUrl = proofImageUrl(proof_photo_url, pod, undefined, 'Pickup'); }
+  catch (err) { return res.status(422).json({ error: err.message, code: err.code || 'PROOF_IMAGE_INVALID' }); }
+  try { await ensureProofImage(photoUrl); }
+  catch { return res.status(503).json({ error: 'Proof was uploaded, but the pickup could not be completed. Please try again.', code: 'PROOF_IMAGE_UNAVAILABLE' }); }
 
-  if (updErr) return res.status(500).json({ error: updErr.message });
+  const { data: completedPod, error: completeError } = await supabaseAdmin.rpc('complete_pickup_with_proof', {
+    p_pickup_id: id, p_rider_id: req.user.userId, p_photo_url: photoUrl, p_pod: pod,
+  });
+  if (completeError) return res.status(completeError.code === '22023' ? 422 : 500).json({ error: completeError.code === '22023' ? completeError.message : 'Could not save pickup proof. Retry; contact the administrator if this continues.' });
+
+  const updated = { ...request, status: 'picked_up', proof_photo_url: photoUrl, pod: completedPod };
 
   if (request.harvest_id) {
     await supabaseAdmin
@@ -554,12 +656,54 @@ app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
   });
 });
 
+// Rider marks "on the way" between being assigned and actually arriving to
+// collect the harvest — the pickup equivalent of delivery's assigned -> picked_up
+// -> in_transit granularity (PUT /api/deliveries/:id/status), so the farmer's
+// tracking screen can show a distinct in-between state instead of jumping
+// straight from "Rider Assigned" to "Picked Up".
+app.put('/api/pickup-requests/:id/status', verifyToken, async (req, res) => {
+  if (req.user.role !== 'delivery_personnel') {
+    return res.status(403).json({ error: 'Only riders can update pickup status' });
+  }
+  const { id } = req.params;
+  const { status } = req.body || {};
+  if (status !== 'otw') {
+    return res.status(400).json({ error: "status must be 'otw'" });
+  }
+  const { data: pickup, error: fetchErr } = await supabaseAdmin
+    .from('pickup_requests')
+    .select('id, status, farmer_id')
+    .eq('id', id)
+    .eq('delivery_personnel_id', req.user.userId)
+    .single();
+  if (fetchErr || !pickup) return res.status(404).json({ error: 'Pickup request not found or not assigned to you' });
+  if (pickup.status === 'otw') return res.json({ message: 'Pickup marked on the way' });
+  if (pickup.status !== 'assigned') {
+    return res.status(400).json({ error: `Pickup request cannot be marked on the way (status: ${pickup.status})` });
+  }
+  const { data: updated, error: updErr } = await supabaseAdmin
+    .from('pickup_requests')
+    .update({ status: 'otw' })
+    .eq('id', id)
+    .eq('status', 'assigned')
+    .select()
+    .maybeSingle();
+  if (updErr) return sendDbError(res, updErr);
+  if (!updated) return res.status(409).json({ error: 'Pickup status was already updated. Refresh and retry.' });
+  await createNotification(pickup.farmer_id, 'Rider On The Way', 'Your rider is on the way to collect your vegetables.', 'pickup', id);
+  res.json({ message: 'Pickup marked on the way', request: updated });
+});
+
+// Farmer/distributor/assigned-rider pickup tracking — same map-ready JSON
+// contract as GET /api/delivery/tracking/:orderId (see lib/pickupTracking.js).
+app.get('/api/pickup-requests/:id/tracking', verifyToken, createPickupTrackingHandler({ db: supabaseAdmin }));
+
 // B5: DISABLED — this debug route let any authenticated user enumerate every
 // user's phone number (a privacy leak). Removed from the API surface. If you
 // ever need an admin-only user list, gate it behind a real admin role check.
 // app.get('/api/users', verifyToken, async (req, res) => {
 //   const { data, error } = await supabasePublic.from('users').select('id, full_name, phone, role');
-//   if (error) return res.status(500).json({ error: error.message });
+//   if (error) return sendDbError(res, error);
 //   res.json(data);
 // });
 
@@ -582,11 +726,17 @@ app.post('/api/products', verifyToken, async (req, res) => {
   if (role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can add products' });
   }
-  if (!vegetable_name || !price_per_kg || stock_kg === undefined) {
+  if (!vegetable_name || price_per_kg === undefined || stock_kg === undefined) {
     return res.status(400).json({ error: 'Vegetable name, price, and stock are required' });
   }
   if (!isVegetable(vegetable_name)) {
     return res.status(400).json({ error: VEGETABLE_VALIDATION_MESSAGE });
+  }
+  if (!isPositiveQuantity(price_per_kg)) {
+    return res.status(400).json({ error: 'Price must be a positive number.' });
+  }
+  if (!isPositiveQuantity(stock_kg)) {
+    return res.status(400).json({ error: 'Stock must be a positive number in kg.' });
   }
   let batchPhotoUrl;
   try { batchPhotoUrl = validateBatchPhotoUrl(batch_photo_url); }
@@ -606,7 +756,7 @@ app.post('/api/products', verifyToken, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.status(201).json({ message: 'Product added', product: data });
 });
 
@@ -624,7 +774,7 @@ app.get('/api/products', verifyToken, async (req, res) => {
     .eq('distributor_id', req.user.userId)
     .order('harvest_date', { ascending: true });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
 
   const farmerIds = [...new Set((data || []).map((p) => p.farmer_id).filter(Boolean))];
   const pickupIds = [...new Set((data || []).map((p) => p.pickup_request_id).filter(Boolean))];
@@ -691,8 +841,8 @@ app.put('/api/products/:id/list', verifyToken, async (req, res) => {
     .maybeSingle();
 
   const resolvedPrice = sibling ? sibling.price_per_kg : Number(price_per_kg);
-  if (!sibling && (!price_per_kg || isNaN(resolvedPrice) || resolvedPrice <= 0)) {
-    return res.status(400).json({ error: 'price_per_kg is required for the first batch of a vegetable' });
+  if (!sibling && !isPositiveQuantity(price_per_kg)) {
+    return res.status(400).json({ error: 'A valid positive price_per_kg is required for the first batch of a vegetable' });
   }
 
   const { data, error } = await supabaseAdmin
@@ -702,7 +852,7 @@ app.put('/api/products/:id/list', verifyToken, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json({ message: 'Added to product list', product: data });
 });
 
@@ -749,7 +899,7 @@ app.delete('/api/products/:id/batch-photo', verifyToken, async (req, res) => {
     .eq('id', batch.id)
     .select()
     .single();
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json({ message: 'Recent batch photo removed', product: data });
 });
 
@@ -780,6 +930,9 @@ app.put('/api/products/:id', verifyToken, async (req, res) => {
   if (price_per_kg === undefined) {
     return res.status(400).json({ error: 'No fields to update' });
   }
+  if (!isPositiveQuantity(price_per_kg)) {
+    return res.status(400).json({ error: 'Price must be a positive number.' });
+  }
 
   // Cascade to every batch of this vegetable so the shared price stays in sync.
   const { data, error } = await supabaseAdmin
@@ -790,7 +943,7 @@ app.put('/api/products/:id', verifyToken, async (req, res) => {
     .in('status', ['listed', 'sold_out'])
     .select();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json({ message: 'Product updated', products: data });
 });
 
@@ -825,7 +978,7 @@ app.put('/api/products/:id/unlist', verifyToken, async (req, res) => {
     .in('status', ['listed', 'sold_out'])
     .select();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json({ message: 'Product removed from list', products: data });
 });
 
@@ -842,10 +995,10 @@ app.put('/api/products/:id/reduce-quantity', verifyToken, async (req, res) => {
     return res.status(403).json({ error: 'Only distributors can update products' });
   }
 
-  const newTotal = Number(new_total_kg);
-  if (new_total_kg === undefined || isNaN(newTotal) || newTotal < 0) {
+  if (!isNonNegativeQuantity(new_total_kg)) {
     return res.status(400).json({ error: 'A valid new_total_kg is required' });
   }
+  const newTotal = Number(new_total_kg);
 
   const { data: existing, error: fetchError } = await supabaseAdmin
     .from('products')
@@ -867,7 +1020,7 @@ app.put('/api/products/:id/reduce-quantity', verifyToken, async (req, res) => {
     .gt('stock_kg', 0)
     .order('harvest_date', { ascending: true });
 
-  if (batchError) return res.status(500).json({ error: batchError.message });
+  if (batchError) return sendDbError(res, batchError);
 
   const currentTotal = (batches || []).reduce((sum, b) => sum + Number(b.stock_kg), 0);
   if (newTotal >= currentTotal) {
@@ -883,7 +1036,7 @@ app.put('/api/products/:id/reduce-quantity', verifyToken, async (req, res) => {
       .from('products')
       .update({ stock_kg: newStock, status: newStock <= 0 ? 'sold_out' : 'listed', updated_at: new Date() })
       .eq('id', batch.id);
-    if (updateError) return res.status(500).json({ error: updateError.message });
+    if (updateError) return sendDbError(res, updateError);
     remaining -= drawFromBatch;
   }
 
@@ -920,7 +1073,7 @@ app.delete('/api/products/:id', verifyToken, async (req, res) => {
     .delete()
     .eq('id', id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json({ message: 'Product deleted' });
 });
 
@@ -936,7 +1089,7 @@ app.get('/api/products/listings', verifyToken, async (req, res) => {
     .eq('distributor_id', req.user.userId)
     .in('status', ['listed', 'sold_out']);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
 
   const byVeg = {};
   (data || []).forEach((row) => {
@@ -966,7 +1119,7 @@ app.get('/api/products/available', async (req, res) => {
     .gt('stock_kg', 0)
     .order('harvest_date', { ascending: true });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
 
   const byVeg = {};
   (data || []).forEach((row) => {
@@ -1023,7 +1176,7 @@ app.post('/api/orders', verifyToken, async (req, res) => {
 
       const totalAvailable = (batches || []).reduce((sum, b) => sum + Number(b.stock_kg), 0);
       if (totalAvailable < quantity_kg) {
-        throw new Error(`Insufficient stock for ${vegetable_name}. Available: ${totalAvailable}kg`);
+        return res.status(409).json({ error: `There is not enough ${vegetable_name} in stock. Available: ${totalAvailable} kg.`, code: 'INSUFFICIENT_STOCK', field: 'items' });
       }
 
       let remaining = Number(quantity_kg);
@@ -1040,7 +1193,7 @@ app.post('/api/orders', verifyToken, async (req, res) => {
 
     // Step 1: create the order first. If this fails, no stock has been touched.
     const deliveryCoords = coordinate({ latitude: req.body.delivery_latitude, longitude: req.body.delivery_longitude });
-    if (!deliveryCoords) return res.status(422).json({ error: 'Pin the delivery destination on the map before placing your order.' });
+    if (!deliveryCoords) return res.status(422).json({ error: 'Your saved delivery address needs a map location. Update it in Manage Address before placing your order.', code: 'ADDRESS_LOCATION_REQUIRED', field: 'delivery_address' });
     try { preferred_schedule = validateSchedule(preferred_schedule); }
     catch (err) { return res.status(422).json({ error: err.message, field: 'preferred_schedule' }); }
     // Save the destination in the existing address book before creating the order.
@@ -1090,31 +1243,25 @@ app.post('/api/orders', verifyToken, async (req, res) => {
       throw new Error('Failed to insert order items');
     }
 
-    // Step 3: decrement stock LAST, with best-effort rollback. If a later update
-    // fails, restore the stock already reduced and delete the order + items, so
-    // the system is never left with lost inventory for an order that didn't commit.
+    // Step 3: decrement stock LAST, atomically per batch, with best-effort
+    // rollback. Each decrement is a single guarded UPDATE (see
+    // sql/stock_safety.sql) so a concurrent order racing for the same batch
+    // can never both succeed — one of them will see insufficient stock here
+    // and this whole order rolls back, rather than silently overselling.
     const decremented = [];
     for (const { batch, quantity_kg } of consumptions) {
-      const newStock = Number(batch.stock_kg) - quantity_kg;
-      const { error: updateError } = await supabaseAdmin
-        .from('products')
-        .update({
-          stock_kg: newStock,
-          status: newStock <= 0 ? 'sold_out' : 'listed',
-          updated_at: new Date()
-        })
-        .eq('id', batch.id);
+      const { data: decrementedBatch, error: updateError } = await supabaseAdmin
+        .rpc('decrement_product_stock', { p_product_id: batch.id, p_quantity: quantity_kg });
 
-      if (updateError) {
+      if (updateError || !decrementedBatch) {
         for (const d of decremented) {
-          await supabaseAdmin
-            .from('products')
-            .update({ stock_kg: d.batch.stock_kg, status: 'listed', updated_at: new Date() })
-            .eq('id', d.batch.id);
+          await supabaseAdmin.rpc('restore_product_stock', { p_product_id: d.batch.id, p_quantity: d.quantity_kg });
         }
         await supabaseAdmin.from('order_items').delete().eq('order_id', order.id);
         await supabaseAdmin.from('orders').delete().eq('id', order.id);
-        throw new Error(`Failed to update stock for ${batch.vegetable_name}`);
+        if (updateError) throw new Error(`Failed to update stock for ${batch.vegetable_name}`);
+        // No error but no row: another order consumed this batch's stock first.
+        return res.status(409).json({ error: `There is not enough ${batch.vegetable_name} in stock. Please review your cart and try again.`, code: 'INSUFFICIENT_STOCK', field: 'items' });
       }
       decremented.push({ batch, quantity_kg });
     }
@@ -1132,7 +1279,8 @@ app.post('/api/orders', verifyToken, async (req, res) => {
     });
 
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    console.error('Retailer order creation failed:', err.message);
+    return res.status(500).json({ error: 'We could not create your order right now. Please try again.', code: 'ORDER_CREATE_FAILED' });
   }
 });
 
@@ -1140,6 +1288,7 @@ app.get('/api/orders', verifyToken, async (req, res) => {
   if (req.user.role !== 'retailer') {
     return res.status(403).json({ error: 'Only retailers can view their orders' });
   }
+  await cancelExpiredRetailerOrders(req.user.userId);
 
   // Issue 6: fetch the orders on their own first. A previous version embedded
   // order_items + deliveries in one select; if PostgREST can't resolve one of
@@ -1154,7 +1303,7 @@ app.get('/api/orders', verifyToken, async (req, res) => {
 
   if (error) {
     console.error('[GET /api/orders] failed:', error.message);
-    return res.status(500).json({ error: error.message });
+    return sendDbError(res, error);
   }
 
   const orderIds = (orders || []).map((o) => o.id);
@@ -1193,6 +1342,10 @@ app.get('/api/orders/pending', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view pending orders' });
   }
+  // Expire overdue schedules here too, not only when the retailer's own app is
+  // open — otherwise a distributor can approve/assign an order whose delivery
+  // window has already passed simply because the retailer never reopened the app.
+  await cancelExpiredRetailerOrders();
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(`
@@ -1202,7 +1355,7 @@ app.get('/api/orders/pending', verifyToken, async (req, res) => {
     .in('status', ['pending', 'approved'])
     .order('created_at', { ascending: true });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   
   // Keep pending orders + approved orders that do not have a rider assigned yet
   const list = (data || []).filter(o => o.status === 'pending' || !o.delivery_personnel_id);
@@ -1228,7 +1381,7 @@ app.get('/api/orders/unpaid', verifyToken, async (req, res) => {
     .eq('distributor_id', req.user.userId)
     .in('status', ['approved', 'picked_up', 'in_transit', 'delivered']);
 
-  if (ordersError) return res.status(500).json({ error: ordersError.message });
+  if (ordersError) return sendDbError(res, ordersError);
 
   const { data: paidOrders } = await supabaseAdmin
     .from('payments')
@@ -1247,6 +1400,7 @@ app.get('/api/orders/active', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view active orders' });
   }
+  await cancelExpiredRetailerOrders();
   const { data: orders, error } = await supabaseAdmin
     .from('orders')
     .select(`
@@ -1258,7 +1412,7 @@ app.get('/api/orders/active', verifyToken, async (req, res) => {
     .in('status', ['approved', 'picked_up', 'in_transit', 'delivered', 'cancelled'])
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
 
   // Attach the assigned personnel's name without an embed relationship.
   const ids = [...new Set((orders || []).map((o) => o.delivery_personnel_id).filter(Boolean))];
@@ -1295,7 +1449,7 @@ else {
   }
 
   const { data, error } = await query.single();
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   if (!data) return res.status(404).json({ error: 'Order not found' });
   res.json(data);
 });
@@ -1343,38 +1497,32 @@ app.put('/api/orders/:id/cancel', verifyToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to retrieve order items' });
     }
 
+    // Atomic guard: re-checks status = 'pending' at write time so a
+    // concurrent duplicate cancel call cannot pass this check twice and
+    // restore stock to the same batches twice.
     const { data: updatedOrder, error: updateErr } = await supabaseAdmin
       .from('orders')
       .update({ status: 'cancelled', cancellation_reason: reason || null })
       .eq('id', id)
+      .eq('status', 'pending')
       .select()
-      .single();
+      .maybeSingle();
 
     if (updateErr) {
-      return res.status(500).json({ error: updateErr.message });
+      return sendDbError(res, updateErr);
+    }
+    if (!updatedOrder) {
+      return res.status(409).json({ error: 'This order was already updated. Refresh and try again.' });
     }
 
     // Restore stock to the EXACT batch each item was drawn from (order_items
     // now carries product_id — no more guessing by vegetable_name match).
+    // Each restore is the same atomic RPC used to decrement at order time, so
+    // a cancellation racing another write to the same batch can't lose an update.
     if (items && items.length > 0) {
       for (const item of items) {
         if (!item.product_id) continue; // legacy pre-FIFO order_item, nothing to restore to
-        const { data: batch } = await supabaseAdmin
-          .from('products')
-          .select('id, stock_kg, status')
-          .eq('id', item.product_id)
-          .maybeSingle();
-
-        if (batch) {
-          await supabaseAdmin
-            .from('products')
-            .update({
-              stock_kg: Number(batch.stock_kg) + Number(item.quantity_kg),
-              status: batch.status === 'sold_out' ? 'listed' : batch.status,
-              updated_at: new Date()
-            })
-            .eq('id', batch.id);
-        }
+        await supabaseAdmin.rpc('restore_product_stock', { p_product_id: item.product_id, p_quantity: item.quantity_kg });
       }
     }
 
@@ -1399,7 +1547,7 @@ app.put('/api/orders/:id/cancel', verifyToken, async (req, res) => {
 
     res.json({ message: 'Order cancelled successfully', order: updatedOrder });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendDbError(res, err);
   }
 });
 
@@ -1432,10 +1580,12 @@ app.put('/api/orders/:id/approve', verifyToken, async (req, res) => {
     .from('orders')
     .update({ status: 'approved' })
     .eq('id', id)
+    .eq('status', 'pending')
     .select()
-    .single();
+    .maybeSingle();
 
-  if (updateError) return res.status(500).json({ error: updateError.message });
+  if (updateError) return sendDbError(res, updateError);
+  if (!updatedOrder) return res.status(409).json({ error: 'This order was already updated. Refresh and try again.' });
 
   const { error: deliveryError } = await supabaseAdmin
     .from('deliveries')
@@ -1465,7 +1615,7 @@ app.get('/api/delivery-personnel', verifyToken, async (req, res) => {
     .eq('role', 'delivery_personnel')
     .eq('account_status', 'active');
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json(data);
 });
 
@@ -1484,7 +1634,7 @@ app.put('/api/orders/:id/assign', verifyToken, async (req, res) => {
 
   const { data: order, error: orderError } = await supabaseAdmin
     .from('orders')
-    .select('id, status, retailer_id')
+    .select('id, status, retailer_id, delivery_personnel_id')
     .eq('id', id)
     .eq('distributor_id', distributorId)
     .single();
@@ -1495,20 +1645,35 @@ app.put('/api/orders/:id/assign', verifyToken, async (req, res) => {
   if (order.status !== 'approved') {
     return res.status(400).json({ error: 'Order must be approved before assigning delivery' });
   }
+  if (order.delivery_personnel_id) {
+    // Idempotent retry of the exact same assignment (double-tap, network
+    // retry) is a safe no-op; assigning a *different* rider on top of an
+    // existing one is rejected rather than silently overwriting it.
+    if (order.delivery_personnel_id === delivery_personnel_id) {
+      return res.json({ message: 'Delivery personnel assigned successfully' });
+    }
+    return res.status(409).json({ error: 'This order has already been assigned to a rider.' });
+  }
 
-  const { error: updateOrderError } = await supabaseAdmin
+  // Atomic guard: the WHERE clause re-checks delivery_personnel_id IS NULL at
+  // write time, so two concurrent assign calls can never both succeed.
+  const { data: claimed, error: updateOrderError } = await supabaseAdmin
     .from('orders')
-    .update({ delivery_personnel_id })
-    .eq('id', id);
+    .update({ delivery_personnel_id, assigned_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('delivery_personnel_id', null)
+    .select('id')
+    .maybeSingle();
 
-  if (updateOrderError) return res.status(500).json({ error: updateOrderError.message });
+  if (updateOrderError) return sendDbError(res, updateOrderError);
+  if (!claimed) return res.status(409).json({ error: 'This order has already been assigned to a rider.' });
 
   const { error: updateDeliveryError } = await supabaseAdmin
     .from('deliveries')
     .update({ delivery_personnel_id, status: 'assigned' })
     .eq('order_id', id);
 
-  if (updateDeliveryError) return res.status(500).json({ error: updateDeliveryError.message });
+  if (updateDeliveryError) return sendDbError(res, updateDeliveryError);
 
   await createNotification(delivery_personnel_id, 'New Delivery Assignment', `You have been assigned to deliver order ${id.slice(0,8)}. Please check the order details.`, 'delivery', id);
   await createNotification(order.retailer_id, 'Delivery Assigned', `A delivery person has been assigned to your order ${id.slice(0,8)}.`, 'delivery', id);
@@ -1530,7 +1695,7 @@ app.get('/api/delivery/orders', verifyToken, async (req, res) => {
     .eq('delivery_personnel_id', req.user.userId)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
 
   try {
     const userIds = [
@@ -1577,7 +1742,7 @@ app.get('/api/delivery/orders', verifyToken, async (req, res) => {
 
     res.json(list);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendDbError(res, err);
   }
 });
 
@@ -1590,7 +1755,7 @@ app.post('/api/payments', verifyToken, async (req, res) => {
   if (role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can record payments' });
   }
-  if (!order_id || !amount || amount <= 0) {
+  if (!order_id || !isPositiveQuantity(amount)) {
     return res.status(400).json({ error: 'Order ID and valid amount required' });
   }
 
@@ -1626,7 +1791,7 @@ app.post('/api/payments', verifyToken, async (req, res) => {
     .select()
     .single();
 
-  if (insertError) return res.status(500).json({ error: insertError.message });
+  if (insertError) return sendDbError(res, insertError);
 
   await createNotification(order.retailer_id, 'Payment Received', `Your payment of ₱${amount} for order ${order_id.slice(0,8)} has been recorded.`, 'payment', order_id);
 
@@ -1648,7 +1813,7 @@ app.get('/api/payments', verifyToken, async (req, res) => {
   }
 
   const { data, error } = await query.order('recorded_at', { ascending: false });
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json(data);
 });
 
@@ -1667,7 +1832,7 @@ app.get('/api/notifications', verifyToken, async (req, res) => {
   }
 
   const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json(data);
 });
 
@@ -1683,7 +1848,7 @@ app.put('/api/notifications/:id/read', verifyToken, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   if (!data) return res.status(404).json({ error: 'Notification not found' });
   res.json({ message: 'Marked as read', notification: data });
 });
@@ -1697,7 +1862,7 @@ app.put('/api/notifications/read-all', verifyToken, async (req, res) => {
     .eq('user_id', userId)
     .eq('is_read', false);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json({ message: 'All notifications marked as read' });
 });
 
@@ -1763,7 +1928,7 @@ app.get('/api/messages/contacts', verifyToken, async (req, res) => {
 
     res.json(formattedData);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendDbError(res, err);
   }
 });
 
@@ -1773,7 +1938,7 @@ app.get('/api/messages/unread-count', verifyToken, async (req, res) => {
     .select('id', { count: 'exact', head: true })
     .eq('recipient_id', req.user.userId)
     .eq('is_read', false);
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json({ count: count || 0 });
 });
 
@@ -1789,7 +1954,7 @@ app.get('/api/messages/:userId', verifyToken, async (req, res) => {
     .select('*')
     .or(`and(sender_id.eq.${me},recipient_id.eq.${other}),and(sender_id.eq.${other},recipient_id.eq.${me})`)
     .order('created_at', { ascending: true });
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
 
   // Mark the other person's messages to me as read.
   await supabaseAdmin
@@ -1812,7 +1977,7 @@ app.post('/api/messages', verifyToken, async (req, res) => {
     .insert({ sender_id: req.user.userId, recipient_id, body: body.trim() })
     .select()
     .single();
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.status(201).json({ message: 'Sent', data });
 });
 
@@ -1983,7 +2148,7 @@ app.get('/api/distributor/weekly-report', verifyToken, async (req, res) => {
     .eq('distributor_id', req.user.userId)
     .gte('created_at', oneWeekAgo.toISOString());
 
-  if (ordersError) return res.status(500).json({ error: ordersError.message });
+  if (ordersError) return sendDbError(res, ordersError);
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.total_amount, 0);
   const completedOrders = orders.filter(o => o.status === 'delivered').length;
@@ -1994,7 +2159,7 @@ app.get('/api/distributor/weekly-report', verifyToken, async (req, res) => {
     .select('vegetable_name, stock_kg')
     .eq('distributor_id', req.user.userId);
 
-  if (productsError) return res.status(500).json({ error: productsError.message });
+  if (productsError) return sendDbError(res, productsError);
 
   res.json({
     period: 'last 7 days',
@@ -2020,7 +2185,7 @@ app.get('/api/distributor/inventory-report', verifyToken, async (req, res) => {
     .eq('distributor_id', distributorId)
     .order('harvest_date', { ascending: true });
 
-  if (batchesError) return res.status(500).json({ error: batchesError.message });
+  if (batchesError) return sendDbError(res, batchesError);
 
   const batchIds = (batches || []).map((b) => b.id);
   const farmerIds = [...new Set((batches || []).map((b) => b.farmer_id).filter(Boolean))];
@@ -2157,7 +2322,7 @@ app.put('/api/users/:id', verifyToken, async (req, res) => {
     .select('id, full_name, phone, role, email, farm_location, warehouse_location, store_location, service_area, latitude, longitude, avatar_url, profile_picture_updated_at')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return sendDbError(res, error);
   res.json({ message: 'Profile updated', user: data });
 });
 
@@ -2259,7 +2424,7 @@ app.get('/api/addresses', verifyToken, async (req, res) => {
             .order('created_at', { ascending: true });
 
         if (error) {
-            return res.status(500).json({ error: error.message });
+            return sendDbError(res, error);
         }
 
         res.json(data || []);
@@ -2301,7 +2466,7 @@ app.post('/api/addresses', verifyToken, async (req, res) => {
             .single();
 
         if (error) {
-            return res.status(500).json({ error: error.message });
+            return sendDbError(res, error);
         }
 
         res.status(201).json(data);
@@ -2353,7 +2518,7 @@ app.put('/api/addresses/:id', verifyToken, async (req, res) => {
             .single();
 
         if (error) {
-            return res.status(500).json({ error: error.message });
+            return sendDbError(res, error);
         }
 
         res.json(data);
@@ -2386,7 +2551,7 @@ app.delete('/api/addresses/:id', verifyToken, async (req, res) => {
             .eq('id', id);
 
         if (error) {
-            return res.status(500).json({ error: error.message });
+            return sendDbError(res, error);
         }
 
         if (existing.is_default) {

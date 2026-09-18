@@ -18,6 +18,7 @@ import { useTranslation } from '../i18n/useTranslation';
 import { statusColor, formatStatus, getDelivery, effectiveStatus, STATUS_RANK } from './DeliveryDashboard';
 import { rf } from '../lib/responsive';
 import { localizeVegetableName } from '../lib/vegetableNames';
+import { useAutoSync } from '../sync/SyncProvider';
 
 const PRIMARY = colors.leaf700;
 
@@ -73,6 +74,18 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
     return () => { cancelled = true; mounted.current = false; };
   }, [order?.id]);
 
+  const refreshOrder = async () => {
+    if (!order?.id) return;
+    try {
+      const list = await api.get('/api/delivery/orders');
+      const updated = (Array.isArray(list) ? list : []).find((o) => o.id === order.id);
+      if (updated) setOrder(updated);
+    } catch {
+      // keep showing the last known state
+    }
+  };
+  useAutoSync(`delivery-details-${order?.id || 'unknown'}`, refreshOrder);
+
   if (!order) {
     return (
       <SafeAreaView style={styles.container}>
@@ -86,16 +99,6 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
       </SafeAreaView>
     );
   }
-
-  const refreshOrder = async () => {
-    try {
-      const list = await api.get('/api/delivery/orders');
-      const updated = (Array.isArray(list) ? list : []).find((o) => o.id === order.id);
-      if (updated) setOrder(updated);
-    } catch {
-      // keep showing the last known state
-    }
-  };
 
   const delivery = getDelivery(order);
   const status = effectiveStatus(order);

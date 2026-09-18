@@ -19,10 +19,10 @@ const VEGETABLE_NAMES = [
   { keywords: ['broccoli'], en: 'Broccoli', tl: 'Broccoli' },
   { keywords: ['cauliflower'], en: 'Cauliflower', tl: 'Cauliflower' },
   { keywords: ['bell pepper'], en: 'Bell Pepper', tl: 'Bell Pepper' },
-  { keywords: ['chili pepper'], en: 'Chili Pepper', tl: 'Sili' },
+  { keywords: ['chili pepper', 'sili'], en: 'Chili Pepper', tl: 'Sili' },
   { keywords: ['carrot', 'karot'], en: 'Carrot', tl: 'Karot' },
-  { keywords: ['sweet potato'], en: 'Sweet Potato', tl: 'Kamote' },
-  { keywords: ['potato'], en: 'Potato', tl: 'Patatas' },
+  { keywords: ['sweet potato', 'kamote'], en: 'Sweet Potato', tl: 'Kamote' },
+  { keywords: ['potato', 'patatas'], en: 'Potato', tl: 'Patatas' },
   { keywords: ['onion', 'sibuyas'], en: 'Onion', tl: 'Sibuyas' },
   { keywords: ['garlic', 'bawang'], en: 'Garlic', tl: 'Bawang' },
   { keywords: ['squash', 'kalabasa'], en: 'Squash', tl: 'Kalabasa' },
@@ -31,27 +31,38 @@ const VEGETABLE_NAMES = [
   { keywords: ['sponge gourd', 'patola'], en: 'Sponge Gourd', tl: 'Patola' },
   { keywords: ['chayote', 'sayote'], en: 'Chayote', tl: 'Sayote' },
   { keywords: ['string beans', 'sitaw'], en: 'String Beans', tl: 'Sitaw' },
-  { keywords: ['radish'], en: 'Radish', tl: 'Labanos' },
-  { keywords: ['cucumber'], en: 'Cucumber', tl: 'Pipino' },
+  { keywords: ['radish', 'labanos'], en: 'Radish', tl: 'Labanos' },
+  { keywords: ['cucumber', 'pipino'], en: 'Cucumber', tl: 'Pipino' },
   { keywords: ['celery'], en: 'Celery', tl: 'Celery' },
   { keywords: ['mustard greens', 'mustasa'], en: 'Mustard Greens', tl: 'Mustasa' },
   { keywords: ['malunggay'], en: 'Malunggay', tl: 'Malunggay' },
   { keywords: ['talbos ng kamote'], en: 'Sweet Potato Leaves', tl: 'Talbos ng Kamote' },
   { keywords: ['basil'], en: 'Basil', tl: 'Basil' },
   { keywords: ['oregano'], en: 'Oregano', tl: 'Oregano' },
-  { keywords: ['cilantro'], en: 'Cilantro', tl: 'Wansoy' },
+  { keywords: ['cilantro', 'wansoy'], en: 'Cilantro', tl: 'Wansoy' },
   { keywords: ['mint'], en: 'Mint', tl: 'Mint' },
   { keywords: ['parsley'], en: 'Parsley', tl: 'Parsley' },
 ]
   .flatMap((entry) => entry.keywords.map((keyword) => ({ keyword, en: entry.en, tl: entry.tl })))
   .sort((a, b) => b.keyword.length - a.keyword.length);
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Whole-word match, matching the same rule as ./vegetables.js so a name that
+// validates as a vegetable also localizes consistently (and "basilica" is
+// never mistaken for "basil").
+function matchesKeyword(key, keyword) {
+  return new RegExp(`\\b${escapeRegExp(keyword)}(?:es|s)?\\b`).test(key);
+}
+
 // Returns `name` rewritten in `language` ('en' | 'tl') when it matches a
 // known vegetable, otherwise returns `name` unchanged.
 export function localizeVegetableName(name, language) {
-  const key = String(name || '').toLowerCase().trim();
+  const key = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
   if (!key) return name;
-  const match = VEGETABLE_NAMES.find((v) => key.includes(v.keyword));
+  const match = VEGETABLE_NAMES.find((v) => matchesKeyword(key, v.keyword));
   if (!match) return name;
   return language === 'tl' ? match.tl : match.en;
 }
