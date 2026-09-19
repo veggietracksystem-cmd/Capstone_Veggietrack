@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>VeggieTrack — Low-Fidelity Wireframes (All Screens)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 24px 32px 80px; color: #222; }
+  h1 { margin: 0 0 4px; }
+  .sub { color:#666; margin-bottom: 18px; }
+  .legend { display:flex; flex-wrap:wrap; gap:16px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:12px 16px; margin-bottom:32px; font-size:12px; }
+  .legend .item { display:flex; align-items:center; gap:6px; }
+  .legend .swatch { width:22px; height:14px; flex-shrink:0; }
+  .lg-img { border:1.5px dashed #999; background: repeating-linear-gradient(45deg,#fafafa,#fafafa 6px,#f0f0f0 6px,#f0f0f0 12px); }
+  .lg-input { border:1.5px solid #333; border-radius:3px; }
+  .lg-btn { border:1.5px solid #333; background:#333; }
+  .lg-outline { border:1.5px solid #333; background:#fff; }
+  .lg-box { border:1.5px dashed #999; border-radius:3px; }
+  .lg-line { background:#ddd; height:8px; margin-top:3px; }
+
+  .group { margin-bottom: 48px; }
+  .group h2 { background:#1E4E09; color:#fff; display:inline-block; padding:6px 16px; border-radius:6px; font-size:16px; }
+  .group .desc { font-size:12px; color:#666; margin: 6px 0 0 2px; }
+  .grid { display:flex; flex-wrap:wrap; gap:30px; margin-top:18px; }
+  .card-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; width:300px; }
+  .screen-num { font-size:11px; color:#333; background:#eee; padding:2px 9px; border-radius:10px; }
+  .screen-title { font-weight:700; font-size:13px; text-align:center; }
+
+  .frame { width:300px; height:580px; border:2.5px solid #222; border-radius:16px; background:#fff; display:flex; flex-direction:column; overflow:hidden; font-family:'Courier New', monospace; box-shadow:0 2px 6px rgba(0,0,0,0.12); }
+  .notch { width:70px; height:6px; background:#222; border-radius:4px; margin:6px auto 0; }
+  .hdr { display:flex; align-items:center; gap:8px; padding:9px 10px; border-bottom:2px solid #222; font-weight:bold; font-size:12px; flex-shrink:0; }
+  .back { width:9px; height:9px; border-left:2px solid #222; border-bottom:2px solid #222; transform:rotate(45deg); flex-shrink:0; }
+  .hdr .ic { width:15px; height:15px; border:1.5px solid #222; border-radius:3px; margin-left:auto; flex-shrink:0; }
+  .hdr .ic + .ic { margin-left:4px; }
+  .body { flex:1; padding:9px; display:flex; flex-direction:column; gap:6px; overflow-y:auto; }
+  .box { border:1.5px dashed #999; border-radius:5px; padding:5px 7px; font-size:9.5px; color:#666; }
+  .line { height:7px; background:#ddd; border-radius:2px; }
+  .w100{width:100%}.w80{width:80%}.w60{width:60%}.w40{width:40%}.w30{width:30%}
+  .input { border:1.5px solid #333; border-radius:4px; padding:5px 7px; font-size:9.5px; color:#999; }
+  .btn { border:1.5px solid #333; border-radius:6px; padding:7px; text-align:center; font-size:10px; font-weight:bold; }
+  .btn.primary { background:#333; color:#fff; }
+  .btn.outline { background:#fff; color:#333; }
+  .btn.danger { border-color:#b00020; color:#b00020; background:#fff; }
+  .btn.sm { padding:4px 8px; font-size:9px; display:inline-flex; align-items:center; }
+  .link { font-size:9.5px; text-decoration:underline; text-align:center; color:#333; }
+  .img { border:1.5px dashed #999; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#999; background: repeating-linear-gradient(45deg,#fafafa,#fafafa 6px,#f0f0f0 6px,#f0f0f0 12px); flex-shrink:0; }
+  .card { border:1.5px solid #bbb; border-radius:6px; padding:7px; font-size:9.5px; display:flex; flex-direction:column; gap:3px; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:6px; }
+  .col { display:flex; flex-direction:column; gap:4px; }
+  .chip { border:1.5px solid #333; border-radius:12px; padding:2px 8px; font-size:8.5px; display:inline-block; }
+  .badge { border:1.5px solid #333; border-radius:10px; padding:1px 6px; font-size:8px; white-space:nowrap; }
+  .sec { font-size:10px; font-weight:bold; text-decoration:underline; margin-top:2px; }
+  .grow { flex:1; }
+  .tabbar { display:flex; border-top:2px solid #222; padding:6px 2px 8px; flex-shrink:0; }
+  .tab { flex:1; text-align:center; font-size:8px; }
+  .tab .ic { width:15px; height:15px; border:1.5px solid #333; border-radius:3px; margin:0 auto 2px; }
+  .tab.active { font-weight:bold; }
+  .tab.active .ic { background:#333; }
+  .circle { border-radius:50%; }
+  .stepper { display:flex; align-items:center; gap:4px; font-size:9px; }
+  .stepper .sq { width:14px; height:14px; border:1.5px solid #333; text-align:center; line-height:12px; }
+  .fab { position:absolute; }
+</style>
+</head>
+<body>
+
+<h1>VeggieTrack — Low-Fidelity Wireframes</h1>
+<div class="sub">All screens across every role (Auth, Farmer, Distributor, Retailer, Delivery/Rider) · generated from <code>mobile/src/screens</code> and <code>mobile/App.js</code> navigation map · content is approximate/placeholder, not final copy.</div>
+
+<div class="legend">
+  <div class="item"><div class="swatch lg-img"></div> Image / photo / map placeholder</div>
+  <div class="item"><div class="swatch lg-input"></div> Text input field</div>
+  <div class="item"><div class="swatch lg-btn"></div> Primary button</div>
+  <div class="item"><div class="swatch lg-outline"></div> Secondary / outline button</div>
+  <div class="item"><div class="swatch lg-box"></div> Content card / section</div>
+  <div class="item"><div class="swatch lg-line" style="height:14px;background:#fff;border:1px solid #eee;"></div><span class="lg-line w100" style="display:block;width:22px;"></span> Body text line</div>
+</div>
+
+<div id="app"></div>
+
+<script>
+// ---------- tiny render helpers ----------
+const el = (html) => html; // just string concat, kept as fn for readability
+
+function header(title, {back=true, icons=0}={}) {
+  let ic = '';
+  for (let i=0;i<icons;i++) ic += '<div class="ic"></div>';
+  return `<div class="hdr">${back?'<div class="back"></div>':''}<span>${title}</span>${ic}</div>`;
+}
+function img(label, h=70) { return `<div class="img" style="height:${h}px;">${label}</div>`; }
+function map(label, h=180) { return `<div class="img" style="height:${h}px;">🗺 ${label}</div>`; }
+function input(label) { return `<div class="input">${label}</div>`; }
+function btn(label, variant='primary') { return `<div class="btn ${variant}">${label}</div>`; }
+function link(label) { return `<div class="link">${label}</div>`; }
+function lines(...widths) { return widths.map(w=>`<div class="line ${w}"></div>`).join(''); }
+function sec(label) { return `<div class="sec">${label}</div>`; }
+function chip(label) { return `<span class="chip">${label}</span>`; }
+function badge(label) { return `<span class="badge">${label}</span>`; }
+function row(inner) { return `<div class="row">${inner}</div>`; }
+function card(inner) { return `<div class="card">${inner}</div>`; }
+function box(inner) { return `<div class="box">${inner}</div>`; }
+function tabbar(tabs, activeIdx) {
+  return `<div class="tabbar">${tabs.map((t,i)=>`<div class="tab${i===activeIdx?' active':''}"><div class="ic"></div>${t}</div>`).join('')}</div>`;
+}
+function stepper() { return `<div class="stepper"><div class="sq">-</div><span>1</span><div class="sq">+</div></div>`; }
+
+function frame(bodyHtml) {
+  return `<div class="frame"><div class="notch"></div>${bodyHtml}</div>`;
+}
+
+function screen(num, title, innerHtml) {
+  return `<div class="card-wrap">
+    <span class="screen-num">${num}</span>
+    <div class="screen-title">${title}</div>
+    ${frame(innerHtml)}
+  </div>`;
+}
+
+// ---------- screen groups ----------
+const groups = [];
+let n = 0;
+const N = () => (++n).toString().padStart(2,'0');
+
+groups.push({ name: "Auth & Onboarding", desc: "Unauthenticated flow — shown before login / during signup", screens: [
+  screen(N(), "Landing", `
+    <div class="body" style="justify-content:center;align-items:center;gap:16px;">
+      ${img('LOGO', 90)}
+      ${lines('w80','w60')}
+      <div style="flex:1"></div>
+      ${btn('Get Started')}
+      ${link('Create an account')}
+    </div>`),
+
+  screen(N(), "Login", `
+    ${header('Login',{back:true})}
+    <div class="body">
+      ${img('LOGO', 50)}
+      ${input('Email')}
+      ${input('Password')}
+      ${btn('Log In')}
+      ${link('Forgot Password?')}
+      <div class="grow"></div>
+      ${link("Don't have an account? Register")}
+    </div>`),
+
+  screen(N(), "Register", `
+    ${header('Create Account',{back:true})}
+    <div class="body">
+      ${sec('Full Name')} ${input('Enter your full name')}
+      ${sec('Email')} ${input('Enter your email address')}
+      ${sec('Password')} ${input('At least 8 characters')}
+      ${sec('Confirm Password')} ${input('Confirm password')}
+      ${sec('Role')}
+      <div class="row">${chip('Farmer')}${chip('Distributor')}${chip('Retailer')}${chip('Delivery')}</div>
+      ${input('Farm / Shop / Address location')}
+      ${map('Pin your location', 70)}
+      ${btn('Create Account')}
+      ${link('Already have an account? Login')}
+    </div>`),
+
+  screen(N(), "Verify Email", `
+    ${header('Verify Email',{back:false})}
+    <div class="body" style="justify-content:center;align-items:center;gap:14px;">
+      ${img('✉ ENVELOPE', 70)}
+      ${lines('w80','w60')}
+      <div style="text-align:center;font-size:9.5px;color:#666">We sent a verification link to your email</div>
+      ${btn("I've verified, Continue")}
+      ${link('Resend email')}
+    </div>`),
+
+  screen(N(), "Forgot Password", `
+    ${header('Forgot Password',{back:true})}
+    <div class="body">
+      ${lines('w80')}
+      ${input('Email')}
+      ${btn('Send Reset Link')}
+      ${link('Back to Login')}
+    </div>`),
+
+  screen(N(), "Reset Password", `
+    ${header('Reset Password',{back:true})}
+    <div class="body">
+      ${lines('w60')}
+      ${input('New password')}
+      ${input('Confirm new password')}
+      ${btn('Reset Password')}
+    </div>`),
+
+  screen(N(), "Application Status", `
+    ${header('Application Status',{back:false})}
+    <div class="body" style="justify-content:center;align-items:center;gap:14px;">
+      ${img('⏳ PENDING ICON', 70)}
+      <div style="font-weight:bold;font-size:12px;">Pending Approval</div>
+      ${lines('w80','w60')}
+      <div class="grow"></div>
+      ${btn('Log Out','outline')}
+    </div>`),
+]});
+
+groups.push({ name: "Shared Screens", desc: "Reachable from any logged-in role via header/menu (Profile, Messages, Addresses, Tracking, Admin)", screens: [
+  screen(N(), "Profile", `
+    ${header('Profile',{back:true})}
+    <div class="body">
+      <div class="row" style="justify-content:center;">${img('AVATAR',60)}</div>
+      <div style="text-align:center;">${lines('w40')}<div style="height:4px"></div>${lines('w60')}</div>
+      ${card('Edit Profile &nbsp; &gt;')}
+      ${card('Manage Addresses &nbsp; &gt;')}
+      ${card('Account Management (distributor only) &nbsp; &gt;')}
+      ${card('Change Password &nbsp; &gt;')}
+      <div class="grow"></div>
+      ${btn('Log Out','danger')}
+    </div>`),
+
+  screen(N(), "Edit Profile", `
+    ${header('Edit Profile',{back:true})}
+    <div class="body">
+      <div class="row" style="justify-content:center;">${img('AVATAR + 📷',60)}</div>
+      ${sec('Name')} ${input('Full name')}
+      ${sec('Phone')} ${input('Phone number')}
+      ${sec('Email')} ${input('email@example.com (read-only)')}
+      ${btn('Save Changes')}
+      <div class="grow"></div>
+      ${btn('Disable Account','danger')}
+    </div>`),
+
+  screen(N(), "Messages — List", `
+    ${header('Messages',{back:true})}
+    <div class="body">
+      ${input('🔍 Search conversations')}
+      ${[1,2,3,4].map(()=>card(row(`${img('👤',34)}<div class="col grow">${lines('w60','w80')}</div><span class="badge">2</span>`))).join('')}
+    </div>`),
+
+  screen(N(), "Messages — Thread", `
+    ${header('Rider Juan',{back:true})}
+    <div class="body">
+      <div class="col" style="align-items:flex-start;"><div class="box w60">Hi, I'm on my way</div></div>
+      <div class="col" style="align-items:flex-end;"><div class="box w60">Great, thank you!</div></div>
+      <div class="col" style="align-items:flex-start;"><div class="box w80">ETA about 10 minutes</div></div>
+      <div class="grow"></div>
+      ${row(input('Type a message') + btn('➤','sm'))}
+    </div>`),
+
+  screen(N(), "Manage Addresses", `
+    ${header('Manage Addresses',{back:true})}
+    <div class="body">
+      ${card(row(`<div class="col grow"><b>Home</b>${lines('w80')}</div>`)+row(`${chip('Set Default')}${chip('Edit')}${chip('Delete')}`))}
+      ${card(row(`<div class="col grow"><b>Shop</b>${lines('w80')}</div>`)+row(`${chip('Set Default')}${chip('Edit')}${chip('Delete')}`))}
+      ${sec('+ Add New Address')}
+      ${input('Label (e.g. Home)')}
+      ${input('Street, City, Province')}
+      ${row(input('Latitude') + input('Longitude') + btn('📍 Pin','sm'))}
+      <div style="font-size:9px;">☐ Set as default address</div>
+      ${btn('Save Address')}
+    </div>`),
+
+  screen(N(), "Order Tracking (Map)", `
+    ${header('Order Tracking',{back:true})}
+    <div class="body">
+      ${map('Live route: warehouse → you', 220)}
+      ${card(row(`<div class="col grow"><b>Rider: Juan Dela Cruz</b>${lines('w60')}</div><span class="badge">On the way</span>`))}
+      ${sec('Order Items')}
+      ${lines('w80','w60')}
+    </div>`),
+
+  screen(N(), "Account Management (Distributor)", `
+    ${header('Accounts',{back:true})}
+    <div class="body">
+      ${sec('Accounts')}
+      ${card(row(`<div class="col grow"><b>Retailer A</b>${lines('w60')}</div><span class="badge">Pending</span>`)+input('Reason (visible to this user)')+row(btn('Approve','sm')+btn('Reject','sm','danger')))}
+      ${card(row(`<div class="col grow"><b>Rider B</b>${lines('w60')}</div><span class="badge">Active</span>`))}
+    </div>`),
+]});
+
+groups.push({ name: "Farmer Role", desc: "Bottom tabs: Home · Harvest · Messages · Pickup · Profile — plus pushed sub-screens", screens: [
+  screen(N(), "Farmer — Home", `
+    ${header('Hi, Farmer Juan',{back:false, icons:1})}
+    <div class="body">
+      <div class="row">${card('Pending Harvests<br><b>4</b>')}${card('Ready for Pickup<br><b>2</b>')}</div>
+      ${sec('Your pickup tracking')}
+      ${card(row(`${lines('w60')}<span class="link">Track pickup ›</span>`))}
+      ${sec('Recent Harvests')}
+      ${card(row(`<div class="col grow"><b>Tomato — 20kg</b></div><span class="badge">Approved</span>`))}
+      ${card(row(`<div class="col grow"><b>Cabbage — 15kg</b></div><span class="badge">Pending</span>`))}
+    </div>
+    ${tabbar(['Home','Harvest','Messages','Pickup','Profile'],0)}`),
+
+  screen(N(), "Farmer — Harvest Tab", `
+    ${header('Add Harvest',{back:false})}
+    <div class="body">
+      ${input('Vegetable name')}
+      ${row(input('Quantity') + chip('kg ▾'))}
+      ${btn('+ Add Harvest')}
+      ${sec('Submitted Harvests')}
+      ${card(row(`<div class="col grow"><b>Tomato · 20kg</b></div><span class="badge">Approved</span>`)+row(chip('Edit')+chip('Delete')))}
+      ${card(row(`<div class="col grow"><b>Okra · 8kg</b></div><span class="badge">Pending</span>`))}
+    </div>
+    ${tabbar(['Home','Harvest','Messages','Pickup','Profile'],1)}`),
+
+  screen(N(), "Farmer — Messages Tab", `
+    ${header('Messages',{back:false})}
+    <div class="body">
+      ${input('🔍 Search conversations')}
+      ${card(row(`${img('👤',34)}<div class="col grow">${lines('w60','w80')}</div>`))}
+      ${card(row(`${img('👤',34)}<div class="col grow">${lines('w60','w80')}</div>`))}
+    </div>
+    ${tabbar(['Home','Harvest','Messages','Pickup','Profile'],2)}`),
+
+  screen(N(), "Farmer — Pickup Tab", `
+    ${header('Pickup',{back:false})}
+    <div class="body">
+      ${card(row('☑ Tomato — 20kg'))}
+      ${card(row('☑ Cabbage — 15kg'))}
+      ${card(row('☐ Okra — 8kg'))}
+      <div class="grow"></div>
+      ${row(`<span class="badge">2 selected</span>`+btn('Request Pickup','primary'))}
+    </div>
+    ${tabbar(['Home','Harvest','Messages','Pickup','Profile'],3)}`),
+
+  screen(N(), "Farmer — Profile Tab", `
+    ${header('Profile',{back:false})}
+    <div class="body">
+      <div class="row" style="justify-content:center;">${img('AVATAR',60)}</div>
+      <div style="text-align:center;">${lines('w40')}</div>
+      ${card('Email: ' + '_'.repeat(10))}
+      ${card('Phone: ' + '_'.repeat(10))}
+      ${btn('Edit Profile','outline')}
+      <div class="grow"></div>
+      ${btn('Log Out','danger')}
+    </div>
+    ${tabbar(['Home','Harvest','Messages','Pickup','Profile'],4)}`),
+
+  screen(N(), "Farmer — Notifications", `
+    ${header('Notifications',{back:true})}
+    <div class="body">
+      ${card(row(`${img('🔔',30)}<div class="col grow">${lines('w80','w60')}</div>`))}
+      ${card(row(`${img('🔔',30)}<div class="col grow">${lines('w80','w60')}</div>`))}
+      ${card(row(`${img('🔔',30)}<div class="col grow">${lines('w80','w60')}</div>`))}
+    </div>`),
+
+  screen(N(), "Harvest List (full)", `
+    ${header('Harvest List',{back:true})}
+    <div class="body">
+      ${input('🔍 Search harvests')}
+      ${card(row(`<div class="col grow"><b>Tomato · 20kg</b></div>`)+row(chip('Edit')+chip('Delete')+chip('Request Pickup')))}
+      ${card(row(`<div class="col grow"><b>Cabbage · 15kg</b></div>`)+row(chip('Edit')+chip('Delete')+chip('Request Pickup')))}
+    </div>`),
+
+  screen(N(), "Farmer Pickup Tracking", `
+    ${header('Pickup Tracking',{back:true})}
+    <div class="body">
+      ${box('⚠ Waiting for rider assignment')}
+      ${map('Rider route (once assigned)', 180)}
+      ${sec('Status')}
+      <div class="row">${chip('Requested')}${chip('Assigned')}${chip('Picked Up')}</div>
+    </div>`),
+]});
+
+groups.push({ name: "Distributor Role", desc: "Bottom tabs: Home · Orders · Stocks · Inventory · Profile — plus pushed sub-screens", screens: [
+  screen(N(), "Distributor — Home", `
+    ${header('Hi, Distributor',{back:false, icons:2})}
+    <div class="body">
+      <div class="row">${card('Total Stock<br><b>320kg</b>')}${card('Pending Orders<br><b>5</b>')}</div>
+      ${sec('Recent Products')}
+      ${card(row(`<div class="col grow"><b>Tomato</b>${lines('w40')}</div><span>₱45/kg</span>`))}
+      ${card(row(`<div class="col grow"><b>Cabbage</b>${lines('w40')}</div><span>₱30/kg</span>`))}
+    </div>
+    ${tabbar(['Home','Orders','Stocks','Inventory','Profile'],0)}`),
+
+  screen(N(), "Distributor — Orders Tab", `
+    ${header('Orders',{back:false})}
+    <div class="body">
+      <div class="row">${chip('Pending')}${chip('Accepted')}${chip('Delivered')}</div>
+      ${card(row(`<div class="col grow"><b>Retailer A</b>${lines('w60')}</div><span class="badge">₱1,200</span>`)+row(btn('Accept','sm')+btn('Reject','sm','danger')))}
+      ${input('Reject reason (if applicable)')}
+    </div>
+    ${tabbar(['Home','Orders','Stocks','Inventory','Profile'],1)}`),
+
+  screen(N(), "Distributor — Stocks Tab", `
+    ${header('Stocks',{back:false})}
+    <div class="body">
+      ${card(row(`${img('🥕',30)}<div class="col grow"><b>Carrot batch</b>${lines('w60')}</div>`))}
+      ${card(row(`${img('🥬',30)}<div class="col grow"><b>Lettuce batch</b>${lines('w60')}</div>`))}
+      ${link('View All Stocks ›')}
+    </div>
+    ${tabbar(['Home','Orders','Stocks','Inventory','Profile'],2)}`),
+
+  screen(N(), "Distributor — Inventory Tab", `
+    ${header('Inventory',{back:false})}
+    <div class="body">
+      ${box("📊 CHART: this week's inventory levels", 90)}
+      ${card('Total value: ₱24,500')}
+      ${link('View Full Report ›')}
+    </div>
+    ${tabbar(['Home','Orders','Stocks','Inventory','Profile'],3)}`),
+
+  screen(N(), "Distributor — Profile Tab", `
+    ${header('Profile',{back:false})}
+    <div class="body">
+      <div class="row" style="justify-content:center;">${img('AVATAR',60)}</div>
+      ${card('Edit Profile ›')}
+      ${card('Account Management ›')}
+      <div class="grow"></div>
+      ${btn('Log Out','danger')}
+    </div>
+    ${tabbar(['Home','Orders','Stocks','Inventory','Profile'],4)}`),
+
+  screen(N(), "Stocks (full, FIFO batches)", `
+    ${header('Stocks',{back:true})}
+    <div class="body">
+      ${input('🔍 Search stocks')}
+      ${card(row(`${img('🍅',34)}<div class="col grow"><b>Tomato · 20kg</b>${lines('w60')}</div>`)+row(input('Price')+btn('Edit','sm')))}
+      ${sec('+ Add Batch')}
+      ${input('Vegetable name')}
+      ${row(input('Price') + input('Stock qty'))}
+      ${img('Upload photo', 50)}
+      ${btn('Save Batch')}
+    </div>`),
+
+  screen(N(), "Product List (aggregated, legacy)", `
+    ${header('Products',{back:true})}
+    <div class="body">
+      ${card(row(`<div class="col grow"><b>Tomato</b> — 40kg total</div>`+input('₱45.00')))}
+      ${card(row(`<div class="col grow"><b>Cabbage</b> — 22kg total</div>`+input('₱30.00')))}
+      ${btn('Save Prices')}
+    </div>`),
+
+  screen(N(), "Distributor Inventory Report", `
+    ${header('Inventory Report',{back:true})}
+    <div class="body">
+      ${box('📊 Weekly inventory chart', 100)}
+      ${btn('Export PDF','outline')}
+      ${sec('History')}
+      ${card(row('Week of Sep 1 – Sep 7'))}
+      ${card(row('Week of Aug 25 – Aug 31'))}
+    </div>`),
+
+  screen(N(), "Shopee-style Tracking (Distributor/Retailer view)", `
+    ${header('Track Delivery',{back:true})}
+    <div class="body">
+      ${map('Route: distributor → retailer', 170)}
+      <div class="row">${chip('Preparing')}${chip('Picked up')}${chip('On the way')}${chip('Delivered')}</div>
+      ${card(row(`<div class="col grow"><b>Rider: Juan</b>${lines('w60')}</div>`))}
+    </div>`),
+]});
+
+groups.push({ name: "Retailer Role", desc: "Bottom tabs: Home · Cart · Orders · Profile — plus pushed sub-screens", screens: [
+  screen(N(), "Retailer — Home (Shop)", `
+    ${header('Shop',{back:false, icons:1})}
+    <div class="body">
+      ${input('🔍 Search products')}
+      <div class="row">${chip('All')}${chip('Leafy')}${chip('Root')}${chip('Fruit')}</div>
+      ${card(row(`${img('🍅',40)}<div class="col grow"><b>Tomato</b><br>₱45/kg</div>`+stepper()))}
+      ${card(row(`${img('🥬',40)}<div class="col grow"><b>Lettuce</b><br>₱30/kg</div>`+stepper()))}
+    </div>
+    ${tabbar(['Home','Cart','Orders','Profile'],0)}`),
+
+  screen(N(), "Retailer — Cart Tab", `
+    ${header('Cart',{back:false})}
+    <div class="body">
+      ${card(row(`${img('🍅',34)}<div class="col grow"><b>Tomato</b> · ₱45</div>`+stepper()+chip('✕')))}
+      ${card(row(`${img('🥬',34)}<div class="col grow"><b>Lettuce</b> · ₱30</div>`+stepper()+chip('✕')))}
+      <div class="grow"></div>
+      ${row(`<b>Total</b><b>₱120.00</b>`)}
+      ${btn('Checkout')}
+    </div>
+    ${tabbar(['Home','Cart','Orders','Profile'],1)}`),
+
+  screen(N(), "Retailer — Orders Tab", `
+    ${header('Orders',{back:false})}
+    <div class="body">
+      <div class="row">${chip('Active')}${chip('Completed')}</div>
+      ${card(row(`<div class="col grow"><b>Order #1042</b>${lines('w60')}</div><span class="badge">On the way</span>`)+row(btn('Track','sm')+btn('Details','sm','outline')))}
+      ${card(row(`<div class="col grow"><b>Order #1039</b>${lines('w60')}</div><span class="badge">Delivered</span>`))}
+    </div>
+    ${tabbar(['Home','Cart','Orders','Profile'],2)}`),
+
+  screen(N(), "Retailer — Profile Tab", `
+    ${header('Profile',{back:false})}
+    <div class="body">
+      <div class="row" style="justify-content:center;">${img('AVATAR',60)}</div>
+      ${card('Manage Addresses ›')}
+      ${card('Order History ›')}
+      <div class="grow"></div>
+      ${btn('Log Out','danger')}
+    </div>
+    ${tabbar(['Home','Cart','Orders','Profile'],3)}`),
+
+  screen(N(), "Order Confirmation", `
+    ${header('Confirm Order',{back:true})}
+    <div class="body">
+      ${sec('Deliver To')}
+      ${card(row(`<div class="col grow">${lines('w80','w60')}</div>`)+link('Manage Address'))}
+      ${sec('Schedule')}
+      ${input('Preferred date/time')}
+      ${sec('Order Items')}
+      ${lines('w80','w60')}
+      ${row(`<b>Total</b><b>₱120.00</b>`)}
+      ${btn('Place Order')}
+    </div>`),
+
+  screen(N(), "Order History", `
+    ${header('Order History',{back:true})}
+    <div class="body">
+      ${card(row(`<div class="col grow"><b>Order #1021</b>${lines('w60')}</div><span class="badge">Delivered</span>`))}
+      ${card(row(`<div class="col grow"><b>Order #1015</b>${lines('w60')}</div><span class="badge">Delivered</span>`))}
+    </div>`),
+
+  screen(N(), "Order Details", `
+    ${header('Order Details',{back:true})}
+    <div class="body">
+      ${sec('Items')}
+      ${row('Tomato x2' + '<span>₱90.00</span>')}
+      ${row('Lettuce x1' + '<span>₱30.00</span>')}
+      ${sec('Breakdown')}
+      ${row('Subtotal' + '<span>₱120.00</span>')}
+      ${row('Delivery fee' + '<span>₱20.00</span>')}
+      ${row('<b>Total</b>' + '<b>₱140.00</b>')}
+      ${badge('Status: On the way')}
+      ${btn('Track Order','outline')}
+    </div>`),
+
+  screen(N(), "Customer Delivery Tracking", `
+    ${header('Delivery Tracking',{back:true})}
+    <div class="body">
+      ${sec('Order items')}
+      ${lines('w80','w60')}
+      ${map('Live status', 160)}
+      ${badge('Status: Out for delivery')}
+    </div>`),
+]});
+
+groups.push({ name: "Delivery / Rider Role", desc: "Bottom tabs: Home · Tasks · History · Profile — plus pushed sub-screens", screens: [
+  screen(N(), "Delivery — Home", `
+    ${header('Hi, Rider Juan',{back:false, icons:1})}
+    <div class="body">
+      <div class="row">${card('Assigned Today<br><b>6</b>')}${card('Completed<br><b>3</b>')}</div>
+      ${sec("Today's Deliveries")}
+      ${card(row(`<div class="col grow"><b>Retailer A</b>${lines('w60')}</div><span class="badge">Pending</span>`))}
+      ${card(row(`<div class="col grow"><b>Retailer B</b>${lines('w60')}</div><span class="badge">In transit</span>`))}
+    </div>
+    ${tabbar(['Home','Tasks','History','Profile'],0)}`),
+
+  screen(N(), "Delivery — Tasks Tab", `
+    ${header('Tasks',{back:false})}
+    <div class="body">
+      ${card(row(`<div class="col grow"><b>Order #1042</b>${lines('w60')}</div><span class="badge">Assigned</span>`)+row(btn('Navigate','sm')+btn('Details','sm','outline')))}
+      ${card(row(`<div class="col grow"><b>Order #1043</b>${lines('w60')}</div><span class="badge">Assigned</span>`)+row(btn('Navigate','sm')+btn('Details','sm','outline')))}
+    </div>
+    ${tabbar(['Home','Tasks','History','Profile'],1)}`),
+
+  screen(N(), "Delivery — History Tab", `
+    ${header('History',{back:false})}
+    <div class="body">
+      ${card(row(`${img('📷',34)}<div class="col grow"><b>Order #1030</b>${lines('w60')}</div>`))}
+      ${card(row(`${img('📷',34)}<div class="col grow"><b>Order #1028</b>${lines('w60')}</div>`))}
+    </div>
+    ${tabbar(['Home','Tasks','History','Profile'],2)}`),
+
+  screen(N(), "Delivery — Profile Tab", `
+    ${header('Profile',{back:false})}
+    <div class="body">
+      <div class="row" style="justify-content:center;">${img('AVATAR',60)}</div>
+      ${card('Edit Profile ›')}
+      <div class="grow"></div>
+      ${btn('Log Out','danger')}
+    </div>
+    ${tabbar(['Home','Tasks','History','Profile'],3)}`),
+
+  screen(N(), "Delivery Details", `
+    ${header('Delivery Details',{back:true})}
+    <div class="body">
+      ${card(row(`<div class="col grow"><b>Retailer A</b>${lines('w80','w60')}</div>`))}
+      ${sec('Order Items')}
+      ${lines('w80','w60')}
+      ${map('Current location', 110)}
+      ${btn('Refresh Location','outline')}
+      ${input('Reject reason (other)')}
+      ${row(btn('Accept','sm') + btn('Reject','sm','danger'))}
+      ${btn('Mark Delivered')}
+    </div>`),
+
+  screen(N(), "Rider Navigation (Grab-style)", `
+    <div class="body" style="padding:0;">
+      ${map('FULLSCREEN MAP + route line', 380)}
+      <div style="padding:9px;">
+        ${card(row(`<div class="col grow"><b>Retailer A</b>${lines('w60')}<span>ETA 8 min · 2.4km</span></div>`))}
+        ${row(btn('Call','sm') + btn('Message','sm','outline') + btn('Arrived','sm'))}
+      </div>
+    </div>`),
+]});
+
+// ---------- render ----------
+const app = document.getElementById('app');
+app.innerHTML = groups.map(g => `
+  <div class="group">
+    <h2>${g.name}</h2>
+    <div class="desc">${g.desc}</div>
+    <div class="grid">${g.screens.join('')}</div>
+  </div>
+`).join('');
+</script>
+</body>
+</html>
