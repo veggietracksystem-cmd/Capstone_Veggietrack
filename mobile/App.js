@@ -109,6 +109,9 @@ function RootNavigator() {
             <Stack.Screen name="Profile" component={ProfileScreen} />
             {user.role === 'distributor' && <Stack.Screen name="AccountManagement" component={AccountManagementScreen} />}
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+            {/* Edit Profile -> Change password sends the emailed reset link from
+                here; ResetPassword then handles the link when it reopens the app. */}
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
             {/* Retailer/Distributor: live delivery tracking on a map. */}
             <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />

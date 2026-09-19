@@ -5,8 +5,10 @@ import { supabase, authConfigured } from '../lib/supabase';
 import { authError } from '../lib/authErrors';
 import * as Linking from 'expo-linking';
 
-export default function ForgotPasswordScreen({ navigation }) {
-	const [email, setEmail] = useState('');
+// Reached both from Login (email typed by hand) and from Edit Profile, which
+// already knows the signed-in address and passes it through as a param.
+export default function ForgotPasswordScreen({ navigation, route }) {
+	const [email, setEmail] = useState(route?.params?.email || '');
 	const [error, setError] = useState('');
 	const [message, setMessage] = useState('');
 	const [busy, setBusy] = useState(false);

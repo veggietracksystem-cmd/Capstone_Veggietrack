@@ -164,12 +164,14 @@ export default function EditProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Change password: same OTP-verified reset flow as "Forgot password",
-            just reachable from inside the profile editor instead of Login. */}
+        {/* Change password: same emailed reset flow as "Forgot password", just
+            reachable from inside the profile editor instead of Login.
+            ResetPassword itself only renders a form once the emailed recovery
+            link has opened the app, so it must not be the entry point here. */}
         <View style={styles.sectionCard}>
           <TouchableOpacity
             style={[styles.menuItem, styles.menuItemLast]}
-            onPress={() => navigation.navigate('ResetPassword', { email: user?.email })}
+            onPress={() => navigation.navigate('ForgotPassword', { email: user?.email })}
           >
             <Text style={styles.menuItemText}>{t('profile.changePassword')}</Text>
             <Text style={styles.chevron}>›</Text>

@@ -72,7 +72,7 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
   const realRequire = createRequire(path.join(__dirname, '../index.js'));
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../index.js'), 'utf8'), {
     require: name => name === 'express' ? express : name === 'dotenv' ? { config() {} } : name === '@supabase/supabase-js' ? { createClient: () => db } : realRequire(name),
-    process: { env: { CLOUDINARY_CLOUD_NAME: 'veggietrack' } }, console, Date, URL, setTimeout, clearTimeout,
+    process: { env: { CLOUDINARY_CLOUD_NAME: 'veggietrack' }, on() {} }, console, Date, URL, setTimeout, clearTimeout,
   });
   async function raw(key, userId, body = {}, id) {
     const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };

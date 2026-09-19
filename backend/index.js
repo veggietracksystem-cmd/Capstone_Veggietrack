@@ -2052,20 +2052,31 @@ app.put('/api/deliveries/:id/reject', verifyToken, async (req, res) => {
     return res.status(400).json({ error: `Cannot reject a delivery with status '${delivery.status}'` });
   }
 
-  await supabaseAdmin
+  const handBack = { delivery_personnel_id: null, status: 'pending' };
+  let { error: rejectError } = await supabaseAdmin
     .from('deliveries')
     .update({
-      delivery_personnel_id: null,
-      status: 'pending',
+      ...handBack,
       rejection_reason: reason.trim().slice(0, 500),
-      rejected_at: new Date(),
+      rejected_at: new Date().toISOString(),
     })
     .eq('id', id);
+  // The audit columns come from sql/delivery_reject.sql. Where that migration
+  // has not been applied yet the rider must still be able to hand the delivery
+  // back, so retry without them rather than stranding the assignment.
+  if (missingColumn(rejectError, ['rejection_reason', 'rejected_at'])) {
+    console.warn('deliveries.rejection_reason/rejected_at missing — apply sql/delivery_reject.sql to record reject reasons.');
+    ({ error: rejectError } = await supabaseAdmin.from('deliveries').update(handBack).eq('id', id));
+  }
+  // Never unassign the order while the delivery still points at this rider:
+  // that would leave the order unassigned but the delivery stuck on 'assigned'.
+  if (rejectError) return sendDbError(res, rejectError, 'The delivery could not be rejected. Please try again.');
 
-  await supabaseAdmin
+  const { error: orderError } = await supabaseAdmin
     .from('orders')
     .update({ delivery_personnel_id: null })
     .eq('id', delivery.order_id);
+  if (orderError) return sendDbError(res, orderError, 'The delivery could not be rejected. Please try again.');
 
   const { data: order } = await supabaseAdmin
     .from('orders').select('distributor_id').eq('id', delivery.order_id).single();
@@ -2570,6 +2581,23 @@ app.delete('/api/addresses/:id', verifyToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to delete address' });
     }
 });
+// The mobile client parses every response as JSON. Express' built-in 404 and
+// error pages are HTML, so an unknown path or an unexpected throw reached the
+// app as a bare "Request failed (500)" with no usable message.
+app.use('/api', (req, res) => res.status(404).json({ error: 'That endpoint does not exist.' }));
+// eslint-disable-next-line no-unused-vars -- Express needs all four params to treat this as an error handler.
+app.use((err, req, res, next) => {
+  console.error('[unhandled route error]', req.method, req.originalUrl, err?.stack || err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'Something went wrong. Please try again.' });
+});
+
+// Node exits the process on an unhandled rejection. A single stray promise must
+// not take the API down for every user; log it and keep serving instead.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandled rejection]', reason?.stack || reason);
+});
+
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });

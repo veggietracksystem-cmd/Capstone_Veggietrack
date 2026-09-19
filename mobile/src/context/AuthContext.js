@@ -5,9 +5,6 @@ import { api, setAuthToken, setUnauthorizedHandler, setBlockedHandler, setTokenP
 import { supabase, authConfigured, clearStoredSession } from '../lib/supabase';
 import { clearAll } from '../offline/db';
 const AuthContext = createContext(null);
-// QA accounts used for manual/automated testing skip the email OTP challenge
-// so test runs don't depend on inbox access.
-const OTP_EXEMPT_EMAILS = ['qa.farmer@veggietrack.test', 'qa.rider@veggietrack.test', 'qa.retailer@veggietrack.test'];
 export function AuthProvider({ children }) {
  const [user,setUser]=useState(null), [session,setSession]=useState(null), [loading,setLoading]=useState(true);
  const [statusError,setStatusError]=useState(''), [recoveryMode,setRecoveryMode]=useState(false);
@@ -65,29 +62,25 @@ export function AuthProvider({ children }) {
   });
   const timer=setInterval(()=>{if(AppState.currentState==='active')void refreshProfile();},15000);
   const appSub=AppState.addEventListener('change',state=>{
-   // Re-check status in the background on foreground, but don't blank the
-   // already-known user first - that briefly routed active users through
-   // ApplicationStatusScreen on every app open before refreshProfile()
-   // resolved. refreshProfile() still clears/updates user itself once the
+   // Re-check status on foreground, but never blank the already-known user -
+   // on either edge. The navigator swaps to ApplicationStatusScreen while user
+   // is null, so clearing it routed active users through that screen on every
+   // app open and reset the stack, dropping riders and retailers back to their
+   // dashboard root. refreshProfile() still clears/updates user itself once the
    // recheck completes, so a real status change is never missed.
    if(state==='active'){supabase.auth.startAutoRefresh();void refreshProfile();}
-   else {supabase.auth.stopAutoRefresh();setUser(null);}
+   else supabase.auth.stopAutoRefresh();
   });
   return ()=>{alive.current=false;generation.current++;subscription.unsubscribe();linkSub.remove();appSub.remove();clearInterval(timer);setUnauthorizedHandler(null);setBlockedHandler(null);setTokenProvider(null);};
  },[]);
  const signInWithEmail=async(email,password)=>{
   const {error}=await supabase.auth.signInWithPassword({email,password});
   if(error)throw error;
-  if(OTP_EXEMPT_EMAILS.includes(email.trim().toLowerCase())){
-   await refreshProfile();
-   return {skipOtp:true};
-  }
   // Password verification is followed by a separate email challenge. Clear
   // the password session before the challenge so it cannot enter the app.
   const {error:otpError}=await supabase.auth.signInWithOtp({email,options:{shouldCreateUser:false}});
   await supabase.auth.signOut({scope:'local'});
   if(otpError)throw otpError;
-  return {skipOtp:false};
  };
  return <AuthContext.Provider value={{user,session,token:session?.access_token,loading,initialRoute,statusError,recoveryMode,signInWithEmail,signOut,refreshProfile,updateUser:refreshProfile}}>{children}</AuthContext.Provider>;
 }

@@ -17,7 +17,7 @@ function routes(db) {
     require: name => name === 'express' ? express : name === 'dotenv' ? { config() {} } :
       name === '@supabase/supabase-js' ? { createClient: () => db } :
       name === './lib/avatar' ? { validateAvatarUrl: value => validateAvatarUrl(value, 'veggietrack') } : realRequire(name),
-    process: { env: {} }, console, Date, URL, setTimeout, clearTimeout,
+    process: { env: {}, on() {} }, console, Date, URL, setTimeout, clearTimeout,
   });
   return (method, route) => registered.find(r => r.method === method && r.args[0] === route).args[2];
 }

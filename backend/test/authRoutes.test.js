@@ -12,7 +12,7 @@ function routes(db) {
   const realRequire = createRequire(path.join(__dirname, '../index.js'));
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../index.js'), 'utf8'), {
     require: name => name === 'express' ? express : name === 'dotenv' ? { config() {} } : name === '@supabase/supabase-js' ? { createClient: () => db } : realRequire(name),
-    process: { env: {} }, console, Date, URL, setTimeout, clearTimeout,
+    process: { env: {}, on() {} }, console, Date, URL, setTimeout, clearTimeout,
   });
   return registered;
 }

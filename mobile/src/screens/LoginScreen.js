@@ -20,9 +20,9 @@ export default function LoginScreen({ navigation }) {
 		if (!password) { setError('Enter your password.'); return; }
 		lock.current = true; setBusy(true);
 		try {
-			const { skipOtp } = await signInWithEmail(email.trim(), password);
+			await signInWithEmail(email.trim(), password);
 			setPassword('');
-			if (!skipOtp) navigation.navigate('VerifyEmail', { email: email.trim(), purpose: 'login' });
+			navigation.navigate('VerifyEmail', { email: email.trim(), purpose: 'login' });
 		}
 		catch (authFailure) { setError(authError(authFailure)); }
 		finally { lock.current = false; setBusy(false); }

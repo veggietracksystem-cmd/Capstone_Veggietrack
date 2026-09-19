@@ -6,7 +6,7 @@ Current implementation review: 2026-09-19. The status report below supersedes th
 
 VeggieTrack connects farmers, a distributor, retailers and riders through an Expo/React Native app, Express API, Supabase Postgres/Auth, Cloudinary, and Leaflet/OSRM maps. The main app is `mobile/`; `VeggieTrack-Clean/` is a separate starter project excluded from EAS uploads.
 
-Local implementation is available, but hosted delivery migration, deployment and physical-device acceptance remain pending according to the latest recorded inspection. See [STATUS_REPORT.md](STATUS_REPORT.md) for verification results and release prerequisites.
+The hosted database is migrated for every table and RPC the API calls; hosted API deployment and physical-device acceptance remain pending. See [STATUS_REPORT.md](STATUS_REPORT.md) for verification results and release prerequisites.
 
 ## Repository layout
 
@@ -72,9 +72,11 @@ Babel reads the three public upload/API variables from local dotenv or the EAS p
 
 ## Database and deployment
 
-The September 16 read-only hosted inspection recorded in [DELIVERY_RELIABILITY_REPORT.md](DELIVERY_RELIABILITY_REPORT.md) found the destination snapshot columns, rider accuracy, POD column and completion/status RPCs missing. This documentation update did not re-inspect or modify the hosted database. **Deploy the database before the API and rebuilt mobile app.**
+The September 19 read-only hosted inspection found the destination snapshot columns, rider accuracy, POD column, avatar columns and the completion/status/account RPCs all **present**. The delivery and email-only Auth rollouts are already applied; the September 16 inspection recorded in [DELIVERY_RELIABILITY_REPORT.md](DELIVERY_RELIABILITY_REPORT.md) predates them. Do not reapply `delivery_location_policy.sql`, `delivery_proof_relax_radius_migration.sql`, `email_otp_verification_migration.sql` or `email_only_auth_migration.sql`, and never reapply the historical proof function — that would restore its old radius policy.
 
-Use the complete guarded rollout in [delivery_location_policy.sql](backend/sql/delivery_location_policy.sql), then apply [delivery_proof_relax_radius_migration.sql](backend/sql/delivery_proof_relax_radius_migration.sql). The first includes an inspection query and aborts on incompatible schema; the second changes only completion behavior so out-of-radius proof is recorded rather than rejected. Do not subsequently reapply the historical proof function and restore its old radius policy. The email-only rollout requires [email_otp_verification_migration.sql](backend/sql/email_otp_verification_migration.sql) followed by [email_only_auth_migration.sql](backend/sql/email_only_auth_migration.sql); inspect the hosted schema first and do not rerun historical Auth migrations blindly. Hosted avatar columns were present in the latest read-only audit.
+The one outstanding migration is [delivery_reject.sql](backend/sql/delivery_reject.sql), which adds `deliveries.rejection_reason` and `deliveries.rejected_at`. Until it is applied, a rider's reject still hands the delivery back but the reason is not stored.
+
+Re-verify the hosted contract at any time with the read-only scripts in `backend/scripts/` — they issue GETs against the Supabase REST introspection endpoint and never write or read row data.
 
 The older `schema_complete.sql` and incremental inventory scripts are historical setup sources, not a complete universal installer for the current hosted schema. In particular, saved-address/tracking tables and some hosted runtime columns originated outside that base file. Do not run `reset_data.sql` as a migration.
 
