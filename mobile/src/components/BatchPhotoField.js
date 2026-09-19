@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { colors, fonts, radius } from '../theme/appTheme';
 
@@ -36,7 +37,16 @@ export default function BatchPhotoField({ value, disabled, onChange, onStateChan
   return <View style={{ gap: 8 }}>
     <Text style={{ fontFamily: fonts.bodySemiBold, color: colors.ink }}>Recent Batch Photo <Text style={{ color: colors.danger }}>*</Text></Text>
     <Text style={{ fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12 }}>Upload or take a photo of this received batch. Retailers will see it in the ordering menu.</Text>
-    {value ? <Image source={{ uri: value }} style={{ width: '100%', height: 150, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 }} resizeMode="cover" /> : null}
+    {value ? (
+      <Image source={{ uri: value }} style={{ width: '100%', height: 150, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 }} resizeMode="cover" />
+    ) : (
+      // Matches the prototype's photoMissing placeholder — a dashed box with
+      // a camera icon, instead of leaving blank space before a photo exists.
+      <View style={{ width: '100%', height: 150, borderRadius: radius.ctrl, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.border, backgroundColor: colors.leaf50, alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <Ionicons name="camera-outline" size={28} color={colors.inkFaint} />
+        <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.inkFaint }}>No photo yet</Text>
+      </View>
+    )}
     <View style={{ flexDirection: 'row', gap: 10 }}>
       <TouchableOpacity disabled={disabled || busy} onPress={() => select(false)} style={{ flex: 1, alignItems: 'center', paddingVertical: 10, borderWidth: 1, borderColor: colors.leaf700, borderRadius: radius.ctrl, opacity: disabled || busy ? 0.55 : 1 }}>
         <Text style={{ fontFamily: fonts.bodySemiBold, color: colors.leaf700 }}>{busy ? 'Uploading…' : value ? 'Replace photo' : 'Upload photo'}</Text>

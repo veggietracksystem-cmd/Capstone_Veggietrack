@@ -11,7 +11,11 @@ export default function ProofDetails({ proof }) {
     {proof?.submitted_at && <Text style={style}>{t('pod.submitted')}: {format(proof.submitted_at)}</Text>}
     {proof?.address && <Text style={style}>{proof.address}</Text>}
     {Number.isFinite(proof?.latitude) && Number.isFinite(proof?.longitude) && <Text style={style}>{t('pod.coordinates')}: {proof.latitude.toFixed(6)}, {proof.longitude.toFixed(6)}</Text>}
-    <Text style={style}>{t(proof?.location_status === 'verified' ? 'pod.verified' : 'pod.unverified')}</Text>
+    {/* Only claim a verification result once one has actually been computed
+        (a delivery with a known destination) - pickups have no destination
+        to compare against, and showing "unverified" unconditionally here
+        misrepresented every capture regardless of true proximity. */}
+    {!!proof?.location_status && <Text style={style}>{t(proof.location_status === 'verified' ? 'pod.verified' : 'pod.unverified')}</Text>}
     {Number.isFinite(proof?.distance_meters) && <Text style={style}>{t('pod.distance')}: {Math.round(proof.distance_meters)} m</Text>}
   </View>;
 }

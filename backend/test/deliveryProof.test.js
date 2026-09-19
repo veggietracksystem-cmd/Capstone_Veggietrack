@@ -39,16 +39,22 @@ test('nearby proof is verified with authoritative submission time', () => {
   assert.equal(result.submitted_at, new Date(now + 1000).toISOString());
   assert.equal(result.address, null);
 });
-test('far away, outside capped radius, missing destination and invalid GPS are rejected', () => {
-  for (const patch of [{ latitude: 8 }, { latitude: 7.102, accuracy: 50 }, { latitude: null }, { longitude: '125.6' }, { accuracy: 101 }, { accuracy: null }, { accuracy: NaN }, { accuracy: -1 }, { captured_at: '2026-09-05T22:00' }, { captured_at: new Date(now - 60001).toISOString() }, { captured_at: new Date(now + 30001).toISOString() }]) assert.throws(() => validateProof({ ...proof, ...patch }, destination, now));
+test('being far from the destination no longer blocks completion — it is recorded as unverified', () => {
+  const result = validateProof({ ...proof, latitude: 8 }, destination, now);
+  assert.equal(result.location_status, 'unverified');
+  assert.ok(result.distance_meters > result.effective_radius_meters);
+});
+test('missing destination and invalid/stale GPS are still rejected', () => {
+  for (const patch of [{ latitude: null }, { longitude: '125.6' }, { accuracy: 101 }, { accuracy: null }, { accuracy: NaN }, { accuracy: -1 }, { captured_at: '2026-09-05T22:00' }, { captured_at: new Date(now - 60001).toISOString() }, { captured_at: new Date(now + 30001).toISOString() }]) assert.throws(() => validateProof({ ...proof, ...patch }, destination, now));
   assert.throws(() => validateProof(proof, {}, now), /Delivery location coordinates are unavailable/);
 });
-for (const [meters, accuracy, allowed, radius] of [[0, 0, true, 100], [40, 10, true, 110], [75, 10, true, 110],
-  [115, 20, true, 120], [125, 20, false, 120], [149, 100, true, 150], [151, 100, false, 150], [500, 10, false, 110], [500, 1000, false, 150]]) {
-  test(`radius policy: ${meters}m away with ${accuracy}m accuracy`, () => {
+for (const [meters, accuracy, radius] of [[0, 0, 100], [40, 10, 110], [75, 10, 110],
+  [115, 20, 120], [125, 20, 120], [149, 100, 150], [151, 100, 150], [500, 10, 110]]) {
+  test(`radius policy: ${meters}m away with ${accuracy}m accuracy records the right status, never blocks`, () => {
     const sample = { ...proof, latitude: destination.latitude + meters / 6371000 * 180 / Math.PI, accuracy };
-    if (allowed) assert.equal(validateProof(sample, destination, now).effective_radius_meters, radius);
-    else assert.throws(() => validateProof(sample, destination, now), accuracy > 100 ? /GPS signal is too inaccurate/ : /Move closer/);
+    const result = validateProof(sample, destination, now);
+    assert.equal(result.effective_radius_meters, radius);
+    assert.equal(result.location_status, meters <= radius ? 'verified' : 'unverified');
   });
 }
 test('stale GPS requires refresh and poor accuracy never masquerades as distance failure', () => {
@@ -109,11 +115,16 @@ test('completion persists metadata and transformed photo via one atomic RPC', as
   const { args } = db.calls[0]; assert.equal(args.p_pod.latitude, destination.latitude);
   assert.equal(args.p_pod.location_status, 'verified'); assert.match(args.p_photo_url, /l_text/);
 });
-test('completion rejects missing GPS/photo, poor accuracy and far-away proof without writes', async () => {
-  for (const patch of [{ latitude: null }, { proof_photo_url: null }, { accuracy: 1000 }, { latitude: 8 }]) {
+test('completion rejects missing GPS/photo and poor accuracy without writes', async () => {
+  for (const patch of [{ latitude: null }, { proof_photo_url: null }, { accuracy: 1000 }]) {
     const db = completionDb(), res = response(); await complete(db)(request(patch), res);
     assert.equal(res.statusCode, 422); assert.equal(db.calls.length, 0);
   }
+});
+test('completion succeeds for a far-away proof — recorded as unverified, not blocked', async () => {
+  const db = completionDb(), res = response(); await complete(db)(request({ latitude: 8 }), res);
+  assert.equal(res.statusCode, 200); assert.equal(db.calls.length, 1);
+  assert.equal(db.calls[0].args.p_pod.location_status, 'unverified');
 });
 test('completion cannot persist when uploaded image rendering fails', async () => {
   const db = completionDb(), res = response();

@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
+import StatusBadge from '../components/ui/StatusBadge';
 import BottomNavBar from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { exportReportPdf, printReport } from '../lib/reportPdf';
@@ -48,8 +49,8 @@ const COLUMNS_META = [
   { key: 'harvest_date', labelKey: 'inventoryReport.colHarvestDate', width: 100 },
   { key: 'pickup_date', labelKey: 'inventoryReport.colPickupDate', width: 100 },
   { key: 'delivery_date', labelKey: 'inventoryReport.colDeliveryDate', width: 100 },
-  { key: 'payment_status', labelKey: 'inventoryReport.colPayment', width: 90 },
-  { key: 'order_status', labelKey: 'inventoryReport.colOrderStatus', width: 100 },
+  { key: 'payment_status', labelKey: 'inventoryReport.colPayment', width: 90, badge: true },
+  { key: 'order_status', labelKey: 'inventoryReport.colOrderStatus', width: 100, badge: true },
 ];
 
 function formatRow(r) {
@@ -87,7 +88,13 @@ function ReportTable({ columns, rows, emptyLabel }) {
           rows.map((r, i) => (
             <View key={i} style={styles.reportRow}>
               {columns.map((c) => (
-                <Text key={c.key} style={[styles.reportCell, { width: c.width }]} numberOfLines={1}>{r[c.key]}</Text>
+                <View key={c.key} style={{ width: c.width, paddingRight: 6 }}>
+                  {c.badge && r[c.key] !== '—' ? (
+                    <StatusBadge status={String(r[c.key]).toLowerCase()} label={r[c.key]} />
+                  ) : (
+                    <Text style={styles.reportCell} numberOfLines={1}>{r[c.key]}</Text>
+                  )}
+                </View>
               ))}
             </View>
           ))
@@ -142,11 +149,16 @@ export default function DistributorInventoryReportScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  const columns = COLUMNS_META.map((c) => ({ key: c.key, label: t(c.labelKey), width: c.width }));
+  const columns = COLUMNS_META.map((c) => ({ key: c.key, label: t(c.labelKey), width: c.width, badge: c.badge }));
   const inventoryRows = rows.filter((r) => r.order_status !== 'delivered');
   const historyRows = rows.filter((r) => r.order_status === 'delivered');
   const activeRows = section === 'inventory' ? inventoryRows : historyRows;
   const title = section === 'inventory' ? t('inventoryReport.inventoryTitle') : t('inventoryReport.historyTitle');
+
+  // Compact "Received / Sold" summary tiles (prototype's distributor-inventory-report
+  // screen) — a sum over the same rows already loaded for the table below, no new fetch.
+  const receivedTotal = activeRows.reduce((sum, r) => sum + (Number(r.quantity_received) || 0), 0);
+  const soldTotal = activeRows.reduce((sum, r) => sum + (Number(r.quantity_sold) || 0), 0);
 
   const handleExport = async (doPrint) => {
     setExporting(true);
@@ -163,7 +175,15 @@ export default function DistributorInventoryReportScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScreenHeader title={t('inventoryReport.title')} onBack={() => navigation.goBack()} />
+      <ScreenHeader
+        title={t('inventoryReport.title')}
+        onBack={() => navigation.goBack()}
+        right={
+          <TouchableOpacity onPress={onRefresh} accessibilityRole="button" accessibilityLabel={t('common.retry')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="refresh-outline" size={rf(20)} color={PRIMARY} />
+          </TouchableOpacity>
+        }
+      />
 
       <View style={styles.tabRow}>
         <TouchableOpacity
@@ -191,6 +211,17 @@ export default function DistributorInventoryReportScreen({ navigation }) {
           contentContainerStyle={styles.content}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
+          <View style={styles.summaryGrid}>
+            <View style={styles.statTile}>
+              <Text style={styles.statTileLabel}>{t('inventoryReport.receivedLabel')}</Text>
+              <Text style={styles.statTileValue}>{receivedTotal} kg</Text>
+            </View>
+            <View style={styles.statTile}>
+              <Text style={styles.statTileLabel}>{t('inventoryReport.soldLabel')}</Text>
+              <Text style={styles.statTileValue}>{soldTotal} kg</Text>
+            </View>
+          </View>
+
           {activeRows.length === 0 ? (
             <EmptyState iconElement={<Ionicons name="bar-chart-outline" size={rf(44)} color={colors.inkFaint} />} title={t('inventoryReport.emptyTitle')} message={t('inventoryReport.emptyMessage')} />
           ) : (
@@ -242,11 +273,17 @@ const styles = StyleSheet.create({
   tabBtnText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
   tabBtnTextActive: { color: PRIMARY },
 
+  // Compact Received/Sold summary tiles (prototype's .tile-grid/.tile)
+  summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  statTile: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14 },
+  statTileLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft },
+  statTileValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: colors.ink, marginTop: 4 },
+
   reportWrap: { borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, padding: 6 },
   reportHeaderRow: { flexDirection: 'row', borderBottomWidth: 1.5, borderBottomColor: colors.border, paddingVertical: 6, paddingHorizontal: 6 },
   reportHeaderCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3, paddingRight: 6 },
   reportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
-  reportCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.ink, paddingRight: 6 },
+  reportCell: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.ink },
   emptySubtitle: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', padding: 16, textAlign: 'center' },
 
   reportActionsRow: { flexDirection: 'row', gap: 10, marginTop: 14 },

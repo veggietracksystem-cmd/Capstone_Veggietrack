@@ -22,6 +22,7 @@ import OfflineBanner from '../components/OfflineBanner';
 import ImageViewerModal from '../components/ImageViewerModal';
 import CustomModal from '../components/CustomModal';
 import OrderStepIndicator from '../components/OrderStepIndicator';
+import StatusBadge from '../components/ui/StatusBadge';
 import EmptyState from '../components/EmptyState';
 import AddToCartFlyOverlay from '../components/AddToCartFlyOverlay';
 import VegetableImage from '../components/VegetableImage';
@@ -365,9 +366,12 @@ export default function RetailerDashboard({ navigation, route }) {
             user={user}
             loading={loadingProducts}
             products={products}
+            orders={orders}
+            cart={cart}
             searchQuery={searchQuery} setSearchQuery={setSearchQuery}
             onAdd={addToCart}
             onSelect={setSelectedProduct}
+            onTrackOrder={(o) => navigation.navigate('ShopeeTracking', { orderId: o.id })}
           />
         )}
 
@@ -422,7 +426,7 @@ export default function RetailerDashboard({ navigation, route }) {
 }
 
 // ================= Home tab (browse only) =================
-function HomeTab({ user, loading, products, searchQuery, setSearchQuery, onAdd, onSelect }) {
+function HomeTab({ user, loading, products, orders, cart, searchQuery, setSearchQuery, onAdd, onSelect, onTrackOrder }) {
   const { t, language } = useTranslation();
   const displayName = user?.full_name || user?.name || t('dashboards.retailer.defaultName');
 
@@ -434,12 +438,32 @@ function HomeTab({ user, loading, products, searchQuery, setSearchQuery, onAdd, 
     (p) => !query || p.vegetable_name?.toLowerCase().includes(query)
   );
 
+  // Active-order preview banner (prototype's retailer-home banner) — reuses
+  // the orders list already loaded for the Orders tab, no new fetch.
+  const activeOrder = (orders || []).find((o) => o.status !== 'delivered' && o.status !== 'cancelled');
+
   return (
     <View>
       <View style={styles.greetingRow}>
         <Text style={styles.greetingEyebrow}>{t('dashboards.retailer.greetingHome')}</Text>
         <Text style={styles.greetingName} numberOfLines={1}>{displayName}</Text>
       </View>
+
+      {!!activeOrder && (
+        <TouchableOpacity style={styles.activeOrderBanner} onPress={() => onTrackOrder(activeOrder)} activeOpacity={0.85}>
+          <View style={styles.activeOrderIconBox}>
+            <Ionicons name="bicycle-outline" size={rf(20)} color={PRIMARY} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.activeOrderTitle}>{t('dashboards.retailer.orderNumber', { id: shortId(activeOrder.id) })} · {activeOrder.status}</Text>
+            <Text style={styles.activeOrderSub}>
+              {activeOrder.delivery_personnel_name
+                ? t('dashboards.retailer.riderLabel', { name: activeOrder.delivery_personnel_name })
+                : t('dashboards.retailer.awaitingRider')}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Search bar */}
       <View style={styles.searchRow}>
@@ -472,20 +496,35 @@ function HomeTab({ user, loading, products, searchQuery, setSearchQuery, onAdd, 
           {t('dashboards.retailer.noMatchQuery', { query: searchQuery.trim() })}
         </Text>
       ) : (
+        // Card shell reordered to match the prototype's prod-card: full-width
+        // photo tile, name, stock line, then a bottom row pairing price with
+        // a compact quick-add control (shows the cart qty, same onAdd handler
+        // — not a separate full-width "Add to Cart" button below).
         <View style={styles.kpiGrid}>
           {filteredProducts.map((p) => {
             const tile = getVegetableTile(p.vegetable_name);
+            const isOut = p.available_kg <= 0;
+            const inCartQty = (cart || []).find((c) => c.vegetable_name === p.vegetable_name)?.quantity;
             return (
               <TouchableOpacity key={p.vegetable_name} style={styles.kpiCard} onPress={() => onSelect(p)} activeOpacity={0.82} accessibilityRole="button" accessibilityLabel={`View ${p.vegetable_name} details`}>
                 <View style={[styles.kpiIconWrap, { backgroundColor: tile.bg }]}>
                   <VegetableImage source={tile.source} style={styles.kpiIcon} fallbackSize={rf(26)} />
                 </View>
                 <Text style={styles.kpiName} numberOfLines={1}>{localizeVegetableName(p.vegetable_name, language)}</Text>
-                <Text style={styles.kpiPrice}>{peso(p.price_per_kg)} / kg</Text>
-                <Text style={styles.kpiMeta}>{t('dashboards.retailer.kgAvailable', { qty: p.available_kg })}</Text>
-                <TouchableOpacity style={styles.kpiAddBtn} onPress={(e) => onAdd(p, e.nativeEvent)}>
-                  <Text style={styles.kpiAddBtnText}>{t('dashboards.retailer.addToCart')}</Text>
-                </TouchableOpacity>
+                <Text style={styles.kpiMeta}>
+                  {isOut ? t('dashboards.retailer.outOfStockTitle') : t('dashboards.retailer.kgAvailable', { qty: p.available_kg })}
+                </Text>
+                <View style={styles.kpiBottomRow}>
+                  <Text style={styles.kpiPrice}>{peso(p.price_per_kg)}/kg</Text>
+                  <TouchableOpacity
+                    style={[styles.kpiAddCircle, isOut && styles.kpiAddCircleDisabled]}
+                    disabled={isOut}
+                    onPress={(e) => { e.stopPropagation?.(); onAdd(p, e.nativeEvent); }}
+                    accessibilityLabel={t('dashboards.retailer.addToCart')}
+                  >
+                    <Text style={styles.kpiAddCircleText}>{inCartQty || '+'}</Text>
+                  </TouchableOpacity>
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -599,9 +638,7 @@ function OrdersTab({ loading, cancelling, orders, onViewProof, onTrack, onCancel
         <View key={o.id} style={styles.orderCard}>
           <View style={styles.orderHeader}>
             <Text style={styles.orderId}>{t('dashboards.retailer.orderNumber', { id: shortId(o.id) })}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor(o.status) }]}>
-              <Text style={styles.statusBadgeText}>{o.status}</Text>
-            </View>
+            <StatusBadge status={o.status} />
           </View>
           <Text style={styles.orderTotal}>{peso(o.total_amount)}</Text>
           {o.delivery_address ? (
@@ -708,6 +745,15 @@ const styles = StyleSheet.create({
   greetingEyebrow: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
   greetingName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.title), color: colors.leaf900 || colors.leaf700, marginTop: 1 },
 
+  // Home tab: active-order preview banner (prototype's .banner)
+  activeOrderBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.leaf50,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, marginBottom: 16,
+  },
+  activeOrderIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.leaf100, alignItems: 'center', justifyContent: 'center' },
+  activeOrderTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
+  activeOrderSub: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
+
   // Search bar
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 16 },
   searchIcon: { fontSize: rf(fontSize.lg), marginRight: 8 },
@@ -720,19 +766,22 @@ const styles = StyleSheet.create({
   rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
-  // Home tab: KPI-style product grid (2 columns).
+  // Home tab: product grid (2 columns), shell matches prototype's .prod-grid/.prod-card:
+  // full-width photo tile, left-aligned name/stock, price+quick-add bottom row.
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   kpiCard: {
-    width: '47%', backgroundColor: colors.card, borderRadius: radius.card, padding: 14,
-    borderWidth: 1, borderColor: colors.border, alignItems: 'center', minHeight: 244, ...shadowCard,
+    width: '47%', backgroundColor: colors.card, borderRadius: radius.card, padding: 10,
+    borderWidth: 1, borderColor: colors.border, ...shadowCard,
   },
-  kpiIconWrap: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  kpiIcon: { width: 38, height: 38 },
-  kpiName: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
-  kpiPrice: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY, marginTop: 4, textAlign: 'center' },
-  kpiMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2, textAlign: 'center' },
-  kpiAddBtn: { marginTop: 10, backgroundColor: PRIMARY, paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, alignSelf: 'stretch' },
-  kpiAddBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm), textAlign: 'center' },
+  kpiIconWrap: { width: '100%', height: 72, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  kpiIcon: { width: 40, height: 40 },
+  kpiName: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
+  kpiMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2, marginBottom: 8 },
+  kpiBottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  kpiPrice: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf900 || PRIMARY },
+  kpiAddCircle: { width: 26, height: 26, borderRadius: 13, backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
+  kpiAddCircleDisabled: { backgroundColor: colors.soil300 },
+  kpiAddCircleText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(fontSize.md) },
   productModalPhoto: { width: '100%', height: 210, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 },
   productModalFallback: { height: 160, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   productModalIcon: { fontSize: rf(72) },
@@ -751,7 +800,10 @@ const styles = StyleSheet.create({
   removeBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: colors.dangerSoft, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
   removeBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md) },
 
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: colors.border },
+  summaryRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, marginTop: 8,
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, ...shadowCard,
+  },
   summaryLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
   summaryTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: PRIMARY },
 
@@ -767,8 +819,6 @@ const styles = StyleSheet.create({
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   orderTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: PRIMARY, marginBottom: 4 },
-  statusBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm), textTransform: 'capitalize' },
   itemsBox: { backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10, marginTop: 8 },
   itemLine: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 2 },
   cancelledNote: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.danger, fontStyle: 'italic', marginTop: 8 },

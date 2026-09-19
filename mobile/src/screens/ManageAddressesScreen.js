@@ -23,6 +23,8 @@ import { useTranslation } from '../i18n/useTranslation';
 import { rf } from '../lib/responsive';
 import MapPinningModal from '../components/MapPinningModal';
 import ScreenHeader from '../components/ScreenHeader';
+import CustomModal from '../components/CustomModal';
+import StatusBadge from '../components/ui/StatusBadge';
 
 const PRIMARY = colors.leaf700;
 
@@ -210,11 +212,7 @@ export default function ManageAddressesScreen({ navigation }) {
                         <View key={addr.id} style={styles.addressCard}>
                             <View style={styles.addressHeader}>
                                 <Text style={styles.addressLabel}>{addr.label}</Text>
-                                {addr.is_default && (
-                                    <View style={styles.defaultBadge}>
-                                        <Text style={styles.defaultBadgeText}>Default</Text>
-                                    </View>
-                                )}
+                                {addr.is_default && <StatusBadge status="active" label="Default" />}
                             </View>
                             <Text style={styles.addressText}>{addr.address}</Text>
                             {addr.latitude && addr.longitude && (
@@ -260,89 +258,69 @@ export default function ManageAddressesScreen({ navigation }) {
                 </TouchableOpacity>
             </ScrollView>
 
-            {/* Add/Edit Modal with Map Pinning */}
-            {modalVisible && (
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalCard}>
-                        <Text style={styles.modalTitle}>
-                            {editingAddress ? 'Edit Address' : 'Add New Address'}
-                        </Text>
+            {/* Add/Edit Modal with Map Pinning — shared CustomModal, matching
+                every other modal in the app instead of a one-off overlay. */}
+            <CustomModal
+                visible={modalVisible}
+                title={editingAddress ? 'Edit Address' : 'Add New Address'}
+                confirmLabel="Save"
+                onConfirm={saveAddress}
+                cancelLabel="Cancel"
+                onCancel={() => setModalVisible(false)}
+                busy={saving}
+            >
+                <Text style={styles.fieldLabel}>Label (e.g., Home, Office)</Text>
+                <TextInput
+                    style={styles.input}
+                    value={formLabel}
+                    onChangeText={setFormLabel}
+                    placeholder="Home"
+                />
 
-                        <Text style={styles.fieldLabel}>Label (e.g., Home, Office)</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={formLabel}
-                            onChangeText={setFormLabel}
-                            placeholder="Home"
-                        />
-
-                        <Text style={styles.fieldLabel}>Address</Text>
-                        <View style={styles.addressRow}>
-                            <TextInput
-                                style={[styles.input, styles.addressInput, { flex: 1 }]}
-                                value={formAddress}
-                                onChangeText={setFormAddress}
-                                placeholder="Street, City, Province"
-                                multiline
-                            />
-                            <TouchableOpacity
-                                style={styles.pinBtn}
-                                onPress={() => setMapModalVisible(true)}
-                            >
-                                <Ionicons name="location" size={rf(18)} color="#fff" />
-                                <Text style={styles.pinBtnText}>Pin</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <Text style={styles.fieldLabel}>Latitude (optional)</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={formLatitude}
-                            onChangeText={setFormLatitude}
-                            placeholder="14.0583"
-                            keyboardType="numeric"
-                        />
-
-                        <Text style={styles.fieldLabel}>Longitude (optional)</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={formLongitude}
-                            onChangeText={setFormLongitude}
-                            placeholder="121.1485"
-                            keyboardType="numeric"
-                        />
-
-                        <TouchableOpacity
-                            style={styles.checkboxRow}
-                            onPress={() => setFormIsDefault(!formIsDefault)}
-                        >
-                            <View style={[styles.checkbox, formIsDefault && styles.checkboxChecked]} />
-                            <Text style={styles.checkboxLabel}>Set as default address</Text>
-                        </TouchableOpacity>
-
-                        <View style={styles.modalButtons}>
-                            <TouchableOpacity
-                                style={[styles.modalBtn, styles.modalCancel]}
-                                onPress={() => setModalVisible(false)}
-                                disabled={saving}
-                            >
-                                <Text style={styles.modalCancelText}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.modalBtn, styles.modalSave, saving && styles.btnDisabled]}
-                                onPress={saveAddress}
-                                disabled={saving}
-                            >
-                                {saving ? (
-                                    <ActivityIndicator size="small" color="#fff" />
-                                ) : (
-                                    <Text style={styles.modalSaveText}>Save</Text>
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+                <Text style={styles.fieldLabel}>Address</Text>
+                <View style={styles.addressRow}>
+                    <TextInput
+                        style={[styles.input, styles.addressInput, { flex: 1 }]}
+                        value={formAddress}
+                        onChangeText={setFormAddress}
+                        placeholder="Street, City, Province"
+                        multiline
+                    />
+                    <TouchableOpacity
+                        style={styles.pinBtn}
+                        onPress={() => setMapModalVisible(true)}
+                    >
+                        <Ionicons name="location" size={rf(18)} color="#fff" />
+                        <Text style={styles.pinBtnText}>Pin</Text>
+                    </TouchableOpacity>
                 </View>
-            )}
+
+                <Text style={styles.fieldLabel}>Latitude (optional)</Text>
+                <TextInput
+                    style={styles.input}
+                    value={formLatitude}
+                    onChangeText={setFormLatitude}
+                    placeholder="14.0583"
+                    keyboardType="numeric"
+                />
+
+                <Text style={styles.fieldLabel}>Longitude (optional)</Text>
+                <TextInput
+                    style={styles.input}
+                    value={formLongitude}
+                    onChangeText={setFormLongitude}
+                    placeholder="121.1485"
+                    keyboardType="numeric"
+                />
+
+                <TouchableOpacity
+                    style={styles.checkboxRow}
+                    onPress={() => setFormIsDefault(!formIsDefault)}
+                >
+                    <View style={[styles.checkbox, formIsDefault && styles.checkboxChecked]} />
+                    <Text style={styles.checkboxLabel}>Set as default address</Text>
+                </TouchableOpacity>
+            </CustomModal>
 
             {/* Map Pinning Modal */}
             <MapPinningModal
@@ -379,8 +357,6 @@ const styles = StyleSheet.create({
     },
     addressHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     addressLabel: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
-    defaultBadge: { backgroundColor: PRIMARY, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-    defaultBadgeText: { color: '#fff', fontSize: rf(fontSize.xs), fontWeight: 'bold' },
     addressText: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
     coordsText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 4 },
     coordsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -398,22 +374,6 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     addBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
-    modalOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    modalCard: {
-        backgroundColor: colors.bgScreen,
-        borderRadius: radius.card,
-        padding: 20,
-        width: '100%',
-        maxWidth: 400,
-        ...shadowCard,
-    },
-    modalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 16 },
     fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 10, marginBottom: 4 },
     input: {
         backgroundColor: colors.card,
@@ -442,11 +402,4 @@ const styles = StyleSheet.create({
     checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: PRIMARY, marginRight: 10 },
     checkboxChecked: { backgroundColor: PRIMARY },
     checkboxLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink },
-    modalButtons: { flexDirection: 'row', gap: 10, marginTop: 16 },
-    modalBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center' },
-    modalCancel: { borderWidth: 1, borderColor: colors.border },
-    modalCancelText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft },
-    modalSave: { backgroundColor: PRIMARY },
-    modalSaveText: { fontFamily: fonts.bodySemiBold, color: '#fff' },
-    btnDisabled: { opacity: 0.5 },
 });

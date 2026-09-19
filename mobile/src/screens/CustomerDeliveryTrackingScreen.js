@@ -10,6 +10,10 @@ import { useTranslation } from '../i18n/useTranslation';
 import { useAuth } from '../context/AuthContext';
 import RiderNavigationScreen from './delivery/RiderNavigationScreen';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import StatusBadge from '../components/ui/StatusBadge';
+import UserAvatar from '../components/UserAvatar';
+import { getVegetableTile } from '../lib/vegetableIcons';
+import VegetableImage from '../components/VegetableImage';
 
 export default function CustomerDeliveryTrackingScreen(props) {
   const { user } = useAuth();
@@ -32,15 +36,43 @@ function CustomerTrackingView({ route, navigation }) {
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => {
       setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); }
     }} />}>
-      <View style={styles.status}><Text style={styles.statusText}>{status.replace(/_/g, ' ')}</Text><Text style={styles.note}>GPS refreshed every 5 seconds</Text></View>
+      <View style={styles.status}>
+        <Text style={styles.statusText}>{status.replace(/_/g, ' ')}</Text>
+        <StatusBadge status={status} />
+      </View>
+      <Text style={styles.note}>GPS refreshed every 5 seconds</Text>
       {status !== 'cancelled' && <OrderStepIndicator status={status} />}
+      {/* Rider row (prototype's rider-info row, shown above the map) —
+          name/live fields already come back from the tracking API. */}
+      {!!view?.rider && (
+        <View style={[styles.card, styles.riderCard]}>
+          <UserAvatar user={{ full_name: view.rider.name }} size={40} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.value}>{view.rider.name}</Text>
+            <Text style={styles.detail}>{view.rider.live ? 'Live GPS' : 'Waiting for rider location'}</Text>
+          </View>
+        </View>
+      )}
       {loading && !data ? <ActivityIndicator style={{ padding: 30 }} color={colors.leaf700} /> : <DeliveryTrackingMap trackingData={data} style={styles.map} />}
       {!!error && <Text accessibilityLiveRegion="polite" style={styles.error}>{error} Pull down to retry. Last received GPS is retained.</Text>}
       <View style={styles.card}><Text style={styles.label}>🏢 Dispatch hub</Text><Text style={styles.value}>{view?.pickup?.name || 'Distributor warehouse'}</Text><Text style={styles.detail}>{view?.pickup?.address || 'No warehouse address available'}</Text></View>
       <View style={styles.card}><Text style={styles.label}>🏪 Retailer destination</Text><Text style={styles.value}>{view?.delivery?.name || 'Delivery address'}</Text><Text style={styles.detail}>{view?.delivery?.address || deliveryAddress || 'No address available'}</Text>
         {!!view?.delivery?.contact && <Text selectable style={styles.detail}>Contact: {view.delivery.contact}</Text>}</View>
-      <View style={styles.card}><Text style={styles.label}>Order items</Text>{view?.items?.map((item, index) =>
-        <View key={`${item.vegetable_name}-${index}`} style={styles.item}><Text style={styles.value}>{item.vegetable_name}</Text><Text style={styles.value}>{item.quantity_kg} kg</Text></View>)}</View>
+      <View style={styles.card}>
+        <Text style={styles.label}>Order items</Text>
+        {view?.items?.map((item, index) => {
+          const tile = getVegetableTile(item.vegetable_name);
+          return (
+            <View key={`${item.vegetable_name}-${index}`} style={styles.item}>
+              <View style={[styles.itemTile, { backgroundColor: tile.bg }]}>
+                <VegetableImage source={tile.source} style={styles.itemTileIcon} fallbackSize={rf(16)} />
+              </View>
+              <Text style={[styles.value, { flex: 1 }]}>{item.vegetable_name}</Text>
+              <Text style={styles.value}>{item.quantity_kg} kg</Text>
+            </View>
+          );
+        })}
+      </View>
     </ScrollView>
   </SafeAreaView>;
 }
@@ -56,6 +88,9 @@ const styles = StyleSheet.create({
   label: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.leaf700 },
   value: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink },
   detail: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
-  item: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
+  riderCard: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'space-between', paddingVertical: 5 },
+  itemTile: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  itemTileIcon: { width: 20, height: 20 },
   error: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.gold700, backgroundColor: colors.gold100, padding: 10, borderRadius: radius.ctrl },
 });

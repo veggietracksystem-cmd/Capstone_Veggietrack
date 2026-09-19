@@ -21,6 +21,7 @@ import MessagesIcon from '../components/MessagesIcon';
 import BottomNavBar from '../components/BottomNavBar';
 import OfflineBanner from '../components/OfflineBanner';
 import EmptyState from '../components/EmptyState';
+import StatusBadge from '../components/ui/StatusBadge';
 import CustomModal from '../components/CustomModal';
 import ImageViewerModal from '../components/ImageViewerModal';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
@@ -386,6 +387,7 @@ export default function DistributorDashboard({ navigation, route }) {
               onViewOrders={() => setTab('orders')}
               onViewPickups={() => setTab('pickups')}
               onViewPayments={() => setTab('payments')}
+              onManageAccounts={() => navigation.navigate('AccountManagement')}
             />
           )}
 
@@ -568,7 +570,7 @@ function HomeTab({
   user,
   refreshProducts,
   pendingOrderCount, pendingPickupCount, unpaidCount,
-  onViewOrders, onViewPickups, onViewPayments,
+  onViewOrders, onViewPickups, onViewPayments, onManageAccounts,
 }) {
   const { t } = useTranslation();
   const displayName = user?.full_name || user?.name || t('dashboards.distributor.defaultName');
@@ -591,6 +593,22 @@ function HomeTab({
         <TouchableOpacity style={styles.homeStatCard} onPress={onViewPayments} activeOpacity={0.85}>
           <Text style={styles.homeStatValue}>{unpaidCount}</Text>
           <Text style={styles.homeStatLabel}>{t('dashboards.distributor.unpaid')}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Quick Actions — prototype's icon-grid shortcuts. Only using
+          destinations that already exist (no "Update Pricing" shortcut since
+          pricing is already edited inline in the Product List below, not on
+          its own screen). */}
+      <Text style={styles.sectionTitle}>{t('dashboards.distributor.quickActions')}</Text>
+      <View style={styles.quickActionGrid}>
+        <TouchableOpacity style={styles.quickAction} onPress={onViewPickups} activeOpacity={0.8}>
+          <Ionicons name="checkmark-circle-outline" size={rf(20)} color={PRIMARY} />
+          <Text style={styles.quickActionLabel}>{t('dashboards.distributor.pickupRequests')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.quickAction} onPress={onManageAccounts} activeOpacity={0.8}>
+          <Ionicons name="people-outline" size={rf(20)} color={PRIMARY} />
+          <Text style={styles.quickActionLabel}>{t('dashboards.distributor.accountManagement')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -743,12 +761,12 @@ function ProductListSection({ refreshProducts }) {
           message={t('productList.emptyMessageNoneStocks')}
         />
       ) : (
-        listings.map((l) => {
-          const isSoldOut = l.status === 'Sold Out';
-          const tile = getVegetableTile(l.vegetable_name);
-          return (
-            <View key={l.vegetable_name} style={styles.productRowCard}>
-              <View style={styles.productRowTop}>
+        <View style={styles.list}>
+          {listings.map((l, i, arr) => {
+            const isSoldOut = l.status === 'Sold Out';
+            const tile = getVegetableTile(l.vegetable_name);
+            return (
+              <View key={l.vegetable_name} style={[styles.listRow, i === arr.length - 1 && styles.listRowLast]}>
                 <View style={[styles.productTile, { backgroundColor: tile.bg }]}>
                   <VegetableImage source={tile.source} style={styles.productTileIcon} fallbackSize={rf(22)} />
                 </View>
@@ -767,9 +785,9 @@ function ProductListSection({ refreshProducts }) {
                   <Text style={styles.smallBtnText}>{t('productList.editBtn')}</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          );
-        })
+            );
+          })}
+        </View>
       )}
 
       <Modal
@@ -931,25 +949,38 @@ function OrdersTab({
 
           return (
             <View key={order.id} style={styles.orderCard}>
+              {/* Header: id + status badge (prototype's order-detail header
+                  row); total moved into its own row below, next to Items. */}
               <View style={styles.orderHeader}>
                 <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
-                <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
+                <StatusBadge status={order.status} />
               </View>
               <Text style={styles.rowMeta}>{t('dashboards.distributor.retailerLabel', { id: shortId(order.retailer_id) })}</Text>
               {order.delivery_address ? (
                 <Text style={styles.rowMeta}>{t('dashboards.distributor.deliverTo', { address: order.delivery_address })}</Text>
               ) : null}
 
-              <View style={styles.itemsBox}>
-                {items.length === 0 ? (
-                  <Text style={styles.rowMeta}>{t('dashboards.distributor.noItemDetails')}</Text>
-                ) : (
-                  items.map((it, i) => (
-                    <Text key={i} style={styles.itemLine}>
-                      • {localizeVegetableName(it.vegetable_name, language)} — {it.quantity_kg}kg @ {peso(it.price_at_order)}
-                    </Text>
-                  ))
-                )}
+              {items.length === 0 ? (
+                <Text style={[styles.rowMeta, { marginTop: 10 }]}>{t('dashboards.distributor.noItemDetails')}</Text>
+              ) : (
+                <View style={[styles.list, { marginTop: 10 }]}>
+                  {items.map((it, i, arr) => {
+                    const tile = getVegetableTile(it.vegetable_name);
+                    return (
+                      <View key={i} style={[styles.listRow, i === arr.length - 1 && styles.listRowLast]}>
+                        <View style={[styles.productTile, { backgroundColor: tile.bg }]}>
+                          <VegetableImage source={tile.source} style={styles.productTileIcon} fallbackSize={rf(18)} />
+                        </View>
+                        <Text style={[styles.itemLine, { flex: 1, marginBottom: 0 }]}>{localizeVegetableName(it.vegetable_name, language)}</Text>
+                        <Text style={styles.itemLine}>{it.quantity_kg}kg @ {peso(it.price_at_order)}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+              <View style={[styles.list, styles.totalRow]}>
+                <Text style={styles.rowTitle}>{t('dashboards.distributor.totalAmountLabel')}</Text>
+                <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
               </View>
 
               {!isApproved ? (
@@ -1020,7 +1051,7 @@ function OrdersTab({
           <View key={order.id} style={styles.orderCard}>
             <View style={styles.orderHeader}>
               <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
-              <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
+              <StatusBadge status={effectiveStatus(order)} />
             </View>
             <Text style={styles.rowMeta}>{t('dashboards.distributor.retailerLabel', { id: shortId(order.retailer_id) })}</Text>
             <Text style={styles.rowMeta}>
@@ -1028,6 +1059,10 @@ function OrdersTab({
                 ? t('dashboards.distributor.riderLabel', { name: order.delivery_personnel_name })
                 : t('dashboards.distributor.awaitingRider')}
             </Text>
+            <View style={[styles.list, styles.totalRow]}>
+              <Text style={styles.rowTitle}>{t('dashboards.distributor.totalAmountLabel')}</Text>
+              <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
+            </View>
             {order.delivery_address ? (
               <TouchableOpacity style={[styles.trackBtn, { marginTop: 10, marginBottom: 0 }]} onPress={() => onTrack(order)} activeOpacity={0.8}>
                 <Text style={styles.trackBtnText}>{t('dashboards.distributor.trackDelivery')}</Text>
@@ -1044,9 +1079,7 @@ function OrdersTab({
           <View key={order.id} style={styles.orderCard}>
             <View style={styles.orderHeader}>
               <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
-              <View style={[styles.statusPill, { backgroundColor: colors.danger }]}>
-                <Text style={styles.statusPillText}>{t('dashboards.distributor.ordersSub.cancelled')}</Text>
-              </View>
+              <StatusBadge status="cancelled" label={t('dashboards.distributor.ordersSub.cancelled')} />
             </View>
             <Text style={styles.rowMeta}>{t('dashboards.distributor.totalLabel', { amount: peso(order.total_amount) })}</Text>
             <Text style={styles.rowMeta}>
@@ -1063,9 +1096,7 @@ function OrdersTab({
           <View key={order.id} style={styles.orderCard}>
             <View style={styles.orderHeader}>
               <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
-              <View style={[styles.statusPill, { backgroundColor: colors.leaf700 }]}>
-                <Text style={styles.statusPillText}>{t('dashboards.distributor.ordersSub.history')}</Text>
-              </View>
+              <StatusBadge status="delivered" label={t('dashboards.distributor.ordersSub.history')} />
             </View>
             <Text style={styles.rowMeta}>{t('dashboards.distributor.totalLabel', { amount: peso(order.total_amount) })}</Text>
             <Text style={styles.rowMeta}>
@@ -1119,8 +1150,27 @@ function PaymentsTab({
   const { t } = useTranslation();
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
+  // Simple aggregates over already-loaded data (prototype's This Week /
+  // Pending summary tiles) — no new fetch, just a sum of what's on screen.
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const thisWeekTotal = payments
+    .filter((p) => p.recorded_at && new Date(p.recorded_at).getTime() >= weekAgo)
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const pendingTotal = unpaidOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+
   return (
     <View>
+      <View style={styles.summaryGrid}>
+        <View style={styles.statTile}>
+          <Text style={styles.statTileLabel}>{t('dashboards.distributor.thisWeekLabel')}</Text>
+          <Text style={styles.statTileValue}>{peso(thisWeekTotal)}</Text>
+        </View>
+        <View style={styles.statTile}>
+          <Text style={styles.statTileLabel}>{t('dashboards.distributor.unpaid')}</Text>
+          <Text style={styles.statTileValue}>{peso(pendingTotal)}</Text>
+        </View>
+      </View>
+
       {/* Unpaid / Paid sub-toggle */}
       <View style={styles.subTabs}>
         <TouchableOpacity
@@ -1195,23 +1245,23 @@ function PaymentsTab({
       ) : payments.length === 0 ? (
         <EmptyState icon="💸" title={t('dashboards.distributor.noPaymentsYet')} message={t('dashboards.distributor.noPaymentsYetMessage')} />
       ) : (
-        payments.map((p) => (
-          <View key={p.id} style={styles.rowCard}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>{peso(p.amount)}</Text>
-              <Text style={styles.rowMeta}>
-                {t('dashboards.distributor.orderNumber', { id: shortId(p.order_id) })}
-                {p.orders?.total_amount != null ? ` · total ${peso(p.orders.total_amount)}` : ''}
-              </Text>
-              {p.recorded_at ? (
-                <Text style={styles.rowMeta}>{new Date(p.recorded_at).toLocaleDateString()}</Text>
-              ) : null}
+        <View style={styles.list}>
+          {payments.map((p, i, arr) => (
+            <View key={p.id} style={[styles.listRow, i === arr.length - 1 && styles.listRowLast]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>{peso(p.amount)}</Text>
+                <Text style={styles.rowMeta}>
+                  {t('dashboards.distributor.orderNumber', { id: shortId(p.order_id) })}
+                  {p.orders?.total_amount != null ? ` · total ${peso(p.orders.total_amount)}` : ''}
+                </Text>
+                {p.recorded_at ? (
+                  <Text style={styles.rowMeta}>{new Date(p.recorded_at).toLocaleDateString()}</Text>
+                ) : null}
+              </View>
+              <StatusBadge status={p.status || 'paid'} />
             </View>
-            <View style={styles.paidBadge}>
-              <Text style={styles.paidBadgeText}>{p.status || 'paid'}</Text>
-            </View>
-          </View>
-        ))
+          ))}
+        </View>
       )}
     </View>
   );
@@ -1239,16 +1289,22 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
   subtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
-  subTabs: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  subTab: { flex: 1, paddingVertical: 8, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY },
-  subTabActive: { backgroundColor: PRIMARY },
-  subTabText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.md) },
-  subTabTextActive: { color: '#fff' },
+  // Segmented control (prototype's .segmented/.seg) — a single gray track
+  // with a white "active" pill, instead of separately bordered buttons.
+  subTabs: { flexDirection: 'row', backgroundColor: colors.soil300, borderRadius: radius.ctrl, padding: 3, marginBottom: 14 },
+  subTab: { flex: 1, paddingVertical: 8, borderRadius: radius.ctrl - 2, alignItems: 'center' },
+  subTabActive: { backgroundColor: colors.card, ...shadowCard },
+  subTabText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
+  subTabTextActive: { color: colors.leaf900 || PRIMARY },
+
+  // Payments tab: tile-grid summary (prototype's .tile-grid/.tile)
+  summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  statTile: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14 },
+  statTileLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft },
+  statTileValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: colors.ink, marginTop: 4 },
 
   recordBox: { marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10 },
   recordButtons: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  paidBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12, backgroundColor: colors.leaf100, borderWidth: 1, borderColor: PRIMARY },
-  paidBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY, textTransform: 'capitalize' },
 
   content: { padding: 16, paddingBottom: 40 },
 
@@ -1260,14 +1316,30 @@ const styles = StyleSheet.create({
   homeStatValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: PRIMARY },
   homeStatLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginTop: 4, textAlign: 'center' },
 
+  // Home tab: Quick Actions icon grid (prototype's quick-action-grid)
+  quickActionGrid: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  quickAction: {
+    flex: 1, alignItems: 'center', gap: 6, backgroundColor: colors.card,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.card,
+    paddingVertical: 14, paddingHorizontal: 6, ...shadowCard,
+  },
+  quickActionLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.ink, textAlign: 'center' },
+
   // Harvest Receiving card
 
   primaryBtn: { backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 14, alignItems: 'center', marginBottom: 14 },
   primaryBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
 
+  // Single bordered list container with divided rows (prototype's .list/.row
+  // pattern) — reused for the Product List, and for Order Items/Payments below.
+  list: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
+  listRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  listRowLast: { borderBottomWidth: 0 },
+
   // Home tab: embedded Product List section
-  productRowCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, ...shadowCard },
-  productRowTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   productTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   productTileIcon: { width: 34, height: 34 },
   productRowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
@@ -1336,10 +1408,8 @@ const styles = StyleSheet.create({
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   orderTotal: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: PRIMARY },
-  statusPill: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusPillText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm), textTransform: 'capitalize' },
-  itemsBox: { backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10, marginVertical: 10 },
   itemLine: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 2 },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, marginTop: 10, marginBottom: 0 },
 
   proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 8 },
   proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: colors.border },

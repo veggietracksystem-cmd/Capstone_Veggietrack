@@ -39,6 +39,9 @@ test('PostgreSQL migration, scheduling triggers, atomic progression/POD, permiss
     await db.exec(policyMigration);
     assert.equal((await db.query("SELECT data_type FROM information_schema.columns WHERE table_name='users' AND column_name='current_location_accuracy'")).rows[0].data_type, 'double precision');
     await db.exec(policyMigration); // The combined rollout is safe for already-migrated installations.
+    // Applied on top, same as against the hosted project — relaxes the
+    // distance-from-destination check from a hard block to a recorded status.
+    await db.exec(fs.readFileSync(path.join(__dirname, '../sql/delivery_proof_relax_radius_migration.sql'), 'utf8'));
     await db.query("UPDATE orders SET status = 'approved' WHERE id = $1", [order]); // Old schedule does not prevent unrelated updates.
     await assert.rejects(db.query("UPDATE orders SET preferred_schedule = '1999-01-01' WHERE id = $1", [order]), /past/);
     await assert.rejects(db.query("INSERT INTO orders(id,preferred_schedule) VALUES ('00000000-0000-0000-0000-000000000005',now()-interval '1 minute')"), /past/);
@@ -56,11 +59,9 @@ test('PostgreSQL migration, scheduling triggers, atomic progression/POD, permiss
     const pod = { latitude:7.1, longitude:125.6, accuracy:10, captured_at:new Date().toISOString(), submitted_at:new Date().toISOString() };
     const complete = (patch = {}, person = rider) => db.query('SELECT complete_delivery_with_proof($1,$2,$3,$4)', [delivery,person,'https://res.cloudinary.com/demo/image/upload/proof.jpg',JSON.stringify({...pod,...patch})]);
     await assert.rejects(complete({}, retailer), /assigned/);
-    await assert.rejects(complete({latitude:8}), /Move closer/);
     await assert.rejects(complete({accuracy:1000}), /GPS signal is too inaccurate/);
     await assert.rejects(complete({captured_at:'2000-01-01T00:00:00Z'}), /expired/);
     await assert.rejects(complete({captured_at:new Date(Date.now()-61000).toISOString()}), /expired/);
-    await assert.rejects(complete({latitude:7.1+151/6371000*180/Math.PI,accuracy:100}), /Move closer/);
     assert.equal((await db.query('SELECT status FROM deliveries')).rows[0].status, 'in_transit');
     // Force a failure in the second update: PostgreSQL must roll back the first.
     await db.exec("CREATE FUNCTION fail_order_update() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced failure'; END $$; CREATE TRIGGER fail_order_update BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION fail_order_update();");
@@ -100,5 +101,44 @@ test('combined rollout safely adds inspected missing columns and rejects mismatc
     assert.equal((await db.query("SELECT data_type FROM information_schema.columns WHERE table_name='users' AND column_name='current_location_accuracy'")).rows[0].data_type,'text');
     await assert.rejects(db.exec(migration),/Existing column type mismatch/);
     await db.exec('ROLLBACK');
+  } finally { await db.close(); }
+});
+
+test('delivery far from destination still completes — GPS is recorded, not a gate', async () => {
+  const db = new PGlite();
+  const retailer = '00000000-0000-0000-0000-000000000011';
+  const rider = '00000000-0000-0000-0000-000000000012';
+  const order = '00000000-0000-0000-0000-000000000013';
+  const delivery = '00000000-0000-0000-0000-000000000014';
+  try {
+    await db.exec(`
+      CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
+      CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT null::uuid $$;
+      CREATE TYPE order_status AS ENUM ('pending','approved','picked_up','in_transit','delivered','cancelled');
+      CREATE TABLE users(id uuid PRIMARY KEY, latitude double precision, longitude double precision, store_location text);
+      CREATE TABLE delivery_addresses(user_id uuid, address text, latitude double precision, longitude double precision);
+      CREATE TABLE orders(id uuid PRIMARY KEY, retailer_id uuid, delivery_personnel_id uuid, status order_status,
+        preferred_schedule timestamptz, delivery_address text, delivery_latitude double precision, delivery_longitude double precision, distributor_id uuid,
+        assigned_at timestamptz, in_transit_at timestamptz, delivered_at timestamptz);
+      CREATE TABLE deliveries(id uuid PRIMARY KEY, order_id uuid REFERENCES orders(id), delivery_personnel_id uuid,
+        status text, proof_photo_url text, delivered_at timestamptz);
+      GRANT ALL ON orders, deliveries TO anon, authenticated;
+      INSERT INTO users VALUES ('${retailer}',7.1,125.6,'Store');
+      INSERT INTO delivery_addresses VALUES ('${retailer}','Store',7.1,125.6);
+      INSERT INTO orders VALUES ('${order}','${retailer}','${rider}','in_transit','2000-01-01','Store',null,null,null);
+      INSERT INTO deliveries VALUES ('${delivery}','${order}','${rider}','in_transit',null,null);
+    `);
+    await db.exec(fs.readFileSync(path.join(__dirname, '../sql/delivery_proof.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../sql/delivery_location_policy.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../sql/delivery_proof_relax_radius_migration.sql'), 'utf8'));
+    // ~11km away — nowhere near the old 100-150m radius — but photo/GPS/time are valid, so it still completes.
+    const pod = { latitude: 7.2, longitude: 125.6, accuracy: 10, captured_at: new Date().toISOString(), submitted_at: new Date().toISOString() };
+    await db.query('SELECT complete_delivery_with_proof($1,$2,$3,$4)',
+      [delivery, rider, 'https://res.cloudinary.com/demo/image/upload/proof.jpg', JSON.stringify(pod)]);
+    const saved = (await db.query('SELECT status,pod FROM deliveries')).rows[0];
+    assert.equal(saved.status, 'delivered');
+    assert.equal(saved.pod.location_status, 'unverified');
+    assert.ok(saved.pod.distance_meters > saved.pod.effective_radius_meters);
+    assert.equal((await db.query('SELECT status FROM orders')).rows[0].status, 'delivered');
   } finally { await db.close(); }
 });

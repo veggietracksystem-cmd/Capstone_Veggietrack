@@ -1,5 +1,5 @@
 const { verifyToken, verifySession, TRUSTED_DISTRIBUTOR } = require('./auth');
-const safeFields = 'id,full_name,phone,role,created_at,account_status,status_reason,status_version,phone_verified_at,legacy_access,farm_location,store_location,service_area,approved_at,disabled_at,avatar_url,profile_picture_updated_at';
+const safeFields = 'id,full_name,email,role,created_at,account_status,status_reason,status_version,legacy_access,farm_location,store_location,service_area,approved_at,disabled_at,avatar_url,profile_picture_updated_at';
 function mountAccountRoutes(app, db) {
   app.get('/api/auth/me', verifySession, (req, res) => res.json({ user: req.profile }));
   app.get('/api/accounts', verifyToken, async (req, res) => {

@@ -1,7 +1,8 @@
 import {rf} from '../lib/responsive';
 import {useState,useEffect,useRef} from 'react';
-import {Text,View,ActivityIndicator,ScrollView,StyleSheet} from 'react-native';
+import {Text,View,ActivityIndicator,ScrollView,StyleSheet,TouchableOpacity} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import {Ionicons} from '@expo/vector-icons';
 import {AuthButton,AuthInput,authStyles as s} from '../components/AuthForm';
 import ScreenHeader from '../components/ScreenHeader';
 import StatusBadge from '../components/ui/StatusBadge';
@@ -24,10 +25,14 @@ export default function AccountManagementScreen({navigation}){
   });
  };
  return <SafeAreaView style={styles.page} edges={['top','left','right']}>
-  <ScreenHeader title="User Management" onBack={()=>navigation.goBack()}/>
+  <ScreenHeader title="User Management" onBack={()=>navigation.goBack()} right={
+    <TouchableOpacity onPress={load} disabled={busy || loading} accessibilityRole="button" accessibilityLabel="Refresh" hitSlop={{top:10,bottom:10,left:10,right:10}}>
+      <Ionicons name="refresh-outline" size={rf(20)} color={colors.leaf700}/>
+    </TouchableOpacity>
+  }/>
   <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-  <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginBottom:8}}>{filters.map(f=><AuthButton key={f} title={f.replace('_',' ').toUpperCase()} size="sm" variant={status===f?'primary':'outline'} disabled={busy || status===f} onPress={()=>setStatus(f)}/>)}</View>
-  <AuthButton title="Refresh" size="sm" variant="outline" disabled={busy || loading} onPress={load}/>
+  <Text style={styles.sectionLabel}>Accounts</Text>
+  <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginBottom:14}}>{filters.map(f=><AuthButton key={f} title={f.replace('_',' ').toUpperCase()} size="sm" variant={status===f?'primary':'outline'} disabled={busy || status===f} onPress={()=>setStatus(f)}/>)}</View>
   {!!error&&<Text style={s.error}>{error}</Text>}
   {loading&&<ActivityIndicator accessibilityLabel="Loading accounts" color={colors.leaf700}/>}
   {!loading&&!users.length&&<Text style={s.note}>No accounts in this view.</Text>}
@@ -36,7 +41,7 @@ export default function AccountManagementScreen({navigation}){
      <Text style={styles.name}>{u.full_name} — {u.role==='delivery_personnel'?'Rider':u.role}</Text>
      <StatusBadge status={u.account_status || status}/>
    </View>
-   <Text style={styles.meta}>{u.phone} · {u.phone_verified_at?'SMS verified':u.legacy_access?'Existing account':'Unverified'}</Text>
+   <Text style={styles.meta}>{u.email} · {u.legacy_access?'Existing account':'Email verified'}</Text>
    <Text style={styles.meta}>{u.farm_location || u.store_location || u.service_area}</Text><Text style={styles.meta}>Applied: {new Date(u.created_at).toLocaleString()}</Text>
    {!!u.status_reason&&<Text style={styles.meta}>{u.status_reason}</Text>}
    {!!u.unfinished_assignments?.length&&<Text style={s.error}>Distributor attention: {u.unfinished_assignments.length} unfinished assignments. {u.unfinished_assignments.map(a=>`${a.type} ${a.id.slice(0,8)} (${a.status})`).join(', ')}</Text>}
@@ -54,6 +59,7 @@ const styles=StyleSheet.create({
  page:{flex:1,backgroundColor:colors.bgScreen},
  content:{padding:20},
  card:{padding:16,backgroundColor:colors.card,borderRadius:radius.card,marginVertical:8,borderWidth:1,borderColor:colors.border,...shadowCard},
+ sectionLabel:{fontFamily:fonts.heading,fontSize:rf(fontSize.lg),color:colors.ink,marginBottom:10},
  cardHeaderRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:4},
  actionRow:{flexDirection:'row',gap:8,marginTop:4},
  name:{flex:1,fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.md),color:colors.ink},

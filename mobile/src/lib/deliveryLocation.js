@@ -30,8 +30,11 @@ export function validateDeliveryLocation(position, destination, now = Date.now()
   if (!Number.isFinite(timestamp) || now - timestamp > STALE_LOCATION_SECONDS * 1000 || timestamp > now + 30000) fail('GPS_STALE', 'Your GPS location is out of date. Refresh your location and try again.');
   const distanceMeters = distanceBetween(rider, target);
   const effectiveRadiusMeters = BASE_DELIVERY_RADIUS_METERS + Math.min(accuracy, MAX_ACCURACY_ALLOWANCE_METERS);
-  const diagnostics = { distanceMeters, effectiveRadiusMeters, accuracy, source: destination.coordinate_source || 'unavailable' };
+  // Distance-to-destination is shown for context (and matches what the
+  // backend records for ETA/routing) but never blocks completion — see
+  // validateProof in backend/lib/deliveryProof.js for the matching change.
+  const verified = distanceMeters <= effectiveRadiusMeters;
+  const diagnostics = { distanceMeters, effectiveRadiusMeters, accuracy, verified, source: destination.coordinate_source || 'unavailable' };
   if (typeof __DEV__ !== 'undefined' && __DEV__) console.debug('[delivery verification]', { rider, destination: target, ...diagnostics });
-  if (distanceMeters > effectiveRadiusMeters) fail('OUTSIDE_RADIUS', `You are approximately ${Math.round(distanceMeters)} m from the delivery location. Move closer before completing this delivery.`, diagnostics);
   return diagnostics;
 }

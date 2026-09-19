@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import CustomModal from './CustomModal';
+import EmptyState from './EmptyState';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert } from '../lib/ui';
@@ -32,15 +33,6 @@ function timeAgo(iso, t) {
   const days = Math.floor(hrs / 24);
   if (days < 7) return t('notifications.dayAgo', { n: days });
   return new Date(iso).toLocaleDateString();
-}
-
-function typeColor(type) {
-  switch (type) {
-    case 'order': return '#1976d2';
-    case 'delivery': return '#7b1fa2';
-    case 'payment': return PRIMARY;
-    default: return '#607d8b';
-  }
 }
 
 export default function NotificationBell({ asTabItem = false, active = false, onPress, fullScreen = false }) {
@@ -158,10 +150,11 @@ export default function NotificationBell({ asTabItem = false, active = false, on
           {initialLoading ? (
             <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
           ) : items.length === 0 ? (
-            <View style={styles.emptyWrap}>
-              <Ionicons name="notifications-outline" size={rf(40)} color="#c5cbc5" />
-              <Text style={styles.emptyTitle}>{t('notifications.emptyTitle')}</Text>
-            </View>
+            <EmptyState
+              iconElement={<Ionicons name="notifications-outline" size={rf(40)} color={colors.inkFaint} />}
+              title={t('notifications.emptyTitle')}
+              message={t('notifications.empty')}
+            />
           ) : (
             items.map((n) => (
               <TouchableOpacity
@@ -170,7 +163,6 @@ export default function NotificationBell({ asTabItem = false, active = false, on
                 onPress={() => handlePress(n)}
                 activeOpacity={0.7}
               >
-                <View style={[styles.typeDot, { backgroundColor: typeColor(n.type) }]} />
                 <View style={{ flex: 1 }}>
                   <View style={styles.itemTop}>
                     <Text style={[styles.itemTitle, !n.is_read && styles.itemTitleUnread]} numberOfLines={1}>
@@ -249,7 +241,11 @@ export default function NotificationBell({ asTabItem = false, active = false, on
             {loading ? (
               <ActivityIndicator size="large" color={PRIMARY} style={{ marginVertical: 40 }} />
             ) : items.length === 0 ? (
-              <Text style={styles.emptyText}>{t('notifications.empty')}</Text>
+              <EmptyState
+                iconElement={<Ionicons name="notifications-outline" size={rf(36)} color={colors.inkFaint} />}
+                title={t('notifications.emptyTitle')}
+                message={t('notifications.empty')}
+              />
             ) : (
               <ScrollView
                 style={styles.list}
@@ -263,7 +259,6 @@ export default function NotificationBell({ asTabItem = false, active = false, on
                     onPress={() => handlePress(n)}
                     activeOpacity={0.7}
                   >
-                    <View style={[styles.typeDot, { backgroundColor: typeColor(n.type) }]} />
                     <View style={{ flex: 1 }}>
                       <View style={styles.itemTop}>
                         <Text style={[styles.itemTitle, !n.is_read && styles.itemTitleUnread]} numberOfLines={1}>
@@ -315,18 +310,16 @@ const styles = StyleSheet.create({
   bellBtn: { padding: 6, marginRight: 4 },
 
   // Full-screen variant (farmer bottom-nav "Notifications" tab)
-  screenContainer: { flex: 1, minHeight: 0, backgroundColor: '#FFFFFF' },
+  screenContainer: { flex: 1, minHeight: 0, backgroundColor: colors.bgScreen },
   screenHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 14,
-    backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.bgScreen, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   screenTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
   markAllText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(13) },
   screenList: { flex: 1, minHeight: 0 },
   screenListContent: { padding: 12, paddingBottom: 100 },
-  emptyWrap: { alignItems: 'center', paddingVertical: 60, gap: 10 },
-  emptyTitle: { fontFamily: fonts.bodySemiBold, fontSize: rf(15), color: colors.inkSoft },
 
   // Bottom-nav tab-item variant (matches BottomNavBar's own tab styling)
   tabItemBtn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -370,7 +363,6 @@ const styles = StyleSheet.create({
 
   item: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, paddingHorizontal: 8, borderRadius: radius.ctrl, marginBottom: 4 },
   itemUnread: { backgroundColor: colors.leaf50 },
-  typeDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6, marginRight: 10 },
   itemTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   itemTitle: { fontFamily: fonts.bodySemiBold, fontSize: rf(14.5), color: colors.ink, flex: 1, marginRight: 8 },
   itemTitleUnread: { fontFamily: fonts.bodyBold, color: colors.ink },

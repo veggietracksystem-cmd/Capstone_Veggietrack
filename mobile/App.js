@@ -19,9 +19,10 @@ import RegisterScreen from './src/screens/RegisterScreen';
 import ApplicationStatusScreen from './src/screens/ApplicationStatusScreen';
 import AccountManagementScreen from './src/screens/AccountManagementScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
+import VerifyEmailScreen from './src/screens/VerifyEmailScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import EditProfileScreen from './src/screens/EditProfileScreen';
-import ChangePhoneScreen from './src/screens/ChangePhoneScreen';
 import FarmerDashboard from './src/screens/FarmerDashboard';
 import DistributorDashboard from './src/screens/DistributorDashboard';
 import RetailerDashboard from './src/screens/RetailerDashboard';
@@ -101,14 +102,14 @@ function RootNavigator() {
         }}
         initialRouteName={roleScreen ? roleScreen.name : initialRoute}
       >
-        {session && !recoveryMode && !roleScreen ? (<Stack.Screen name="ApplicationStatus" component={ApplicationStatusScreen}/>) : roleScreen ? (
+        {recoveryMode ? <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} /> : session && !roleScreen ? (<Stack.Screen name="ApplicationStatus" component={ApplicationStatusScreen}/>) : roleScreen ? (
           <>
             <Stack.Screen name={roleScreen.name} component={roleScreen.component} />
             {/* Reachable from a dashboard via navigation.navigate('Profile'/'EditProfile'). */}
             <Stack.Screen name="Profile" component={ProfileScreen} />
             {user.role === 'distributor' && <Stack.Screen name="AccountManagement" component={AccountManagementScreen} />}
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-            <Stack.Screen name="ChangePhone" component={ChangePhoneScreen} />
+            <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
             {/* Retailer/Distributor: live delivery tracking on a map. */}
             <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
             {/* Retailer: review delivery address/schedule + confirm before submitting an order. */}
@@ -148,7 +149,9 @@ function RootNavigator() {
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
             <Stack.Screen name="CompleteProfile" component={RegisterScreen} />
+            <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
           </>
         )}
       </Stack.Navigator>

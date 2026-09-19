@@ -31,7 +31,6 @@ export default function EditProfileScreen({ navigation }) {
 
   const [fullName, setFullName] = useState(user?.full_name || user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
-  const phone = user?.phone || '';
   const [location, setLocation] = useState(loc ? (user?.[loc.key] || '') : '');
   const [latitude, setLatitude] = useState(user?.latitude ?? null);
   const [longitude, setLongitude] = useState(user?.longitude ?? null);
@@ -124,18 +123,6 @@ export default function EditProfileScreen({ navigation }) {
             </>
           )}
 
-          <Text style={styles.fieldLabel}>{t('auth.register.phoneLabel')}</Text>
-          <TextInput
-            style={styles.input}
-            value={phone}
-            keyboardType="phone-pad"
-            autoCapitalize="none"
-            editable={false}
-          />
-          <TouchableOpacity disabled={saving || deleting} onPress={() => navigation.navigate('ChangePhone')}>
-            <Text style={styles.phoneHint}>{t('phoneAuth.changePhone')}</Text>
-          </TouchableOpacity>
-
           {loc && (
             <>
               <Text style={styles.fieldLabel}>{loc.label}</Text>
@@ -174,6 +161,18 @@ export default function EditProfileScreen({ navigation }) {
             {saving
               ? <ActivityIndicator color="#fff" />
               : <Text style={styles.buttonPrimaryText}>{t('common.saveChanges')}</Text>}
+          </TouchableOpacity>
+        </View>
+
+        {/* Change password: same OTP-verified reset flow as "Forgot password",
+            just reachable from inside the profile editor instead of Login. */}
+        <View style={styles.sectionCard}>
+          <TouchableOpacity
+            style={[styles.menuItem, styles.menuItemLast]}
+            onPress={() => navigation.navigate('ResetPassword', { email: user?.email })}
+          >
+            <Text style={styles.menuItemText}>{t('profile.changePassword')}</Text>
+            <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
         </View>
 
@@ -237,7 +236,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.4,
     borderColor: colors.border,
   },
-  phoneHint: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint, marginBottom: 4 },
   // alignItems: 'stretch' (not 'center') so the pin button is forced to the
   // exact same height as the TextInput next to it, rather than eyeballing a
   // matching paddingVertical that drifts once fonts/line-heights change.

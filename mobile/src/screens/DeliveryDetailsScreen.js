@@ -13,10 +13,11 @@ import DeliveryMapModal from '../components/DeliveryMapModal';
 import ProofPreviewModal from '../components/ProofPreviewModal';
 import CustomModal from '../components/CustomModal';
 import ScreenHeader from '../components/ScreenHeader';
+import StatusBadge from '../components/ui/StatusBadge';
 import { showAlert, peso, shortId } from '../lib/ui';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
-import { statusColor, formatStatus, getDelivery, effectiveStatus, STATUS_RANK } from './DeliveryDashboard';
+import { formatStatus, getDelivery, effectiveStatus, STATUS_RANK } from './DeliveryDashboard';
 import { rf } from '../lib/responsive';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { useAutoSync } from '../sync/SyncProvider';
@@ -30,6 +31,19 @@ const PROGRESS_STEPS = [
   { key: 'picked_up', rank: 1 },
   { key: 'in_transit', rank: 2 },
 ];
+
+// Attaches the real verified/unverified result (computed against the order's
+// destination) to a staged photo's pod, so the proof preview reflects actual
+// proximity instead of always claiming "could not be verified".
+function withLocationStatus(photo, order) {
+  if (!photo?.pod) return photo;
+  const destination = orderDestination(order);
+  if (!destination) return photo;
+  try {
+    const details = validateDeliveryLocation(photo.pod, destination);
+    return { ...photo, pod: { ...photo.pod, location_status: details.verified ? 'verified' : 'unverified', distance_meters: details.distanceMeters } };
+  } catch { return photo; }
+}
 
 // Formats the retailer's preferred delivery schedule as separate date/time
 // lines for display — never the raw ISO timestamp the backend stores it as.
@@ -162,9 +176,9 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
     actionRef.current = 'photo'; setBusy(true);
     try {
       const selected = await captureProofPhoto(t, ImagePicker, Platform.OS, setPhoto);
-      if (selected) setPhoto(selected);
+      if (selected) setPhoto(withLocationStatus(selected, order));
     } catch (err) {
-      if (err.selectedPhoto) setPhoto(err.selectedPhoto);
+      if (err.selectedPhoto) setPhoto(withLocationStatus(err.selectedPhoto, order));
       showAlert(t('common.error'), err.message || t('dashboards.delivery.cameraErrorFallback'));
     } finally { actionRef.current = null; setBusy(false); }
   };
@@ -246,9 +260,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
           {/* 1. Order Summary — status shown exactly once, as the badge */}
           <View style={styles.orderHeader}>
             <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor(status) }]}>
-              <Text style={styles.statusBadgeText}>{formatStatus(status)}</Text>
-            </View>
+            <StatusBadge status={status} label={formatStatus(status)} />
           </View>
           <Text style={styles.summaryLine}>
             <Text style={styles.summaryLabel}>{t('deliveryDetails.totalAmountLabel')} </Text>
@@ -437,8 +449,6 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
-  statusBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm) },
 
   summaryLine: { fontSize: rf(fontSize.md), marginTop: 4 },
   summaryLabel: { fontFamily: fonts.body, color: colors.inkSoft },
@@ -450,7 +460,7 @@ const styles = StyleSheet.create({
   entityName: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, marginBottom: 2 },
   subLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkFaint, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
-  routeBtnCentered: { alignSelf: 'center', marginTop: 4, paddingVertical: 10, paddingHorizontal: 28, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY },
+  routeBtnCentered: { marginTop: 4, marginBottom: 8, paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY, backgroundColor: colors.card },
   routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.md) },
 
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -465,12 +475,12 @@ const styles = StyleSheet.create({
   stepActionBtn: { paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY, backgroundColor: colors.card, marginBottom: 8 },
   stepActionBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md) },
 
-  button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 4 },
+  button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 8 },
   buttonPrimary: { backgroundColor: PRIMARY },
   buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
   buttonDisabled: { opacity: 0.6 },
 
-  rejectBtn: { paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 10, borderWidth: 1.5, borderColor: colors.danger },
+  rejectBtn: { paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 8, borderWidth: 1.5, borderColor: colors.danger },
   rejectBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md) },
 
   reasonWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

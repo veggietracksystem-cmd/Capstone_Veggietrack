@@ -16,6 +16,8 @@ import { rf } from '../lib/responsive';
 import { useAutoSync } from '../sync/SyncProvider';
 import ScreenHeader from '../components/ScreenHeader';
 import StatusBadge from '../components/ui/StatusBadge';
+import { getVegetableTile } from '../lib/vegetableIcons';
+import VegetableImage from '../components/VegetableImage';
 
 const PRIMARY = colors.leaf700;
 
@@ -109,13 +111,19 @@ export default function OrderDetailsScreen({ navigation, route }) {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t('orderDetails.itemsTitle')}</Text>
           {Array.isArray(order.order_items) && order.order_items.length > 0 ? (
-            order.order_items.map((it, i) => (
-              <View key={i} style={styles.itemRow}>
-                <Text style={styles.itemName}>{localizeVegetableName(it.vegetable_name, language)}</Text>
-                <Text style={styles.itemQty}>{it.quantity_kg} kg</Text>
-                <Text style={styles.itemPrice}>{peso(it.price_at_order)}/kg</Text>
-              </View>
-            ))
+            order.order_items.map((it, i) => {
+              const tile = getVegetableTile(it.vegetable_name);
+              return (
+                <View key={i} style={styles.itemRow}>
+                  <View style={[styles.itemTile, { backgroundColor: tile.bg }]}>
+                    <VegetableImage source={tile.source} style={styles.itemTileIcon} fallbackSize={rf(16)} />
+                  </View>
+                  <Text style={styles.itemName}>{localizeVegetableName(it.vegetable_name, language)}</Text>
+                  <Text style={styles.itemQty}>{it.quantity_kg} kg</Text>
+                  <Text style={styles.itemPrice}>{peso(it.price_at_order)}/kg</Text>
+                </View>
+              );
+            })
           ) : (
             <Text style={styles.detailValue}>{t('dashboards.distributor.noItemDetails')}</Text>
           )}
@@ -158,7 +166,9 @@ const styles = StyleSheet.create({
 
   sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 8 },
 
-  itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
+  itemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
+  itemTile: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  itemTileIcon: { width: 22, height: 22 },
   itemName: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
   itemQty: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginRight: 10 },
   itemPrice: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },

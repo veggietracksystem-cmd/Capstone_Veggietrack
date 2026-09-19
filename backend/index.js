@@ -2325,8 +2325,6 @@ app.put('/api/users/:id', verifyToken, async (req, res) => {
 
 app.put('/api/users/:id/password', verifyToken, (req, res) =>
   res.status(410).json({ error: 'Password changes are unavailable.' }));
-app.put('/api/users/:id/phone', verifyToken, (req, res) =>
-  res.status(410).json({ error: 'Phone changes are temporarily unavailable.' }));
 
 app.delete('/api/users/:id', verifyToken, async (req, res) => {
   const { id } = req.params;

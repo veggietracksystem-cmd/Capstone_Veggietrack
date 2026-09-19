@@ -11,13 +11,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
+import ScreenHeader from '../components/ScreenHeader';
+import StatusBadge from '../components/ui/StatusBadge';
 import { showAlert, confirmAction } from '../lib/ui';
 import { useTranslation } from '../i18n/useTranslation';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 
-const PRIMARY = '#1E4E09';
+const PRIMARY = colors.leaf700;
 
 export default function HarvestListScreen({ navigation }) {
   const beginRead = useLatestRequest();
@@ -106,15 +109,8 @@ export default function HarvestListScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.back}>‹ {t('common.back')}</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('harvestList.title')}</Text>
-        <View style={{ width: 50 }} />
-      </View>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <ScreenHeader title={t('harvestList.title')} onBack={() => navigation.goBack()} />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -122,17 +118,17 @@ export default function HarvestListScreen({ navigation }) {
       >
         {/* Search Input Bar (Marketplace Style) */}
         <View style={styles.searchRow}>
-          <Ionicons name="search-outline" size={rf(19)} color="#999" />
+          <Ionicons name="search-outline" size={rf(19)} color={colors.inkFaint} />
           <TextInput
             style={styles.searchInput}
             placeholder={t('harvestList.searchPlaceholder')}
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.inkFaint}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
           {searchQuery ? (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle-outline" size={rf(20)} color="#999" />
+              <Ionicons name="close-circle-outline" size={rf(20)} color={colors.inkFaint} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -175,9 +171,9 @@ export default function HarvestListScreen({ navigation }) {
                   </View>
 
                   {/* Status Pill */}
-                  <Text style={styles.statusLabel}>
-                    {h.status === 'available' ? t('harvestList.statusAvailable') : h.status}
-                  </Text>
+                  <View style={styles.statusPillWrap}>
+                    <StatusBadge status={h.status} label={h.status === 'available' ? t('harvestList.statusAvailable') : undefined} />
+                  </View>
 
                   {/* Action Buttons */}
                   <View style={styles.actionButtonsCol}>
@@ -230,47 +226,30 @@ export default function HarvestListScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: colors.bgScreen },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200 },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  back: { color: PRIMARY, fontSize: rf(16), fontWeight: '600', width: 50 },
-  title: { fontSize: rf(18), fontWeight: '700', color: PRIMARY },
 
   // Search Row
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
+    backgroundColor: colors.card,
+    borderRadius: radius.ctrl,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     paddingHorizontal: 14,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
-    elevation: 1,
   },
   searchIcon: { fontSize: rf(16), marginRight: 8 },
   searchInput: {
     flex: 1,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-    fontSize: rf(15),
-    color: '#1a1a1a',
+    fontFamily: fonts.body,
+    fontSize: rf(fontSize.lg),
+    color: colors.ink,
   },
-  searchClear: { fontSize: rf(16), color: '#999', paddingLeft: 8 },
+  searchClear: { fontSize: rf(16), color: colors.inkFaint, paddingLeft: 8 },
 
   // 2-Column Marketplace Grid
   marketplaceGrid: {
@@ -282,80 +261,80 @@ const styles = StyleSheet.create({
   },
   productCard: {
     width: '48%',
-    backgroundColor: '#ffffff',
-    borderRadius: 18,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#edf2ed',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 5,
-    elevation: 2,
+    borderColor: colors.border,
     alignItems: 'center',
+    ...shadowCard,
   },
   tileContainer: {
     width: 64,
     height: 64,
-    borderRadius: 14,
+    borderRadius: radius.ctrl,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
   tileIcon: { width: 72, height: 72 },
   cropTitle: {
-    fontSize: rf(15),
-    fontWeight: '700',
-    color: '#1a1a1a',
+    fontFamily: fonts.bodyBold,
+    fontSize: rf(fontSize.lg),
+    color: colors.ink,
     marginBottom: 4,
     textAlign: 'center',
   },
   stockBadge: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: colors.leaf100,
     borderRadius: 10,
     paddingVertical: 2,
     paddingHorizontal: 8,
     marginBottom: 6,
   },
   stockBadgeText: {
-    fontSize: rf(11),
-    fontWeight: '600',
+    fontFamily: fonts.bodySemiBold,
+    fontSize: rf(fontSize.xs),
     color: PRIMARY,
   },
-  statusLabel: {
-    fontSize: rf(13),
-    fontWeight: '700',
-    color: PRIMARY,
-    marginBottom: 10,
-  },
+  statusPillWrap: { marginBottom: 10, alignItems: 'center' },
 
   actionButtonsCol: { width: '100%', gap: 6 },
   manageBtn: {
     width: '100%',
+    flexDirection: 'row',
+    gap: 6,
     backgroundColor: PRIMARY,
-    borderRadius: 8,
+    borderRadius: radius.ctrl,
     paddingVertical: 8,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  manageBtnText: { color: '#ffffff', fontWeight: '700', fontSize: rf(12) },
+  manageBtnText: { color: '#fff', fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm) },
   pickupBtn: {
     width: '100%',
-    backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    gap: 6,
+    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: PRIMARY,
-    borderRadius: 8,
+    borderRadius: radius.ctrl,
     paddingVertical: 7,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  pickupBtnText: { color: PRIMARY, fontWeight: '700', fontSize: rf(12) },
+  pickupBtnText: { color: PRIMARY, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm) },
   deleteBtn: {
     width: '100%',
-    backgroundColor: '#fff5f5',
+    flexDirection: 'row',
+    gap: 6,
+    backgroundColor: colors.dangerSoft,
     borderWidth: 1,
-    borderColor: '#ffcdd2',
-    borderRadius: 8,
+    borderColor: colors.dangerSoft,
+    borderRadius: radius.ctrl,
     paddingVertical: 7,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  deleteBtnText: { color: '#c62828', fontWeight: '700', fontSize: rf(12) },
+  deleteBtnText: { color: colors.danger, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm) },
 });

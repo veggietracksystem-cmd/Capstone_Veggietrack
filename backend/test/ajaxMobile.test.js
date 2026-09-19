@@ -161,7 +161,7 @@ test('rider pickup card renders its existing completion action and disables repe
   let picked, started;
   const scope = {
     ...base(), result: null, React: { createElement: (type, props, ...children) => ({ type, props, children }) },
-    View: 'View', Text: 'Text', TouchableOpacity: 'TouchableOpacity', ActivityIndicator: 'ActivityIndicator',
+    View: 'View', Text: 'Text', TouchableOpacity: 'TouchableOpacity', ActivityIndicator: 'ActivityIndicator', StatusBadge: 'StatusBadge',
     styles: {}, busyId: 'another', PRIMARY: 'green', formatStatus: s => s, language: 'en',
     localizeVegetableName: n => n, openPickupProof: pickup => { picked = pickup.id; },
     handleStartPickup: id => { started = id; },

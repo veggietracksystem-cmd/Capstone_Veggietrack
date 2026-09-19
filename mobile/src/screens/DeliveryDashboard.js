@@ -20,6 +20,7 @@ import OfflineBanner from '../components/OfflineBanner';
 import DeliveryMapModal from '../components/DeliveryMapModal';
 import ProofPreviewModal from '../components/ProofPreviewModal';
 import EmptyState from '../components/EmptyState';
+import StatusBadge from '../components/ui/StatusBadge';
 import BottomNavBar from '../components/BottomNavBar';
 import { showAlert, peso, shortId } from '../lib/ui';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
@@ -316,9 +317,7 @@ export default function DeliveryDashboard({ navigation, route }) {
     <View key={order.id} style={styles.orderCard}>
       <View style={styles.orderHeader}>
         <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: statusColor(status) }]}>
-          <Text style={styles.statusBadgeText}>{formatStatus(status)}</Text>
-        </View>
+        <StatusBadge status={status} label={formatStatus(status)} />
       </View>
 
       <Text style={styles.orderTotal}>{peso(order.total_amount)}</Text>
@@ -352,7 +351,7 @@ export default function DeliveryDashboard({ navigation, route }) {
       <View key={pickup.id} style={styles.orderCard}>
         <View style={styles.orderHeader}>
           <Text style={styles.orderId}>{t('dashboards.delivery.pickupNumber', { id: shortId(pickup.id) })}</Text>
-          <Text style={styles.rowMeta}>{formatStatus(pickup.status)}</Text>
+          <StatusBadge status={pickup.status} label={formatStatus(pickup.status)} />
         </View>
         <Text style={styles.rowMeta}>{pickup.farmer_name || t('dashboards.delivery.farmerFallback')}</Text>
         <Text style={styles.rowMeta}>{harvest ? `${localizeVegetableName(harvest.vegetable_name, language)} · ${harvest.quantity_kg} kg` : t('dashboards.delivery.vegetablesFallback')}</Text>
@@ -607,18 +606,15 @@ const styles = StyleSheet.create({
   orderTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: PRIMARY, marginBottom: 4 },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  routeBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY },
-  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm) },
-
-  statusBadge: { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 12 },
-  statusBadgeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm), textTransform: 'capitalize' },
+  routeBtn: { flex: 1, paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY },
+  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.md) },
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 4 },
   buttonPrimary: { backgroundColor: PRIMARY },
   buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
   buttonDisabled: { opacity: 0.6 },
 
-  detailsBtn: { paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 8, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.leaf50 },
+  detailsBtn: { flex: 1, paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.leaf50 },
   detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
 
   tabContainer: { flexDirection: 'row', backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 4, marginBottom: 16 },

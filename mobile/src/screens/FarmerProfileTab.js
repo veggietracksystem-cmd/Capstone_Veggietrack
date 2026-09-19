@@ -3,14 +3,13 @@ import { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
-import { confirmAction } from '../lib/ui';
+import { confirmAction, showAlert } from '../lib/ui';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import CustomModal from '../components/CustomModal';
 import UserGuideModal from '../components/UserGuideModal';
 import ContactUsModal from '../components/ContactUsModal';
 import { rf } from '../lib/responsive';
-import { Ionicons } from '@expo/vector-icons';
 
 // Farmer-only Profile tab, restyled to match the shared ProfileScreen design
 // (used by Retailer/Distributor/Delivery Personnel) so all four roles look
@@ -30,51 +29,61 @@ export default function FarmerProfileTab({ navigation }) {
     confirmAction(t('profile.logoutConfirmTitle'), t('profile.logoutConfirmMessage'), () => signOut());
   };
 
+  // Same informational message already shown on Edit Profile's "Disable
+  // account" action — self-service deactivation isn't available, so this is
+  // a notice, not a confirm/cancel decision.
+  const deactivate = () => showAlert(t('profile.deactivateAccountTitle'), t('profile.deactivateAccountMessage'));
+
   return (
     <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {/* User Card */}
+      {/* Profile header: avatar + name + role + Edit Profile shortcut
+          (prototype's profile-header block, matches farmer-profile). */}
       <View style={styles.profileCard}>
         <UserAvatar user={user} style={styles.avatarCircle} textStyle={styles.avatarText} />
-        <Text style={styles.userName}>{fullName || user?.phone || 'Farmer'}</Text>
+        <Text style={styles.userName}>{fullName || user?.email || 'Farmer'}</Text>
         <View style={styles.roleBadge}>
           <Text style={styles.roleBadgeText}>{(user?.role || 'farmer').replace(/_/g, ' ').toUpperCase()}</Text>
         </View>
-        <View style={styles.infoRow}>
-          <Ionicons name="call-outline" size={rf(16)} color={colors.inkSoft} />
-          <Text style={styles.phoneText}>{user?.phone || '—'}</Text>
-        </View>
-        {user?.farm_location ? (
-          <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={rf(16)} color={colors.inkSoft} />
-            <Text style={styles.locationText}>{user.farm_location}</Text>
-          </View>
-        ) : null}
+        <TouchableOpacity style={styles.editProfileBtn} onPress={() => navigation.navigate('EditProfile')} activeOpacity={0.8}>
+          <Text style={styles.editProfileBtnText}>{t('profile.editProfile')}</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Account Actions Card */}
+      {/* Account: read-only info list (icon + label + value rows), matching
+          the prototype's separate "Account" list under the profile header. */}
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>{t('profile.account')}</Text>
 
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.navigate('EditProfile')}
-        >
-          <Text style={styles.menuItemText}>{t('profile.editProfile')}</Text>
-          <Text style={styles.chevron}>›</Text>
-        </TouchableOpacity>
+        <View style={[styles.infoRow, !user?.farm_location && styles.menuItemLast]}>
+          <View style={styles.infoIconBox}><Ionicons name="mail-outline" size={rf(16)} color={colors.leaf700} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.infoLabel}>Email</Text>
+            <Text style={styles.infoValue}>{user?.email || '—'}</Text>
+          </View>
+        </View>
+        {!!user?.farm_location && (
+          <View style={[styles.infoRow, styles.menuItemLast]}>
+            <View style={styles.infoIconBox}><Ionicons name="location-outline" size={rf(16)} color={colors.leaf700} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.infoLabel}>{t('auth.register.farmLocation')}</Text>
+              <Text style={styles.infoValue}>{user.farm_location}</Text>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* Preferences: Language + Help & Support links, matching the
+          prototype's single combined "Preferences" list section. */}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
 
         <TouchableOpacity
-          style={[styles.menuItem, styles.menuItemLast]}
+          style={styles.menuItem}
           onPress={() => setLangOpen(true)}
         >
           <Text style={styles.menuItemText}>{t('language.menuLabel')}</Text>
           <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
-      </View>
-
-      {/* Support & Actions Card */}
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>{t('profile.helpSupport')}</Text>
 
         <TouchableOpacity
           style={styles.menuItem}
@@ -93,13 +102,21 @@ export default function FarmerProfileTab({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Logout */}
-      <View style={styles.dangerSection}>
-        <TouchableOpacity
-          style={[styles.button, styles.buttonOutline]}
-          onPress={logout}
-        >
-          <Text style={styles.buttonOutlineText}>{t('profile.logout')}</Text>
+      {/* Log Out / Deactivate: final list section (prototype renders these as
+          rows, not a standalone button). Deactivate reuses the same
+          distributor-managed-account message already shown on Edit Profile. */}
+      <View style={styles.sectionCard}>
+        <TouchableOpacity style={styles.menuItem} onPress={logout}>
+          <View style={styles.menuItemContent}>
+            <Ionicons name="log-out-outline" size={rf(18)} color={colors.leaf700} />
+            <Text style={[styles.menuItemText, { color: colors.leaf700 }]}>{t('profile.logout')}</Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={deactivate}>
+          <View style={styles.menuItemContent}>
+            <Ionicons name="alert-circle-outline" size={rf(18)} color={colors.danger} />
+            <Text style={[styles.menuItemText, { color: colors.danger }]}>{t('profile.deactivateAccount')}</Text>
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -145,7 +162,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadowCard,
   },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  editProfileBtn: {
+    marginTop: 6, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20,
+    borderWidth: 1.4, borderColor: colors.leaf700,
+  },
+  editProfileBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
   avatarCircle: {
     width: 68,
     height: 68,
@@ -167,9 +188,19 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.leaf700, letterSpacing: 0.5 },
-  contactRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  phoneText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
-  locationText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
+
+  // Account list rows (icon + label + value) — the prototype's read-only
+  // Account section, separate from the profile header card above.
+  infoRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  infoIconBox: {
+    width: 34, height: 34, borderRadius: 10, backgroundColor: colors.leaf50,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  infoLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint },
+  infoValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.ink, marginTop: 1 },
 
   // Section Card
   sectionCard: {
@@ -191,14 +222,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  menuItemContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   menuItemLast: { borderBottomWidth: 0 },
   menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
   chevron: { fontSize: rf(fontSize.xl), color: colors.inkFaint, fontWeight: '600' },
-
-  dangerSection: { gap: 10 },
-  button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
-  buttonOutline: { borderWidth: 1.4, borderColor: colors.leaf700, backgroundColor: colors.card },
-  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(fontSize.lg) },
 
   // Language modal rows
   langRow: {

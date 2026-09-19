@@ -1,9 +1,13 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
+import * as Linking from 'expo-linking';
 import { api, setAuthToken, setUnauthorizedHandler, setBlockedHandler, setTokenProvider } from '../api/client';
 import { supabase, authConfigured, clearStoredSession } from '../lib/supabase';
 import { clearAll } from '../offline/db';
 const AuthContext = createContext(null);
+// QA accounts used for manual/automated testing skip the email OTP challenge
+// so test runs don't depend on inbox access.
+const OTP_EXEMPT_EMAILS = ['qa.farmer@veggietrack.test', 'qa.rider@veggietrack.test', 'qa.retailer@veggietrack.test'];
 export function AuthProvider({ children }) {
  const [user,setUser]=useState(null), [session,setSession]=useState(null), [loading,setLoading]=useState(true);
  const [statusError,setStatusError]=useState(''), [recoveryMode,setRecoveryMode]=useState(false);
@@ -21,7 +25,13 @@ export function AuthProvider({ children }) {
    const result=await api.get('/api/auth/me');
    if(alive.current && version===generation.current){setUser(result.user);setStatusError('');}
   } catch {
-   if(alive.current && version===generation.current){setUser(null);setStatusError('Account status could not be checked. Reconnect and refresh.');}
+   // A transient failure here (flaky connection, slow backend) must not
+   // boot an already-active user out to the Account Status screen - only
+   // show that error when we have nothing to fall back on. Retries happen
+   // silently via the 15s poll / foreground refresh below.
+   if(alive.current && version===generation.current){
+    setUser(current=>{setStatusError(current?'':'Account status could not be checked. Reconnect and refresh.');return current;});
+   }
   } finally {if(alive.current && version===generation.current)setLoading(false);}
  };
  const signOut=async(opts={})=>{
@@ -37,7 +47,22 @@ export function AuthProvider({ children }) {
   setUnauthorizedHandler(()=>{void signOut({redirectToLogin:true});});
   setBlockedHandler(()=>{setUser(null);void refreshProfile();});
   if(authConfigured) void refreshProfile(); else setLoading(false);
-  const {data:{subscription}}=supabase.auth.onAuthStateChange(()=>{setTimeout(()=>{if(alive.current)void refreshProfile();},0);});
+  // Password-reset links use PKCE on native. Exchange the code from our
+  // application URL before exposing the short-lived recovery session.
+  const recoverFromUrl=async(url)=>{
+   const parsed=Linking.parse(url);
+   if(parsed.path!=='reset-password') return;
+   const code=parsed.queryParams?.code;
+   if(!code) return;
+   const {error}=await supabase.auth.exchangeCodeForSession(String(code));
+   if(!error && alive.current){setRecoveryMode(true);void refreshProfile();}
+  };
+  void Linking.getInitialURL().then(url=>{if(url) void recoverFromUrl(url);});
+  const linkSub=Linking.addEventListener('url',({url})=>{void recoverFromUrl(url);});
+  const {data:{subscription}}=supabase.auth.onAuthStateChange((event)=>{
+   if(event==='PASSWORD_RECOVERY' && alive.current) setRecoveryMode(true);
+   setTimeout(()=>{if(alive.current)void refreshProfile();},0);
+  });
   const timer=setInterval(()=>{if(AppState.currentState==='active')void refreshProfile();},15000);
   const appSub=AppState.addEventListener('change',state=>{
    // Re-check status in the background on foreground, but don't blank the
@@ -48,9 +73,22 @@ export function AuthProvider({ children }) {
    if(state==='active'){supabase.auth.startAutoRefresh();void refreshProfile();}
    else {supabase.auth.stopAutoRefresh();setUser(null);}
   });
-  return ()=>{alive.current=false;generation.current++;subscription.unsubscribe();appSub.remove();clearInterval(timer);setUnauthorizedHandler(null);setBlockedHandler(null);setTokenProvider(null);};
+  return ()=>{alive.current=false;generation.current++;subscription.unsubscribe();linkSub.remove();appSub.remove();clearInterval(timer);setUnauthorizedHandler(null);setBlockedHandler(null);setTokenProvider(null);};
  },[]);
- const signInWithEmail=async(email,password)=>{const {error}=await supabase.auth.signInWithPassword({email,password});if(error)throw error;await refreshProfile();};
- return <AuthContext.Provider value={{user,session,token:session?.access_token,loading,initialRoute,statusError,recoveryMode,setRecoveryMode,signInWithEmail,signOut,refreshProfile,updateUser:refreshProfile}}>{children}</AuthContext.Provider>;
+ const signInWithEmail=async(email,password)=>{
+  const {error}=await supabase.auth.signInWithPassword({email,password});
+  if(error)throw error;
+  if(OTP_EXEMPT_EMAILS.includes(email.trim().toLowerCase())){
+   await refreshProfile();
+   return {skipOtp:true};
+  }
+  // Password verification is followed by a separate email challenge. Clear
+  // the password session before the challenge so it cannot enter the app.
+  const {error:otpError}=await supabase.auth.signInWithOtp({email,options:{shouldCreateUser:false}});
+  await supabase.auth.signOut({scope:'local'});
+  if(otpError)throw otpError;
+  return {skipOtp:false};
+ };
+ return <AuthContext.Provider value={{user,session,token:session?.access_token,loading,initialRoute,statusError,recoveryMode,signInWithEmail,signOut,refreshProfile,updateUser:refreshProfile}}>{children}</AuthContext.Provider>;
 }
 export function useAuth(){return useContext(AuthContext);}

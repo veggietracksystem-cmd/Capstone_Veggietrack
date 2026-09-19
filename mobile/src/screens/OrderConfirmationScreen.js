@@ -19,6 +19,7 @@ import DeliveryDateTimeFields from '../components/DeliveryDateTimeFields';
 import CustomModal from '../components/CustomModal';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import ScreenHeader from '../components/ScreenHeader';
+import StatusBadge from '../components/ui/StatusBadge';
 
 const PRIMARY = colors.leaf700;
 
@@ -186,11 +187,7 @@ export default function OrderConfirmationScreen({ navigation, route }) {
                   <View style={styles.addressInfo}>
                     <Text style={styles.addressLabel}>{addr.label}</Text>
                     <Text style={styles.addressText} numberOfLines={2}>{addr.address}</Text>
-                    {addr.is_default && (
-                      <View style={styles.defaultBadge}>
-                        <Text style={styles.defaultBadgeText}>Default</Text>
-                      </View>
-                    )}
+                    {addr.is_default && <View style={{ marginTop: 4, alignSelf: 'flex-start' }}><StatusBadge status="active" label="Default" /></View>}
                   </View>
                 </TouchableOpacity>
               ))}
@@ -299,15 +296,6 @@ const styles = StyleSheet.create({
   addressInfo: { flex: 1 },
   addressLabel: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink },
   addressText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
-  defaultBadge: {
-    backgroundColor: PRIMARY,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  defaultBadgeText: { color: '#fff', fontSize: rf(fontSize.xs), fontWeight: 'bold' },
   noAddressesText: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginVertical: 8 },
   manualAddressContainer: { marginTop: 8 },
   addressRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },

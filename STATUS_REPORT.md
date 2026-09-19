@@ -1,64 +1,44 @@
-﻿Last reviewed: 2026-09-16
-
 # VeggieTrack status
 
-The main application in `mobile/` includes the four business roles, Supabase authentication, profile photos, delivery reliability fixes and asynchronous screen updates. Local automated verification passes. **Hosted deployment and physical-device acceptance remain pending; this is not a production-readiness sign-off.**
+Last reviewed: 2026-09-19
 
-This review covers the current working tree, including uncommitted changes. Only `README.md` and `STATUS_REPORT.md` were edited for this documentation update.
+The working tree contains the email-only authentication, mobile UI, delivery-proof and reliability updates. Local automated checks and a fresh Expo web export pass. Hosted deployment and physical-device acceptance remain outstanding, so this is not a production-readiness sign-off.
 
-## Implementation status
+## Current implementation
 
-| Area | Current local implementation |
+| Area | Status |
 |---|---|
-| Farmer | Harvest management, pickup requests, history/reports, offline caching and serialized queue replay |
-| Distributor | Pickup assignment, traceable inventory, listings, order approval/rejection, rider assignment, payments and account management |
-| Retailer | Marketplace/cart, minimum 5 kg checkout, future delivery schedule, saved address pins, orders and tracking |
-| Rider | Pickup and delivery tasks, restored pickup-card rendering, current-leg navigation and proof-of-delivery submission |
-| Shared accounts | Supabase phone/password login, OTP flows, account approval/status checks, verified phone changes and staged profile photo uploads |
-| Asynchronous UI | Request locks, stale-response guards, refresh on return, retained input/data on failures, and message/notification race protection |
+| Four business roles | Farmer, distributor, retailer and rider workflows remain implemented locally. |
+| Email accounts | Registration uses email/password and email confirmation; existing phone-change UI and phone identity requirements have been removed. |
+| Sign-in and recovery | Password sign-in sends a follow-up email code in the app; password recovery uses a Supabase email link and native PKCE deep link (`veggietrack://reset-password`). |
+| Account approval | Newly confirmed accounts move to pending approval; distributor approval/status checks continue to gate API access. |
+| Delivery proof | Photo, valid fresh GPS coordinates, accuracy and timestamp remain mandatory. Distance is stored and classified verified/unverified, but no longer blocks completion. |
+| Mobile UX | Updated dashboards, profiles, stock, order, message, notification and delivery components build in the web bundle. |
 
-See [AJAX_IMPLEMENTATION_REPORT.md](AJAX_IMPLEMENTATION_REPORT.md) for screen coverage and [DELIVERY_RELIABILITY_REPORT.md](DELIVERY_RELIABILITY_REPORT.md) for delivery implementation details.
+The email sign-in code is an application UI challenge, not server-enforced MFA or an elevated Supabase AAL. It must not be represented as a security control against a client that calls Supabase Auth directly.
 
-## Delivery behavior
+## Verification performed
 
-The current delivery policy is a 100 m base radius plus at most 50 m GPS allowance, with accuracy limited to 100 m and samples no older than 60 seconds. Completion and tracking resolve the same order destination. Upload retries preserve the photo and successful Cloudinary upload; completion requires backend confirmation. Current-leg LIVE ETA targets the warehouse before pickup and the destination afterward; OSRM failure leaves GPS available.
-
-## Verification
-
-| Check | Result and evidence |
+| Check | Result |
 |---|---|
-| Backend regression suite | Rerun on 2026-09-16 for this documentation update: **116 passed, 0 failed, 0 skipped** using `npm.cmd test --prefix backend` |
-| Local PostgreSQL/PGlite | Included in the passing suite: schema history, delivery proof, Auth and avatar integration checks |
-| Mobile regression coverage | Included in the suite: handler races, request locking, offline replay, profile uploads, POD/GPS and module compilation |
-| Expo production bundles | Web, Android and iOS/Hermes passed as recorded in the asynchronous UI report; not rerun for this documentation-only update |
-| Backend syntax and starter lint/typecheck | Passing results recorded in the implementation reports; not rerun for this documentation-only update |
-| Main mobile lint/typecheck | No configured scripts |
-| Hosted end-to-end and physical devices | Not verified by this update; provider, permissions, native release and two-device acceptance remain outstanding |
+| Backend regression suite | Passed after serializing PGlite workers to avoid Node out-of-memory failures. It covers delivery proof, migrations, pickup proof, Auth, inventory, requests and mobile handler regressions. |
+| Legacy import regression | Passed after updating its test fixture to use the active distributor UUID rather than the retired seed UUID. |
+| Backend syntax | `node --check` passed for `backend/index.js` and every `backend/lib/*.js` file. |
+| Expo health check | `npx --no-install expo-doctor` completed successfully. |
+| Mobile build | `npx --no-install expo export --platform web --output-dir .expo/verification/web` completed successfully (935 modules). |
+| Formatting | `git diff --check` has no whitespace errors. |
 
-The delivery report's earlier count of 106 tests predates the additional asynchronous UI regressions. The current suite has 116 tests. Automated handler and local database checks do not establish that every hosted screen or provider integration works on a real device.
+## Deployment prerequisites
 
-## Deployment status
+1. Inspect the target Supabase project before applying SQL. Apply [email_otp_verification_migration.sql](backend/sql/email_otp_verification_migration.sql), then [email_only_auth_migration.sql](backend/sql/email_only_auth_migration.sql), only if the existing Auth migration prerequisites match.
+2. Apply [delivery_location_policy.sql](backend/sql/delivery_location_policy.sql), then [delivery_proof_relax_radius_migration.sql](backend/sql/delivery_proof_relax_radius_migration.sql). Do not reapply historical delivery-proof functions afterward.
+3. In Supabase Auth, enable Email/password and email confirmation, add `veggietrack://reset-password` as an allowed redirect URL, and configure production SMTP. The default email service is rate-limited.
+4. Deploy the backend and rebuild the mobile app after the database/Auth configuration is complete.
+5. Perform native-device acceptance for registration, email confirmation, sign-in code, reset link, camera/GPS proof, Cloudinary, account approval and cross-role delivery tracking.
 
-The September 16 read-only hosted inspection recorded in the delivery report found order snapshot coordinates, rider accuracy, POD and completion/status RPCs absent. The hosted database was not re-inspected or modified during this documentation update. Re-run and review the read-only inspection before applying the [combined rollout](backend/sql/delivery_location_policy.sql), then deploy the API and mobile build. Abort if the schema is incompatible. Do not reapply the historical proof function afterward.
+## Known limits
 
-Avatar columns were present in the latest recorded hosted inspection. The avatar implementation is complete locally; real-device upload and hosted trigger/RLS definitions remain unverified. See [CHUNK1_AVATARS_REPORT.md](CHUNK1_AVATARS_REPORT.md); its current-status note supersedes older findings in that file.
-
-Supabase authentication remains the current implementation. The asynchronous UI updates require no new migration. No migration, deployment, SMS or real photo upload was performed during this documentation update.
-
-## Remaining acceptance checks
-
-- Hosted migration/deployment and real Cloudinary unsigned-preset validation.
-- Native release/EAS build and rider/viewer two-device test.
-- Actual GPS permissions, poor reception, camera/file handling, connectivity loss and session expiry.
-- Four-role hosted smoke tests, including repeated taps, failed-form retries, retained search/filter selections, messages and notifications; use the checklist in the asynchronous UI report.
-- Background/locked-phone tracking, voice guidance, offline maps and traffic ETA are not implemented.
-- Historical fresh-database setup is incomplete for hosted-only address/tracking structures; the guarded delivery rollout targets inspected existing installations.
-- Pickup batch creation and checkout inventory writes retain pre-existing multi-step operations; full transactional failure recovery remains separate work.
-- The delivery report records starter dependency advisories and deprecated tooling; these were not reassessed or force-upgraded in this documentation update.
-
-## Next steps
-
-1. Inspect the target Supabase schema and apply the guarded delivery migration if its prerequisites match; verify Auth and avatar setup separately.
-2. Configure backend/mobile environment variables and the Cloudinary unsigned image preset using the README and [EAS build notes](mobile/EAS_BUILD.md).
-3. Deploy the API and rebuild the mobile app with the intended environment.
-4. Run the delivery report's rider/viewer two-device test and the asynchronous UI report's four-role acceptance checklist.
+- Hosted schema state, SMTP, Cloudinary, native permissions and real-device flows were not modified or exercised here.
+- Background/locked-phone tracking, offline navigation, voice guidance and live traffic ETA are not implemented.
+- Main mobile has no dedicated lint or typecheck script.
+- Historical fresh-database setup is incomplete for some hosted-only address/tracking structures; use the guarded rollout after inspection.

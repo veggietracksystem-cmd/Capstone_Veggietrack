@@ -15,7 +15,6 @@ import CustomModal from '../components/CustomModal';
 import BottomNavBar from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
-import { Ionicons } from '@expo/vector-icons';
 
 // Profile is a bottom-tab destination (pushed from the dashboard's "profile"
 // tab) for every role except Farmer, whose profile is an embedded dashboard
@@ -82,41 +81,49 @@ export default function ProfileScreen({ navigation }) {
       <ScreenHeader title={t('profile.title')} onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {/* User Card */}
+        {/* Profile header: avatar + name + role + Edit Profile shortcut
+            (prototype's profile-header block). */}
         <View style={styles.profileCard}>
           <UserAvatar user={user} style={styles.avatarCircle} textStyle={styles.avatarText} />
-          <Text style={styles.userName}>{fullName || user?.phone || 'User'}</Text>
+          <Text style={styles.userName}>{fullName || user?.email || 'User'}</Text>
           <View style={styles.roleBadge}>
             <Text style={styles.roleBadgeText}>{(user?.role || 'user').replace(/_/g, ' ').toUpperCase()}</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="call-outline" size={rf(16)} color={colors.inkSoft} />
-            <Text style={styles.phoneText}>{user?.phone || '—'}</Text>
+          <TouchableOpacity style={styles.editProfileBtn} onPress={() => navigation.navigate('EditProfile')} activeOpacity={0.8}>
+            <Text style={styles.editProfileBtnText}>{t('profile.editProfile')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Account: read-only info list, matching the prototype's separate
+            Account list under the profile header. */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>{t('profile.account')}</Text>
+          <View style={[styles.infoRow, styles.menuItemLast]}>
+            <View style={styles.infoIconBox}><Ionicons name="mail-outline" size={rf(16)} color={colors.leaf700} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.infoLabel}>{t('profile.emailLabel')}</Text>
+              <Text style={styles.infoValue}>{user?.email || '—'}</Text>
+            </View>
           </View>
         </View>
 
-        {/* Account Actions Card */}
+        {/* Preferences: Language, Manage Addresses (retailer only), Help &
+            Support — matching the prototype's single combined Preferences
+            list section. Change password now lives on Edit Profile. */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>{t('profile.account')}</Text>
+          <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
 
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => navigation.navigate('EditProfile')}
-          >
-            <Text style={styles.menuItemText}>{t('profile.editProfile')}</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.menuItem, (user?.role === 'distributor' || user?.role === 'delivery_personnel') && styles.menuItemLast]}
             onPress={() => setLangOpen(true)}
           >
             <Text style={styles.menuItemText}>{t('language.menuLabel')}</Text>
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
+
           {user?.role !== 'distributor' && user?.role !== 'delivery_personnel' && (
             <TouchableOpacity
-              style={[styles.menuItem, styles.menuItemLast]}
+              style={styles.menuItem}
               onPress={() => navigation.navigate('ManageAddresses')}
             >
               <View style={styles.menuItemContent}>
@@ -126,11 +133,6 @@ export default function ProfileScreen({ navigation }) {
               <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
           )}
-        </View>
-
-        {/* Support & Actions Card */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>{t('profile.helpSupport')}</Text>
 
           <TouchableOpacity
             style={styles.menuItem}
@@ -149,13 +151,16 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Logout */}
-        <View style={styles.dangerSection}>
-          <TouchableOpacity
-            style={[styles.button, styles.buttonOutline]}
-            onPress={logout}
-          >
-            <Text style={styles.buttonOutlineText}>{t('profile.logout')}</Text>
+        {/* Log Out: final list section (prototype renders this as a row, not
+            a standalone button). No Deactivate row here — that action already
+            lives on Edit Profile ("Disable account"); distributor accounts
+            don't get one at all, per this file's original role split. */}
+        <View style={styles.sectionCard}>
+          <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={logout}>
+            <View style={styles.menuItemContent}>
+              <Ionicons name="log-out-outline" size={rf(18)} color={colors.leaf700} />
+              <Text style={[styles.menuItemText, { color: colors.leaf700 }]}>{t('profile.logout')}</Text>
+            </View>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -219,7 +224,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadowCard,
   },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  editProfileBtn: {
+    marginTop: 6, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20,
+    borderWidth: 1.4, borderColor: colors.leaf700,
+  },
+  editProfileBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
   avatarCircle: {
     width: 68,
     height: 68,
@@ -241,8 +250,18 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.leaf700, letterSpacing: 0.5 },
-  contactRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  phoneText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
+
+  // Account list rows (icon + label + value) — prototype's read-only Account section.
+  infoRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  infoIconBox: {
+    width: 34, height: 34, borderRadius: 10, backgroundColor: colors.leaf50,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  infoLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint },
+  infoValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.ink, marginTop: 1 },
 
   // Section Card
   sectionCard: {
@@ -268,11 +287,6 @@ const styles = StyleSheet.create({
   menuItemLast: { borderBottomWidth: 0 },
   menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
   chevron: { fontSize: rf(fontSize.xl), color: colors.inkFaint, fontWeight: '600' },
-
-  dangerSection: { gap: 10 },
-  button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
-  buttonOutline: { borderWidth: 1.4, borderColor: colors.leaf700, backgroundColor: colors.card },
-  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(fontSize.md) },
 
   // Language modal rows
   langRow: {

@@ -11,5 +11,5 @@ export const authConfigured = !!(process.env.EXPO_PUBLIC_SUPABASE_URL && process
 const storageKey = 'veggietrack.supabase.auth';
 export const clearStoredSession = () => storage.removeItem(storageKey);
 export const supabase = createClient(process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://unconfigured.supabase.co', process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'unconfigured', {
-  auth: { storage, storageKey, persistSession:true, autoRefreshToken:true, detectSessionInUrl:false, lock:processLock },
+  auth: { storage, storageKey, persistSession:true, autoRefreshToken:true, detectSessionInUrl:Platform.OS==='web', flowType:'pkce', lock:processLock },
 });

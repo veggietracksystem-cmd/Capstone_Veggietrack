@@ -17,6 +17,8 @@ import { useAuth } from '../context/AuthContext';
 import NotificationBell from '../components/NotificationBell';
 import BottomNavBar from '../components/BottomNavBar';
 import BottomSheet from '../components/BottomSheet';
+import EmptyState from '../components/EmptyState';
+import StatusBadge from '../components/ui/StatusBadge';
 import FarmerProfileTab from './FarmerProfileTab';
 import MessagesScreen from './MessagesScreen';
 import { showAlert, confirmAction } from '../lib/ui';
@@ -376,6 +378,12 @@ export default function FarmerDashboard({ navigation, route }) {
     ...availableHarvests.filter((h) => cart[h.id]),
     ...availableHarvests.filter((h) => !cart[h.id]),
   ], [availableHarvests, cart]);
+  // Home tab "Active Pickup" preview — the single most relevant in-progress
+  // pickup request, same data already loaded for the Pick-up tab's tracking list.
+  const activePickup = useMemo(
+    () => pickupRequests.find((p) => p.status !== 'picked_up' && p.status !== 'completed'),
+    [pickupRequests]
+  );
 
   // ---- Weekly report table (online-only, fetched when the sheet opens) ----
   const openWeeklyReport = async () => {
@@ -659,15 +667,42 @@ export default function FarmerDashboard({ navigation, route }) {
                     );
                   })
                 )}
-                {pickupRequests.length > 0 && <><View style={styles.sectionHead}><Text style={styles.sectionHeadTitle}>Your pickup tracking</Text></View>{pickupRequests.map((pickup) => <TouchableOpacity key={pickup.id} style={styles.vegCard} onPress={() => navigation.navigate('FarmerPickupTracking', { pickupId: pickup.id, pickup })}><View style={styles.vegInfo}><Text style={styles.vegName}>{pickup.harvests?.vegetable_name || 'Vegetables'}</Text><Text style={styles.vegMeta}>{pickup.harvests?.quantity_kg ?? '—'} kg · {(pickup.status || 'requested').replace(/_/g, ' ')}</Text></View><Ionicons name="chevron-forward" size={rf(18)} color={colors.inkSoft} /></TouchableOpacity>)}</>}
+                {pickupRequests.length > 0 && <>
+                  <View style={styles.sectionHead}><Text style={styles.sectionHeadTitle}>Your pickup tracking</Text></View>
+                  {pickupRequests.map((pickup) => (
+                    <TouchableOpacity
+                      key={pickup.id}
+                      style={styles.pickupCard}
+                      activeOpacity={0.8}
+                      onPress={() => navigation.navigate('FarmerPickupTracking', { pickupId: pickup.id, pickup })}
+                    >
+                      <View style={styles.pickupCardHeader}>
+                        <Text style={styles.pickupCardId}>{`Pickup #${String(pickup.id).slice(0, 8)}`}</Text>
+                        <StatusBadge status={pickup.status} />
+                      </View>
+                      <Text style={styles.vegMeta}>{localizeVegetableName(pickup.harvests?.vegetable_name || 'Vegetables', language)} · {pickup.harvests?.quantity_kg ?? '—'} kg</Text>
+                      <Text style={styles.vegMeta}>{pickup.rider?.full_name ? `Rider: ${pickup.rider.full_name}` : 'Waiting for rider assignment'}</Text>
+                      <View style={styles.pickupCardFooter}>
+                        <Text style={styles.linkBtnText}>Track pickup</Text>
+                        <Ionicons name="chevron-forward" size={rf(16)} color={colors.leaf700} />
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </>}
               </>
             ) : activeTab === 'harvest' ? (
               <>
+                {/* Shell order matches prototype's farmer-harvest-list: bare
+                    top bar with a "+" add action on the right, then a single
+                    divided list of harvest rows (photo, title, status badge). */}
                 <View style={styles.topbar}>
                   <View>
                     <Text style={styles.pageTitle}>{t('dashboards.farmer.tabHarvestNew')}</Text>
                     <Text style={styles.pageSubtitle}>{t('dashboards.farmer.yourRecordedHarvests')}</Text>
                   </View>
+                  <TouchableOpacity style={styles.iconBtn} onPress={openAddSheet} activeOpacity={0.7}>
+                    <Ionicons name="add" size={rf(20)} color={colors.leaf700} />
+                  </TouchableOpacity>
                 </View>
 
                 <TouchableOpacity style={styles.btnOutlineBlock} onPress={openWeeklyReport} activeOpacity={0.8}>
@@ -675,55 +710,53 @@ export default function FarmerDashboard({ navigation, route }) {
                   <Text style={styles.btnOutlineText}>{t('dashboards.farmer.weeklyReportDash', { range: weekRangeLabel(thisWeekKey) })}</Text>
                 </TouchableOpacity>
 
-                <View style={styles.sectionHead}>
-                  <Text style={styles.sectionHeadTitle}>{t('dashboards.farmer.recentRecords')}</Text>
-                </View>
-
                 {harvests.length === 0 ? (
-                  <View style={styles.emptyContainer}>
-                    <Ionicons name="leaf-outline" size={rf(40)} color={colors.inkFaint} />
-                    <Text style={styles.emptyTitle}>{t('dashboards.farmer.noHarvestsYetTitle')}</Text>
-                    <Text style={styles.emptySubtitle}>{t('dashboards.farmer.noHarvestsYetMsg')}</Text>
-                  </View>
+                  <EmptyState
+                    iconElement={<Ionicons name="leaf-outline" size={rf(40)} color={colors.inkFaint} />}
+                    title={t('dashboards.farmer.noHarvestsYetTitle')}
+                    message={t('dashboards.farmer.noHarvestsYetMsg')}
+                  />
                 ) : (
-                  harvests.map((h) => {
-                    const pill = getStatusPillStyle(h.status, t);
-                    return (
-                      <View key={String(h.id)} style={styles.vegCard}>
+                  <View style={styles.list}>
+                    {harvests.map((h, i, arr) => (
+                      <View key={String(h.id)} style={[styles.listRow, i === arr.length - 1 && styles.listRowLast]}>
                         <View style={styles.vegEmoji}><VegetableImage source={getVegTile(h.vegetable_name).source} style={styles.vegEmojiImage} fallbackSize={rf(20)} /></View>
                         <View style={styles.vegInfo}>
                           <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
                           <Text style={styles.vegMeta}>{t('dashboards.farmer.harvestedMeta', { qty: h.quantity_kg, date: formatDate(h.recorded_at) })}</Text>
                         </View>
-                        <View style={[styles.pill, { backgroundColor: pill.bg }]}>
-                          <Text style={[styles.pillText, { color: pill.color }]}>{pill.label}</Text>
-                        </View>
+                        <StatusBadge status={h.status} label={getStatusPillStyle(h.status, t).label} />
                         {!isHarvestLocked(h.status) && (
                           <TouchableOpacity style={styles.editIconBtn} onPress={() => openEditForm(h)} activeOpacity={0.7}>
                             <Ionicons name="pencil-outline" size={rf(15)} color={colors.inkSoft} />
                           </TouchableOpacity>
                         )}
                       </View>
-                    );
-                  })
+                    ))}
+                  </View>
                 )}
               </>
             ) : (
               <>
-                {/* HOME */}
-                <View style={styles.greetingRow}>
-                  <Text style={styles.greetingEyebrow}>{t('dashboards.farmer.greetingHome')}</Text>
-                  <Text style={styles.greetingName} numberOfLines={1}>{farmerDisplayName}</Text>
-                </View>
+                {/* HOME — shell order matches prototype's farmer-dashboard: bare
+                    top bar (bell only) -> hero greeting -> status pill as its
+                    own row -> sync banner -> stats -> add CTA -> list section. */}
                 <View style={styles.topbar}>
-                  <View style={[styles.statusBadge, syncState === 'offline' ? styles.statusOffline : styles.statusOnline]}>
-                    <View style={[styles.statusDot, syncState === 'offline' ? styles.statusDotOffline : styles.statusDotOnline]} />
-                    <Text style={[styles.statusLabel, syncState === 'offline' && styles.statusLabelOffline]}>{syncState === 'offline' ? t('dashboards.farmer.offlineStatus') : t('dashboards.farmer.onlineStatus')}</Text>
-                  </View>
+                  <View style={{ width: 38 }} />
                   <TouchableOpacity style={styles.iconBtn} onPress={() => setActiveTab('notifications')} activeOpacity={0.7}>
                     <Ionicons name="notifications-outline" size={rf(19)} color={colors.soil800} />
                     {notifUnreadCount > 0 && <View style={styles.notifDot} />}
                   </TouchableOpacity>
+                </View>
+
+                <View style={styles.greetingRow}>
+                  <Text style={styles.greetingEyebrow}>{t('dashboards.farmer.greetingHome')}</Text>
+                  <Text style={styles.greetingName} numberOfLines={1}>{farmerDisplayName}</Text>
+                </View>
+
+                <View style={[styles.statusBadge, styles.statusBadgeRow, syncState === 'offline' ? styles.statusOffline : styles.statusOnline]}>
+                  <View style={[styles.statusDot, syncState === 'offline' ? styles.statusDotOffline : styles.statusDotOnline]} />
+                  <Text style={[styles.statusLabel, syncState === 'offline' && styles.statusLabelOffline]}>{syncState === 'offline' ? t('dashboards.farmer.offlineStatus') : t('dashboards.farmer.onlineStatus')}</Text>
                 </View>
 
                 {(syncState === 'offline' || pendingCount > 0) && (
@@ -738,6 +771,52 @@ export default function FarmerDashboard({ navigation, route }) {
                   </View>
                 )}
 
+                <View style={styles.sectionHead}>
+                  <Text style={styles.sectionHeadTitle}>{t('dashboards.farmer.activePickupTitle')}</Text>
+                  {!!activePickup && (
+                    <TouchableOpacity
+                      style={styles.linkBtn}
+                      onPress={() => navigation.navigate('FarmerPickupTracking', { pickupId: activePickup.id, pickup: activePickup })}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.linkBtnText}>{t('dashboards.farmer.trackBtn')}</Text>
+                      <Ionicons name="chevron-forward" size={rf(14)} color={colors.leaf700} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {activePickup ? (
+                  <TouchableOpacity
+                    style={styles.card}
+                    onPress={() => navigation.navigate('FarmerPickupTracking', { pickupId: activePickup.id, pickup: activePickup })}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.cardHeadRow}>
+                      <Text style={styles.cardHeadText} numberOfLines={1}>
+                        {activePickup.harvests?.vegetable_name
+                          ? `${localizeVegetableName(activePickup.harvests.vegetable_name, language)} · ${activePickup.harvests?.quantity_kg ?? '—'}kg`
+                          : t('dashboards.farmer.vegetablesFallback')}
+                      </Text>
+                      <StatusBadge status={activePickup.status} />
+                    </View>
+                    <Text style={styles.vegMeta}>
+                      {activePickup.rider?.full_name
+                        ? t('dashboards.farmer.riderAssignedShort', { name: activePickup.rider.full_name })
+                        : t('dashboards.farmer.waitingForRiderShort')}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.card}>
+                    <Text style={styles.vegMeta}>{t('dashboards.farmer.noActivePickup')}</Text>
+                  </View>
+                )}
+
+                <View style={styles.sectionHead}>
+                  <Text style={styles.sectionHeadTitle}>{t('dashboards.farmer.thisWeekTitle')}</Text>
+                  <TouchableOpacity style={styles.linkBtn} onPress={openWeeklyReport} activeOpacity={0.7}>
+                    <Text style={styles.linkBtnText}>{t('dashboards.farmer.viewReportsBtn')}</Text>
+                    <Ionicons name="chevron-forward" size={rf(14)} color={colors.leaf700} />
+                  </TouchableOpacity>
+                </View>
                 <View style={styles.summaryGrid}>
                   <View style={styles.statCard}>
                     <View style={styles.statLabelRow}>
@@ -777,23 +856,25 @@ export default function FarmerDashboard({ navigation, route }) {
                 </View>
 
                 {availableHarvests.length === 0 ? (
-                  <View style={styles.emptyContainer}>
-                    <Ionicons name="leaf-outline" size={rf(36)} color={colors.inkFaint} />
-                    <Text style={styles.emptyTitle}>{t('dashboards.farmer.nothingReadyYet')}</Text>
-                  </View>
+                  <EmptyState
+                    iconElement={<Ionicons name="leaf-outline" size={rf(36)} color={colors.inkFaint} />}
+                    title={t('dashboards.farmer.nothingReadyYet')}
+                  />
                 ) : (
-                  availableHarvests.slice(0, 3).map((h) => (
-                    <View key={String(h.id)} style={styles.vegCard}>
-                      <View style={styles.vegEmoji}><VegetableImage source={getVegTile(h.vegetable_name).source} style={styles.vegEmojiImage} fallbackSize={rf(20)} /></View>
-                      <View style={styles.vegInfo}>
-                        <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
-                        <Text style={styles.vegMeta}>{t('dashboards.farmer.availableKg', { kg: h.quantity_kg })}</Text>
+                  <View style={styles.list}>
+                    {availableHarvests.slice(0, 3).map((h, i, arr) => (
+                      <View key={String(h.id)} style={[styles.listRow, i === arr.length - 1 && styles.listRowLast]}>
+                        <View style={styles.vegEmoji}><VegetableImage source={getVegTile(h.vegetable_name).source} style={styles.vegEmojiImage} fallbackSize={rf(20)} /></View>
+                        <View style={styles.vegInfo}>
+                          <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
+                          <Text style={styles.vegMeta}>{t('dashboards.farmer.availableKg', { kg: h.quantity_kg })}</Text>
+                        </View>
+                        <TouchableOpacity style={styles.btnOutlineSm} onPress={() => setActiveTab('pickup')} activeOpacity={0.8}>
+                          <Text style={styles.btnOutlineSmText}>{t('dashboards.farmer.requestBtn')}</Text>
+                        </TouchableOpacity>
                       </View>
-                      <TouchableOpacity style={styles.btnOutlineSm} onPress={() => setActiveTab('pickup')} activeOpacity={0.8}>
-                        <Text style={styles.btnOutlineSmText}>{t('dashboards.farmer.requestBtn')}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))
+                    ))}
+                  </View>
                 )}
               </>
             )}
@@ -1106,6 +1187,7 @@ const styles = StyleSheet.create({
   notifHeaderTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
 
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20 },
+  statusBadgeRow: { alignSelf: 'flex-start', marginBottom: 14 },
   statusOnline: { backgroundColor: colors.leaf100 },
   statusOffline: { backgroundColor: colors.soil300 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
@@ -1125,6 +1207,11 @@ const styles = StyleSheet.create({
 
   syncBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.gold100, borderRadius: 12, padding: 10, marginBottom: 14 },
   syncBannerText: { flex: 1, fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.gold700 },
+
+  // Generic bordered card — Active Pickup preview (prototype's `.card` block).
+  card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, marginBottom: 14, ...shadowCard },
+  cardHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 },
+  cardHeadText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink },
 
   summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   statCard: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, ...shadowCard },
@@ -1152,13 +1239,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 14,
     padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 9,
   },
+  pickupCard: {
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 14,
+    padding: 14, gap: 4, marginBottom: 10, ...shadowCard,
+  },
+  pickupCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
+  pickupCardId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink },
+  pickupCardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, alignSelf: 'flex-start' },
+  // Single bordered list container with divided rows (prototype's .list/.row
+  // pattern) — used where the Home tab shows a flat list of items, instead of
+  // separate floating cards per row.
+  list: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
+  listRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  listRowLast: { borderBottomWidth: 0 },
   vegEmoji: { width: 42, height: 42, borderRadius: 11, backgroundColor: colors.leaf50, alignItems: 'center', justifyContent: 'center' },
   vegEmojiImage: { width: 32, height: 32 },
   vegInfo: { flex: 1, minWidth: 0 },
   vegName: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
   vegMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
-  pill: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 20 },
-  pillText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs) },
   editIconBtn: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
 
   btnOutlineSm: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.4, borderColor: colors.leaf700 },

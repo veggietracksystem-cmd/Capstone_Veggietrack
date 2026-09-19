@@ -17,6 +17,8 @@ import { localizeVegetableName } from '../lib/vegetableNames';
 import { getProofUrl, getDelivery, isOldCompleted } from './RetailerDashboard';
 import ScreenHeader from '../components/ScreenHeader';
 import StatusBadge from '../components/ui/StatusBadge';
+import { getVegetableTile } from '../lib/vegetableIcons';
+import VegetableImage from '../components/VegetableImage';
 
 const PRIMARY = colors.leaf700;
 
@@ -84,12 +86,19 @@ export default function OrderHistoryScreen({ navigation }) {
                 ) : null}
 
                 {Array.isArray(o.order_items) && o.order_items.length > 0 && (
-                  <View style={styles.itemsBox}>
-                    {o.order_items.map((it, i) => (
-                      <Text key={i} style={styles.itemLine}>
-                        • {localizeVegetableName(it.vegetable_name, language)} — {it.quantity_kg}kg @ {peso(it.price_at_order)}
-                      </Text>
-                    ))}
+                  <View style={[styles.list, { marginTop: 10 }]}>
+                    {o.order_items.map((it, i, arr) => {
+                      const tile = getVegetableTile(it.vegetable_name);
+                      return (
+                        <View key={i} style={[styles.listRow, i === arr.length - 1 && styles.listRowLast]}>
+                          <View style={[styles.itemTile, { backgroundColor: tile.bg }]}>
+                            <VegetableImage source={tile.source} style={styles.itemTileIcon} fallbackSize={rf(16)} />
+                          </View>
+                          <Text style={[styles.itemLine, { flex: 1, marginBottom: 0 }]}>{localizeVegetableName(it.vegetable_name, language)}</Text>
+                          <Text style={styles.itemLine}>{it.quantity_kg}kg @ {peso(it.price_at_order)}</Text>
+                        </View>
+                      );
+                    })}
                   </View>
                 )}
 
@@ -130,7 +139,11 @@ const styles = StyleSheet.create({
   orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   orderTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: PRIMARY, marginBottom: 4 },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
-  itemsBox: { backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10, marginTop: 8 },
+  list: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+  listRowLast: { borderBottomWidth: 0 },
+  itemTile: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  itemTileIcon: { width: 22, height: 22 },
   itemLine: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 2 },
   proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 8 },
   proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: colors.border },

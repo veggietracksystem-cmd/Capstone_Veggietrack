@@ -23,8 +23,12 @@ const STATUS_TONE = {
   pending_approval: 'warning',
   pending: 'warning',
   active: 'success',
+  available: 'info',
+  reserved: 'purple',
+  for_pickup: 'warning',
   approved: 'info',
   assigned: 'info',
+  otw: 'purple',
   picked_up: 'info',
   in_transit: 'purple',
   out_for_delivery: 'purple',
@@ -34,11 +38,19 @@ const STATUS_TONE = {
   disabled: 'danger',
   cancelled: 'danger',
   rejected: 'danger',
+  paid: 'success',
+  unpaid: 'warning',
+};
+
+// Status codes that don't read as words once "_" is swapped for a space
+// (e.g. "otw") need an explicit friendly label instead of the raw code.
+const STATUS_LABEL = {
+  otw: 'On the way',
 };
 
 export default function StatusBadge({ status, label }) {
   const tone = TONES[STATUS_TONE[status]] || TONES.neutral;
-  const text = label || String(status || '').replace(/_/g, ' ');
+  const text = label || STATUS_LABEL[status] || String(status || '').replace(/_/g, ' ');
   return (
     <View style={[styles.badge, { backgroundColor: tone.bg }]}>
       <Text style={[styles.text, { color: tone.fg }]} numberOfLines={1}>{text}</Text>

@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
+import StatusBadge from '../components/ui/StatusBadge';
 import BatchPhotoField from '../components/BatchPhotoField';
 import CustomModal from '../components/CustomModal';
 import BottomNavBar from '../components/BottomNavBar';
@@ -23,12 +24,6 @@ import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
 
 const PRIMARY = colors.leaf700;
-
-const STATUS_STYLE = {
-  received: { bg: colors.gold100, fg: colors.gold700 },
-  listed: { bg: colors.leaf100, fg: colors.leaf700 },
-  sold_out: { bg: colors.dangerSoft, fg: colors.danger },
-};
 
 const DISTRIBUTOR_TABS_KEYS = [
   { id: 'home', iconName: 'home-outline', labelKey: 'dashboards.distributor.tabHome' },
@@ -50,6 +45,11 @@ export default function StocksScreen({ navigation }) {
     else if (tab.id === 'orders') navigation.navigate('DistributorDashboard', { tab: 'orders' });
     else if (tab.id === 'home') navigation.navigate('DistributorDashboard', { tab: 'home' });
   };
+  // Batches = physical stock received from farmers (not yet listed). Products
+  // = already-listed catalog shown to retailers. Same underlying records
+  // (`/api/products`), just filtered by status — matches the prototype's
+  // Batches/Products segmented control without any new fetch.
+  const [seg, setSeg] = useState('batches');
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -113,12 +113,6 @@ export default function StocksScreen({ navigation }) {
       return;
     }
     showAlert(t('common.error'), err.message);
-  };
-
-  const statusLabel = (status) => {
-    if (status === 'listed') return t('stocks.statusListed');
-    if (status === 'sold_out') return t('stocks.statusSoldOut');
-    return t('stocks.statusReceived');
   };
 
   const submitListing = async (batch, price) => {
@@ -255,8 +249,12 @@ export default function StocksScreen({ navigation }) {
 
   const renderItem = ({ item: b }) => {
     const busy = busyId != null;
-    const statusStyle = STATUS_STYLE[b.status] || STATUS_STYLE.received;
     const tile = getVegetableTile(b.vegetable_name);
+    // Trailing badge matches the prototype's per-segment badge: Batches shows
+    // whether the required batch photo has been captured yet; Products shows
+    // the retailer-facing stock level. Both are derived from fields already
+    // on the record — no new data.
+    const isLowStock = b.stock_kg != null && b.stock_kg <= 10 && b.stock_kg > 0;
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -268,9 +266,14 @@ export default function StocksScreen({ navigation }) {
             </View>
           )}
           <Text style={[styles.product, { flex: 1 }]} numberOfLines={1}>{localizeVegetableName(b.vegetable_name, language)}</Text>
-          <View style={[styles.statusPill, { backgroundColor: statusStyle.bg }]}>
-            <Text style={[styles.statusPillText, { color: statusStyle.fg }]}>{statusLabel(b.status)}</Text>
-          </View>
+          {isListable(b.status) ? (
+            <StatusBadge status={b.batch_photo_url ? 'completed' : 'pending'} label={b.batch_photo_url ? t('stocks.photoCaptured') : t('stocks.photoMissing')} />
+          ) : (
+            <StatusBadge
+              status={b.status === 'sold_out' ? 'cancelled' : isLowStock ? 'pending' : 'active'}
+              label={b.status === 'sold_out' ? t('stocks.statusSoldOut') : isLowStock ? t('stocks.statusLowStock') : t('stocks.statusActive')}
+            />
+          )}
         </View>
 
         <View style={styles.row}>
@@ -334,19 +337,33 @@ export default function StocksScreen({ navigation }) {
         }
       />
 
+      <Text style={styles.helperNote}>{t('stocks.segHelperNote')}</Text>
+      <View style={styles.segmented}>
+        <TouchableOpacity style={[styles.seg, seg === 'batches' && styles.segActive]} onPress={() => setSeg('batches')}>
+          <Text style={[styles.segText, seg === 'batches' && styles.segTextActive]}>{t('stocks.batchesSegLabel')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.seg, seg === 'products' && styles.segActive]} onPress={() => setSeg('products')}>
+          <Text style={[styles.segText, seg === 'products' && styles.segTextActive]}>{t('stocks.productsSegLabel')}</Text>
+        </TouchableOpacity>
+      </View>
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={PRIMARY} />
         </View>
       ) : (
         <FlatList
-          data={batches}
+          data={batches.filter((b) => (seg === 'batches' ? isListable(b.status) : !isListable(b.status)))}
           keyExtractor={(b) => String(b.id)}
           renderItem={renderItem}
           contentContainerStyle={styles.content}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
-            <EmptyState iconElement={<MaterialCommunityIcons name="package-variant" size={rf(44)} color={colors.inkFaint} />} title={t('stocks.emptyTitle')} message={t('stocks.emptyMessage')} />
+            <EmptyState
+              iconElement={<MaterialCommunityIcons name="package-variant" size={rf(44)} color={colors.inkFaint} />}
+              title={seg === 'batches' ? t('stocks.emptyTitleBatches') : t('stocks.emptyTitleProducts')}
+              message={t('stocks.emptyMessage')}
+            />
           }
         />
       )}
@@ -428,12 +445,23 @@ export default function StocksScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: colors.bgScreen },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16, paddingBottom: 100, flexGrow: 1 },
 
   addProductBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
   addProductBtnText: { color: '#fff', fontSize: rf(fontSize.title), fontFamily: fonts.bodySemiBold, lineHeight: rf(22) },
+
+  // Helper note + segmented control (prototype's .helper-note / .segmented)
+  helperNote: {
+    marginHorizontal: 16, marginTop: 12, fontFamily: fonts.body, fontSize: rf(fontSize.xs),
+    color: colors.inkSoft, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10,
+  },
+  segmented: { flexDirection: 'row', backgroundColor: colors.soil300, borderRadius: radius.ctrl, padding: 3, marginHorizontal: 16, marginTop: 12 },
+  seg: { flex: 1, paddingVertical: 8, borderRadius: radius.ctrl - 2, alignItems: 'center' },
+  segActive: { backgroundColor: colors.card, ...shadowCard },
+  segText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
+  segTextActive: { color: colors.leaf900 || PRIMARY },
 
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 14, marginBottom: 12, ...shadowCard },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 8 },
@@ -441,9 +469,6 @@ const styles = StyleSheet.create({
   thumbFallback: { alignItems: 'center', justifyContent: 'center' },
   thumbIcon: { fontSize: rf(18) },
   product: { fontSize: rf(fontSize.lg), fontFamily: fonts.bodySemiBold, color: colors.ink },
-
-  statusPill: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 12 },
-  statusPillText: { fontSize: rf(fontSize.sm), fontFamily: fonts.bodySemiBold },
 
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
   label: { fontSize: rf(fontSize.sm), color: colors.inkFaint },

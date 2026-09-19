@@ -29,10 +29,13 @@ function validateProof(body = {}, destination, now = Date.now()) {
     rider: point, destination: coordinate(destination), accuracy: body.accuracy, distance_meters: distance,
     effective_radius_meters: radius, coordinate_source: destination.coordinate_source || 'order_snapshot',
   });
-  if (distance > radius) throw proofError('DELIVERY_OUTSIDE_RADIUS', `You are approximately ${Math.round(distance)} m from the delivery location. Move closer before completing this delivery.`);
+  // Distance-to-destination is recorded for ETA/routing context, not used to
+  // block completion — GPS drifts by building/signal and requiring the rider
+  // to stand exactly on the pin rejected legitimate deliveries. The photo,
+  // timestamp and coordinates captured here are the actual proof of record.
   return { latitude: point.latitude, longitude: point.longitude, accuracy: body.accuracy,
     captured_at: new Date(captured).toISOString(), submitted_at: new Date(now).toISOString(),
-    location_status: 'verified', distance_meters: distance, effective_radius_meters: radius,
+    location_status: distance <= radius ? 'verified' : 'unverified', distance_meters: distance, effective_radius_meters: radius,
     coordinate_source: destination.coordinate_source || 'order_snapshot', address: null };
 }
 // GPS/photo/timestamp capture is mandatory for pickup exactly as it is for

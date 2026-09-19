@@ -204,27 +204,29 @@ export default function MessagesScreen({ navigation, embedded }) {
                 <Text style={styles.emptyTitle}>No conversations found</Text>
               </View>
             ) : (
-              filteredContacts.map((c) => (
-                <TouchableOpacity
-                  key={c.id}
-                  style={styles.contactRow}
-                  onPress={() => openThread(c)}
-                  activeOpacity={0.7}
-                >
-                  <UserAvatar user={c} size={42} style={styles.avatar} textStyle={styles.avatarText} />
-                  <View style={styles.contactInfo}>
-                    <Text style={styles.contactName} numberOfLines={1}>{c.full_name || t('messages.unknownContact')}</Text>
-                    <Text style={styles.contactRole} numberOfLines={1}>{roleLabel(c.role)}</Text>
-                  </View>
-                  <View style={styles.contactRight}>
-                    {c.unread_count > 0 && (
-                      <View style={styles.contactBadge}>
-                        <Text style={styles.contactBadgeText}>{c.unread_count > 9 ? '9+' : c.unread_count}</Text>
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))
+              <View style={styles.list}>
+                {filteredContacts.map((c, i, arr) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.contactRow, i === arr.length - 1 && styles.contactRowLast]}
+                    onPress={() => openThread(c)}
+                    activeOpacity={0.7}
+                  >
+                    <UserAvatar user={c} size={42} style={styles.avatar} textStyle={styles.avatarText} />
+                    <View style={styles.contactInfo}>
+                      <Text style={styles.contactName} numberOfLines={1}>{c.full_name || t('messages.unknownContact')}</Text>
+                      <Text style={styles.contactRole} numberOfLines={1}>{roleLabel(c.role)}</Text>
+                    </View>
+                    <View style={styles.contactRight}>
+                      {c.unread_count > 0 && (
+                        <View style={styles.contactBadge}>
+                          <Text style={styles.contactBadgeText}>{c.unread_count > 9 ? '9+' : c.unread_count}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
             )}
           </ScrollView>
         ) : (
@@ -307,17 +309,18 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.inkSoft, marginBottom: 4 },
   emptySubtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, textAlign: 'center' },
 
+  // Bordered list container with divided rows (prototype's .list/.row),
+  // instead of separately floating cards per contact.
+  list: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 14, overflow: 'hidden' },
   contactRow: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 9,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
+  contactRowLast: { borderBottomWidth: 0 },
   avatar: {
     width: 42,
     height: 42,

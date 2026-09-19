@@ -1,12 +1,11 @@
 // Dry-run by default. --apply is a manual deployment operation, never a test.
 const { createClient } = require('@supabase/supabase-js');
 const path = require('node:path');
-const { normalizePhone, isValidPhone } = require('../../mobile/src/lib/phone');
 const { TRUSTED_DISTRIBUTOR } = require('../lib/auth');
 async function importLegacy(db, apply = false) {
   const { data: users, error } = await db.from('users').select('id,full_name,role,phone,email,legacy_access,auth_user_id,account_status').eq('legacy_access',true).order('id');
   if(error || users?.length !== 12 || users.filter(u=>u.role==='distributor').length!==1 || !users.some(u=>u.id===TRUSTED_DISTRIBUTOR && u.role==='distributor')) throw new Error('Reviewed legacy cohort does not match.');
-  if(users.some(u=>!isValidPhone(u.phone) || u.account_status!=='active') || new Set(users.map(u=>normalizePhone(u.phone))).size!==users.length) throw new Error('Legacy phone/status preflight failed.');
+  if(users.some(u=>u.account_status!=='active')) throw new Error('Legacy account-status preflight failed.');
   const emails=users.map(u=>String(u.email || '').trim().toLowerCase());
   if(emails.some(email=>!/^\S+@\S+\.\S+$/.test(email)) || new Set(emails).size!==emails.length) throw new Error('Every legacy user needs a unique email before Auth migration.');
   const results=[];
@@ -25,7 +24,7 @@ async function importLegacy(db, apply = false) {
     const hash=await db.from('users').select('password_hash').eq('id',u.id).single();
     if(hash.error || !/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(hash.data?.password_hash || '')) throw new Error('Unsupported legacy credential; import stopped.');
     const {data,error:createdError}=await db.auth.admin.createUser({id:u.id,email,email_confirm:true,password_hash:hash.data.password_hash,
-      user_metadata:{full_name:u.full_name,phone:normalizePhone(u.phone),role:u.role},app_metadata:{legacy_import:true}});
+      user_metadata:{full_name:u.full_name,role:u.role},app_metadata:{legacy_import:true}});
     if(createdError || data.user?.id!==u.id) throw new Error('Auth import failed; retain all records and inspect before retrying.');
     const linked=await db.from('users').select('auth_user_id').eq('id',u.id).single();
     if(linked.error || linked.data?.auth_user_id!==u.id) throw new Error('Auth/profile linkage failed.');

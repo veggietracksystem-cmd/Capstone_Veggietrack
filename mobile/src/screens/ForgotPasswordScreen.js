@@ -3,6 +3,7 @@ import { Text } from 'react-native';
 import { AuthPage, AuthInput, AuthButton, authStyles as s } from '../components/AuthForm';
 import { supabase, authConfigured } from '../lib/supabase';
 import { authError } from '../lib/authErrors';
+import * as Linking from 'expo-linking';
 
 export default function ForgotPasswordScreen({ navigation }) {
 	const [email, setEmail] = useState('');
@@ -15,9 +16,11 @@ export default function ForgotPasswordScreen({ navigation }) {
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Enter a valid email address.'); return; }
 		lock.current = true; setBusy(true); setError('');
 		try {
-			const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim());
+			const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+				redirectTo: Linking.createURL('reset-password'),
+			});
 			if (resetError) throw resetError;
-			setMessage('Check your email for a password reset link.');
+			setMessage('Check your email for a password reset link. Open it on this device to choose a new password.');
 		} catch (resetError) { setError(authError(resetError)); }
 		finally { lock.current = false; setBusy(false); }
 	};
@@ -27,6 +30,6 @@ export default function ForgotPasswordScreen({ navigation }) {
 		<AuthButton title="Send reset link" disabled={busy || !authConfigured} onPress={submit} />
 		{!!message && <Text style={s.note}>{message}</Text>}
 		{!!error && <Text style={s.error} accessibilityRole="alert">{error}</Text>}
-		<AuthButton variant="ghost" title="Back to sign in" onPress={() => navigation.navigate('Login')} />
+		<AuthButton variant="ghost" title="Back" onPress={() => navigation.goBack()} />
 	</AuthPage>;
 }
