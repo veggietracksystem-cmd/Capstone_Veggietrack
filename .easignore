@@ -24,3 +24,10 @@ Thumbs.db
 
 # Separate scratch Expo project; mobile is the app built by this repository.
 /VeggieTrack-Clean/
+
+# Not needed to build the mobile app. EAS archives from the repository root,
+# so these would otherwise upload on every build (~124 MB, ~11 minutes).
+# Metro is rooted at mobile/ and nothing in mobile/src imports from backend/.
+/backend/
+/docs/
+/mobile/dist/
