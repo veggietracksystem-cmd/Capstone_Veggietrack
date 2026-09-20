@@ -45,7 +45,7 @@ For the handover to real client accounts there is a new, irreversible script, [r
 
 ## Uncommitted working-tree changes
 
-The build and branding changes described in earlier revisions of this report — the `#FFFFFF` Android adaptive-icon background with regenerated launcher assets, `"owner": "veggietrack"` in `mobile/app.json`, and `android.buildType: "apk"` on the EAS `preview` profile — are committed. `backend/sql/reset_test_data_keep_distributor.sql` and the local diagram sources under `docs/` are still untracked. The diagrams are generated locally by design; the handover script is referenced by this report and by the README, so committing it would make those links resolve in a fresh clone.
+The build and branding changes described in earlier revisions of this report — the `#FFFFFF` Android adaptive-icon background with regenerated launcher assets, `"owner": "veggietrack"` in `mobile/app.json`, and `android.buildType: "apk"` on the EAS `preview` profile — are committed. The local diagram sources under `docs/` remain untracked; they are generated locally by design. `backend/sql/reset_test_data_keep_distributor.sql` is now committed, so the links to it from this report and from the README resolve in a fresh clone. It is a script to read before running, never a migration to apply — see the irreversibility warning in its header.
 
 ## Deployment prerequisites
 
