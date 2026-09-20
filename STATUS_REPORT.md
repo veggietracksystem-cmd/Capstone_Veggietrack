@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-09-20
 
-The working tree contains the email-only authentication, mobile UI, localization, delivery-proof and reliability updates. Local automated checks and a fresh Expo web export pass. The hosted API is live; one additive migration, Supabase Auth configuration and physical-device acceptance remain outstanding, so this is not a production-readiness sign-off.
+The working tree contains the email-only authentication, mobile UI, localization, delivery-proof and reliability updates. Local automated checks and a fresh Expo web export pass. The hosted API is live and no migration is outstanding; Supabase Auth configuration and physical-device acceptance remain, so this is not a production-readiness sign-off.
 
 ## Current implementation
 
@@ -14,7 +14,7 @@ The working tree contains the email-only authentication, mobile UI, localization
 | Account approval | Newly confirmed accounts move to pending approval; distributor approval/status checks continue to gate API access, with an audit trail per account. |
 | Delivery proof | Photo, valid fresh GPS coordinates, accuracy and timestamp are mandatory. Distance is stored and classified verified/unverified, but no longer blocks completion. |
 | Pickup proof | Rider farm pickups use the same photo + GPS capture pipeline, completed through `complete_pickup_with_proof`. |
-| Delivery reject | A rider must supply a reason; the delivery is handed back to the distributor and the distributor is notified. Persisting the reason needs the outstanding migration below. |
+| Delivery reject | A rider must supply a reason; the delivery is handed back to the distributor and the distributor is notified. The reason is persisted — the columns are present hosted. |
 | Order cancel and expiry | A `pending` order can be cancelled by its retailer or by the distributor (reason required), restoring stock under an atomic guard. Separately, pending, approved or assigned orders whose preferred schedule has passed are cancelled on the next order read or write, so a stale assignment cannot stay actionable. |
 | Localization | English and Tagalog string tables with a Profile-screen switcher persisted to AsyncStorage. Coverage is partial — the auth, account-management, application-status and tracking screens are still English-only. |
 | In-app help | A translated per-role User Guide and FAQ modal. The Contact Us modal shows hub address, phone, email and hours, but its inquiry form is presentation only and sends nothing. |
@@ -39,22 +39,21 @@ Re-run on 2026-09-20 against the current working tree.
 
 A read-only inspection on 2026-09-19 (`backend/scripts/inspect_runtime_contract_readonly.js`, plus the two existing delivery/auth inspection scripts) found the hosted Supabase project **already migrated** for everything the API calls at runtime. All 13 tables and all 7 RPCs resolve, including `complete_delivery_with_proof`, `complete_pickup_with_proof`, `advance_delivery_status`, `vt_account_context` and `vt_admin_transition`, and the destination snapshot, rider accuracy, POD and avatar columns. Earlier revisions of this report described these as missing; that is no longer accurate. **Do not reapply the delivery or Auth migrations.**
 
-One migration is still outstanding: `deliveries.rejection_reason` and `deliveries.rejected_at` from [delivery_reject.sql](backend/sql/delivery_reject.sql) do not exist hosted. `PUT /api/deliveries/:id/reject` now falls back to an audit-free hand-back and reports a real failure instead of silently reporting success, but apply the migration to record reject reasons.
+No migration is outstanding. A read-only check on 2026-09-20 found `deliveries.rejection_reason` and `deliveries.rejected_at` from [delivery_reject.sql](backend/sql/delivery_reject.sql) both **present** hosted, so `PUT /api/deliveries/:id/reject` records the reason rather than falling back to an audit-free hand-back. Earlier revisions of this report described these columns as missing; that is no longer accurate.
 
 For the handover to real client accounts there is a new, irreversible script, [reset_test_data_keep_distributor.sql](backend/sql/reset_test_data_keep_distributor.sql). It clears all business data and every account except the trusted distributor that `backend/lib/auth.js` hardcodes. It is not a migration — take a database backup first, and clear Cloudinary media separately. Do not use the older `reset_data.sql`, which truncates `users` and would remove that distributor.
 
 ## Uncommitted working-tree changes
 
-Beyond the documentation, the tree currently holds build/branding changes that are not yet committed: the Android adaptive-icon background in `mobile/app.json` moved to `#FFFFFF` with the regenerated launcher assets, `mobile/app.json` gained `"owner": "veggietrack"`, and the EAS `preview` profile now sets `android.buildType: "apk"` so preview builds produce an installable APK rather than an AAB. `backend/sql/reset_test_data_keep_distributor.sql` and the local diagram sources under `docs/` are also untracked.
+The build and branding changes described in earlier revisions of this report — the `#FFFFFF` Android adaptive-icon background with regenerated launcher assets, `"owner": "veggietrack"` in `mobile/app.json`, and `android.buildType: "apk"` on the EAS `preview` profile — are committed. `backend/sql/reset_test_data_keep_distributor.sql` and the local diagram sources under `docs/` are still untracked. The diagrams are generated locally by design; the handover script is referenced by this report and by the README, so committing it would make those links resolve in a fresh clone.
 
 ## Deployment prerequisites
 
-1. Apply [delivery_reject.sql](backend/sql/delivery_reject.sql) — two additive `ADD COLUMN IF NOT EXISTS` statements. No other SQL is outstanding; see "Hosted database state" above.
-2. In Supabase Auth, enable Email/password and email confirmation, add `veggietrack://reset-password` as an allowed redirect URL, and configure production SMTP. The default email service is rate-limited.
-3. Point `BACKEND_URL` at `https://capstone-veggietrack.onrender.com`, the live API. Verified 2026-09-20: it answers `/api/auth/me` with `401`, so the service is running and correctly rejecting unauthenticated requests. The host recorded in earlier revisions of this report, `https://veggietrack-api.onrender.com`, is a different and wrong service; it remains suspended (`503 / x-render-routing: suspend-by-user`) and must not be resumed. `mobile/.env` has been corrected. Update the EAS environment variable separately: [.easignore](.easignore) excludes `**/.env` from the build upload, so the APK reads `BACKEND_URL` from the EAS environment rather than the local file.
-4. Set `EXPO_PUBLIC_GEOAPIFY_API_KEY` in the same EAS environment if address autocomplete should work in the build; without it, address entry falls back to manual map pinning.
-5. Rebuild the mobile app after the Auth configuration and backend are live. `BACKEND_URL` is inlined at bundle time by `react-native-dotenv`, so the build must not reuse a stale Metro cache.
-6. Perform native-device acceptance for registration, email confirmation, sign-in code, reset link, camera/GPS proof (delivery *and* farm pickup), Cloudinary, account approval, cross-role delivery tracking and the language switcher.
+1. In Supabase Auth, enable Email/password and email confirmation, add `veggietrack://reset-password` as an allowed redirect URL, and configure production SMTP. The default email service is rate-limited.
+2. Point `BACKEND_URL` at `https://capstone-veggietrack.onrender.com`, the live API. Verified 2026-09-20: it answers `/api/auth/me` with `401`, so the service is running and correctly rejecting unauthenticated requests. The host recorded in earlier revisions of this report, `https://veggietrack-api.onrender.com`, is a different and wrong service; it remains suspended (`503 / x-render-routing: suspend-by-user`) and must not be resumed. `mobile/.env` has been corrected. Update the EAS environment variable separately: [.easignore](.easignore) excludes `**/.env` from the build upload, so the APK reads `BACKEND_URL` from the EAS environment rather than the local file.
+3. Set `EXPO_PUBLIC_GEOAPIFY_API_KEY` in the same EAS environment if address autocomplete should work in the build; without it, address entry falls back to manual map pinning.
+4. Rebuild the mobile app after the Auth configuration and backend are live. `BACKEND_URL` is inlined at bundle time by `react-native-dotenv`, so the build must not reuse a stale Metro cache. `mobile/babel.config.js` now keys its Babel cache on the contents of `.env`, which invalidates those transforms when a value changes; an EAS build transforms fresh regardless.
+5. Perform native-device acceptance for registration, email confirmation, sign-in code, reset link, camera/GPS proof (delivery *and* farm pickup), Cloudinary, account approval, cross-role delivery tracking and the language switcher.
 
 ## Known limits
 

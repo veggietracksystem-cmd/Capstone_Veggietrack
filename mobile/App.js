@@ -9,6 +9,7 @@ import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700
 import { Ionicons } from '@expo/vector-icons';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { rootBranch, rootInitialRoute } from './src/lib/rootRoute';
 import { LanguageProvider } from './src/i18n/LanguageProvider';
 import { SyncProvider } from './src/sync/SyncProvider';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -63,9 +64,14 @@ const ROLE_SCREENS = {
 
 // Reads auth state from context and renders the right stack.
 function RootNavigator() {
-  const { user, session, recoveryMode, loading, initialRoute } = useAuth();
+  const { user, session, recoveryMode, loading, initialRoute, statusError } = useAuth();
 
-  if (loading) {
+  // A session whose profile has not arrived yet is not a status decision. Hold
+  // the launch spinner until the profile resolves (or fails outright) so a user
+  // who is simply signing in is never shown the account-status screen.
+  const profilePending = !!session && !user && !recoveryMode && !statusError;
+
+  if (loading || profilePending) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#1E4E09" />
@@ -74,6 +80,10 @@ function RootNavigator() {
   }
 
   const roleScreen = (!recoveryMode && user?.access_allowed && user.role && ROLE_SCREENS[user.role]) ? ROLE_SCREENS[user.role] : null;
+  // One decision drives both the rendered branch and initialRouteName - see
+  // rootRoute.js for why they must not be derived separately.
+  const branch = rootBranch({ recoveryMode, session, roleScreen });
+  const initialRouteName = rootInitialRoute({ recoveryMode, session, roleScreen, initialRoute });
 
   return (
     <NavigationContainer>
@@ -100,9 +110,9 @@ function RootNavigator() {
           },
           gestureDirection: 'horizontal',
         }}
-        initialRouteName={roleScreen ? roleScreen.name : initialRoute}
+        initialRouteName={initialRouteName}
       >
-        {recoveryMode ? <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} /> : session && !roleScreen ? (<Stack.Screen name="ApplicationStatus" component={ApplicationStatusScreen}/>) : roleScreen ? (
+        {branch === 'recovery' ? <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} /> : branch === 'status' ? (<Stack.Screen name="ApplicationStatus" component={ApplicationStatusScreen}/>) : branch === 'role' ? (
           <>
             <Stack.Screen name={roleScreen.name} component={roleScreen.component} />
             {/* Reachable from a dashboard via navigation.navigate('Profile'/'EditProfile'). */}

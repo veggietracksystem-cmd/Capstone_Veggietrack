@@ -4,7 +4,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const babel = require('../../mobile/node_modules/@babel/core');
-const config = require('../../mobile/babel.config')({ cache() {} });
+// Stands in for Babel's own caching API: the config keys its cache on the
+// contents of .env so an edited value is never served from a stale transform.
+const cacheKeys = [];
+const cache = () => {};
+cache.using = fn => { cacheKeys.push(fn()); };
+const config = require('../../mobile/babel.config')({ cache });
 const options = config.plugins.find(p => p[0] === 'module:react-native-dotenv')[1];
 const publicNames = ['BACKEND_URL', 'CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_UPLOAD_PRESET'];
 
@@ -30,6 +35,13 @@ test('mobile public upload config resolves from local dotenv and EAS process env
     // Delete only this test's explicitly-created files, never a recursive path.
     fs.unlinkSync(dotenvPath); fs.rmdirSync(dir);
   }
+});
+
+test('the babel config invalidates its cache on the contents of .env', () => {
+  // react-native-dotenv inlines .env at transform time and neither Babel nor
+  // Metro tracks that file, so an unkeyed cache serves the previous value.
+  assert.equal(cacheKeys.length, 1, 'the config registers exactly one cache key');
+  assert.equal(typeof cacheKeys[0], 'string', 'the key is the .env file contents');
 });
 
 test('EAS profiles select the corresponding public configuration environment', () => {

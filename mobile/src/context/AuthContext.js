@@ -9,8 +9,13 @@ export function AuthProvider({ children }) {
  const [user,setUser]=useState(null), [session,setSession]=useState(null), [loading,setLoading]=useState(true);
  const [statusError,setStatusError]=useState(''), [recoveryMode,setRecoveryMode]=useState(false);
  const [initialRoute,setInitialRoute]=useState('Landing');
- const generation=useRef(0), alive=useRef(true);
+ const generation=useRef(0), alive=useRef(true), challenge=useRef(false);
  const refreshProfile=async()=>{
+  // The email challenge below holds a password session just long enough to
+  // request the code. Publishing that session would swap the navigator to the
+  // signed-in stack, so the Login screen's VerifyEmail navigation would land
+  // on a stack that no longer has the screen and be dropped.
+  if(challenge.current) return;
   const version=++generation.current;
   try {
    const {data,error}=await supabase.auth.getSession();
@@ -19,7 +24,17 @@ export function AuthProvider({ children }) {
    const current=data.session;
    setSession(current); setAuthToken(current?.access_token || null);
    if(!current){setUser(null);setStatusError('');return;}
-   const result=await api.get('/api/auth/me');
+   // One hosted read can lose to a cold start or a dropped mobile connection.
+   // Retry a transport failure once, quietly, so a blip never reaches a screen.
+   let result;
+   try { result=await api.get('/api/auth/me'); }
+   catch (firstAttempt) {
+    if(!alive.current || version!==generation.current) return;
+    if(firstAttempt?.status>=400 && firstAttempt?.status!==503) throw firstAttempt;
+    await new Promise(resolve=>setTimeout(resolve,1500));
+    if(!alive.current || version!==generation.current) return;
+    result=await api.get('/api/auth/me');
+   }
    if(alive.current && version===generation.current){setUser(result.user);setStatusError('');}
   } catch {
    // A transient failure here (flaky connection, slow backend) must not
@@ -27,7 +42,7 @@ export function AuthProvider({ children }) {
    // show that error when we have nothing to fall back on. Retries happen
    // silently via the 15s poll / foreground refresh below.
    if(alive.current && version===generation.current){
-    setUser(current=>{setStatusError(current?'':'Account status could not be checked. Reconnect and refresh.');return current;});
+    setUser(current=>{setStatusError(current?'':'We can’t reach VeggieTrack right now. Check your connection and try again.');return current;});
    }
   } finally {if(alive.current && version===generation.current)setLoading(false);}
  };
@@ -74,13 +89,19 @@ export function AuthProvider({ children }) {
   return ()=>{alive.current=false;generation.current++;subscription.unsubscribe();linkSub.remove();appSub.remove();clearInterval(timer);setUnauthorizedHandler(null);setBlockedHandler(null);setTokenProvider(null);};
  },[]);
  const signInWithEmail=async(email,password)=>{
-  const {error}=await supabase.auth.signInWithPassword({email,password});
-  if(error)throw error;
-  // Password verification is followed by a separate email challenge. Clear
-  // the password session before the challenge so it cannot enter the app.
-  const {error:otpError}=await supabase.auth.signInWithOtp({email,options:{shouldCreateUser:false}});
-  await supabase.auth.signOut({scope:'local'});
-  if(otpError)throw otpError;
+  // Held for the whole challenge, not just the signed-in moment: the auth
+  // listener below reacts on a timer, so the flag has to outlive both the
+  // sign-in and the sign-out events this function provokes.
+  challenge.current=true;
+  try {
+   const {error}=await supabase.auth.signInWithPassword({email,password});
+   if(error)throw error;
+   // Password verification is followed by a separate email challenge. Clear
+   // the password session before the challenge so it cannot enter the app.
+   const {error:otpError}=await supabase.auth.signInWithOtp({email,options:{shouldCreateUser:false}});
+   await supabase.auth.signOut({scope:'local'});
+   if(otpError)throw otpError;
+  } finally { challenge.current=false; }
  };
  return <AuthContext.Provider value={{user,session,token:session?.access_token,loading,initialRoute,statusError,recoveryMode,signInWithEmail,signOut,refreshProfile,updateUser:refreshProfile}}>{children}</AuthContext.Provider>;
 }
