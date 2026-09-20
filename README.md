@@ -18,7 +18,7 @@ The hosted database is migrated for every table and RPC the API calls, and the h
 | `backend/sql/` | Inspections, guarded migrations and historical schema scripts |
 | `backend/scripts/` | Read-only hosted inspections and one-off maintenance utilities |
 | `backend/test/` | Node regression tests, mobile handler tests and local PGlite integration tests |
-| `docs/` | Low-fidelity screen wireframes; the module and data-flow diagrams are generated locally and not committed |
+| `docs/` | Low-fidelity screen wireframes and their screen-by-screen descriptions; the module and data-flow diagrams are generated locally and not committed |
 | `design-prototype/` | Standalone click-through visual prototype using fictional sample data |
 | `VeggieTrack-Clean/` | Separate Expo starter; not the business application |
 
