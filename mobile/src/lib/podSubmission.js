@@ -1,10 +1,13 @@
 export const POD_MESSAGES = {
-  upload: 'Unable to upload proof of delivery. Please try again.',
-  completion: 'Proof was uploaded, but the delivery could not be completed. Please try again.',
-  unreachable: 'Server cannot be reached. Check your connection and try again.',
-  offline: 'You appear to be offline. Reconnect and try again.',
-  session: 'Your session has expired. Sign in again and try again.',
-  timeout: 'The request timed out. Please try again.',
+  upload: 'We couldn’t upload the delivery photo. Please try again.',
+  completion: 'The photo was uploaded, but we couldn’t mark the delivery as done. Please try again.',
+  // The pre-flight runs before anything is uploaded, so this must never imply
+  // a photo was sent — nothing was.
+  precheck: 'We couldn’t verify this yet, so the photo was not uploaded. Please try again.',
+  unreachable: 'Please check your internet connection and try again.',
+  offline: 'You’re offline right now. Please reconnect and try again.',
+  session: 'Your session has ended. Please sign in again.',
+  timeout: 'That took too long. Please try again.',
 };
 
 export function proofFailureMessage(error) {
@@ -12,10 +15,11 @@ export function proofFailureMessage(error) {
   if (error?.stage === 'upload') return POD_MESSAGES.upload;
   if (error?.status === 401) return POD_MESSAGES.session;
   if (error?.code === 'BACKEND_UNREACHABLE') return POD_MESSAGES.unreachable;
-  if (error?.stage === 'complete') {
+  if (error?.stage === 'complete' || error?.stage === 'precheck') {
+    const prefix = error.stage === 'precheck' ? POD_MESSAGES.precheck : POD_MESSAGES.completion;
     // Keep precise backend validation/rejection details; never label a 4xx as network failure.
     const detail = error.code === 'REQUEST_TIMEOUT' ? POD_MESSAGES.timeout : error.status >= 400 && error.status < 500 ? error.data?.error : null;
-    return detail ? `${POD_MESSAGES.completion}\n\n${detail}` : POD_MESSAGES.completion;
+    return detail ? `${prefix}\n\n${detail}` : prefix;
   }
   return error?.message || POD_MESSAGES.upload;
 }
@@ -27,7 +31,7 @@ const isDeliveryConfirmed = (result) =>
 // photo reuses its successful upload after a rejected/timed-out completion;
 // replacing it resets it. `isConfirmed` lets pickup completion (different
 // success message shape) reuse this same controller instead of duplicating it.
-export function createProofSubmission({ upload, complete, isOnline, isConfirmed = isDeliveryConfirmed }) {
+export function createProofSubmission({ upload, complete, isOnline, precheck, isConfirmed = isDeliveryConfirmed }) {
   let inFlight = null;
   let uploadedPhoto = null;
   let uploadedUrl = null;
@@ -40,7 +44,22 @@ export function createProofSubmission({ upload, complete, isOnline, isConfirmed 
         if (!photo?.uri) throw new Error('Select a proof photo before completing the delivery.');
         if (!(await isOnline())) throw Object.assign(new Error(POD_MESSAGES.offline), { code: 'OFFLINE' });
         // Fresh verification on every attempt, without discarding the image.
-        await getLocation();
+        const preflight = await getLocation();
+        if (precheck && (uploadedPhoto !== photo || !uploadedUrl)) {
+          // Ask the server whether this completion would be accepted before a single
+          // byte reaches Cloudinary: a rejection here strands no image. Skipped once
+          // a photo is already hosted — that cost is spent and complete() re-checks.
+          try { await precheck(preflight); }
+          catch (error) {
+            // A backend without this route answers with the generic JSON 404, which
+            // carries no code. Never block a completion the real endpoint would accept.
+            if (error.status !== 404 || error.code) {
+              error.stage = 'precheck';
+              if (error.status === 0 && !(await isOnline())) error.code = 'OFFLINE';
+              throw error;
+            }
+          }
+        }
         if (uploadedPhoto !== photo || !uploadedUrl) {
           try { uploadedUrl = await upload(photo); uploadedPhoto = photo; }
           catch (error) {
@@ -54,7 +73,7 @@ export function createProofSubmission({ upload, complete, isOnline, isConfirmed 
         try {
           const result = await complete({ proof_photo_url: uploadedUrl, ...location });
           if (!isConfirmed(result)) {
-            throw Object.assign(new Error('The server did not confirm delivery completion.'), { code: 'COMPLETION_UNCONFIRMED' });
+            throw Object.assign(new Error('We couldn’t confirm this delivery was marked as done.'), { code: 'COMPLETION_UNCONFIRMED' });
           }
           completed = result;
           return completed;

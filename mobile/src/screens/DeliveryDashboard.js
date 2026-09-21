@@ -14,16 +14,19 @@ import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
 import LogoutButton from '../components/LogoutButton';
 import NotificationBell from '../components/NotificationBell';
+import ScreenHeader from '../components/ScreenHeader';
 import MessagesIcon from '../components/MessagesIcon';
 import ProfileButton from '../components/ProfileButton';
 import OfflineBanner from '../components/OfflineBanner';
 import DeliveryMapModal from '../components/DeliveryMapModal';
 import ProofPreviewModal from '../components/ProofPreviewModal';
 import EmptyState from '../components/EmptyState';
+import { SegmentedTabs } from '../components/ui/SegmentedTabs';
 import StatusBadge from '../components/ui/StatusBadge';
 import BottomNavBar from '../components/BottomNavBar';
 import { showAlert, peso, shortId } from '../lib/ui';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { friendlyError } from '../lib/errorMessages';
+import { colors, control, fontSize, fonts, radius, shadowCard, spacing } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { useAutoSync } from '../sync/SyncProvider';
@@ -32,6 +35,7 @@ import { createProofSubmission, proofFailureMessage } from '../lib/podSubmission
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { isOnline } from '../offline/net';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import useRiderLocation from '../hooks/useRiderLocation';
 
 const PRIMARY = colors.leaf700;
 
@@ -116,6 +120,16 @@ export default function DeliveryDashboard({ navigation, route }) {
 
   const [orders, setOrders] = useState([]);
   const [pickups, setPickups] = useState([]);
+  // Pickup tracking's rider marker and ETA both read the rider's published
+  // position, but the pickup flow lives on this screen and never visits
+  // RiderNavigationScreen, which is where the location publisher otherwise
+  // mounts (and is scoped to a delivery order). Publish from here too while a
+  // pickup is outstanding. No delivery_id is passed: the position belongs to a
+  // pickup rather than an order, and POST /api/delivery/update-location records
+  // it on the rider either way — sending a pickup id there would be rejected as
+  // an unassigned delivery.
+  const hasOutstandingPickup = pickups.some((p) => p.status === 'assigned' || p.status === 'otw');
+  useRiderLocation(null, hasOutstandingPickup);
   // 'deliveries' | 'pickups' — only relevant on the Tasks & History tabs.
   const [mode, setMode] = useState('deliveries');
   const [loading, setLoading] = useState(true);
@@ -143,7 +157,7 @@ export default function DeliveryDashboard({ navigation, route }) {
       setPickups(Array.isArray(data) ? data : []);
     } catch (err) {
       if (!isCurrent()) return;
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     }
   }, []);
 
@@ -160,7 +174,7 @@ export default function DeliveryDashboard({ navigation, route }) {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try { await Promise.all([loadOrders(), loadPickups()]); }
-    catch (err) { showAlert(t('common.error'), err.message); }
+    catch (err) { showAlert(t('common.error'), friendlyError(err)); }
     finally { setLoading(false); }
   }, [loadOrders, loadPickups]);
 
@@ -190,7 +204,7 @@ export default function DeliveryDashboard({ navigation, route }) {
     try {
       await Promise.all([loadOrders(), loadPickups()]);
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('refresh');
       setRefreshing(false);
@@ -221,7 +235,7 @@ export default function DeliveryDashboard({ navigation, route }) {
       setPickups(prev => prev.map(p => p.id === pickupId ? { ...p, status: 'otw' } : p));
       await loadPickups();
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('BusyId');
       setBusyId(null);
@@ -238,7 +252,7 @@ export default function DeliveryDashboard({ navigation, route }) {
       pickupSubmissionRef.current = null;
       setPickupProofVisible(true);
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       pickupActionRef.current = null; setBusyId(null);
     }
@@ -252,7 +266,7 @@ export default function DeliveryDashboard({ navigation, route }) {
       if (selected) setPickupPhoto(selected);
     } catch (err) {
       if (err.selectedPhoto) setPickupPhoto(err.selectedPhoto);
-      showAlert(t('common.error'), err.message || t('dashboards.delivery.cameraErrorFallback'));
+      showAlert(t('common.error'), friendlyError(err, t('dashboards.delivery.cameraErrorFallback')));
     } finally {
       pickupActionRef.current = null; setPickupBusy(false);
     }
@@ -266,6 +280,8 @@ export default function DeliveryDashboard({ navigation, route }) {
       if (!pickupSubmissionRef.current || pickupSubmissionRef.current.id !== pickupId) {
         pickupSubmissionRef.current = { id: pickupId, controller: createProofSubmission({
           upload: uploadToCloudinary, isOnline,
+          // Pre-flight first: a rejection here costs no Cloudinary upload.
+          precheck: body => api.post(`/api/pickup-requests/${pickupId}/pickup/check`, body),
           complete: body => api.post(`/api/pickup-requests/${pickupId}/pickup`, body),
           isConfirmed: (result) => !!result && (result.request?.status === 'picked_up' ||
             ['Pickup completed successfully and inventory updated', 'Pickup marked complete, but the batch could not be added to Stocks — contact support', 'Pickup already completed'].includes(result.message)),
@@ -373,38 +389,23 @@ export default function DeliveryDashboard({ navigation, route }) {
   };
 
   const ModeToggle = () => (
-    <View style={styles.tabContainer}>
-      <TouchableOpacity
-        style={[styles.tabButton, mode === 'deliveries' && styles.tabButtonActive]}
-        onPress={() => setMode('deliveries')}
-      >
-        <MaterialCommunityIcons name="truck-delivery-outline" size={rf(18)} color={colors.inkSoft} />
-        <Text style={[styles.tabButtonText, mode === 'deliveries' && styles.tabButtonTextActive]}>
-          {t('dashboards.delivery.modeDeliveries')}
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.tabButton, mode === 'pickups' && styles.tabButtonActive]}
-        onPress={() => setMode('pickups')}
-      >
-        <MaterialCommunityIcons name="tractor" size={rf(18)} color={colors.inkSoft} />
-        <Text style={[styles.tabButtonText, mode === 'pickups' && styles.tabButtonTextActive]}>
-          {t('dashboards.delivery.modePickups')}
-        </Text>
-      </TouchableOpacity>
-    </View>
+    <SegmentedTabs
+      value={mode}
+      onChange={setMode}
+      options={[
+        { value: 'deliveries', label: t('dashboards.delivery.modeDeliveries') },
+        { value: 'pickups', label: t('dashboards.delivery.modePickups') },
+      ]}
+    />
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Minimal Top Navigation Bar */}
-      <View style={styles.minimalHeader}>
-        <Text style={styles.minimalTitle}>{t('dashboards.delivery.title')}</Text>
-        <View style={styles.headerIcons}>
-          <MessagesIcon />
-          <NotificationBell />
-        </View>
-      </View>
+      {/* Same centred header every screen in the app uses. */}
+      <ScreenHeader
+        title={t('dashboards.delivery.title')}
+        right={<><MessagesIcon /><NotificationBell /></>}
+      />
 
   <SharedScreenTransition style={{ flex: 1 }} visible>
     <ScrollView
@@ -572,20 +573,6 @@ export default function DeliveryDashboard({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
 
-  headerIcons: { flexDirection: 'row', alignItems: 'center' },
-
-  minimalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.bgScreen,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  minimalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
-
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
@@ -606,41 +593,19 @@ const styles = StyleSheet.create({
   orderTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: PRIMARY, marginBottom: 4 },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  routeBtn: { flex: 1, paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY },
-  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.md) },
+  routeBtn: { flex: 1, paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY, justifyContent: 'center', minHeight: control.height  },
+  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.md), textAlign: 'center' },
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 4 },
   buttonPrimary: { backgroundColor: PRIMARY },
   buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
   buttonDisabled: { opacity: 0.6 },
 
-  detailsBtn: { flex: 1, paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.leaf50 },
-  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
+  detailsBtn: { flex: 1, paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.leaf50, justifyContent: 'center', minHeight: control.height  },
+  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md), textAlign: 'center' },
 
-  tabContainer: { flexDirection: 'row', backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 4, marginBottom: 16 },
-  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8, gap: 3 },
-  tabButtonActive: { backgroundColor: colors.card, ...shadowCard },
-  tabButtonText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
-  tabButtonTextActive: { color: PRIMARY },
-
-// ===== NEW STYLES FOR NAVIGATE BUTTON =====
-buttonRow: {
-  flexDirection: 'row',
-  gap: 10,
-  marginTop: 8,
-},
-flexButton: {
-  flex: 1,
-},
-navigateBtn: {
-  backgroundColor: colors.info,
-  borderColor: colors.info,
-  flex: 1,
-},
-navigateBtnText: {
-  fontFamily: fonts.bodyBold,
-  color: '#fff',
-  fontSize: rf(fontSize.md),
-},
-// ===== END NEW STYLES =====
+  buttonRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  flexButton: { flex: 1 },
+  navigateBtn: { backgroundColor: colors.info, borderColor: colors.info, flex: 1 },
+  navigateBtnText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(fontSize.md), textAlign: 'center' },
 });

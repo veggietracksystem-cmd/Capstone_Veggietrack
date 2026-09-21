@@ -11,6 +11,7 @@ const { isVegetable, VEGETABLE_VALIDATION_MESSAGE } = require('./lib/vegetables'
 const { coordinate, destinationFor, loadDestination, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
 const { createPickupTrackingHandler } = require('./lib/pickupTracking');
 const { STALE_LOCATION_SECONDS } = require('./lib/locationPolicy');
+const { deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection } = require('./lib/proofGuards');
 const { sendDbError } = require('./lib/errors');
 const { isPositiveQuantity, isNonNegativeQuantity } = require('./lib/validation');
 
@@ -544,6 +545,18 @@ app.put('/api/pickup-requests/:id/assign', verifyToken, async (req, res) => {
   res.json({ message: 'Rider assigned to pickup request', request: updated });
 });
 
+app.post('/api/pickup-requests/:id/pickup/check', verifyToken, async (req, res) => {
+  if (req.user.role !== 'delivery_personnel') {
+    return res.status(403).json({ error: 'Only riders can mark pickups as completed', code: 'PICKUP_FORBIDDEN' });
+  }
+  const guard = await pickupCompletionGuard(supabaseAdmin, req.params.id, req.user.userId, req.body || {});
+  if (guard.reject) return res.status(guard.reject.status).json(guard.reject.body);
+  if (guard.done) return res.json({ ok: true, completed: true });
+  const tooFar = await pickupProximityRejection(supabaseAdmin, guard.request, guard.pod);
+  if (tooFar) return res.status(tooFar.status).json(tooFar.body);
+  res.json({ ok: true, completed: false });
+});
+
 app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
   if (req.user.role !== 'delivery_personnel') {
     return res.status(403).json({ error: 'Only riders can mark pickups as completed' });
@@ -551,31 +564,13 @@ app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
   const { id } = req.params;
   const { proof_photo_url } = req.body || {};
 
-  const { data: request, error: fetchErr } = await supabaseAdmin
-    .from('pickup_requests')
-    .select(`
-      id, status, farmer_id, harvest_id, amount, received_by, pod,
-      harvests (vegetable_name, quantity_kg, recorded_at)
-    `)
-    .eq('id', id)
-    .eq('delivery_personnel_id', req.user.userId)
-    .single();
+  const guard = await pickupCompletionGuard(supabaseAdmin, id, req.user.userId, req.body || {});
+  if (guard.reject) return res.status(guard.reject.status).json(guard.reject.body);
+  if (guard.done) return res.json(guard.done);
+  const { request, pod } = guard;
 
-  if (fetchErr || !request) return res.status(404).json({ error: 'Pickup request not found' });
-  if (request.status === 'picked_up') return res.json({ message: 'Pickup already completed', request, pod: request.pod });
-  // Completion is allowed directly from 'assigned' as well as after the rider
-  // has marked 'otw' — the on-the-way step is informational for the farmer,
-  // not a mandatory gate the rider must pass through first.
-  if (!['assigned', 'otw'].includes(request.status)) {
-    return res.status(400).json({ error: `Pickup request cannot be picked up (status: ${request.status})` });
-  }
-
-  // Same proof-of-pickup requirement as delivery: GPS + photo + timestamp are
-  // mandatory and validated before anything is persisted (see
-  // complete_pickup_with_proof, which also checks proximity to the farmer's
-  // saved location when one exists).
-  let pod, photoUrl;
-  try { pod = validatePickupProof(req.body); photoUrl = proofImageUrl(proof_photo_url, pod, undefined, 'Pickup'); }
+  let photoUrl;
+  try { photoUrl = proofImageUrl(proof_photo_url, pod, undefined, 'Pickup'); }
   catch (err) { return res.status(422).json({ error: err.message, code: err.code || 'PROOF_IMAGE_INVALID' }); }
   try { await ensureProofImage(photoUrl); }
   catch { return res.status(503).json({ error: 'Proof was uploaded, but the pickup could not be completed. Please try again.', code: 'PROOF_IMAGE_UNAVAILABLE' }); }
@@ -2094,6 +2089,18 @@ app.put('/api/deliveries/:id/reject', verifyToken, async (req, res) => {
 });
 
 // ========== DELIVERY COMPLETION ==========
+app.post('/api/deliveries/:id/complete/check', verifyToken, async (req, res) => {
+  if (req.user.role !== 'delivery_personnel') {
+    return res.status(403).json({ error: 'Only delivery personnel can complete deliveries', code: 'DELIVERY_FORBIDDEN' });
+  }
+  const guard = await deliveryCompletionGuard(supabaseAdmin, req.params.id, req.user.userId, req.body || {});
+  if (guard.reject) return res.status(guard.reject.status).json(guard.reject.body);
+  if (guard.done) return res.json({ ok: true, completed: true });
+  // location_status is reported, never enforced — see validateProof for why
+  // distance-to-destination does not block a delivery.
+  res.json({ ok: true, completed: false, location_status: guard.pod.location_status });
+});
+
 app.put('/api/deliveries/:id/complete', verifyToken, async (req, res) => {
   const { id } = req.params;
   const { proof_photo_url } = req.body || {};
@@ -2104,29 +2111,14 @@ app.put('/api/deliveries/:id/complete', verifyToken, async (req, res) => {
     return res.status(403).json({ error: 'Only delivery personnel can complete deliveries' });
   }
 
-  const { data: delivery, error: deliveryError } = await supabaseAdmin
-    .from('deliveries')
-    .select('*, order_id')
-    .eq('id', id)
-    .eq('delivery_personnel_id', deliveryPersonId)
-    .single();
+  const guard = await deliveryCompletionGuard(supabaseAdmin, id, deliveryPersonId, req.body || {});
+  if (guard.reject) return res.status(guard.reject.status).json(guard.reject.body);
+  if (guard.done) return res.json(guard.done);
+  const { delivery, order, pod } = guard;
 
-  if (deliveryError || !delivery) {
-    return res.status(404).json({ error: 'Delivery not found or not assigned to you' });
-  }
-
-  const { data: order, error: orderError } = await supabaseAdmin.from('orders').select('*').eq('id', delivery.order_id).single();
-  if (orderError || !order) return res.status(500).json({ error: 'Unable to load delivery destination. Retry.' });
-  if (delivery.status === 'delivered' && order.status === 'delivered') return res.json({ message: 'Delivery already completed', pod: delivery.pod });
-  if (delivery.status !== 'in_transit' || order.status !== 'in_transit') return res.status(409).json({ error: 'Delivery must be in transit before submitting proof.' });
-  let pod, photoUrl;
-  let destination;
-  try { destination = await loadDestination(supabaseAdmin, order); }
-  catch { return res.status(503).json({ error: 'Unable to load delivery destination. Retry.', code: 'DELIVERY_DESTINATION_LOOKUP_FAILED' }); }
-  try {
-    pod = validateProof(req.body, destination);
-    photoUrl = proofImageUrl(proof_photo_url, pod);
-  } catch (err) { return res.status(422).json({ error: err.message, code: err.code || 'PROOF_IMAGE_INVALID' }); }
+  let photoUrl;
+  try { photoUrl = proofImageUrl(proof_photo_url, pod); }
+  catch (err) { return res.status(422).json({ error: err.message, code: err.code || 'PROOF_IMAGE_INVALID' }); }
   try { await ensureProofImage(photoUrl); }
   catch { return res.status(503).json({ error: 'Proof was uploaded, but the delivery could not be completed. Please try again.', code: 'PROOF_IMAGE_UNAVAILABLE' }); }
   const { error: completeError } = await supabaseAdmin.rpc('complete_delivery_with_proof', {

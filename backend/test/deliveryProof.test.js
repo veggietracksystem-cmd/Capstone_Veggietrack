@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const { validateSchedule, scheduleInstant, validateProof, distanceMeters, proofImageUrl, ensureProofImage } = require('../lib/deliveryProof');
 const { loadDestination, destinationFor, coordinate, missingColumn } = require('../lib/deliveryTracking');
 const { STALE_LOCATION_SECONDS } = require('../lib/locationPolicy');
+const { deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection } = require('../lib/proofGuards');
 const now = Date.parse('2026-09-05T22:00:00+08:00');
 const destination = { latitude: 7.1, longitude: 125.6 };
 const proof = { ...destination, accuracy: 10, captured_at: new Date(now).toISOString() };
@@ -89,6 +90,7 @@ function handler(path, endMarker, deps = {}) {
     app: { get: (_, auth, cb) => { callback = cb; }, post: (_, auth, cb) => { callback = cb; }, put: (_, auth, cb) => { callback = cb; } },
     verifyToken() {}, validateSchedule, validateProof, proofImageUrl: (url, pod) => proofImageUrl(url, pod, 'demo'),
     ensureProofImage: async () => {}, createNotification: async () => {}, loadDestination, destinationFor, coordinate, missingColumn, STALE_LOCATION_SECONDS, Date, console,
+    deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection,
     cancelExpiredRetailerOrders: async () => {}, ...deps,
   });
   return callback;

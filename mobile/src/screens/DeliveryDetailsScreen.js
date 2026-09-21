@@ -15,7 +15,8 @@ import CustomModal from '../components/CustomModal';
 import ScreenHeader from '../components/ScreenHeader';
 import StatusBadge from '../components/ui/StatusBadge';
 import { showAlert, peso, shortId } from '../lib/ui';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { friendlyError } from '../lib/errorMessages';
+import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { formatStatus, getDelivery, effectiveStatus, STATUS_RANK } from './DeliveryDashboard';
 import { rf } from '../lib/responsive';
@@ -155,7 +156,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
       await api.put(`/api/deliveries/${delivery.id}/status`, { status: newStatus });
       await refreshOrder();
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       actionRef.current = null;
       setBusy(false);
@@ -168,7 +169,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
     try {
       await verifiedLocation();
       setConfirmVisible(true);
-    } catch (err) { showAlert(t('common.error'), err.message); }
+    } catch (err) { showAlert(t('common.error'), friendlyError(err)); }
     finally { actionRef.current = null; setBusy(false); }
   };
   const pickPhoto = async () => {
@@ -179,7 +180,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
       if (selected) setPhoto(withLocationStatus(selected, order));
     } catch (err) {
       if (err.selectedPhoto) setPhoto(withLocationStatus(err.selectedPhoto, order));
-      showAlert(t('common.error'), err.message || t('dashboards.delivery.cameraErrorFallback'));
+      showAlert(t('common.error'), friendlyError(err, t('dashboards.delivery.cameraErrorFallback')));
     } finally { actionRef.current = null; setBusy(false); }
   };
 
@@ -216,7 +217,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
       // The order is no longer assigned to this rider — nothing left to show here.
       navigation.goBack();
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       actionRef.current = null; setRejecting(false); setBusy(false);
     }
@@ -232,6 +233,8 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
     try {
       if (!submissionRef.current || submissionRef.current.id !== delivery.id) {
         submissionRef.current = { id: delivery.id, controller: createProofSubmission({ upload: uploadToCloudinary, isOnline,
+          // Pre-flight first: a rejection here costs no Cloudinary upload.
+          precheck: body => api.post(`/api/deliveries/${delivery.id}/complete/check`, body),
           complete: body => api.put(`/api/deliveries/${delivery.id}/complete`, body) }) };
       }
       await submissionRef.current.controller.submit({ photo, getLocation: verifiedLocation });
@@ -430,7 +433,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
             value={rejectOtherText}
             onChangeText={setRejectOtherText}
             placeholder={t('dashboards.delivery.rejectReasonOtherPlaceholder')}
-            placeholderTextColor={colors.inkFaint}
+            placeholderTextColor={colors.placeholder}
             multiline
           />
         )}
@@ -461,7 +464,7 @@ const styles = StyleSheet.create({
   subLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkFaint, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   routeBtnCentered: { marginTop: 4, marginBottom: 8, paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY, backgroundColor: colors.card },
-  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.md) },
+  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.md), textAlign: 'center' },
 
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
   itemName: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
@@ -472,16 +475,16 @@ const styles = StyleSheet.create({
   // the single next step renders as the actionable button below it.
   stepDoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   stepDoneText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: PRIMARY },
-  stepActionBtn: { paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY, backgroundColor: colors.card, marginBottom: 8 },
-  stepActionBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md) },
+  stepActionBtn: { paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY, backgroundColor: colors.card, marginBottom: 8, justifyContent: 'center', minHeight: control.height },
+  stepActionBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md), textAlign: 'center' },
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 8 },
   buttonPrimary: { backgroundColor: PRIMARY },
   buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
   buttonDisabled: { opacity: 0.6 },
 
-  rejectBtn: { paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 8, borderWidth: 1.5, borderColor: colors.danger },
-  rejectBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md) },
+  rejectBtn: { paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 8, borderWidth: 1.5, borderColor: colors.danger, justifyContent: 'center', minHeight: control.height },
+  rejectBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md), textAlign: 'center' },
 
   reasonWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   reasonChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },

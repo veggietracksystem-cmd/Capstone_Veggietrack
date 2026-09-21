@@ -59,6 +59,50 @@ test('a malformed successful response never fabricates delivery completion', asy
   const controller = createProofSubmission({ isOnline: async () => true, upload: async () => 'hosted', complete: async () => null });
   await assert.rejects(controller.submit({ photo, getLocation: location }), { code: 'COMPLETION_UNCONFIRMED' });
 });
+
+// A photo uploaded for a completion the server then rejects is orphaned in
+// Cloudinary forever. The pre-flight runs the server's own checks first so the
+// common rejections - wrong status, stale or inaccurate GPS, standing too far
+// from the farm - cost nothing.
+test('a rejected pre-flight completes nothing and, crucially, uploads nothing', async () => {
+  let uploads = 0, completions = 0, prechecks = 0;
+  const controller = createProofSubmission({ isOnline: async () => true,
+    precheck: async body => { prechecks++; assert.equal(body.accuracy, 10); throw Object.assign(Error('rejected'), { status: 422, data: { error: 'Move closer.' } }); },
+    upload: async () => { uploads++; return 'hosted'; }, complete: async () => { completions++; } });
+  await assert.rejects(controller.submit({ photo, getLocation: location }), error => {
+    assert.equal(error.stage, 'precheck');
+    const message = proofFailureMessage(error);
+    assert.equal(message, POD_MESSAGES.precheck + String.fromCharCode(10, 10) + 'Move closer.');
+    assert.ok(!message.includes('uploaded, but'), 'must not claim a photo was uploaded');
+    return true;
+  });
+  assert.equal(uploads, 0); assert.equal(completions, 0); assert.equal(prechecks, 1);
+});
+test('a backend without the pre-flight route never blocks a completion it would have accepted', async () => {
+  let uploads = 0;
+  // The generic JSON 404 for an unknown path carries no code of its own; a real
+  // "not found" from the pre-flight always does.
+  const controller = createProofSubmission({ isOnline: async () => true,
+    precheck: async () => { throw Object.assign(Error('That endpoint does not exist.'), { status: 404, data: { error: 'That endpoint does not exist.' } }); },
+    upload: async () => { uploads++; return 'hosted'; }, complete: async () => ({ status: 'delivered' }) });
+  await controller.submit({ photo, getLocation: location });
+  assert.equal(uploads, 1);
+});
+test('a real pre-flight 404 still stops the attempt, and a retry after a rejected completion skips it', async () => {
+  let prechecks = 0, uploads = 0, attempts = 0;
+  const missing = createProofSubmission({ isOnline: async () => true,
+    precheck: async () => { throw Object.assign(Error('Delivery not found or not assigned to you'), { status: 404, code: 'DELIVERY_NOT_FOUND', data: { error: 'Delivery not found or not assigned to you', code: 'DELIVERY_NOT_FOUND' } }); },
+    upload: () => assert.fail('nothing may be uploaded for a delivery the rider does not own'), complete: () => assert.fail() });
+  await assert.rejects(missing.submit({ photo, getLocation: location }), { stage: 'precheck' });
+
+  const controller = createProofSubmission({ isOnline: async () => true,
+    precheck: async () => { prechecks++; }, upload: async () => { uploads++; return 'hosted'; },
+    complete: async () => { if (++attempts === 1) throw Object.assign(Error('rejected'), { status: 503 }); return { status: 'delivered' }; } });
+  await assert.rejects(controller.submit({ photo, getLocation: location }), { stage: 'complete' });
+  await controller.submit({ photo, getLocation: location });
+  // The upload is already paid for on the retry, so re-checking buys nothing.
+  assert.equal(prechecks, 1); assert.equal(uploads, 1); assert.equal(attempts, 2);
+});
 function uploadModule(fetch, env = { CLOUDINARY_CLOUD_NAME: 'test-cloud', CLOUDINARY_UPLOAD_PRESET: 'unsigned-test' }) {
   return load('lib/cloudinary.js', { 'react-native': { Platform: { OS: 'android' } }, '@env': env }, { fetch,
     FormData: class { append() {} } });
