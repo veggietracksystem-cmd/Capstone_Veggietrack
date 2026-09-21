@@ -42,11 +42,11 @@
         }
       ]
     ],
-    "owner": "multiuser",
     "extra": {
       "eas": {
-        "projectId": "7aa027e3-1159-4475-8b39-d0bd0dc1abe0"
+        "projectId": "83724f9b-71a3-49fa-8189-7344e2ab5b3c"
       }
-    }
+    },
+    "owner": "angelo1263"
   }
 }
