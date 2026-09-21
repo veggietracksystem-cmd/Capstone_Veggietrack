@@ -3,7 +3,7 @@ import { useState } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet,
 } from 'react-native';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fonts, radius, shadowCard } from '../theme/appTheme';
 
 const PRIMARY = colors.leaf700;
 
@@ -62,7 +62,7 @@ export default function SchedulePicker({ value, onChange, disabled }) {
         activeOpacity={0.8}
       >
         <Text style={[styles.triggerText, !value && styles.triggerTextEmpty]}>
-          🕒  {prettyValue(value)}
+          {prettyValue(value)}
         </Text>
       </TouchableOpacity>
 
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   chipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
 
   actions: { flexDirection: 'row', gap: 12, marginTop: 20 },
-  btn: { flex: 1, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center' },
+  btn: { flex: 1, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center', minHeight: control.height },
   btnPrimary: { backgroundColor: PRIMARY },
   btnPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15.5) },
   btnOutline: { borderWidth: 1.4, borderColor: PRIMARY },

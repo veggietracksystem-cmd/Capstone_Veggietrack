@@ -14,6 +14,7 @@ import EmptyState from '../components/EmptyState';
 import ScreenHeader from '../components/ScreenHeader';
 import StatusBadge from '../components/ui/StatusBadge';
 import { showAlert, confirmAction } from '../lib/ui';
+import { friendlyError } from '../lib/errorMessages';
 import { useTranslation } from '../i18n/useTranslation';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
@@ -40,7 +41,7 @@ export default function HarvestListScreen({ navigation }) {
       setHarvests(Array.isArray(data) ? data : []);
     } catch (err) {
       if (!isCurrent()) return;
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     }
   }, []);
 
@@ -76,7 +77,7 @@ export default function HarvestListScreen({ navigation }) {
           beginRead('loadHarvests');
           setHarvests((prev) => prev.filter((h) => h.id !== harvest.id));
         } catch (err) {
-          showAlert(t('common.error'), err.message);
+          showAlert(t('common.error'), friendlyError(err));
         } finally {
           requestLock.release('BusyId');
           setBusyId(null);
@@ -96,7 +97,7 @@ export default function HarvestListScreen({ navigation }) {
       await syncPending();
       showAlert(t('harvestList.pickupRequestedTitle'), t('harvestList.pickupRequestedMessage', { name: harvest.vegetable_name, qty: harvest.quantity_kg }));
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('BusyId');
       setBusyId(null);
@@ -122,7 +123,7 @@ export default function HarvestListScreen({ navigation }) {
           <TextInput
             style={styles.searchInput}
             placeholder={t('harvestList.searchPlaceholder')}
-            placeholderTextColor={colors.inkFaint}
+            placeholderTextColor={colors.placeholder}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -310,7 +311,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  manageBtnText: { color: '#fff', fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm) },
+  manageBtnText: { color: '#fff', fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), textAlign: 'center' },
   pickupBtn: {
     width: '100%',
     flexDirection: 'row',
@@ -323,7 +324,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pickupBtnText: { color: PRIMARY, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm) },
+  pickupBtnText: { color: PRIMARY, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), textAlign: 'center' },
   deleteBtn: {
     width: '100%',
     flexDirection: 'row',
@@ -336,5 +337,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  deleteBtnText: { color: colors.danger, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm) },
+  deleteBtnText: { color: colors.danger, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), textAlign: 'center' },
 });

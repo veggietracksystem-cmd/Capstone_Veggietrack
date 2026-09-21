@@ -3,11 +3,12 @@ import { ActivityIndicator, Image, Text, TouchableOpacity, View } from 'react-na
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { uploadToCloudinary } from '../lib/cloudinary';
-import { colors, fonts, radius } from '../theme/appTheme';
+import { rf } from '../lib/responsive';
+import { colors, fonts, fontSize, radius } from '../theme/appTheme';
 
 // This stages a URL for the existing product/batch record; the parent owns
 // persistence so selecting a photo can never modify a different batch.
-export default function BatchPhotoField({ value, disabled, onChange, onStateChange }) {
+export default function BatchPhotoField({ value, disabled, onChange, onStateChange, label = 'Recent batch photo' }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const alive = useRef(true);
@@ -19,7 +20,7 @@ export default function BatchPhotoField({ value, disabled, onChange, onStateChan
     try {
       if (camera) {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted) throw new Error('Camera permission is needed to take a batch photo.');
+        if (!permission.granted) throw new Error('Please allow camera access to take a photo.');
       }
       const result = camera
         ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 })
@@ -30,13 +31,13 @@ export default function BatchPhotoField({ value, disabled, onChange, onStateChan
       }
       if (alive.current) onStateChange?.('ready');
     } catch (err) {
-      if (alive.current) { setError(err.message || 'Unable to upload the batch photo. Please try again.'); onStateChange?.('error'); }
+      if (alive.current) { setError(err.message || 'We couldn’t upload the photo. Please try again.'); onStateChange?.('error'); }
     } finally { if (alive.current) setBusy(false); }
   };
 
   return <View style={{ gap: 8 }}>
-    <Text style={{ fontFamily: fonts.bodySemiBold, color: colors.ink }}>Recent Batch Photo <Text style={{ color: colors.danger }}>*</Text></Text>
-    <Text style={{ fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12 }}>Upload or take a photo of this received batch. Retailers will see it in the ordering menu.</Text>
+    {label ? <Text style={{ fontFamily: fonts.bodySemiBold, color: colors.ink }}>{label} <Text style={{ color: colors.danger }}>*</Text></Text> : null}
+    <Text style={{ fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(fontSize.sm) }}>Retailers will see this photo when they order.</Text>
     {value ? (
       <Image source={{ uri: value }} style={{ width: '100%', height: 150, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 }} resizeMode="cover" />
     ) : (
@@ -44,7 +45,7 @@ export default function BatchPhotoField({ value, disabled, onChange, onStateChan
       // a camera icon, instead of leaving blank space before a photo exists.
       <View style={{ width: '100%', height: 150, borderRadius: radius.ctrl, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.border, backgroundColor: colors.leaf50, alignItems: 'center', justifyContent: 'center', gap: 6 }}>
         <Ionicons name="camera-outline" size={28} color={colors.inkFaint} />
-        <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.inkFaint }}>No photo yet</Text>
+        <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkFaint }}>No photo yet</Text>
       </View>
     )}
     <View style={{ flexDirection: 'row', gap: 10 }}>

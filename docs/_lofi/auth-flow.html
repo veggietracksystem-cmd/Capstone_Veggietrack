@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; font-family: Arial, Helvetica, sans-serif; background: #fff; }
+  h1 { text-align: center; font-size: 22px; margin: 0 0 18px; }
+  #board { position: relative; display: flex; gap: 22px; align-items: flex-start; }
+  .col { border: 1.5px solid #000; border-radius: 4px; flex: 0 0 auto; width: 260px; padding-bottom: 16px; }
+  .col h2 { text-align: center; font-size: 14px; margin: 0; padding: 6px 4px; border-bottom: 1.5px solid #000; }
+  .nodes { position: relative; padding: 18px 16px 4px; display: flex; flex-direction: column; align-items: center; }
+  .node { position: relative; border: 1.5px solid #000; background: #fff; font-size: 11.5px; text-align: center; padding: 6px 10px; margin-bottom: 30px; z-index: 2; line-height: 1.35; }
+  .oval { border-radius: 999px; padding: 8px 14px; }
+  .rect { border-radius: 3px; min-width: 150px; }
+  .diamond-wrap { width: 160px; height: 100px; margin-bottom: 30px; display: flex; align-items: center; justify-content: center; position: relative; }
+  .diamond { position: absolute; inset: 0; border: 1.5px solid #000; background: #fff; transform: rotate(45deg); transform-origin: center; }
+  .diamond-text { position: relative; z-index: 2; font-size: 11px; text-align: center; padding: 0 22px; }
+  .para { transform: skewX(-12deg); min-width: 150px; }
+  .para span { display: inline-block; transform: skewX(12deg); }
+  .side { position: absolute; left: 190px; top: 0; width: 130px; }
+  svg#arrows { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .lbl { position: absolute; font-size: 10.5px; background: #fff; padding: 0 3px; z-index: 3; }
+</style>
+</head>
+<body>
+<h1>VeggieTrack &mdash; Sign Up, Sign In, and Account Access Flow</h1>
+<div id="board">
+
+  <div class="col" style="width:200px">
+    <h2>Entry</h2>
+    <div class="nodes">
+      <div class="node oval" id="start">START</div>
+      <div class="node rect" id="loading"><b>Loading Screen</b><br>Load fonts, app config,<br>local session</div>
+      <div class="diamond-wrap" id="activeSessionWrap"><div class="diamond"></div><div class="diamond-text">Active session?</div></div>
+      <div class="node rect" id="landing"><b>Landing Screen</b><br>Get Started | Create Account</div>
+      <div style="display:flex; gap:10px;">
+        <div class="node rect" id="signInBtn" style="min-width:80px; margin-bottom:0;">Sign In Screen</div>
+        <div class="node rect" id="regBtn" style="min-width:80px; margin-bottom:0;">Registration Screen</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col" style="width:230px">
+    <h2>Sign In</h2>
+    <div class="nodes">
+      <div class="node rect" id="signInScreen">Sign In Screen</div>
+      <div class="node para"><span>Input: Email + Password</span></div>
+      <div class="node rect" id="continueBtn">Continue</div>
+      <div class="diamond-wrap" id="credsValidWrap"><div class="diamond"></div><div class="diamond-text">Credentials valid?</div></div>
+      <div class="diamond-wrap" id="qaExemptWrap"><div class="diamond"></div><div class="diamond-text">QA account exempt from code?</div></div>
+      <div class="node rect" id="sendCode">Output: Send email sign-in code</div>
+      <div class="node rect" id="verifySignIn" style="border-style:dashed;">Verify Email Screen<br>Sign-in code</div>
+      <div class="node para"><span>Input: 6-digit code</span></div>
+      <div class="diamond-wrap" id="codeValidWrap"><div class="diamond"></div><div class="diamond-text">Code valid?</div></div>
+      <div class="node rect" id="loadProfile" style="margin-bottom:0;"><b>Load account profile and status</b></div>
+    </div>
+  </div>
+
+  <div class="col" style="width:250px">
+    <h2>Registration</h2>
+    <div class="nodes">
+      <div class="node rect" id="regScreen">Registration Screen</div>
+      <div class="node para"><span>Input: Name, email, password,<br>confirm password, role, location</span></div>
+      <div class="node rect" id="createAccount">Create Account</div>
+      <div class="diamond-wrap" id="regValidWrap"><div class="diamond"></div><div class="diamond-text">All required details valid?</div></div>
+      <div class="node rect" id="createSupabase">Process: Create Supabase<br>Auth account + app profile</div>
+      <div class="node rect" id="unverified">Output: Account status = Unverified.<br>Send email confirmation code</div>
+      <div class="node rect" id="verifySignUp" style="border-style:dashed;">Verify Email Screen<br>Sign-up code</div>
+      <div class="node para"><span>Input: 6-digit code</span></div>
+      <div class="diamond-wrap" id="regCodeValidWrap"><div class="diamond"></div><div class="diamond-text">Code valid?</div></div>
+      <div class="node rect" id="pendingApproval">Output: Account status = Pending Approval</div>
+      <div class="node rect" id="appStatus" style="margin-bottom:0;"><b>Application Status Screen</b><br>Waiting for distributor approval</div>
+    </div>
+  </div>
+
+  <div class="col" style="width:200px">
+    <h2>Password Reset</h2>
+    <div class="nodes">
+      <div class="node rect" id="forgotScreen">Forgot Password Screen</div>
+      <div class="node para"><span>Input: Email</span></div>
+      <div class="node rect" id="sendResetLink">Send Reset Link</div>
+      <div class="node rect" id="resetSentOutput">Output: Reset link sent by email</div>
+      <div class="node rect" id="openDeepLink">Open veggietrack://reset-password</div>
+      <div class="node rect" id="resetScreen">Reset Password Screen</div>
+      <div class="node para"><span>Input: New password +<br>confirm password</span></div>
+      <div class="diamond-wrap" id="resetValidWrap"><div class="diamond"></div><div class="diamond-text">Valid reset session and matching password?</div></div>
+      <div class="node rect" id="pwUpdated">Output: Password updated; sign out</div>
+      <div class="node rect" id="signInScreen2" style="margin-bottom:0;">Sign In Screen</div>
+    </div>
+  </div>
+
+  <div class="col" style="width:260px">
+    <h2>Role Access</h2>
+    <div class="nodes">
+      <div class="node rect" id="loadProfile2"><b>Load account profile and status</b></div>
+      <div class="diamond-wrap" id="acctActiveWrap"><div class="diamond"></div><div class="diamond-text">Account status Active?</div></div>
+      <div class="node rect" id="signOut">Sign Out</div>
+      <div class="node rect" id="landing2">Landing Screen</div>
+      <div class="diamond-wrap" id="userRoleWrap"><div class="diamond"></div><div class="diamond-text">User role?</div></div>
+      <div style="display:flex; gap:6px; margin-bottom:30px;">
+        <div class="node rect" style="min-width:52px; font-size:10px; margin-bottom:0;">Farmer<br>Dashboard</div>
+        <div class="node rect" style="min-width:52px; font-size:10px; margin-bottom:0;">Distributor<br>Dashboard</div>
+        <div class="node rect" style="min-width:52px; font-size:10px; margin-bottom:0;">Retailer<br>Dashboard</div>
+        <div class="node rect" style="min-width:56px; font-size:10px; margin-bottom:0;">Delivery<br>Personnel<br>Dashboard</div>
+      </div>
+      <div class="node oval" id="endNode" style="margin-bottom:0;">END: Role-based<br>application access</div>
+    </div>
+  </div>
+
+  <div class="node rect" id="appStatusScreen2" style="position:absolute; left: 660px; top: 40px; width:150px; border-style:dashed; display:none;"></div>
+  <div class="node rect" id="applicationStatusRA" style="position:absolute; left: 1130px; top: 60px; width:150px; display:none;"><b>Application Status Screen</b><br>Pending / Declined / Disabled</div>
+  <div class="node rect" id="invalidCreds" style="position:absolute; left: 300px; top: 296px; width:150px; display:none;">Output: Invalid credentials / connection error</div>
+  <div class="node rect" id="invalidCode" style="position:absolute; left: 300px; top: 660px; width:150px; display:none;">Output: Invalid or expired code</div>
+  <div class="node rect" id="validationErrorReg" style="position:absolute; left: 300px; top: 296px; width:150px; display:none;">Output: Validation error</div>
+  <div class="node rect" id="invalidCodeReg" style="position:absolute; left: 300px; top: 660px; width:150px; display:none;">Output: Invalid or expired code</div>
+  <div class="node rect" id="validationErrorReset" style="position:absolute; left: 300px; top: 660px; width:150px; display:none;">Output: Show error / request a new link</div>
+
+  <svg id="arrows"></svg>
+</div>
+
+<script>
+function el(id){ return document.getElementById(id); }
+function center(node, side){
+  const b = node.getBoundingClientRect();
+  const board = document.getElementById('board').getBoundingClientRect();
+  const x0 = b.left - board.left, y0 = b.top - board.top;
+  const w = b.width, h = b.height;
+  switch(side){
+    case 'top': return [x0+w/2, y0];
+    case 'bottom': return [x0+w/2, y0+h];
+    case 'left': return [x0, y0+h/2];
+    case 'right': return [x0+w, y0+h/2];
+  }
+  return [x0+w/2, y0+h/2];
+}
+function arrow(svg, x1,y1,x2,y2, dashed, label){
+  const ns = 'http://www.w3.org/2000/svg';
+  const path = document.createElementNS(ns,'path');
+  let d;
+  if (Math.abs(x1-x2) < 2) { d = `M ${x1} ${y1} L ${x2} ${y2}`; }
+  else { d = `M ${x1} ${y1} L ${x1} ${(y1+y2)/2} L ${x2} ${(y1+y2)/2} L ${x2} ${y2}`; }
+  path.setAttribute('d', d);
+  path.setAttribute('stroke', '#000');
+  path.setAttribute('stroke-width', '1.4');
+  path.setAttribute('fill', 'none');
+  if (dashed) path.setAttribute('stroke-dasharray', '4,3');
+  path.setAttribute('marker-end', 'url(#arrowhead)');
+  svg.appendChild(path);
+  if (label){
+    const div = document.createElement('div');
+    div.className = 'lbl';
+    div.textContent = label;
+    div.style.left = ((x1+x2)/2 - 10) + 'px';
+    div.style.top = ((y1+y2)/2 - 16) + 'px';
+    document.getElementById('board').appendChild(div);
+  }
+}
+window.onload = function(){
+  const svg = el('arrows');
+  const ns='http://www.w3.org/2000/svg';
+  const defs = document.createElementNS(ns,'defs');
+  defs.innerHTML = '<marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#000"/></marker>';
+  svg.appendChild(defs);
+
+  // Manual simple vertical connectors within each column (top-to-bottom chain)
+  const chains = {
+    entry: ['start','loading','activeSessionWrap','landing'],
+    signin: ['signInScreen','continueBtn','credsValidWrap','qaExemptWrap','sendCode','verifySignIn','codeValidWrap','loadProfile'],
+    reg: ['regScreen','createAccount','regValidWrap','createSupabase','unverified','verifySignUp','regCodeValidWrap','pendingApproval','appStatus'],
+    reset: ['forgotScreen','sendResetLink','resetSentOutput','openDeepLink','resetScreen','resetValidWrap','pwUpdated','signInScreen2'],
+    role: ['loadProfile2','acctActiveWrap','signOut','landing2'],
+  };
+  for (const key in chains){
+    const arr = chains[key];
+    for (let i=0;i<arr.length-1;i++){
+      const a = el(arr[i]), b = el(arr[i+1]);
+      if(!a||!b) continue;
+      const [x1,y1] = center(a,'bottom');
+      const [x2,y2] = center(b,'top');
+      arrow(svg, x1, y1, x2, y2, false);
+    }
+  }
+  // cross links
+  const cross = [
+    ['landing','signInBtn'], ['landing','regBtn'],
+  ];
+};
+</script>
+</body>
+</html>

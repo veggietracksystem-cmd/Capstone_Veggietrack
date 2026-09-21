@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1200" viewBox="0 0 1920 1200">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#273238"/></marker>
+    <style>
+      .title{font:700 42px Arial,sans-serif;fill:#1f2a30}.sub{font:18px Arial,sans-serif;fill:#5c686d}.h{font:700 23px Arial,sans-serif;fill:#1f2a30}.p{font:17px Arial,sans-serif;fill:#354248}.small{font:15px Arial,sans-serif;fill:#354248}.box{stroke:#273238;stroke-width:3;fill:#fff}.proc{stroke:#273238;stroke-width:3;fill:#e8f2ee}.store{stroke:#273238;stroke-width:3;fill:#f9f3df}.note{stroke:#718087;stroke-width:2;fill:#f7f9fa;stroke-dasharray:7 6}.flow{stroke:#273238;stroke-width:3;fill:none;marker-end:url(#arrow)}.dash{stroke:#718087;stroke-width:2;fill:none;stroke-dasharray:8 7}.label{fill:#fff;stroke:#273238;stroke-width:1}
+    </style>
+  </defs>
+  <rect width="1920" height="1200" fill="#fbfcfc"/>
+  <text x="90" y="86" class="title">VeggieTrack — Transaction Data Flow Diagram</text>
+  <text x="90" y="121" class="sub">Low-fidelity overview • retailer purchase through delivery and payment recording</text>
+  <line x1="90" y1="150" x2="1830" y2="150" stroke="#b7c1c5" stroke-width="2"/>
+
+  <!-- external entities -->
+  <rect x="90" y="300" width="220" height="120" rx="8" class="box"/>
+  <text x="200" y="350" text-anchor="middle" class="h">Retailer</text><text x="200" y="380" text-anchor="middle" class="p">places order</text>
+  <rect x="90" y="770" width="220" height="120" rx="8" class="box"/>
+  <text x="200" y="820" text-anchor="middle" class="h">Rider</text><text x="200" y="850" text-anchor="middle" class="p">delivers order</text>
+  <rect x="1610" y="385" width="220" height="120" rx="8" class="box"/>
+  <text x="1720" y="435" text-anchor="middle" class="h">Distributor</text><text x="1720" y="465" text-anchor="middle" class="p">approves &amp; records payment</text>
+
+  <!-- processes -->
+  <rect x="430" y="265" width="260" height="155" rx="14" class="proc"/>
+  <text x="560" y="322" text-anchor="middle" class="h">1. Submit Order</text><text x="560" y="352" text-anchor="middle" class="p">cart, address, quantity</text><text x="560" y="380" text-anchor="middle" class="p">minimum 5 kg check</text>
+  <rect x="830" y="265" width="270" height="155" rx="14" class="proc"/>
+  <text x="965" y="322" text-anchor="middle" class="h">2. Validate &amp; Create</text><text x="965" y="352" text-anchor="middle" class="p">check stock / FIFO</text><text x="965" y="380" text-anchor="middle" class="p">set status: pending</text>
+  <rect x="1235" y="265" width="250" height="155" rx="14" class="proc"/>
+  <text x="1360" y="322" text-anchor="middle" class="h">3. Review Order</text><text x="1360" y="352" text-anchor="middle" class="p">approve or reject</text><text x="1360" y="380" text-anchor="middle" class="p">assign rider</text>
+  <rect x="1235" y="720" width="250" height="155" rx="14" class="proc"/>
+  <text x="1360" y="777" text-anchor="middle" class="h">5. Close Transaction</text><text x="1360" y="807" text-anchor="middle" class="p">record payment</text><text x="1360" y="835" text-anchor="middle" class="p">mark delivered</text>
+  <rect x="830" y="720" width="270" height="155" rx="14" class="proc"/>
+  <text x="965" y="777" text-anchor="middle" class="h">4. Deliver &amp; Confirm</text><text x="965" y="807" text-anchor="middle" class="p">status / route updates</text><text x="965" y="835" text-anchor="middle" class="p">proof of delivery</text>
+
+  <!-- data stores -->
+  <path d="M470 550 h260 v92 h-260z M470 550 c0 20 260 20 260 0 M470 642 c0 -20 260 -20 260 0" class="store"/>
+  <text x="600" y="590" text-anchor="middle" class="h">D1: Inventory</text><text x="600" y="618" text-anchor="middle" class="small">products • available stock</text>
+  <path d="M840 530 h290 v112 h-290z M840 530 c0 20 290 20 290 0 M840 642 c0 -20 290 -20 290 0" class="store"/>
+  <text x="985" y="575" text-anchor="middle" class="h">D2: Orders</text><text x="985" y="604" text-anchor="middle" class="small">items • status • assignment</text>
+  <path d="M1260 530 h250 v112 h-250z M1260 530 c0 20 250 20 250 0 M1260 642 c0 -20 250 -20 250 0" class="store"/>
+  <text x="1385" y="575" text-anchor="middle" class="h">D3: Payments</text><text x="1385" y="604" text-anchor="middle" class="small">amount • paid status</text>
+
+  <!-- principal data flows -->
+  <path d="M310 360 H430" class="flow"/><rect x="330" y="326" width="82" height="24" rx="4" class="label"/><text x="371" y="344" text-anchor="middle" class="small">order data</text>
+  <path d="M690 342 H830" class="flow"/><rect x="710" y="307" width="102" height="24" rx="4" class="label"/><text x="761" y="325" text-anchor="middle" class="small">validated cart</text>
+  <path d="M1100 342 H1235" class="flow"/><rect x="1110" y="307" width="111" height="24" rx="4" class="label"/><text x="1165" y="325" text-anchor="middle" class="small">pending order</text>
+  <path d="M1485 342 H1610" class="flow"/><rect x="1490" y="307" width="106" height="24" rx="4" class="label"/><text x="1543" y="325" text-anchor="middle" class="small">review request</text>
+  <path d="M1610 465 H1485" class="flow"/><rect x="1490" y="478" width="108" height="24" rx="4" class="label"/><text x="1544" y="496" text-anchor="middle" class="small">decision / payment</text>
+  <path d="M1235 798 H1100" class="flow"/><rect x="1112" y="812" width="105" height="24" rx="4" class="label"/><text x="1164" y="830" text-anchor="middle" class="small">delivery job</text>
+  <path d="M830 798 H310" class="flow"/><rect x="510" y="762" width="128" height="24" rx="4" class="label"/><text x="574" y="780" text-anchor="middle" class="small">tracking / receipt</text>
+  <path d="M310 830 H830" class="flow"/><rect x="485" y="842" width="155" height="24" rx="4" class="label"/><text x="562" y="860" text-anchor="middle" class="small">delivery status / proof</text>
+  <path d="M1235 760 C1120 690,1080 650,1035 642" class="flow"/>
+  <path d="M965 420 V530" class="flow"/>
+  <path d="M830 365 C760 430,670 475,610 550" class="flow"/>
+  <path d="M1100 365 C1170 435,1310 470,1360 530" class="flow"/>
+  <path d="M985 642 V720" class="flow"/>
+  <path d="M1360 642 V720" class="flow"/>
+  <path d="M200 770 V420" class="dash"/><text x="220" y="615" class="small">order confirmation</text>
+
+  <!-- legend -->
+  <rect x="90" y="1005" width="1740" height="105" rx="10" class="note"/>
+  <rect x="125" y="1035" width="110" height="42" rx="8" class="proc"/><text x="250" y="1062" class="p">Process</text>
+  <rect x="435" y="1035" width="110" height="42" rx="8" class="box"/><text x="560" y="1062" class="p">External user</text>
+  <path d="M815 1035 h110 v42 h-110z M815 1035 c0 12 110 12 110 0 M815 1077 c0 -12 110 -12 110 0" class="store"/><text x="945" y="1062" class="p">Data store</text>
+  <path d="M1195 1056 h120" class="flow"/><text x="1335" y="1062" class="p">Data flow</text>
+  <text x="125" y="1098" class="small">Solid arrows show data movement. Dashed arrow represents a customer-facing notification.</text>
+</svg>

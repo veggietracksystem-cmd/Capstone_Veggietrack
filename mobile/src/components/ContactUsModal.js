@@ -6,7 +6,7 @@ import {
   Animated,
 } from 'react-native';
 import { showAlert } from '../lib/ui';
-import { colors, fonts, radius } from '../theme/appTheme';
+import { colors, control, fonts, radius } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { Ionicons } from '@expo/vector-icons';
 import { useBottomSheetMotion } from '../lib/motion';
@@ -90,7 +90,7 @@ export default function ContactUsModal({ visible, onClose }) {
             <Text style={styles.label}>{t('contactUs.subjectLabel')}</Text>
             <TextInput
               style={styles.input}
-              placeholder={t('contactUs.subjectPlaceholder')}
+              placeholder={t('contactUs.subjectPlaceholder')} placeholderTextColor={colors.placeholder}
               value={subject}
               onChangeText={setSubject}
               editable={!sending}
@@ -99,7 +99,7 @@ export default function ContactUsModal({ visible, onClose }) {
             <Text style={styles.label}>{t('contactUs.messageLabel')}</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder={t('contactUs.messagePlaceholder')}
+              placeholder={t('contactUs.messagePlaceholder')} placeholderTextColor={colors.placeholder}
               value={message}
               onChangeText={setMessage}
               multiline
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: '85%', paddingBottom: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
   title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
-  closeBtn: { padding: 6 },
+  closeBtn: { padding: 6, minWidth: control.minTouch, minHeight: control.minTouch, alignItems: 'center', justifyContent: 'center'  },
   closeText: { fontSize: rf(18), color: colors.inkSoft, fontWeight: 'bold' },
   content: { padding: 20 },
   infoCard: { backgroundColor: colors.leaf50, borderRadius: radius.card, padding: 16, borderWidth: 1, borderColor: colors.leaf100, marginBottom: 20 },

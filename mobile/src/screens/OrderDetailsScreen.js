@@ -8,7 +8,8 @@ import { Text, View, ScrollView, TouchableOpacity, Image, StyleSheet, RefreshCon
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OrderStepIndicator from '../components/OrderStepIndicator';
 import { peso, shortId, showAlert } from '../lib/ui';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { friendlyError } from '../lib/errorMessages';
+import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { getProofUrl, getDelivery } from './RetailerDashboard';
@@ -50,7 +51,7 @@ export default function OrderDetailsScreen({ navigation, route }) {
       const data = await api.get(`/api/orders/${orderId}`);
       if (isCurrent()) setOrder(data);
     } catch (err) {
-      if (isCurrent()) showAlert(t('common.error'), err.message);
+      if (isCurrent()) showAlert(t('common.error'), friendlyError(err));
     } finally {
       if (isCurrent()) setRefreshing(false);
     }
@@ -161,8 +162,8 @@ const styles = StyleSheet.create({
   orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   total: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: PRIMARY, marginBottom: 4 },
   cancelledNote: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.danger, fontStyle: 'italic', marginTop: 8 },
-  trackBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY },
-  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md) },
+  trackBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY, justifyContent: 'center', minHeight: control.height  },
+  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md), textAlign: 'center' },
 
   sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 8 },
 

@@ -10,12 +10,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
+import { SegmentedTabs } from '../components/ui/SegmentedTabs';
 import StatusBadge from '../components/ui/StatusBadge';
 import BottomNavBar from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { exportReportPdf, printReport } from '../lib/reportPdf';
 import { showAlert, peso } from '../lib/ui';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { friendlyError } from '../lib/errorMessages';
+import { colors, control, fontSize, fonts, radius, shadowCard, spacing } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
@@ -129,7 +131,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
       setRows(Array.isArray(data) ? data : []);
     } catch (err) {
       if (!isCurrent()) return;
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     }
   }, [t]);
 
@@ -167,7 +169,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
       if (doPrint) await printReport(title, columns, formatted);
       else await exportReportPdf(title, columns, formatted);
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       setExporting(false);
     }
@@ -185,24 +187,15 @@ export default function DistributorInventoryReportScreen({ navigation }) {
         }
       />
 
-      <View style={styles.tabRow}>
-        <TouchableOpacity
-          style={[styles.tabBtn, section === 'inventory' && styles.tabBtnActive]}
-          onPress={() => setSection('inventory')}
-        >
-          <Text style={[styles.tabBtnText, section === 'inventory' && styles.tabBtnTextActive]}>
-            {t('inventoryReport.inventoryTitle')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabBtn, section === 'history' && styles.tabBtnActive]}
-          onPress={() => setSection('history')}
-        >
-          <Text style={[styles.tabBtnText, section === 'history' && styles.tabBtnTextActive]}>
-            {t('inventoryReport.historyTitle')}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <SegmentedTabs
+        style={styles.tabRow}
+        value={section}
+        onChange={setSection}
+        options={[
+          { value: 'inventory', label: t('inventoryReport.inventoryTitle') },
+          { value: 'history', label: t('inventoryReport.historyTitle') },
+        ]}
+      />
 
       {loading ? (
         <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
@@ -262,16 +255,9 @@ export default function DistributorInventoryReportScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  back: { color: PRIMARY, fontSize: rf(16), fontFamily: fonts.bodySemiBold, width: 50 },
-  title: { fontSize: rf(19), fontFamily: fonts.heading, color: colors.ink },
   content: { padding: 16, paddingBottom: 100, flexGrow: 1 },
 
-  tabRow: { flexDirection: 'row', backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 4, marginHorizontal: 16, marginBottom: 12 },
-  tabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
-  tabBtnActive: { backgroundColor: colors.card, ...shadowCard },
-  tabBtnText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
-  tabBtnTextActive: { color: PRIMARY },
+  tabRow: { marginHorizontal: spacing.lg },
 
   // Compact Received/Sold summary tiles (prototype's .tile-grid/.tile)
   summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
@@ -287,7 +273,7 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', padding: 16, textAlign: 'center' },
 
   reportActionsRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  reportActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY },
-  reportActionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: PRIMARY },
+  reportActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY, minHeight: control.height },
+  reportActionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: PRIMARY, textAlign: 'center' },
   btnDisabled: { opacity: 0.6 },
 });

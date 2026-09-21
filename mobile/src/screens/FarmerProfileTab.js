@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
-import { confirmAction, showAlert } from '../lib/ui';
+import { roleLabel } from '../lib/roles';
+import { confirmAction } from '../lib/ui';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import CustomModal from '../components/CustomModal';
@@ -29,11 +30,6 @@ export default function FarmerProfileTab({ navigation }) {
     confirmAction(t('profile.logoutConfirmTitle'), t('profile.logoutConfirmMessage'), () => signOut());
   };
 
-  // Same informational message already shown on Edit Profile's "Disable
-  // account" action — self-service deactivation isn't available, so this is
-  // a notice, not a confirm/cancel decision.
-  const deactivate = () => showAlert(t('profile.deactivateAccountTitle'), t('profile.deactivateAccountMessage'));
-
   return (
     <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Profile header: avatar + name + role + Edit Profile shortcut
@@ -42,7 +38,7 @@ export default function FarmerProfileTab({ navigation }) {
         <UserAvatar user={user} style={styles.avatarCircle} textStyle={styles.avatarText} />
         <Text style={styles.userName}>{fullName || user?.email || 'Farmer'}</Text>
         <View style={styles.roleBadge}>
-          <Text style={styles.roleBadgeText}>{(user?.role || 'farmer').replace(/_/g, ' ').toUpperCase()}</Text>
+          <Text style={styles.roleBadgeText}>{roleLabel(user?.role || 'farmer').toUpperCase()}</Text>
         </View>
         <TouchableOpacity style={styles.editProfileBtn} onPress={() => navigation.navigate('EditProfile')} activeOpacity={0.8}>
           <Text style={styles.editProfileBtnText}>{t('profile.editProfile')}</Text>
@@ -102,20 +98,16 @@ export default function FarmerProfileTab({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Log Out / Deactivate: final list section (prototype renders these as
-          rows, not a standalone button). Deactivate reuses the same
-          distributor-managed-account message already shown on Edit Profile. */}
+      {/* Log Out: final list section (prototype renders this as a row, not a
+          standalone button). No "Deactivate account" row — a user never
+          disables their own account; the distributor does that from User
+          Management. Matches the shared ProfileScreen used by every other
+          role. */}
       <View style={styles.sectionCard}>
-        <TouchableOpacity style={styles.menuItem} onPress={logout}>
+        <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={logout}>
           <View style={styles.menuItemContent}>
             <Ionicons name="log-out-outline" size={rf(18)} color={colors.leaf700} />
             <Text style={[styles.menuItemText, { color: colors.leaf700 }]}>{t('profile.logout')}</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={deactivate}>
-          <View style={styles.menuItemContent}>
-            <Ionicons name="alert-circle-outline" size={rf(18)} color={colors.danger} />
-            <Text style={[styles.menuItemText, { color: colors.danger }]}>{t('profile.deactivateAccount')}</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -166,7 +158,7 @@ const styles = StyleSheet.create({
     marginTop: 6, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20,
     borderWidth: 1.4, borderColor: colors.leaf700,
   },
-  editProfileBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
+  editProfileBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700, textAlign: 'center' },
   avatarCircle: {
     width: 68,
     height: 68,
@@ -237,5 +229,4 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   langRowText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
-  langCheck: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.leaf700 },
 });

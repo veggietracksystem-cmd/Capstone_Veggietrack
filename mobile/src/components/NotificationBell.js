@@ -11,9 +11,10 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import CustomModal from './CustomModal';
 import EmptyState from './EmptyState';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert } from '../lib/ui';
+import { friendlyError } from '../lib/errorMessages';
 
 const PRIMARY = colors.leaf700;
 const INACTIVE = colors.inkFaint;
@@ -57,7 +58,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
       if (isCurrent()) setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       // Silent on background polls; only surface if the modal/screen is open.
-      if (open || fullScreen) showAlert(t('common.error'), err.message);
+      if (open || fullScreen) showAlert(t('common.error'), friendlyError(err));
     }
   }, [open, fullScreen, t]);
 
@@ -96,7 +97,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
       beginRead('notifications');
       if (mounted.current) setItems(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('mark');
       if (mounted.current) setMarking(false);
@@ -119,7 +120,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
       beginRead('notifications');
       if (mounted.current) setItems(prev => prev.map(n => ids.has(n.id) ? { ...n, is_read: true } : n));
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('mark');
       if (mounted.current) setMarking(false);
@@ -307,7 +308,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
 }
 
 const styles = StyleSheet.create({
-  bellBtn: { padding: 6, marginRight: 4 },
+  bellBtn: { padding: 6, marginRight: 4, minWidth: control.minTouch, minHeight: control.minTouch, alignItems: 'center', justifyContent: 'center'  },
 
   // Full-screen variant (farmer bottom-nav "Notifications" tab)
   screenContainer: { flex: 1, minHeight: 0, backgroundColor: colors.bgScreen },
@@ -351,7 +352,7 @@ const styles = StyleSheet.create({
   linkDisabled: { color: colors.inkFaint },
 
   footer: { flexDirection: 'row', gap: 12, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
-  footerBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center' },
+  footerBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center', minHeight: control.height },
   footerBtnOutline: { borderWidth: 1.5, borderColor: PRIMARY },
   footerBtnPrimary: { backgroundColor: PRIMARY },
   footerOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(14.5) },

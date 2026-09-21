@@ -11,7 +11,8 @@ import api from '../api/client';
 import EmptyState from '../components/EmptyState';
 import ImageViewerModal from '../components/ImageViewerModal';
 import { showAlert, peso, shortId } from '../lib/ui';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { friendlyError } from '../lib/errorMessages';
+import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { getProofUrl, getDelivery, isOldCompleted } from './RetailerDashboard';
@@ -38,7 +39,7 @@ export default function OrderHistoryScreen({ navigation }) {
       setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
       if (!isCurrent()) return;
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     }
   }, []);
 
@@ -72,7 +73,7 @@ export default function OrderHistoryScreen({ navigation }) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
           {historyOrders.length === 0 ? (
-            <EmptyState icon="🗄️" title={t('orderHistory.emptyTitle')} message={t('orderHistory.emptyMessage')} />
+            <EmptyState iconElement={<Ionicons name="archive-outline" size={rf(44)} color={colors.inkFaint} />} title={t('orderHistory.emptyTitle')} message={t('orderHistory.emptyMessage')} />
           ) : (
             historyOrders.map((o) => (
               <View key={o.id} style={styles.orderCard}>
@@ -148,6 +149,6 @@ const styles = StyleSheet.create({
   proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 8 },
   proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: colors.border },
   proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
-  detailsBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: colors.border, backgroundColor: colors.leaf50 },
-  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
+  detailsBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: colors.border, backgroundColor: colors.leaf50, justifyContent: 'center', minHeight: control.height  },
+  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md), textAlign: 'center' },
 });

@@ -5,31 +5,31 @@
     "replace": "Palitan ang larawan",
     "uploadFailed": "Hindi na-upload ang larawan. Pumili ng larawan upang subukang muli.",
     "saveHint": "I-save ang mga pagbabago upang ma-update ang larawan sa profile."
-},
+  },
   "phoneAuth": {
-  "changePhone": "Palitan ang numero (patunayan sa SMS)",
-  "title": "Maligayang pagdating sa VeggieTrack",
-  "subtitle": "Mag-sign in o gumawa ng account gamit ang iyong numero ng telepono.",
-  "phone": "Numero ng telepono",
-  "code": "Verification code mula sa SMS",
-  "send": "Ipadala ang OTP",
-  "verify": "Patunayan at magpatuloy",
-  "resend": "Ipadala muli ang OTP",
-  "cooldown": "Ipadala muli pagkalipas ng {seconds}s",
-  "another": "Gumamit ng ibang numero",
-  "invalidPhone": "Maglagay ng wastong numero, tulad ng 09171234567 o +639171234567.",
-  "invalidCode": "Ilagay ang anim na digit na code mula sa SMS.",
-  "profile": "Kumpletuhin ang profile para sa {phone}.",
-  "unavailable": "Pansamantalang hindi available ang pag-sign in, pagpaparehistro, at pagpapalit ng numero. Subukan muli sa ibang pagkakataon."
-},
+    "changePhone": "Palitan ang numero (patunayan sa SMS)",
+    "title": "Maligayang pagdating sa VeggieTrack",
+    "subtitle": "Mag-sign in o gumawa ng account gamit ang iyong numero ng telepono.",
+    "phone": "Numero ng telepono",
+    "code": "Verification code mula sa SMS",
+    "send": "Ipadala ang OTP",
+    "verify": "Patunayan at magpatuloy",
+    "resend": "Ipadala muli ang OTP",
+    "cooldown": "Ipadala muli pagkalipas ng {seconds}s",
+    "another": "Gumamit ng ibang numero",
+    "invalidPhone": "Maglagay ng wastong numero, tulad ng 09171234567 o +639171234567.",
+    "invalidCode": "Ilagay ang anim na digit na code mula sa SMS.",
+    "profile": "Kumpletuhin ang profile para sa {phone}.",
+    "unavailable": "Hindi available ngayon ang pag-sign in at pagrehistro. Pakisubukan ulit mamaya."
+  },
   "checkout": {
-  "minimumWeight": "Dapat hindi bababa sa 5 kg ang kabuuang order.",
-  "cartStorageError": "Hindi ma-access ang naka-save na cart. Subukan muli bago isara ang app.",
-  "hour": "Oras",
-  "minute": "Minuto",
-  "deliveryDate": "Petsa ng delivery",
-  "deliveryTime": "Oras ng delivery (oras sa Pilipinas)"
-},
+    "minimumWeight": "Dapat hindi bababa sa 5 kg ang kabuuang order.",
+    "cartStorageError": "Hindi ma-access ang naka-save na cart. Subukan muli bago isara ang app.",
+    "hour": "Oras",
+    "minute": "Minuto",
+    "deliveryDate": "Petsa ng delivery",
+    "deliveryTime": "Oras ng delivery (oras sa Pilipinas)"
+  },
   "common": {
     "save": "I-save",
     "saveChanges": "I-save ang mga Pagbabago",
@@ -53,7 +53,8 @@
     "search": "Maghanap",
     "requiredField": "Kailangan ang field na ito.",
     "networkError": "Network error — tumatakbo at naa-access ba ang backend?",
-    "phoneHint": "Gamitin ang international format: + tapos country code at numero, hal. +639171234567"
+    "phoneHint": "Gamitin ang international format: + tapos country code at numero, hal. +639171234567",
+    "checkDetails": "Pakitingnan ang mga detalye"
   },
   "auth": {
     "login": {
@@ -66,7 +67,7 @@
       "forgotPassword": "Nakalimutan ang Password?",
       "loginButton": "Mag-login",
       "noAccount": "Wala pang account? Mag-rehistro",
-      "howItWorks": "📖 Paano Ito Gumagana",
+      "howItWorks": "Paano Ito Gumagana",
       "contactUs": "Makipag-ugnayan"
     },
     "register": {
@@ -138,9 +139,9 @@
     "etaInTransit": "10–15 minuto",
     "etaDispatched": "30–45 minuto",
     "etaAwaitingDispatch": "Naghihintay ng dispatch",
-    "etaLabel": "🕒 ETA: {eta}",
-    "geocodeFailedNative": "Hindi mahanap ang address na iyon — ipinapakita ang San Pablo City bilang tantiya.",
-    "geocodeFailedWeb": "Hindi mahanap ang address — ipinapakita ang San Pablo City bilang tantiya.",
+    "etaLabel": "ETA: {eta}",
+    "geocodeFailedNative": "Hindi namin nahanap ang eksaktong address, kaya San Pablo City ang ipinapakita.",
+    "geocodeFailedWeb": "Hindi namin nahanap ang eksaktong address, kaya San Pablo City ang ipinapakita.",
     "mapUnavailable": "Hindi available ang mapa sa platform preview na ito."
   },
   "dashboards": {
@@ -175,7 +176,7 @@
       "viewRoute": "Tingnan ang Ruta",
       "navigateBtn": "Mag-navigate",
       "scheduleLabel": "Oras: {schedule}",
-      "etaText": "🕒 ETA: 10–15 minuto",
+      "etaText": "ETA: 10–15 minuto",
       "liveStatusInTransit": "Nasa Delivery",
       "liveStatusLive": "Live",
       "noItemDetails": "Walang detalye ng item.",
@@ -200,7 +201,7 @@
       "cameraErrorFallback": "Hindi mabuksan ang camera.",
       "missingDeliveryTitle": "Kulang ang delivery record",
       "pullToRefreshRetry": "I-pull down para mag-refresh at subukan muli.",
-      "missingDeliveryIdMessage": "Hindi mahanap ang delivery ID para sa order na ito. I-pull down para mag-refresh at subukan muli.",
+      "missingDeliveryIdMessage": "Hindi namin mabuksan ang paghahatid na ito. Mag-pull down para mag-refresh at subukan ulit.",
       "deliveredTitle": "Naihatid",
       "deliveredMessage": "Na-mark ang order {id} bilang naihatid.",
       "viewDetailsBtn": "Tingnan ang Detalye",
@@ -425,7 +426,7 @@
       "approveAndAssign": "Aprubahan at Mag-assign ng Rider",
       "approveAndAssignModalTitle": "Aprubahan at Mag-assign ng Rider",
       "saving": "Sine-save…",
-      "pickupPriceHint": "Magtakda ng presyo bawat kilo. Iwanang blangko para idagdag ito nang ₱0 at pagpresyuhan mamaya sa Produkto.",
+      "pickupPriceHint": "Maglagay ng presyo kada kilo. Iwanang blangko para presyuhan mamaya sa Products.",
       "pricePerKgLabel": "Presyo bawat kilo (₱)",
       "assignPersonnelLabel": "Mag-assign ng Delivery Personnel",
       "noPersonnelAvailable": "Walang available na delivery personnel.",
@@ -449,7 +450,7 @@
       "retailerLabel": "Retailer: {id}",
       "deliverTo": "Ihatid sa: {address}",
       "noItemDetails": "Walang detalye ng item.",
-      "trackDelivery": "🗺️  Subaybayan ang Delivery",
+      "trackDelivery": "Subaybayan ang Delivery",
       "approve": "Aprubahan",
       "assignDeliveryPersonLabel": "Mag-assign ng delivery person:",
       "assignDelivery": "I-assign ang Delivery",
@@ -457,7 +458,7 @@
       "totalLabel": "Kabuuan: {amount}",
       "totalAmountLabel": "Kabuuan",
       "riderLabel": "Rider: {name}",
-      "proofOfDelivery": "📷 Patunay ng paghahatid — pindutin para tingnan",
+      "proofOfDelivery": "Patunay ng paghahatid — pindutin para tingnan",
       "awaitingRider": "Naghihintay ng rider assignment",
       "ordersSub": {
         "pending": "Nakabinbing",
@@ -505,7 +506,7 @@
       "noProductsMessage": "Bumalik mamaya — wala pang nakalista ang mga distributor.",
       "noMatchQuery": "Walang gulay na tumugma sa \"{query}\".",
       "kgAvailable": "{qty} kg available",
-      "harvested": "📅 Inani: {date}",
+      "harvested": "Inani: {date}",
       "addToCart": "Idagdag sa Cart",
       "cart": "Cart",
       "cartEmpty": "Walang laman ang iyong cart.",
@@ -542,9 +543,9 @@
       "deliverTo": "Ihatid sa: {address}",
       "schedule": "Oras: {schedule}",
       "orderCancelledNote": "Nakansela ang order na ito.",
-      "proofOfDelivery": "📷 Patunay ng paghahatid — i-tap para tingnan",
-      "cancelOrderBtn": "❌ Kanselahin ang Order",
-      "trackOrderBtn": "🗺️  Subaybayan ang Order",
+      "proofOfDelivery": "Patunay ng paghahatid — i-tap para tingnan",
+      "cancelOrderBtn": "Kanselahin ang Order",
+      "trackOrderBtn": "Subaybayan ang Order",
       "viewDetailsBtn": "Tingnan ang Detalye",
       "viewHistoryBtn": "Tingnan ang Kasaysayan",
       "checkoutTitle": "Kumpirmasyon ng Order",
@@ -574,7 +575,7 @@
     "deleteConfirmMessage": "Alisin ang {name} sa iyong imbentaryo? Hindi na ito maibabalik.",
     "outOfStock": "Ubos na Stock",
     "kgInStock": "{qty} kg na available",
-    "harvested": "📅 Inani: {date}",
+    "harvested": "Inani: {date}",
     "priceLabel": "Presyo bawat kilo (₱)",
     "editBtn": "I-edit",
     "deleteBtn": "Burahin",
@@ -607,11 +608,10 @@
     "statusSoldOut": "Ubos",
     "statusLowStock": "Paubos na",
     "statusActive": "Aktibo",
-    "photoCaptured": "May Larawan ✓",
+    "photoCaptured": "May Larawan",
     "photoMissing": "Walang Larawan",
     "batchesSegLabel": "Mga Batch",
     "productsSegLabel": "Mga Produkto",
-    "segHelperNote": "Batches = pisikal na stock na natanggap mula sa mga magsasaka. Products = katalogo at presyo na ipinapakita sa mga retailer.",
     "emptyTitleBatches": "Wala pang natanggap na batch",
     "emptyTitleProducts": "Wala pang nakalistang produkto",
     "addToProductList": "Idagdag sa Listahan ng Produkto",
@@ -697,51 +697,102 @@
     "statusAvailable": "Available",
     "editBtn": "I-edit",
     "pickupBtn": "Pickup",
-    "deleteBtn": "🗑️ Burahin"
+    "deleteBtn": "Burahin"
   },
   "userGuide": {
-    "title": "📖 Paano Gumagana ang VeggieTrack",
+    "title": "Paano Gumagana ang VeggieTrack",
     "tabs": {
-      "farmer": "👨‍🌾 Magsasaka",
-      "distributor": "🏢 Distributor",
-      "retailer": "🛒 Retailer",
-      "rider": "🛵 Delivery",
-      "faq": "❓ FAQ"
+      "farmer": "Magsasaka",
+      "distributor": "Distributor",
+      "retailer": "Retailer",
+      "rider": "Delivery",
+      "faq": "FAQ"
     },
     "farmer": {
       "steps": [
-        { "title": "Itala ang Ani", "desc": "Ilagay ang pangalan ng gulay, dami sa kilo, at i-pin ang coordinates ng iyong sakahan sa mapa." },
-        { "title": "Humiling ng Pickup", "desc": "I-click ang \"Request Pickup\" para ipaalam sa central distributor na kunin ang iyong ani." },
-        { "title": "Na-mark na Nakuha", "desc": "Kapag nakuha na ng delivery rider ang batch, ma-a-update ito sa \"Picked Up\" at mananatiling nakatala sa iyong history." }
+        {
+          "title": "Itala ang Ani",
+          "desc": "Ilagay ang pangalan ng gulay, dami sa kilo, at i-pin ang coordinates ng iyong sakahan sa mapa."
+        },
+        {
+          "title": "Humiling ng Pickup",
+          "desc": "I-click ang \"Request Pickup\" para ipaalam sa central distributor na kunin ang iyong ani."
+        },
+        {
+          "title": "Na-mark na Nakuha",
+          "desc": "Kapag nakuha na ng delivery rider ang batch, ma-a-update ito sa \"Picked Up\" at mananatiling nakatala sa iyong history."
+        }
       ]
     },
     "distributor": {
       "steps": [
-        { "title": "Pagtanggap ng Inventory", "desc": "Aprubahan ang mga papasok na pickup ng ani ng magsasaka at itakda ang presyo ng produkto para idagdag sa imbentaryo ng bodega." },
-        { "title": "Aprubahan at Magtalaga ng Rider", "desc": "Suriin ang mga nakabinbing order ng retailer, aprubahan, at magtalaga ng available na delivery personnel (rider)." },
-        { "title": "Bayad at Analytics", "desc": "Itala ang mga bayad ng retailer at tingnan ang 7-araw na revenue at ulat ng imbentaryo." }
+        {
+          "title": "Pagtanggap ng Inventory",
+          "desc": "Aprubahan ang mga papasok na pickup ng ani ng magsasaka at itakda ang presyo ng produkto para idagdag sa imbentaryo ng bodega."
+        },
+        {
+          "title": "Aprubahan at Magtalaga ng Rider",
+          "desc": "Suriin ang mga nakabinbing order ng retailer, aprubahan, at magtalaga ng available na delivery personnel (rider)."
+        },
+        {
+          "title": "Bayad at Analytics",
+          "desc": "Itala ang mga bayad ng retailer at tingnan ang 7-araw na revenue at ulat ng imbentaryo."
+        }
       ]
     },
     "retailer": {
       "steps": [
-        { "title": "Mag-browse ng FIFO Stock", "desc": "Nakalista ang mga ani ayon sa pinakalumang petsa ng ani muna para masiguro ang sariwa at mabawasan ang sayang." },
-        { "title": "Maglagay ng Order", "desc": "Piliin ang dami ng stock sa kg. Agad na sinusuri ng order ang availability ng stock." },
-        { "title": "Subaybayan ang Delivery", "desc": "Kapag inaprubahan na ng distributor ang order, i-click ang \"Track Delivery\" para makita ang route ng rider sa mapa." }
+        {
+          "title": "Mag-browse ng FIFO Stock",
+          "desc": "Nakalista ang mga ani ayon sa pinakalumang petsa ng ani muna para masiguro ang sariwa at mabawasan ang sayang."
+        },
+        {
+          "title": "Maglagay ng Order",
+          "desc": "Piliin ang dami ng stock sa kg. Agad na sinusuri ng order ang availability ng stock."
+        },
+        {
+          "title": "Subaybayan ang Delivery",
+          "desc": "Kapag inaprubahan na ng distributor ang order, i-click ang \"Track Delivery\" para makita ang route ng rider sa mapa."
+        }
       ]
     },
     "rider": {
       "steps": [
-        { "title": "Tingnan ang mga Assignment", "desc": "Tingnan ang mga naka-assign na pickup ng magsasaka at delivery ng retailer mula sa iyong delivery dashboard." },
-        { "title": "Naka-embed na Ruta sa Mapa", "desc": "Gamitin ang naka-embed na OpenStreetMap route pins para sa mga pickup sa sakahan, central warehouse, at lokasyon ng tindahan ng retailer." },
-        { "title": "Mag-upload ng Patunay ng Paghahatid", "desc": "Isulong ang status (Picked Up ➔ In Transit ➔ Delivered) at mag-upload ng patunay na larawan pagkatapos." }
+        {
+          "title": "Tingnan ang mga Assignment",
+          "desc": "Tingnan ang mga naka-assign na pickup ng magsasaka at delivery ng retailer mula sa iyong delivery dashboard."
+        },
+        {
+          "title": "Naka-embed na Ruta sa Mapa",
+          "desc": "Gamitin ang naka-embed na OpenStreetMap route pins para sa mga pickup sa sakahan, central warehouse, at lokasyon ng tindahan ng retailer."
+        },
+        {
+          "title": "Mag-upload ng Patunay ng Paghahatid",
+          "desc": "Isulong ang status (Picked Up to In Transit to Delivered) at mag-upload ng patunay na larawan pagkatapos."
+        }
       ]
     },
     "faqs": [
-      { "q": "Ano ang First-In, First-Out (FIFO) system?", "a": "Awtomatikong inaayos ng VeggieTrack ang mga available na ani ayon sa petsa ng pag-ani (pinakaluma muna). Hinihikayat nito ang mga retailer na bilhin muna ang mas lumang stock, na binabawasan ang pagkasira at sayang ng pagkain." },
-      { "q": "Paano gumagana ang offline mode?", "a": "Maaaring mag-log ng ani ang mga magsasaka kahit walang internet access. Naka-save nang lokal ang mga aksyon sa iyong device at awtomatikong nag-sync sa backend server kapag muling nakakonekta." },
-      { "q": "Ano ang mangyayari kung kanselado ang isang order?", "a": "Kapag kinansela ng retailer ang isang hindi pa aprubadong order, agad na ibinabalik ang stock ng produkto sa available na imbentaryo ng distributor." },
-      { "q": "Bakit iisa lang ang maaaring Distributor account?", "a": "Idinisenyo ang VeggieTrack bilang hub-and-spoke na central supply chain. Ang distributor ang gumaganap bilang central warehouse na tumatanggap ng ani mula sa maraming magsasaka at nagsusuplay sa maraming retailer." },
-      { "q": "Paano gumagana ang order tracking?", "a": "Kapag inaprubahan na ng distributor ang order ng retailer at nagtalaga ng rider, maaaring i-click ng Retailer ang \"Track Delivery\" para makita ang mga route pin sa naka-embed na mapa." }
+      {
+        "q": "Ano ang First-In, First-Out (FIFO) system?",
+        "a": "Awtomatikong inaayos ng VeggieTrack ang mga available na ani ayon sa petsa ng pag-ani (pinakaluma muna). Hinihikayat nito ang mga retailer na bilhin muna ang mas lumang stock, na binabawasan ang pagkasira at sayang ng pagkain."
+      },
+      {
+        "q": "Paano gumagana ang offline mode?",
+        "a": "Maaaring mag-log ng ani ang mga magsasaka kahit walang internet access. Naka-save nang lokal ang mga aksyon sa iyong device at awtomatikong nag-sync sa backend server kapag muling nakakonekta."
+      },
+      {
+        "q": "Ano ang mangyayari kung kanselado ang isang order?",
+        "a": "Kapag kinansela ng retailer ang isang hindi pa aprubadong order, agad na ibinabalik ang stock ng produkto sa available na imbentaryo ng distributor."
+      },
+      {
+        "q": "Bakit iisa lang ang maaaring Distributor account?",
+        "a": "Idinisenyo ang VeggieTrack bilang hub-and-spoke na central supply chain. Ang distributor ang gumaganap bilang central warehouse na tumatanggap ng ani mula sa maraming magsasaka at nagsusuplay sa maraming retailer."
+      },
+      {
+        "q": "Paano gumagana ang order tracking?",
+        "a": "Kapag inaprubahan na ng distributor ang order ng retailer at nagtalaga ng rider, maaaring i-click ng Retailer ang \"Track Delivery\" para makita ang mga route pin sa naka-embed na mapa."
+      }
     ]
   },
   "contactUs": {
@@ -764,16 +815,16 @@
     "chat": "Chat",
     "unknownContact": "Hindi Kilala",
     "noContacts": "Walang available na kontak.",
-    "noMessagesYet": "Wala pang mensahe. Bumati 👋",
+    "noMessagesYet": "Wala pang mensahe. Bumati",
     "typePlaceholder": "Mag-type ng mensahe…",
     "send": "Ipadala",
     "noContactsTitle": "Wala pang kontak",
     "noContactsSubtitle": "Lalabas dito ang iyong distributor at delivery personnel.",
     "noMessagesTitle": "Wala pang mensahe",
-    "noMessagesSubtitle": "Bumati 👋"
+    "noMessagesSubtitle": "Bumati"
   },
   "notifications": {
-    "title": "🔔 Mga Abiso",
+    "title": "Mga Abiso",
     "newBadge": "{count} bago",
     "empty": "Wala pang abiso.",
     "markAllRead": "Markahan lahat na nabasa",
@@ -818,10 +869,7 @@
     "contactUs": "Makipag-ugnayan sa Suporta",
     "logout": "Mag-log Out",
     "logoutConfirmTitle": "Mag-log out",
-    "logoutConfirmMessage": "Sigurado ka bang gusto mong mag-log out?",
-    "deactivateAccount": "I-deactivate ang Account",
-    "deactivateAccountTitle": "I-disable ang account",
-    "deactivateAccountMessage": "Makipag-ugnayan sa distributor para i-disable ang iyong account. Mananatili ang iyong mga order at kasaysayan ng transaksyon."
+    "logoutConfirmMessage": "Sigurado ka bang gusto mong mag-log out?"
   },
   "editProfile": {
     "title": "I-edit ang Profile",
@@ -834,7 +882,7 @@
     "changePhoneHint": "Ilagay ang iyong kasalukuyang password para kumpirmahin ang iyong bagong numero ng telepono.",
     "phoneUpdated": "Na-update na ang iyong numero ng telepono.",
     "security": "Seguridad",
-    "changePassword": "🔒 Palitan ang Password",
+    "changePassword": "Palitan ang Password",
     "changePasswordTitle": "Palitan ang Password",
     "changePasswordHint": "Ilagay ang iyong kasalukuyang password at ang bagong password sa ibaba.",
     "currentPasswordLabel": "Kasalukuyang Password",
@@ -862,19 +910,19 @@
   },
   "pod": {
     "pastSchedule": "Hindi maaaring lumipas na ang petsa at oras ng paghahatid.",
-    "pinRequired": "I-pin sa mapa ang destinasyon para maberipika ang paghahatid.",
-    "permission": "Kailangan ang pahintulot sa lokasyon. Payagan ito sa Settings at subukan muli.",
-    "services": "I-on ang location services at subukan muli.",
-    "timeout": "Nag-timeout ang GPS. Pumunta sa bukas na lugar sa destinasyon at subukan muli.",
-    "unavailable": "Hindi available ang GPS. Subukan muli sa destinasyon.",
-    "accuracy": "Hindi sapat ang katumpakan ng GPS. I-on ang precise location at subukan sa labas (50 metro o mas mahusay).",
-    "stale": "Nag-expire ang GPS proof. Kumuha muli ng larawan at lokasyon.",
-    "required": "Kailangan ang larawan at kasalukuyang GPS location.",
-    "captured": "Kinuha ang GPS",
+    "pinRequired": "Pakitanda muna sa mapa kung saan ihahatid.",
+    "permission": "Paki-on ang location sa Settings, tapos subukan ulit.",
+    "services": "Paki-on ang location, tapos subukan ulit.",
+    "timeout": "Hindi namin makuha ang lokasyon mo. Lumipat sa lugar na bukas ang paligid, tapos subukan ulit.",
+    "unavailable": "Hindi makuha ang lokasyon ngayon. Subukan ulit sa lugar ng paghahatid.",
+    "accuracy": "Hindi pa sapat ang tumpak ng lokasyon mo. I-on ang precise location at subukan sa labas.",
+    "stale": "Luma na ang patunay na ito. Pakikuha ulit ang larawan at lokasyon.",
+    "required": "Pakikuha muna ng larawan at ng iyong lokasyon.",
+    "captured": "Nakuha ang lokasyon",
     "submitted": "Isinumite",
-    "coordinates": "Mga coordinate",
-    "verified": "Beripikado ang lokasyon ng paghahatid",
-    "unverified": "Hindi maberipika ang lokasyon ng paghahatid",
+    "coordinates": "Lokasyon",
+    "verified": "Nakumpirma ang lokasyon ng paghahatid",
+    "unverified": "Hindi namin nakumpirma ang lokasyon ng paghahatid",
     "distance": "Layo mula sa destinasyon"
   }
 }

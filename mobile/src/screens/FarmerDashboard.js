@@ -16,13 +16,15 @@ import {
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from '../components/NotificationBell';
 import BottomNavBar from '../components/BottomNavBar';
+import ScreenHeader from '../components/ScreenHeader';
 import BottomSheet from '../components/BottomSheet';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/ui/StatusBadge';
 import FarmerProfileTab from './FarmerProfileTab';
 import MessagesScreen from './MessagesScreen';
 import { showAlert, confirmAction } from '../lib/ui';
-import { colors, fonts, radius, shadowCard, fontSize } from '../theme/appTheme';
+import { friendlyError } from '../lib/errorMessages';
+import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
@@ -334,7 +336,7 @@ export default function FarmerDashboard({ navigation, route }) {
       await trySync();
       await loadPickupRequests();
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('refresh');
       setRefreshing(false);
@@ -393,7 +395,7 @@ export default function FarmerDashboard({ navigation, route }) {
       const r = await api.get('/api/harvests/weekly-report');
       setWeeklyReportRows(Array.isArray(r?.details) ? r.details : []);
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), friendlyError(err));
       // Retain the last report on a failed refresh.
     } finally {
       setLoadingWeeklyReport(false);
@@ -410,7 +412,7 @@ export default function FarmerDashboard({ navigation, route }) {
       const r = await api.get('/api/harvests/weekly-report?range=all');
       setHistoryReportRows(Array.isArray(r?.details) ? r.details : []);
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       setLoadingHistoryReport(false);
     }
@@ -425,7 +427,7 @@ export default function FarmerDashboard({ navigation, route }) {
       if (doPrint) await printReport(title, reportColumns, formatted);
       else await exportReportPdf(title, reportColumns, formatted);
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       setExportingReport(false);
     }
@@ -444,9 +446,9 @@ export default function FarmerDashboard({ navigation, route }) {
   const submitAddForm = async () => {
     const name = vegetableName.trim();
     const qty = parseFloat(quantityKg);
-    if (!name) { showAlert('Error', t('dashboards.farmer.enterVegetableName')); return; }
-    if (!isVegetable(name)) { showAlert('Error', VEGETABLE_VALIDATION_MESSAGE); return; }
-    if (isNaN(qty) || qty <= 0) { showAlert('Error', t('dashboards.farmer.enterValidQuantity')); return; }
+    if (!name) { showAlert(t('common.checkDetails'), t('dashboards.farmer.enterVegetableName')); return; }
+    if (!isVegetable(name)) { showAlert(t('common.checkDetails'), VEGETABLE_VALIDATION_MESSAGE); return; }
+    if (isNaN(qty) || qty <= 0) { showAlert(t('common.checkDetails'), t('dashboards.farmer.enterValidQuantity')); return; }
     if (!requestLock.acquire('Submitting')) return;
     setSubmitting(true);
     try {
@@ -463,7 +465,7 @@ export default function FarmerDashboard({ navigation, route }) {
         showAlert(t('dashboards.farmer.savedOfflineTitle'), t('dashboards.farmer.savedOfflineMessage'));
       }
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('Submitting');
       setSubmitting(false);
@@ -492,9 +494,9 @@ export default function FarmerDashboard({ navigation, route }) {
   const submitEditForm = async () => {
     const name = editVegetableName.trim();
     const qty = parseFloat(editQuantityKg);
-    if (!name) { showAlert('Error', t('dashboards.farmer.enterVegetableName')); return; }
-    if (!isVegetable(name)) { showAlert('Error', VEGETABLE_VALIDATION_MESSAGE); return; }
-    if (isNaN(qty) || qty <= 0) { showAlert('Error', t('dashboards.farmer.enterValidQuantity')); return; }
+    if (!name) { showAlert(t('common.checkDetails'), t('dashboards.farmer.enterVegetableName')); return; }
+    if (!isVegetable(name)) { showAlert(t('common.checkDetails'), VEGETABLE_VALIDATION_MESSAGE); return; }
+    if (isNaN(qty) || qty <= 0) { showAlert(t('common.checkDetails'), t('dashboards.farmer.enterValidQuantity')); return; }
     if (!requestLock.acquire('EditSubmitting')) return;
     setEditSubmitting(true);
     try {
@@ -508,7 +510,7 @@ export default function FarmerDashboard({ navigation, route }) {
         showAlert(t('dashboards.farmer.savedOfflineTitle'), t('dashboards.farmer.savedOfflineMessage'));
       }
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('EditSubmitting');
       setEditSubmitting(false);
@@ -527,7 +529,7 @@ export default function FarmerDashboard({ navigation, route }) {
           setHarvests((prev) => prev.filter((h) => h.id !== harvest.id));
           closeEditModal();
         } catch (err) {
-          showAlert('Error', err.message);
+          showAlert(t('common.error'), friendlyError(err));
         } finally {
           requestLock.release('BusyId');
           setBusyId(null);
@@ -556,7 +558,7 @@ export default function FarmerDashboard({ navigation, route }) {
     });
   };
   const submitPickupRequest = async () => {
-    if (cartHarvests.length === 0) { showAlert('Error', t('dashboards.farmer.selectAtLeastOneVeg')); return; }
+    if (cartHarvests.length === 0) { showAlert(t('common.checkDetails'), t('dashboards.farmer.selectAtLeastOneVeg')); return; }
     if (!requestLock.acquire('SubmittingPickup')) return;
     setSubmittingPickup(true);
     try {
@@ -579,7 +581,7 @@ export default function FarmerDashboard({ navigation, route }) {
       await loadPickupRequests();
       setShowConfirmSheet(true);
     } catch (err) {
-      showAlert('Error', err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('SubmittingPickup');
       setSubmittingPickup(false);
@@ -596,25 +598,59 @@ export default function FarmerDashboard({ navigation, route }) {
     );
   }
 
+  // One centred header for the whole dashboard, so the farmer's screens sit
+  // at the same height and use the same title style as every other role.
+  const HEADER_TITLES = {
+    home: t('dashboards.farmer.hubTitle'),
+    harvest: t('dashboards.farmer.tabHarvestNew'),
+    messages: t('dashboards.farmer.tabMessagesNew'),
+    pickup: t('dashboards.farmer.tabPickupNew'),
+    profile: t('dashboards.farmer.tabProfile'),
+    notifications: t('dashboards.farmer.notificationsTitle'),
+  };
+  const headerRight = activeTab === 'home' ? (
+    <TouchableOpacity
+      style={styles.iconBtn}
+      onPress={() => setActiveTab('notifications')}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={t('dashboards.farmer.notificationsTitle')}
+    >
+      <Ionicons name="notifications-outline" size={rf(19)} color={colors.soil800} />
+      {notifUnreadCount > 0 && <View style={styles.notifDot} />}
+    </TouchableOpacity>
+  ) : activeTab === 'harvest' ? (
+    <TouchableOpacity
+      style={styles.iconBtn}
+      onPress={openAddSheet}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={t('dashboards.farmer.addHarvestSheetTitle')}
+    >
+      <Ionicons name="add" size={rf(20)} color={colors.leaf700} />
+    </TouchableOpacity>
+  ) : null;
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Messages renders its own header (it swaps the title for the
+          contact's name inside a thread), so don't stack a second one. */}
+      {activeTab !== 'messages' && (
+        <ScreenHeader
+          title={HEADER_TITLES[activeTab] || HEADER_TITLES.home}
+          onBack={activeTab === 'notifications' ? () => setActiveTab('home') : undefined}
+          right={headerRight}
+        />
+      )}
       <View style={styles.bodyFlex}>
         {activeTab === 'notifications' ? (
           <SharedScreenTransition style={styles.bodyFlex} visible>
             <View style={styles.bodyFlex}>
-              <View style={styles.topbar}>
-                <TouchableOpacity onPress={() => setActiveTab('home')} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="arrow-back" size={rf(20)} color={colors.ink} />
-                </TouchableOpacity>
-                <Text style={styles.notifHeaderTitle}>{t('dashboards.farmer.notificationsTitle')}</Text>
-                <View style={{ width: 20 }} />
-              </View>
               <NotificationBell fullScreen />
             </View>
           </SharedScreenTransition>
         ) : activeTab === 'profile' ? (
           <SharedScreenTransition style={[styles.bodyFlex, styles.content]} visible>
-            <View style={styles.topbar}><Text style={styles.pageTitle}>{t('dashboards.farmer.tabProfile')}</Text></View>
             <FarmerProfileTab navigation={navigation} />
           </SharedScreenTransition>
         ) : activeTab === 'messages' ? (
@@ -631,13 +667,6 @@ export default function FarmerDashboard({ navigation, route }) {
             >
               {activeTab === 'pickup' ? (
               <>
-                <View style={styles.topbar}>
-                  <View>
-                    <Text style={styles.pageTitle}>{t('dashboards.farmer.tabPickupNew')}</Text>
-                    <Text style={styles.pageSubtitle}>{t('dashboards.farmer.selectReadyMsg')}</Text>
-                  </View>
-                </View>
-
                 {availableHarvests.length === 0 ? (
                   <View style={styles.emptyContainer}>
                     <MaterialCommunityIcons name="truck-outline" size={rf(40)} color={colors.inkFaint} />
@@ -692,19 +721,9 @@ export default function FarmerDashboard({ navigation, route }) {
               </>
             ) : activeTab === 'harvest' ? (
               <>
-                {/* Shell order matches prototype's farmer-harvest-list: bare
-                    top bar with a "+" add action on the right, then a single
-                    divided list of harvest rows (photo, title, status badge). */}
-                <View style={styles.topbar}>
-                  <View>
-                    <Text style={styles.pageTitle}>{t('dashboards.farmer.tabHarvestNew')}</Text>
-                    <Text style={styles.pageSubtitle}>{t('dashboards.farmer.yourRecordedHarvests')}</Text>
-                  </View>
-                  <TouchableOpacity style={styles.iconBtn} onPress={openAddSheet} activeOpacity={0.7}>
-                    <Ionicons name="add" size={rf(20)} color={colors.leaf700} />
-                  </TouchableOpacity>
-                </View>
-
+                {/* Matches prototype's farmer-harvest-list: a single divided
+                    list of harvest rows (photo, title, status badge). The "+"
+                    add action lives in the screen header. */}
                 <TouchableOpacity style={styles.btnOutlineBlock} onPress={openWeeklyReport} activeOpacity={0.8}>
                   <Ionicons name="calendar-outline" size={rf(16)} color={colors.leaf700} />
                   <Text style={styles.btnOutlineText}>{t('dashboards.farmer.weeklyReportDash', { range: weekRangeLabel(thisWeekKey) })}</Text>
@@ -741,14 +760,6 @@ export default function FarmerDashboard({ navigation, route }) {
                 {/* HOME — shell order matches prototype's farmer-dashboard: bare
                     top bar (bell only) -> hero greeting -> status pill as its
                     own row -> sync banner -> stats -> add CTA -> list section. */}
-                <View style={styles.topbar}>
-                  <View style={{ width: 38 }} />
-                  <TouchableOpacity style={styles.iconBtn} onPress={() => setActiveTab('notifications')} activeOpacity={0.7}>
-                    <Ionicons name="notifications-outline" size={rf(19)} color={colors.soil800} />
-                    {notifUnreadCount > 0 && <View style={styles.notifDot} />}
-                  </TouchableOpacity>
-                </View>
-
                 <View style={styles.greetingRow}>
                   <Text style={styles.greetingEyebrow}>{t('dashboards.farmer.greetingHome')}</Text>
                   <Text style={styles.greetingName} numberOfLines={1}>{farmerDisplayName}</Text>
@@ -903,7 +914,7 @@ export default function FarmerDashboard({ navigation, route }) {
         <TextInput
           style={styles.input}
           placeholder={t('dashboards.farmer.vegetableNamePlaceholderNew')}
-          placeholderTextColor={colors.inkFaint}
+          placeholderTextColor={colors.placeholder}
           value={vegetableName}
           onChangeText={setVegetableName}
           editable={!submitting}
@@ -912,7 +923,7 @@ export default function FarmerDashboard({ navigation, route }) {
         <TextInput
           style={styles.input}
           placeholder={t('dashboards.farmer.quantityPlaceholderNew')}
-          placeholderTextColor={colors.inkFaint}
+          placeholderTextColor={colors.placeholder}
           value={quantityKg}
           onChangeText={setQuantityKg}
           keyboardType="numeric"
@@ -1180,11 +1191,7 @@ const styles = StyleSheet.create({
   greetingRow: { marginBottom: 10 },
   greetingEyebrow: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
   greetingName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.title), color: colors.leaf900 || colors.leaf700, marginTop: 1 },
-  topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14 },
-  pageTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
-  pageSubtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
 
-  notifHeaderTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
 
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20 },
   statusBadgeRow: { alignSelf: 'flex-start', marginBottom: 14 },
@@ -1233,7 +1240,7 @@ const styles = StyleSheet.create({
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 14 },
   sectionHeadTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink },
   linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  linkBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
+  linkBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700, textAlign: 'center' },
 
   vegCard: {
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 14,
@@ -1288,8 +1295,8 @@ const styles = StyleSheet.create({
   },
   cartBarText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: '#fff', flexShrink: 1 },
   cartBarCount: { fontFamily: fonts.bodyBold, color: colors.gold500 },
-  cartBarBtn: { backgroundColor: colors.gold500, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 14 },
-  cartBarBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), color: colors.soil800 },
+  cartBarBtn: { backgroundColor: colors.gold500, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 14, minHeight: control.height  },
+  cartBarBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), color: colors.soil800, textAlign: 'center' },
 
   fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 6, marginTop: 8 },
   input: {
@@ -1325,7 +1332,7 @@ const styles = StyleSheet.create({
   modalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, flexShrink: 1 },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   stepperBtn: { width: 44, height: 44, borderRadius: radius.ctrl, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
-  stepperBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.title), color: colors.leaf700 },
+  stepperBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.title), color: colors.leaf700, textAlign: 'center' },
   stepperValueBox: { flex: 1, backgroundColor: colors.card, borderWidth: 1.4, borderColor: colors.border, borderRadius: radius.ctrl, paddingVertical: 12, alignItems: 'center' },
   stepperValueText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
 
@@ -1336,8 +1343,8 @@ const styles = StyleSheet.create({
   reportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
   reportCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.ink, paddingRight: 6 },
   reportActionsRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  reportActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.leaf700 },
-  reportActionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
+  reportActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.leaf700, minHeight: control.height  },
+  reportActionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700, textAlign: 'center' },
 
   historyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
   historyWeek: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },

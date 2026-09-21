@@ -17,6 +17,10 @@ export const colors = {
   ink: '#24301C',
   inkSoft: '#6E7566',
   inkFaint: '#9AA290',
+  // One light-grey placeholder colour for every text input in the app, so a
+  // hint never reads as if the user already typed something. Referenced by
+  // AuthInput/PasswordInput and every screen-level TextInput.
+  placeholder: '#9AA290',
   card: '#FFFFFF',
   border: '#E8E2D2',
   danger: '#B3261E',
@@ -25,6 +29,28 @@ export const colors = {
   infoSoft: '#E4EBFB',
   purple: '#6D28D9',
   purpleSoft: '#EEE7FB',
+};
+
+// One spacing scale for screen padding, gaps between cards, and the space
+// between a section title and its content. Screens should use these instead of
+// ad hoc numbers so margins stay even from screen to screen.
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+};
+
+// Shared control metrics. `minTouch` is the smallest comfortable tap target;
+// `height` is the standard height for buttons, chips and filter tabs so
+// adjacent controls line up and a tab never changes size when selected.
+export const control = {
+  minTouch: 44,
+  height: 44,
+  heightSm: 36,
+  paddingH: 16,
+  paddingHSm: 12,
 };
 
 export const radius = {

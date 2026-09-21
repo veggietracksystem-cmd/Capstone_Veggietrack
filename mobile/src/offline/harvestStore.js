@@ -45,8 +45,13 @@ export async function fetchHarvests() {
   try {
     const data = await api.get('/api/harvests');
     const list = Array.isArray(data) ? data : [];
-    // Preserve any still-pending local items so they don't vanish before sync.
-    const pending = (await getCachedHarvests()).filter((h) => h._pending);
+    // Preserve any still-pending local items so they don't vanish before sync,
+    // but only while their mutation is genuinely still queued. A synced "add"
+    // lives in `list` under the server's uuid while its optimistic copy still
+    // carries the q-… queue id, so the id comparison below can never match the
+    // two and the same harvest would be listed (and counted) twice.
+    const queuedIds = new Set((await getQueue()).map((m) => (m.type === 'add' ? m._qid : m.id)));
+    const pending = (await getCachedHarvests()).filter((h) => h._pending && queuedIds.has(h.id));
     const merged = [...pending, ...list.filter((s) => !pending.some((p) => p.id === s.id))];
     await setCachedHarvests(list); // cache the clean server truth
     return { list: merged, source: 'network' };
@@ -112,7 +117,14 @@ async function replayPending() {
         // already reached the server on a previous attempt (the response was
         // simply lost to a timeout/dropped connection), the backend returns
         // the existing harvest instead of creating a duplicate.
-        await api.post('/api/harvests', { ...m.payload, client_request_id: m._qid });
+        const saved = await api.post('/api/harvests', { ...m.payload, client_request_id: m._qid });
+        // Swap the optimistic entry for the row the server actually stored, so
+        // the cache holds one copy under the real id rather than a q-… ghost
+        // that a later read would merge back in alongside its server twin.
+        if (saved?.harvest) {
+          const cache = await getCachedHarvests();
+          await setCachedHarvests(cache.map((h) => (h.id === m._qid ? saved.harvest : h)));
+        }
       } else if (m.type === 'edit') {
         await api.put(`/api/harvests/${m.id}`, m.payload);
       }

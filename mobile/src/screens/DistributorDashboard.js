@@ -17,15 +17,19 @@ import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
 import LogoutButton from '../components/LogoutButton';
 import NotificationBell from '../components/NotificationBell';
+import ScreenHeader from '../components/ScreenHeader';
 import MessagesIcon from '../components/MessagesIcon';
+import PendingAccountsIcon from '../components/PendingAccountsIcon';
 import BottomNavBar from '../components/BottomNavBar';
 import OfflineBanner from '../components/OfflineBanner';
 import EmptyState from '../components/EmptyState';
+import { SegmentedTabs } from '../components/ui/SegmentedTabs';
 import StatusBadge from '../components/ui/StatusBadge';
 import CustomModal from '../components/CustomModal';
 import ImageViewerModal from '../components/ImageViewerModal';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
-import { colors, fonts, radius, shadowCard, fontSize } from '../theme/appTheme';
+import { friendlyError } from '../lib/errorMessages';
+import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
@@ -212,7 +216,7 @@ export default function DistributorDashboard({ navigation, route }) {
       else if (tab === 'payments') await loadPayments();
       else await Promise.all([loadOrders(), loadActiveOrders(), loadPickupRequests(), loadPayments(), refreshProducts.current?.()]);
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('refresh');
       setRefreshing(false);
@@ -240,7 +244,7 @@ export default function DistributorDashboard({ navigation, route }) {
       await loadPayments(); // refresh unpaid + paid lists
       showAlert(t('dashboards.distributor.paymentRecordedTitle'), t('dashboards.distributor.paymentRecordedMessage', { amount: amount.toFixed(2), id: shortId(order.id) }));
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('RecordBusy');
       setRecordBusy(false);
@@ -261,7 +265,7 @@ export default function DistributorDashboard({ navigation, route }) {
       if (personnel.length === 0) await loadPersonnel();
       showAlert(t('dashboards.distributor.orderApprovedTitle'), t('dashboards.distributor.orderApprovedMessage', { id: shortId(order.id) }));
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('BusyOrderId');
       setBusyOrderId(null);
@@ -279,7 +283,7 @@ export default function DistributorDashboard({ navigation, route }) {
       showAlert(t('dashboards.distributor.orderRejectedTitle'), t('dashboards.distributor.orderRejectedMessage', { id: shortId(order.id) }));
       return true;
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('BusyOrderId');
       setBusyOrderId(null);
@@ -303,7 +307,7 @@ export default function DistributorDashboard({ navigation, route }) {
       await loadActiveOrders();
       showAlert(t('dashboards.distributor.deliveryAssignedTitle'), t('dashboards.distributor.deliveryAssignedMessage', { id: shortId(order.id) }));
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('BusyOrderId');
       setBusyOrderId(null);
@@ -357,15 +361,11 @@ export default function DistributorDashboard({ navigation, route }) {
   // ---------- Render ----------
   return (
     <SafeAreaView style={styles.container}>
-      {/* Minimal Top Navigation Bar */}
-      <View style={styles.minimalHeader}>
-        <Text style={styles.minimalTitle}>{t('dashboards.distributor.hubTitle')}</Text>
-        <View style={styles.headerIcons}>
-          <TouchableOpacity onPress={() => navigation.navigate('AccountManagement')} accessibilityLabel="User Management"><Ionicons name="people-outline" size={24} color={colors.leaf700} /></TouchableOpacity>
-          <MessagesIcon />
-          <NotificationBell />
-        </View>
-      </View>
+      {/* Same centred header every screen in the app uses. */}
+      <ScreenHeader
+        title={t('dashboards.distributor.hubTitle')}
+        right={<><PendingAccountsIcon /><MessagesIcon /><NotificationBell /></>}
+      />
 
       <SharedScreenTransition style={{ flex: 1 }} visible>
         <ScrollView
@@ -469,7 +469,7 @@ export default function DistributorDashboard({ navigation, route }) {
               value={priceInput}
               onChangeText={setPriceInput}
               keyboardType="numeric"
-              placeholder={t('dashboards.distributor.pricePlaceholder')}
+              placeholder={t('dashboards.distributor.pricePlaceholder')} placeholderTextColor={colors.placeholder}
               editable={receiveBusyId !== receiveReq.id}
             />
 
@@ -647,7 +647,7 @@ function ProductListSection({ refreshProducts }) {
       setListings(Array.isArray(data) ? data : []);
     } catch (err) {
       if (!isCurrent()) return;
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     }
   }, [t]);
 
@@ -689,7 +689,7 @@ function ProductListSection({ refreshProducts }) {
       await api.put(`/api/products/${activeListing.id}`, { price_per_kg: priceNum });
       await loadListings();
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('productEdit');
       setSavingPrice(false);
@@ -713,7 +713,7 @@ function ProductListSection({ refreshProducts }) {
       await api.put(`/api/products/${activeListing.id}/reduce-quantity`, { new_total_kg: qtyNum });
       await loadListings();
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('productEdit');
       setSavingQty(false);
@@ -738,7 +738,7 @@ function ProductListSection({ refreshProducts }) {
           await api.put(`/api/products/${target.id}/unlist`);
           await loadListings();
         } catch (err) {
-          showAlert(t('common.error'), err.message || t('productList.removeFailed'));
+          showAlert(t('common.error'), friendlyError(err, t('productList.removeFailed')));
         } finally {
           requestLock.release('productEdit');
           setRemoving(false);
@@ -928,16 +928,18 @@ function OrdersTab({
 
   return (
     <View>
-      <View style={styles.subTabs}>
-        {ORDER_SUB_TABS.map((s) => (
-          <TouchableOpacity key={s} style={[styles.subTab, sub === s && styles.subTabActive]} onPress={() => setSub(s)}>
-            <Text style={[styles.subTabText, sub === s && styles.subTabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-              {t(`dashboards.distributor.ordersSub.${s}`)}
-              {s === 'pending' && orders.length ? ` (${orders.length})` : ''}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Four labels don't fit evenly across a phone, so this row scrolls
+          sideways rather than squeezing the text. */}
+      <SegmentedTabs
+        scroll
+        value={sub}
+        onChange={setSub}
+        options={ORDER_SUB_TABS.map((s) => ({
+          value: s,
+          label: t(`dashboards.distributor.ordersSub.${s}`)
+            + (s === 'pending' && orders.length ? ` (${orders.length})` : ''),
+        }))}
+      />
 
       {sub === 'pending' && (
         orders.length === 0 ? (
@@ -1074,7 +1076,7 @@ function OrdersTab({
 
       {sub === 'cancelled' && (
         cancelled.length === 0 ? (
-          <EmptyState icon="🚫" title={t('dashboards.distributor.noCancelledOrders')} message={t('dashboards.distributor.noCancelledOrdersMessage')} />
+          <EmptyState iconElement={<Ionicons name="close-circle-outline" size={rf(44)} color={colors.inkFaint} />} title={t('dashboards.distributor.noCancelledOrders')} message={t('dashboards.distributor.noCancelledOrdersMessage')} />
         ) : cancelled.map((order) => (
           <View key={order.id} style={styles.orderCard}>
             <View style={styles.orderHeader}>
@@ -1091,7 +1093,7 @@ function OrdersTab({
 
       {sub === 'history' && (
         history.length === 0 ? (
-          <EmptyState icon="📜" title={t('dashboards.distributor.noHistoryOrders')} message={t('dashboards.distributor.noHistoryOrdersMessage')} />
+          <EmptyState iconElement={<Ionicons name="time-outline" size={rf(44)} color={colors.inkFaint} />} title={t('dashboards.distributor.noHistoryOrders')} message={t('dashboards.distributor.noHistoryOrdersMessage')} />
         ) : history.map((order) => (
           <View key={order.id} style={styles.orderCard}>
             <View style={styles.orderHeader}>
@@ -1133,7 +1135,7 @@ function OrdersTab({
           style={styles.input}
           value={reasonInput}
           onChangeText={setReasonInput}
-          placeholder={t('dashboards.distributor.rejectReasonPlaceholder')}
+          placeholder={t('dashboards.distributor.rejectReasonPlaceholder')} placeholderTextColor={colors.placeholder}
           multiline
         />
       </CustomModal>
@@ -1172,26 +1174,18 @@ function PaymentsTab({
       </View>
 
       {/* Unpaid / Paid sub-toggle */}
-      <View style={styles.subTabs}>
-        <TouchableOpacity
-          style={[styles.subTab, sub === 'unpaid' && styles.subTabActive]}
-          onPress={() => setSub('unpaid')}
-        >
-          <Text style={[styles.subTabText, sub === 'unpaid' && styles.subTabTextActive]}>
-            {t('dashboards.distributor.unpaid')}{unpaidOrders.length ? ` (${unpaidOrders.length})` : ''}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.subTab, sub === 'paid' && styles.subTabActive]}
-          onPress={() => setSub('paid')}
-        >
-          <Text style={[styles.subTabText, sub === 'paid' && styles.subTabTextActive]}>{t('dashboards.distributor.paid')}</Text>
-        </TouchableOpacity>
-      </View>
+      <SegmentedTabs
+        value={sub}
+        onChange={setSub}
+        options={[
+          { value: 'unpaid', label: t('dashboards.distributor.unpaid') + (unpaidOrders.length ? ` (${unpaidOrders.length})` : '') },
+          { value: 'paid', label: t('dashboards.distributor.paid') },
+        ]}
+      />
 
       {sub === 'unpaid' ? (
         unpaidOrders.length === 0 ? (
-          <EmptyState icon="🎉" title={t('dashboards.distributor.allCaughtUp')} message={t('dashboards.distributor.noUnpaidOrders')} />
+          <EmptyState iconElement={<Ionicons name="checkmark-done-outline" size={rf(44)} color={colors.inkFaint} />} title={t('dashboards.distributor.allCaughtUp')} message={t('dashboards.distributor.noUnpaidOrders')} />
         ) : (
           unpaidOrders.map((o) => (
             <View key={o.id} style={styles.rowCard}>
@@ -1243,7 +1237,7 @@ function PaymentsTab({
           ))
         )
       ) : payments.length === 0 ? (
-        <EmptyState icon="💸" title={t('dashboards.distributor.noPaymentsYet')} message={t('dashboards.distributor.noPaymentsYetMessage')} />
+        <EmptyState iconElement={<Ionicons name="cash-outline" size={rf(44)} color={colors.inkFaint} />} title={t('dashboards.distributor.noPaymentsYet')} message={t('dashboards.distributor.noPaymentsYetMessage')} />
       ) : (
         <View style={styles.list}>
           {payments.map((p, i, arr) => (
@@ -1270,32 +1264,11 @@ function PaymentsTab({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
 
-  headerIcons: { flexDirection: 'row', alignItems: 'center' },
-
-  minimalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.bgScreen,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  minimalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
-
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
   subtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
-  // Segmented control (prototype's .segmented/.seg) — a single gray track
-  // with a white "active" pill, instead of separately bordered buttons.
-  subTabs: { flexDirection: 'row', backgroundColor: colors.soil300, borderRadius: radius.ctrl, padding: 3, marginBottom: 14 },
-  subTab: { flex: 1, paddingVertical: 8, borderRadius: radius.ctrl - 2, alignItems: 'center' },
-  subTabActive: { backgroundColor: colors.card, ...shadowCard },
-  subTabText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
-  subTabTextActive: { color: colors.leaf900 || PRIMARY },
 
   // Payments tab: tile-grid summary (prototype's .tile-grid/.tile)
   summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
@@ -1327,8 +1300,8 @@ const styles = StyleSheet.create({
 
   // Harvest Receiving card
 
-  primaryBtn: { backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 14, alignItems: 'center', marginBottom: 14 },
-  primaryBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
+  primaryBtn: { backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 14, alignItems: 'center', marginBottom: 14, justifyContent: 'center', minHeight: control.height },
+  primaryBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg), textAlign: 'center' },
 
   // Single bordered list container with divided rows (prototype's .list/.row
   // pattern) — reused for the Product List, and for Order Items/Payments below.
@@ -1346,7 +1319,7 @@ const styles = StyleSheet.create({
   productRowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   priceInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 10, paddingVertical: 6, fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink },
-  deleteBtnText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.sm) },
+  deleteBtnText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.sm), textAlign: 'center' },
   btnDisabled: { opacity: 0.5 },
 
   // Home tab: Product List edit modal (icon + name header, qty/price edit, remove, X close)
@@ -1401,8 +1374,8 @@ const styles = StyleSheet.create({
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   pendingBadge: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 10, backgroundColor: colors.gold100, borderWidth: 1, borderColor: colors.gold500 },
   pendingBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.gold700 },
-  smallBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY },
-  smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm) },
+  smallBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY, minHeight: control.height  },
+  smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm), textAlign: 'center' },
 
   orderCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -1415,8 +1388,8 @@ const styles = StyleSheet.create({
   proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: colors.border },
   proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
 
-  trackBtn: { marginBottom: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY },
-  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md) },
+  trackBtn: { marginBottom: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY, justifyContent: 'center', minHeight: control.height  },
+  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md), textAlign: 'center' },
 
   assignLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 6, marginBottom: 8 },
   personnelWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

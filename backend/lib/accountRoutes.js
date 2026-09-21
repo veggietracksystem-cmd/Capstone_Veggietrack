@@ -24,7 +24,13 @@ function mountAccountRoutes(app, db) {
     if (req.user.userId !== TRUSTED_DISTRIBUTOR || req.user.role !== 'distributor') return res.status(403).json({ error: 'Distributor access required.' });
     if (!Number.isInteger(req.body.version)) return res.status(400).json({ error: 'Refresh the account and try again.' });
     const { data, error } = await db.rpc('vt_admin_transition', { p_actor:req.authUser.id,p_session:req.sessionId,p_target:req.params.id,p_action:req.body.action,p_reason:req.body.reason || null,p_version:req.body.version });
-    if (error) return res.status(409).json({ error: 'The action was rejected. Check the reason and refresh the account status.' });
+    // The client message stays deliberately vague, but the database's own
+    // reason (stale version, bad transition, authorization) is the only way to
+    // tell those cases apart when an approval is refused, so keep it in the log.
+    if (error) {
+      console.error('[POST /api/accounts/:id/transition] rejected:', req.params.id, req.body.action, '|', error.code || '', error.message, '|', error.details || '', error.hint || '');
+      return res.status(409).json({ error: 'The action was rejected. Check the reason and refresh the account status.' });
+    }
     res.json(data);
   });
   app.get('/api/accounts/:id/audit', verifyToken, async (req, res) => {

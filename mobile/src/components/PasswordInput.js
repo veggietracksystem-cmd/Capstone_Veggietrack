@@ -18,6 +18,7 @@ export default function PasswordInput({
   value,
   onChangeText,
   placeholder,
+  placeholderTextColor = colors.placeholder,
   visibilityLabel = 'password',
   editable = true,
   autoCapitalize = 'none',
@@ -33,6 +34,7 @@ export default function PasswordInput({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
+        placeholderTextColor={placeholderTextColor}
         secureTextEntry={!show}
         autoCapitalize={autoCapitalize}
         editable={editable}

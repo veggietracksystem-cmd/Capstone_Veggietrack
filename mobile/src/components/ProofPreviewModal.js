@@ -2,7 +2,7 @@ import ProofDetails from './ProofDetails';
 import { useTranslation } from '../i18n/useTranslation';
 import { rf } from '../lib/responsive';
 import { Modal, View, Text, Image, TouchableOpacity, ActivityIndicator, Animated, StyleSheet } from 'react-native';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useSharedModalMotion } from '../lib/motion';
 
 const PRIMARY = colors.leaf700;
@@ -46,7 +46,7 @@ export default function ProofPreviewModal({
             </>
           ) : (
             <TouchableOpacity style={styles.addPhotoBtn} onPress={onPickPhoto} disabled={busy}>
-              <Text style={styles.addPhotoText}>📷 Add Proof Photo</Text>
+              <Text style={styles.addPhotoText}>Add proof photo</Text>
               <Text style={styles.optionalText}>{t('pod.required')}</Text>
             </TouchableOpacity>
           )}
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
   preview: { width: '100%', height: 200, borderRadius: radius.ctrl, backgroundColor: colors.border },
   retakeLink: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(14), textAlign: 'center', paddingVertical: 12 },
 
-  addPhotoBtn: { paddingVertical: 24, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1, borderColor: PRIMARY, borderStyle: 'dashed', marginBottom: 8 },
+  addPhotoBtn: { paddingVertical: 24, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1, borderColor: PRIMARY, borderStyle: 'dashed', marginBottom: 8, justifyContent: 'center', minHeight: control.height },
   addPhotoText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15) },
   optionalText: { fontFamily: fonts.body, color: colors.inkFaint, fontSize: rf(12), marginTop: 4 },
 

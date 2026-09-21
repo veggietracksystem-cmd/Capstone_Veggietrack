@@ -67,7 +67,7 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
     // Once the rider has picked up the order, the retailer's map is a
     // destination view: rider -> retailer, never the earlier warehouse leg.
     focusPoints: mode === 'navigation' ? [shownRider, navigationTarget] : phase === 'delivery' ? [shownRider, destination] : undefined,
-    autoRecenter, fitToken, tileConfig: trackingData?.map_config, riderEmoji: mode === 'tracking' ? '🚛' : '🛵',
+    autoRecenter, fitToken, tileConfig: trackingData?.map_config,
   };
   const acquire = async () => {
     if (acquiring.current) return;
@@ -78,20 +78,20 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
       const position = await acquireDevicePosition();
       if (!mounted.current || version !== acquisitionGeneration.current) return;
       setViewer(position); setViewerToken(v => v + 1);
-      setGpsFeedback(`Your GPS: ${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}${position.accuracy != null ? ` • ±${Math.round(position.accuracy)} m` : ''}`);
+      setGpsFeedback(`Your location: ${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}${position.accuracy != null ? ` • ±${Math.round(position.accuracy)} m` : ''}`);
       if (onAcquirePosition) {
         const sent = await onAcquirePosition(position);
         if (mounted.current && version === acquisitionGeneration.current && sent) setGpsFeedback(value => `${value} • sent to delivery tracking`);
       }
-    } catch (error) { if (mounted.current && version === acquisitionGeneration.current) setGpsFeedback(error.message || 'Could not acquire location.'); }
+    } catch (error) { if (mounted.current && version === acquisitionGeneration.current) setGpsFeedback('We couldn’t get your location. Please turn on location and try again.'); }
     finally { if (mounted.current && version === acquisitionGeneration.current) { setGpsBusy(false); acquiring.current = false; } }
   };
   return <View style={[styles.container, style]}>
     <View style={styles.status}>
       <View style={[styles.dot, { backgroundColor: demo ? '#a7660b' : live ? '#218258' : '#808b84' }]} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.riderName} numberOfLines={1}>🛵 {rider.name || 'Delivery rider'} · {label}</Text>
-        <Text style={styles.detail}>{shownRider ? `${shownRider.latitude.toFixed(5)}, ${shownRider.longitude.toFixed(5)}` : 'Location not yet available'}
+        <Text style={styles.riderName} numberOfLines={1}>{rider.name || 'Delivery rider'} · {label}</Text>
+        <Text style={styles.detail}>{shownRider ? `${shownRider.latitude.toFixed(5)}, ${shownRider.longitude.toFixed(5)}` : 'Location not available yet'}
           {accuracy != null && accuracy >= 0 ? `  ±${Math.round(accuracy)} m` : ''}</Text>
       </View>
     </View>
@@ -107,10 +107,10 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
       <Text style={styles.metric}>{remainingKm != null ? `${remainingKm.toFixed(2)} km remaining` : points.length > 1 ? `${(length / 1000).toFixed(2)} km route` : 'Road route unavailable'}</Text>
       <Text style={styles.metric}>{etaSeconds != null ? `LIVE ETA: ${formatEta(etaSeconds)}` : 'ETA unavailable'}</Text>
     </View>
-    <Text style={styles.hint}>{demo ? 'Demo playback only • return to live to see actual GPS.' : offRoute ? 'Rider is outside the route corridor. ETA is unavailable.' : `Current leg: to ${phase === 'pickup' ? 'dispatch hub' : 'retailer'}. Road estimate • no live traffic.`}</Text>
+    <Text style={styles.hint}>{demo ? 'Practice mode. Switch back to live to see the real location.' : offRoute ? 'The rider is off the planned route, so we can’t estimate the arrival time.' : `On the way to the ${phase === 'pickup' ? 'dispatch hub' : 'shop'}. Arrival time is an estimate.`}</Text>
     {mode === 'navigation' ? (!!nav.navigation_error && <Text style={styles.warning}>{nav.navigation_error}</Text>) : <>
       {!coordinate(origin) && <Text style={styles.warning}>Dispatch hub has no saved map pin. Update the distributor warehouse location.</Text>}
-      {!coordinate(destination) && <Text style={styles.warning}>Delivery location coordinates are unavailable. Contact the distributor.</Text>}
+      {!coordinate(destination) && <Text style={styles.warning}>We don’t have a location for this delivery yet. Please contact the distributor.</Text>}
       {!!view.tracking?.route_error && <Text style={styles.warning}>{view.tracking.route_error}</Text>}
     </>}
     <View style={styles.controls}>

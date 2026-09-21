@@ -1,7 +1,7 @@
 import ProofDetails from './ProofDetails';
 import { rf } from '../lib/responsive';
 import { Modal, View, Image, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { fonts, radius } from '../theme/appTheme';
+import { control, fonts, radius } from '../theme/appTheme';
 import { Ionicons } from '@expo/vector-icons';
 
 // Full-screen image viewer. Pass a uri to show; onClose dismisses it.
@@ -25,6 +25,6 @@ export default function ImageViewerModal({ uri, visible, onClose, proof }) {
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' },
   image: { width: '92%', height: '60%' },
-  closeBtn: { position: 'absolute', top: 40, right: 20, paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, backgroundColor: 'rgba(255,255,255,0.15)' },
+  closeBtn: { position: 'absolute', top: 40, right: 20, paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, backgroundColor: 'rgba(255,255,255,0.15)', minWidth: control.minTouch, minHeight: control.minTouch, alignItems: 'center', justifyContent: 'center'  },
   closeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15) },
 });

@@ -27,7 +27,7 @@ function component(file, mocks = {}) {
     if (name in mocks) return mocks[name];
     if (name === 'react') return react;
     if (name === 'react-native') return { ...Object.fromEntries(['Image','Text','View','TouchableOpacity','ActivityIndicator','TextInput','ScrollView'].map(x=>[x,x])), StyleSheet: { create: value => value } };
-    if (name === '../theme/appTheme') return { colors: {}, fonts: {}, radius: {}, fontSize: {} };
+    if (name === '../theme/appTheme') return { colors: {}, fonts: {}, radius: {}, fontSize: {}, spacing: {}, control: {} };
     if (name === '../i18n/useTranslation') return { useTranslation: () => ({ t: key => key }) };
     if (name === './UserAvatar') return () => null;
     if (name.startsWith('.')) return loadLocal(path.resolve(path.dirname(filename), name + '.js'));

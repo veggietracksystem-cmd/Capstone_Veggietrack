@@ -11,7 +11,7 @@ import { useTranslation } from '../i18n/useTranslation';
 import { showAlert } from '../lib/ui';
 import MapPinningModal from '../components/MapPinningModal';
 import ScreenHeader from '../components/ScreenHeader';
-import { colors } from '../theme/appTheme';
+import { colors, control, fontSize, radius, spacing } from '../theme/appTheme';
 import PasswordInput from '../components/PasswordInput';
 import { Ionicons } from '@expo/vector-icons';
 const PRIMARY = colors.leaf700;
@@ -55,10 +55,10 @@ export default function RegisterScreen({ navigation, route }) {
 
   const register = async () => {
     if(lock.current)return;
-    if(!authConfigured){showAlert('Configuration required','Configure Supabase before registering.');return;}
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())){showAlert('Email','Enter a valid email address.');return;}
-    if(password.length<8 || password!==confirmPassword){showAlert('Password','Enter matching passwords of at least 8 characters.');return;}
-    if(!fullName.trim() || (roleConfig.locationKey && !location.trim())){showAlert('Check your details', roleConfig.locationKey ? 'Enter your name and location.' : 'Enter your name.');return;}
+    if(!authConfigured){showAlert('Not available right now','We can’t create accounts at the moment. Please try again later.');return;}
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())){showAlert('Check your email address','Please enter a valid email address.');return;}
+    if(password.length<8 || password!==confirmPassword){showAlert('Check your password','Please use at least 8 characters, and make sure both passwords match.');return;}
+    if(!fullName.trim() || (roleConfig.locationKey && !location.trim())){showAlert('Please fill in the required fields', roleConfig.locationKey ? 'Please enter your name and location.' : 'Please enter your name.');return;}
     lock.current=true;setLoading(true);
     try {
       const profileData = { full_name: fullName.trim(), role };
@@ -74,10 +74,13 @@ export default function RegisterScreen({ navigation, route }) {
       // Registration must always be confirmed with the emailed OTP.  A
       // Supabase project with auto-confirm enabled cannot satisfy this flow.
       if (data.session) await supabase.auth.signOut({ scope: 'local' });
-      const { error: resendError } = await supabase.auth.resend({ type: 'signup', email: emailTrimmed });
-      if (resendError) throw resendError;
+      // signUp has already sent the confirmation email.  Resending it here ran
+      // into Supabase's per-address send cooldown on every first registration
+      // and surfaced as "Too many attempts", leaving the new account stranded
+      // at 'unverified'.  VerifyEmailScreen's own Resend button covers the
+      // case where the first email never arrives.
       navigation.navigate('VerifyEmail',{email:emailTrimmed, purpose:'signup'});
-    } catch(error){showAlert('Registration',authError(error));}
+    } catch(error){showAlert('We couldn’t create your account',authError(error));}
     finally{lock.current=false;setLoading(false);}
   };
 
@@ -101,17 +104,12 @@ export default function RegisterScreen({ navigation, route }) {
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         >
           <View style={styles.contentWrap}>
-            <View style={styles.headerBlock}>
-              <Text style={styles.title}>{t('auth.register.title')}</Text>
-              <Text style={styles.subtitle}>Create your VeggieTrack account to get started.</Text>
-            </View>
-
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Full Name</Text>
               <TextInput
                 style={styles.input}
                 placeholder="Enter your full name"
-                placeholderTextColor={styles.placeholder.color}
+                placeholderTextColor={colors.placeholder}
                 accessibilityLabel="Full Name"
                 autoCapitalize="words"
                 value={fullName}
@@ -125,7 +123,7 @@ export default function RegisterScreen({ navigation, route }) {
               <TextInput
                 style={styles.input}
                 placeholder="Enter your email address"
-                placeholderTextColor={styles.placeholder.color}
+                placeholderTextColor={colors.placeholder}
                 accessibilityLabel="Email"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -141,7 +139,7 @@ export default function RegisterScreen({ navigation, route }) {
               <PasswordInput
                 style={[styles.input, styles.passwordInput]}
                 placeholder="Enter your password (at least 8 characters)"
-                placeholderTextColor={styles.placeholder.color}
+                placeholderTextColor={colors.placeholder}
                 accessibilityLabel="Password"
                 value={password}
                 onChangeText={setPassword}
@@ -152,7 +150,7 @@ export default function RegisterScreen({ navigation, route }) {
               <PasswordInput
                 style={[styles.input, styles.passwordInput]}
                 placeholder="Confirm password"
-                placeholderTextColor={styles.placeholder.color}
+                placeholderTextColor={colors.placeholder}
                 accessibilityLabel="Confirm Password"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
@@ -194,7 +192,7 @@ export default function RegisterScreen({ navigation, route }) {
                   <TextInput
                     style={[styles.input, styles.locationInput, compactLayout && styles.locationInputFull]}
                     placeholder={roleConfig.locationLabel}
-                    placeholderTextColor={styles.placeholder.color}
+                    placeholderTextColor={colors.placeholder}
                     value={location}
                     onChangeText={setLocation}
                     editable={!loading}
@@ -259,41 +257,40 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 28,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
     paddingBottom: 24,
     flexGrow: 1,
   },
   innerTall: { minHeight: 760 },
   contentWrap: { flexGrow: 1, justifyContent: 'flex-start' },
-  headerBlock: { marginBottom: 56 },
-  title: { fontFamily: 'Poppins_700Bold', fontSize: rf(36), color: PRIMARY, textAlign: 'center', marginBottom: 8 },
-  subtitle: { fontFamily: 'Poppins_400Regular', fontSize: rf(11), color: '#555', textAlign: 'center', lineHeight: rf(16) },
-  fieldGroup: { marginBottom: 18 },
-  fieldLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: rf(13), color: '#555', marginBottom: 8, marginTop: 0 },
-  placeholder: { color: '#9aa39a' },
+  fieldGroup: { marginBottom: spacing.lg },
+  fieldLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: spacing.sm, marginTop: 0 },
   matchText: { fontFamily: 'Poppins_400Regular', fontSize: rf(13), color: PRIMARY, marginTop: 4, marginBottom: 0 },
   passwordError: { fontFamily: 'Poppins_400Regular', fontSize: rf(13), color: '#A32621', marginTop: 4, marginBottom: 0 },
   input: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.ctrl,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 11,
+    minHeight: control.height,
     fontFamily: 'Poppins_400Regular',
-    fontSize: rf(14),
+    fontSize: rf(fontSize.md),
+    color: colors.ink,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border,
     minWidth: 0,
   },
   passwordInput: { marginBottom: 8 },
-  roleWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  roleChip: { minHeight: 44, justifyContent: 'center', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ccc', backgroundColor: '#fff' },
+  roleWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  roleChip: { height: control.height, justifyContent: 'center', alignItems: 'center', paddingHorizontal: control.paddingH, borderRadius: control.height / 2, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   roleChipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  roleChipText: { color: '#555', fontFamily: 'Poppins_500Medium', fontSize: rf(14) },
+  roleChipText: { color: colors.inkSoft, fontFamily: 'Poppins_500Medium', fontSize: rf(fontSize.md), textAlign: 'center' },
   roleChipTextActive: { color: '#fff', fontFamily: 'Poppins_600SemiBold' },
   ctaBlock: { marginTop: 8 },
-  button: { backgroundColor: PRIMARY, minHeight: 50, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  button: { backgroundColor: PRIMARY, minHeight: 50, paddingHorizontal: control.paddingH, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: rf(18) },
+  buttonText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: rf(fontSize.xl), textAlign: 'center' },
   nextStep: { fontFamily: 'Poppins_400Regular', textAlign: 'center', color: '#687065', fontSize: rf(11), lineHeight: rf(16), marginTop: 14 },
   footerSpacer: { flexGrow: 1, minHeight: 10, marginTop: 22, marginBottom: 10 },
   footerSpacerTall: { minHeight: 28, maxHeight: 96 },
@@ -302,9 +299,9 @@ const styles = StyleSheet.create({
   locationInputColumn: { flexDirection: 'column', alignItems: 'stretch' },
   locationInput: { flex: 1, marginBottom: 0 },
   locationInputFull: { width: '100%', flex: 0 },
-  pinBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 16, backgroundColor: PRIMARY, borderRadius: 8 },
+  pinBtn: { minHeight: control.height, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: control.paddingH, backgroundColor: PRIMARY, borderRadius: radius.ctrl },
   pinBtnFull: { width: '100%' },
-  pinBtnText: { color: '#fff', fontFamily: 'Poppins_700Bold', fontSize: rf(14) },
+  pinBtnText: { color: '#fff', fontFamily: 'Poppins_700Bold', fontSize: rf(14), textAlign: 'center' },
   locationFeedback: { backgroundColor: '#edf5e9', borderRadius: 8, padding: 10, marginTop: 10 },
   coordsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   coordsLabel: { color: PRIMARY, fontFamily: 'Poppins_600SemiBold', fontSize: rf(13) },

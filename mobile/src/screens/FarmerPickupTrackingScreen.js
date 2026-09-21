@@ -113,7 +113,7 @@ function Timeline({ status, pickup }) {
           <View key={key} style={s.tlStep}>
             <View style={s.tlMarker}>
               <View style={[s.tlDot, state !== 'upcoming' && s.tlDotFilled]}>
-                {state === 'done' && <Text style={s.tlCheck}>✓</Text>}
+                {state === 'done' && <Ionicons name="checkmark" size={rf(12)} color="#fff" />}
               </View>
               {i < STATUS_ORDER.length - 1 && <View style={[s.tlLine, state === 'done' && s.tlLineFilled]} />}
             </View>
@@ -138,7 +138,6 @@ const s = StyleSheet.create({ container:{flex:1,backgroundColor:colors.bgScreen}
   tlMarker:{alignItems:'center'},
   tlDot:{width:20,height:20,borderRadius:10,borderWidth:2,borderColor:colors.border,backgroundColor:colors.card,alignItems:'center',justifyContent:'center'},
   tlDotFilled:{backgroundColor:colors.leaf700,borderColor:colors.leaf700},
-  tlCheck:{color:'#fff',fontSize:rf(fontSize.xs),fontFamily:fonts.bodyBold},
   tlLine:{width:2,flex:1,minHeight:20,backgroundColor:colors.border},
   tlLineFilled:{backgroundColor:colors.leaf700},
   tlBody:{flex:1,paddingBottom:14},

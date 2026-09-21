@@ -15,19 +15,19 @@ export default function ForgotPasswordScreen({ navigation, route }) {
 	const lock = useRef(false);
 	const submit = async () => {
 		if (lock.current) return;
-		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Enter a valid email address.'); return; }
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Please enter a valid email address.'); return; }
 		lock.current = true; setBusy(true); setError('');
 		try {
 			const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
 				redirectTo: Linking.createURL('reset-password'),
 			});
 			if (resetError) throw resetError;
-			setMessage('Check your email for a password reset link. Open it on this device to choose a new password.');
+			setMessage('We sent you an email. Open the link on this phone to set a new password.');
 		} catch (resetError) { setError(authError(resetError)); }
 		finally { lock.current = false; setBusy(false); }
 	};
 	return <AuthPage title="Reset password">
-		{!authConfigured && <Text style={s.error}>Supabase configuration is required.</Text>}
+		{!authConfigured && <Text style={s.error}>This isn’t available right now. Please try again later.</Text>}
 		<AuthInput placeholder="Email" accessibilityLabel="Email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} editable={!busy} />
 		<AuthButton title="Send reset link" disabled={busy || !authConfigured} onPress={submit} />
 		{!!message && <Text style={s.note}>{message}</Text>}

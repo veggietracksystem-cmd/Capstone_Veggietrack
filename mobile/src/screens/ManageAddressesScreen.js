@@ -18,7 +18,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { showAlert, confirmAction } from '../lib/ui';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { friendlyError } from '../lib/errorMessages';
+import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { rf } from '../lib/responsive';
 import MapPinningModal from '../components/MapPinningModal';
@@ -59,8 +60,8 @@ export default function ManageAddressesScreen({ navigation }) {
       if (!isCurrent()) return;
         console.error('Load addresses error:', err);
         // Only show error if it's a real error, not empty data
-        if (err.message && err.message !== 'Request failed (404)') {
-            showAlert('Error', 'Could not load addresses');
+        if (err.status !== 404) {
+            showAlert('We couldn’t load your addresses', 'Please check your internet connection and try again.');
         }
     } finally {
         if (isCurrent()) { setLoading(false); setRefreshing(false); }
@@ -100,11 +101,11 @@ export default function ManageAddressesScreen({ navigation }) {
 
   const saveAddress = async () => {
     if (!formLabel.trim()) {
-        showAlert('Error', 'Please enter a label (e.g., Home, Office)');
+        showAlert('Please fill in the required fields', 'Give this address a short name, for example Home or Shop.');
         return;
     }
     if (!formAddress.trim()) {
-        showAlert('Error', 'Please enter the address');
+        showAlert('Please fill in the required fields', 'Please enter the address.');
         return;
     }
 
@@ -134,15 +135,10 @@ export default function ManageAddressesScreen({ navigation }) {
         });
         setModalVisible(false);
         await loadAddresses();
-        showAlert('Success', editingAddress ? 'Address updated' : 'Address added');
+        showAlert('Saved', editingAddress ? 'Your address has been updated.' : 'Your address has been added.');
     } catch (err) {
         console.error('Save address error:', err);
-        // Check if the error is a 404 or network issue
-        if (err.message && err.message.includes('404')) {
-            showAlert('Error', 'Address endpoint not found. Please check backend.');
-        } else {
-            showAlert('Error', err.message || 'Failed to save address');
-        }
+        showAlert('We couldn’t save this address', friendlyError(err, 'Please try again.'));
     } finally {
         requestLock.release('Saving');
         setSaving(false);
@@ -150,8 +146,8 @@ export default function ManageAddressesScreen({ navigation }) {
 };
     const deleteAddress = (address) => {
         confirmAction(
-            'Delete Address',
-            `Are you sure you want to delete "${address.label}"?`,
+            'Delete this address?',
+            `"${address.label}" will be removed from your saved addresses.`,
             async () => {
                 if (!requestLock.acquire('Saving')) return;
                 setSaving(true);
@@ -159,9 +155,9 @@ export default function ManageAddressesScreen({ navigation }) {
                     await api.delete(`/api/addresses/${address.id}`);
                     setAddresses(prev => prev.filter(a => a.id !== address.id));
                     await loadAddresses();
-                    showAlert('Success', 'Address deleted');
+                    showAlert('Deleted', 'Your address has been removed.');
                 } catch (err) {
-                    showAlert('Error', err.message || 'Failed to delete address');
+                    showAlert('We couldn’t delete this address', friendlyError(err, 'Please try again.'));
                 } finally {
                     requestLock.release('Saving');
                     setSaving(false);
@@ -179,9 +175,9 @@ export default function ManageAddressesScreen({ navigation }) {
                 is_default: true,
             });
             await loadAddresses();
-            showAlert('Success', 'Default address updated');
+            showAlert('Saved', 'This is now your default address.');
         } catch (err) {
-            showAlert('Error', err.message || 'Failed to update default');
+            showAlert('We couldn’t update your default address', friendlyError(err, 'Please try again.'));
         } finally {
             requestLock.release('Saving');
             setSaving(false);
@@ -274,7 +270,7 @@ export default function ManageAddressesScreen({ navigation }) {
                     style={styles.input}
                     value={formLabel}
                     onChangeText={setFormLabel}
-                    placeholder="Home"
+                    placeholder="Home" placeholderTextColor={colors.placeholder}
                 />
 
                 <Text style={styles.fieldLabel}>Address</Text>
@@ -283,7 +279,7 @@ export default function ManageAddressesScreen({ navigation }) {
                         style={[styles.input, styles.addressInput, { flex: 1 }]}
                         value={formAddress}
                         onChangeText={setFormAddress}
-                        placeholder="Street, City, Province"
+                        placeholder="Street, City, Province" placeholderTextColor={colors.placeholder}
                         multiline
                     />
                     <TouchableOpacity
@@ -300,7 +296,7 @@ export default function ManageAddressesScreen({ navigation }) {
                     style={styles.input}
                     value={formLatitude}
                     onChangeText={setFormLatitude}
-                    placeholder="14.0583"
+                    placeholder="14.0583" placeholderTextColor={colors.placeholder}
                     keyboardType="numeric"
                 />
 
@@ -309,7 +305,7 @@ export default function ManageAddressesScreen({ navigation }) {
                     style={styles.input}
                     value={formLongitude}
                     onChangeText={setFormLongitude}
-                    placeholder="121.1485"
+                    placeholder="121.1485" placeholderTextColor={colors.placeholder}
                     keyboardType="numeric"
                 />
 
@@ -361,11 +357,11 @@ const styles = StyleSheet.create({
     coordsText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 4 },
     coordsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     addressActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
-    actionBtn: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: radius.ctrl, borderWidth: 1 },
+    actionBtn: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: radius.ctrl, borderWidth: 1, minHeight: control.height  },
     setDefaultBtn: { borderColor: PRIMARY },
     editBtn: { borderColor: colors.border },
     deleteBtn: { borderColor: colors.danger },
-    actionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.ink },
+    actionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.ink, textAlign: 'center' },
     addBtn: {
         backgroundColor: PRIMARY,
         borderRadius: radius.ctrl,
@@ -373,7 +369,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: 8,
     },
-    addBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
+    addBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg), textAlign: 'center' },
     fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 10, marginBottom: 4 },
     input: {
         backgroundColor: colors.card,
@@ -397,7 +393,7 @@ const styles = StyleSheet.create({
         borderRadius: radius.ctrl,
         marginTop: 4,
     },
-    pinBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm) },
+    pinBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm), textAlign: 'center' },
     checkboxRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
     checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: PRIMARY, marginRight: 10 },
     checkboxChecked: { backgroundColor: PRIMARY },

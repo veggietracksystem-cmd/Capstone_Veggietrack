@@ -5,31 +5,31 @@
     "replace": "Replace picture",
     "uploadFailed": "Picture upload failed. Select a picture to retry.",
     "saveHint": "Save changes to update your profile picture."
-},
+  },
   "phoneAuth": {
-  "changePhone": "Change phone number",
-  "title": "Welcome to VeggieTrack",
-  "subtitle": "Sign in or create an account with your phone number.",
-  "phone": "Phone number",
-  "code": "SMS verification code",
-  "send": "Send OTP",
-  "verify": "Verify and continue",
-  "resend": "Resend OTP",
-  "cooldown": "Resend in {seconds}s",
-  "another": "Use another number",
-  "invalidPhone": "Enter a valid number, such as 09171234567 or +639171234567.",
-  "invalidCode": "Enter the six-digit SMS code.",
-  "profile": "Complete your profile for {phone}.",
-  "unavailable": "Sign-in, registration, and phone changes are temporarily unavailable. Please try again later."
-},
+    "changePhone": "Change phone number",
+    "title": "Welcome to VeggieTrack",
+    "subtitle": "Sign in or create an account with your phone number.",
+    "phone": "Phone number",
+    "code": "SMS verification code",
+    "send": "Send OTP",
+    "verify": "Verify and continue",
+    "resend": "Resend OTP",
+    "cooldown": "Resend in {seconds}s",
+    "another": "Use another number",
+    "invalidPhone": "Enter a valid number, such as 09171234567 or +639171234567.",
+    "invalidCode": "Enter the six-digit SMS code.",
+    "profile": "Complete your profile for {phone}.",
+    "unavailable": "Signing in and registering aren’t available right now. Please try again later."
+  },
   "checkout": {
-  "minimumWeight": "Minimum order is 5 kg in total.",
-  "cartStorageError": "Could not access saved cart. Please retry before closing the app.",
-  "hour": "Hour",
-  "minute": "Minute",
-  "deliveryDate": "Delivery date",
-  "deliveryTime": "Delivery time (Philippine time)"
-},
+    "minimumWeight": "Minimum order is 5 kg in total.",
+    "cartStorageError": "Could not access saved cart. Please retry before closing the app.",
+    "hour": "Hour",
+    "minute": "Minute",
+    "deliveryDate": "Delivery date",
+    "deliveryTime": "Delivery time (Philippine time)"
+  },
   "common": {
     "save": "Save",
     "saveChanges": "Save Changes",
@@ -53,7 +53,8 @@
     "search": "Search",
     "requiredField": "This field is required.",
     "networkError": "Network error — is the backend running and reachable?",
-    "phoneHint": "Use international format: + then country code and number, e.g. +639171234567"
+    "phoneHint": "Use international format: + then country code and number, e.g. +639171234567",
+    "checkDetails": "Please check your details"
   },
   "auth": {
     "login": {
@@ -66,7 +67,7 @@
       "forgotPassword": "Forgot Password?",
       "loginButton": "Login",
       "noAccount": "No account yet? Register",
-      "howItWorks": "📖 How It Works",
+      "howItWorks": "How It Works",
       "contactUs": "Contact Us"
     },
     "register": {
@@ -138,9 +139,9 @@
     "etaInTransit": "10–15 mins",
     "etaDispatched": "30–45 mins",
     "etaAwaitingDispatch": "Awaiting dispatch",
-    "etaLabel": "🕒 ETA: {eta}",
-    "geocodeFailedNative": "Couldn't pinpoint that address — showing San Pablo City as an approximation.",
-    "geocodeFailedWeb": "Could not pinpoint address — showing San Pablo City as an approximation.",
+    "etaLabel": "ETA: {eta}",
+    "geocodeFailedNative": "We couldn’t find that exact address, so we’re showing San Pablo City instead.",
+    "geocodeFailedWeb": "We couldn’t find that exact address, so we’re showing San Pablo City instead.",
     "mapUnavailable": "Map unavailable on this platform preview."
   },
   "dashboards": {
@@ -175,7 +176,7 @@
       "viewRoute": "View Route",
       "navigateBtn": "Navigate",
       "scheduleLabel": "Schedule: {schedule}",
-      "etaText": "🕒 ETA: 10–15 mins",
+      "etaText": "ETA: 10–15 mins",
       "liveStatusInTransit": "In Transit",
       "liveStatusLive": "Live",
       "noItemDetails": "No item details.",
@@ -200,7 +201,7 @@
       "cameraErrorFallback": "Could not open the camera.",
       "missingDeliveryTitle": "Missing delivery record",
       "pullToRefreshRetry": "Pull down to refresh and try again.",
-      "missingDeliveryIdMessage": "Could not find the delivery ID for this order. Pull down to refresh and try again.",
+      "missingDeliveryIdMessage": "We couldn’t open this delivery. Pull down to refresh and try again.",
       "deliveredTitle": "Delivered",
       "deliveredMessage": "Order {id} marked as delivered.",
       "viewDetailsBtn": "View Details",
@@ -425,7 +426,7 @@
       "approveAndAssign": "Approve & Assign Rider",
       "approveAndAssignModalTitle": "Approve & Assign Rider",
       "saving": "Saving…",
-      "pickupPriceHint": "Set a selling price per kg. Leave blank to add it with ₱0 and price it later in Products.",
+      "pickupPriceHint": "Set a selling price per kilo. Leave it blank to price it later in Products.",
       "pricePerKgLabel": "Price per kg (₱)",
       "assignPersonnelLabel": "Assign Delivery Personnel",
       "noPersonnelAvailable": "No delivery personnel available.",
@@ -449,7 +450,7 @@
       "retailerLabel": "Retailer: {id}",
       "deliverTo": "Deliver to: {address}",
       "noItemDetails": "No item details.",
-      "trackDelivery": "🗺️  Track Delivery",
+      "trackDelivery": "Track Delivery",
       "approve": "Approve",
       "assignDeliveryPersonLabel": "Assign delivery person:",
       "assignDelivery": "Assign Delivery",
@@ -457,7 +458,7 @@
       "totalLabel": "Total: {amount}",
       "totalAmountLabel": "Total",
       "riderLabel": "Rider: {name}",
-      "proofOfDelivery": "📷 Proof of delivery — tap to view",
+      "proofOfDelivery": "Proof of delivery — tap to view",
       "awaitingRider": "Awaiting rider assignment",
       "ordersSub": {
         "pending": "Pending",
@@ -505,7 +506,7 @@
       "noProductsMessage": "Check back soon — distributors haven't listed anything yet.",
       "noMatchQuery": "No vegetables match \"{query}\".",
       "kgAvailable": "{qty} kg available",
-      "harvested": "📅 Harvested: {date}",
+      "harvested": "Harvested: {date}",
       "addToCart": "Add to Cart",
       "cart": "Cart",
       "cartEmpty": "Your cart is empty.",
@@ -542,9 +543,9 @@
       "deliverTo": "Deliver to: {address}",
       "schedule": "Schedule: {schedule}",
       "orderCancelledNote": "This order was cancelled.",
-      "proofOfDelivery": "📷 Proof of delivery — tap to view",
-      "cancelOrderBtn": "❌ Cancel Order",
-      "trackOrderBtn": "🗺️  Track Order",
+      "proofOfDelivery": "Proof of delivery — tap to view",
+      "cancelOrderBtn": "Cancel Order",
+      "trackOrderBtn": "Track Order",
       "viewDetailsBtn": "View Details",
       "viewHistoryBtn": "View History",
       "checkoutTitle": "Order Confirmation",
@@ -574,7 +575,7 @@
     "deleteConfirmMessage": "Remove {name} from your inventory? This can't be undone.",
     "outOfStock": "Out of Stock",
     "kgInStock": "{qty} kg available",
-    "harvested": "📅 Harvested: {date}",
+    "harvested": "Harvested: {date}",
     "priceLabel": "Price per kg (₱)",
     "editBtn": "Edit",
     "deleteBtn": "Delete",
@@ -607,11 +608,10 @@
     "statusSoldOut": "Sold Out",
     "statusLowStock": "Low Stock",
     "statusActive": "Active",
-    "photoCaptured": "Photo ✓",
+    "photoCaptured": "Photo",
     "photoMissing": "No Photo",
     "batchesSegLabel": "Batches",
     "productsSegLabel": "Products",
-    "segHelperNote": "Batches = physical stock received from farmers. Products = catalog & pricing shown to retailers.",
     "emptyTitleBatches": "No batches received yet",
     "emptyTitleProducts": "No products listed yet",
     "addToProductList": "Add to Product List",
@@ -697,51 +697,102 @@
     "statusAvailable": "Available",
     "editBtn": "Edit",
     "pickupBtn": "Pickup",
-    "deleteBtn": "🗑️ Delete"
+    "deleteBtn": "Delete"
   },
   "userGuide": {
-    "title": "📖 How VeggieTrack Works",
+    "title": "How VeggieTrack Works",
     "tabs": {
-      "farmer": "👨‍🌾 Farmer",
-      "distributor": "🏢 Distributor",
-      "retailer": "🛒 Retailer",
-      "rider": "🛵 Delivery",
-      "faq": "❓ FAQ"
+      "farmer": "Farmer",
+      "distributor": "Distributor",
+      "retailer": "Retailer",
+      "rider": "Delivery",
+      "faq": "FAQ"
     },
     "farmer": {
       "steps": [
-        { "title": "Record Harvest Batch", "desc": "Enter vegetable name, quantity in kilograms, and pin your farm coordinates on the map." },
-        { "title": "Request Pickup", "desc": "Click \"Request Pickup\" to notify the central distributor to collect your produce." },
-        { "title": "Marked Picked Up", "desc": "Once the delivery rider collects the batch, it updates to \"Picked Up\" and stays recorded in your history." }
+        {
+          "title": "Record Harvest Batch",
+          "desc": "Enter vegetable name, quantity in kilograms, and pin your farm coordinates on the map."
+        },
+        {
+          "title": "Request Pickup",
+          "desc": "Click \"Request Pickup\" to notify the central distributor to collect your produce."
+        },
+        {
+          "title": "Marked Picked Up",
+          "desc": "Once the delivery rider collects the batch, it updates to \"Picked Up\" and stays recorded in your history."
+        }
       ]
     },
     "distributor": {
       "steps": [
-        { "title": "Inventory Intake", "desc": "Approve incoming farmer harvest pickups and set product prices to add produce into warehouse inventory." },
-        { "title": "Approve & Assign Riders", "desc": "Review pending retailer orders, approve them, and assign an available delivery personnel (rider)." },
-        { "title": "Payment & Analytics", "desc": "Record retailer payments and view 7-day business revenue and inventory reports." }
+        {
+          "title": "Inventory Intake",
+          "desc": "Approve incoming farmer harvest pickups and set product prices to add produce into warehouse inventory."
+        },
+        {
+          "title": "Approve & Assign Riders",
+          "desc": "Review pending retailer orders, approve them, and assign an available delivery personnel (rider)."
+        },
+        {
+          "title": "Payment & Analytics",
+          "desc": "Record retailer payments and view 7-day business revenue and inventory reports."
+        }
       ]
     },
     "retailer": {
       "steps": [
-        { "title": "Browse FIFO Stock", "desc": "Crops are listed oldest-first based on harvest dates to ensure freshness and reduce spoilage." },
-        { "title": "Place Orders", "desc": "Select stock quantities in kg. Orders check stock availability instantly." },
-        { "title": "Track Delivery", "desc": "Once approved by the distributor, click \"Track Delivery\" to view rider route markers on the map." }
+        {
+          "title": "Browse FIFO Stock",
+          "desc": "Crops are listed oldest-first based on harvest dates to ensure freshness and reduce spoilage."
+        },
+        {
+          "title": "Place Orders",
+          "desc": "Select stock quantities in kg. Orders check stock availability instantly."
+        },
+        {
+          "title": "Track Delivery",
+          "desc": "Once approved by the distributor, click \"Track Delivery\" to view rider route markers on the map."
+        }
       ]
     },
     "rider": {
       "steps": [
-        { "title": "View Assignments", "desc": "Check assigned farmer pickups and retailer deliveries from your delivery dashboard." },
-        { "title": "Embedded Map Routes", "desc": "Use embedded OpenStreetMap route pins for farm pickups, central warehouse, and retailer store locations." },
-        { "title": "Upload Proof of Delivery", "desc": "Advance status (Picked Up ➔ In Transit ➔ Delivered) and upload a proof photo upon completion." }
+        {
+          "title": "View Assignments",
+          "desc": "Check assigned farmer pickups and retailer deliveries from your delivery dashboard."
+        },
+        {
+          "title": "Embedded Map Routes",
+          "desc": "Use embedded OpenStreetMap route pins for farm pickups, central warehouse, and retailer store locations."
+        },
+        {
+          "title": "Upload Proof of Delivery",
+          "desc": "Advance status (Picked Up to In Transit to Delivered) and upload a proof photo upon completion."
+        }
       ]
     },
     "faqs": [
-      { "q": "What is the First-In, First-Out (FIFO) system?", "a": "VeggieTrack automatically sorts available crops by their harvest dates (oldest first). This encourages retailers to buy older stock first, reducing food spoilage and waste." },
-      { "q": "How does offline mode work?", "a": "Farmers can log harvests even without internet access. Actions are saved locally to your device and automatically synced with the backend server once reconnected." },
-      { "q": "What happens if an order is cancelled?", "a": "When a retailer cancels an unapproved order, the product stock is immediately restored back to the distributor's available inventory." },
-      { "q": "Why can there only be one Distributor account?", "a": "VeggieTrack is designed as a hub-and-spoke central supply chain. The distributor acts as the central warehouse receiving produce from multiple farmers and supplying multiple retailers." },
-      { "q": "How does order tracking work?", "a": "Once a distributor approves a retailer order and assigns a rider, the Retailer can click \"Track Delivery\" to view route pins on an embedded map." }
+      {
+        "q": "What is the First-In, First-Out (FIFO) system?",
+        "a": "VeggieTrack automatically sorts available crops by their harvest dates (oldest first). This encourages retailers to buy older stock first, reducing food spoilage and waste."
+      },
+      {
+        "q": "How does offline mode work?",
+        "a": "Farmers can log harvests even without internet access. Actions are saved locally to your device and automatically synced with the backend server once reconnected."
+      },
+      {
+        "q": "What happens if an order is cancelled?",
+        "a": "When a retailer cancels an unapproved order, the product stock is immediately restored back to the distributor's available inventory."
+      },
+      {
+        "q": "Why can there only be one Distributor account?",
+        "a": "VeggieTrack is designed as a hub-and-spoke central supply chain. The distributor acts as the central warehouse receiving produce from multiple farmers and supplying multiple retailers."
+      },
+      {
+        "q": "How does order tracking work?",
+        "a": "Once a distributor approves a retailer order and assigns a rider, the Retailer can click \"Track Delivery\" to view route pins on an embedded map."
+      }
     ]
   },
   "contactUs": {
@@ -764,16 +815,16 @@
     "chat": "Chat",
     "unknownContact": "Unknown",
     "noContacts": "No contacts available.",
-    "noMessagesYet": "No messages yet. Say hello 👋",
+    "noMessagesYet": "No messages yet. Say hello",
     "typePlaceholder": "Type a message…",
     "send": "Send",
     "noContactsTitle": "No contacts yet",
     "noContactsSubtitle": "Your distributor and delivery personnel will appear here.",
     "noMessagesTitle": "No messages yet",
-    "noMessagesSubtitle": "Say hello 👋"
+    "noMessagesSubtitle": "Say hello"
   },
   "notifications": {
-    "title": "🔔 Notifications",
+    "title": "Notifications",
     "newBadge": "{count} new",
     "empty": "No notifications yet.",
     "markAllRead": "Mark all read",
@@ -814,14 +865,11 @@
     "editProfile": "Edit Profile",
     "preferences": "Preferences",
     "helpSupport": "Help & Support",
-    "userGuide": "📖 How VeggieTrack Works (User Guide)",
+    "userGuide": "How VeggieTrack Works (User Guide)",
     "contactUs": "Contact Us & Support",
     "logout": "Log Out",
     "logoutConfirmTitle": "Log out",
-    "logoutConfirmMessage": "Are you sure you want to log out?",
-    "deactivateAccount": "Deactivate Account",
-    "deactivateAccountTitle": "Disable account",
-    "deactivateAccountMessage": "Contact the distributor to disable your account. Your orders and transaction history will be preserved."
+    "logoutConfirmMessage": "Are you sure you want to log out?"
   },
   "editProfile": {
     "title": "Edit Profile",
@@ -834,7 +882,7 @@
     "changePhoneHint": "Enter your current password to confirm your new phone number.",
     "phoneUpdated": "Your phone number has been updated.",
     "security": "Security",
-    "changePassword": "🔒 Change Password",
+    "changePassword": "Change Password",
     "changePasswordTitle": "Change Password",
     "changePasswordHint": "Enter your current password and your new password below.",
     "currentPasswordLabel": "Current Password",
@@ -862,19 +910,19 @@
   },
   "pod": {
     "pastSchedule": "Delivery date and time cannot be in the past.",
-    "pinRequired": "Pin your delivery destination on the map to enable delivery verification.",
-    "permission": "Location permission is required. Enable location access in Settings and retry.",
-    "services": "Turn on location services and retry.",
-    "timeout": "GPS timed out. Move to an open area at the delivery location and retry.",
-    "unavailable": "GPS is unavailable. Retry at the delivery location.",
-    "accuracy": "GPS accuracy is insufficient. Enable precise location and retry outdoors (50 meters or better).",
-    "stale": "GPS proof has expired. Retake the photo and location.",
-    "required": "A proof photo and current GPS location are required.",
-    "captured": "GPS captured",
+    "pinRequired": "Please set the delivery spot on the map first.",
+    "permission": "Please allow location access in Settings, then try again.",
+    "services": "Please turn on location, then try again.",
+    "timeout": "We couldn’t find your location. Move to an open area at the delivery spot and try again.",
+    "unavailable": "We can’t get your location right now. Please try again at the delivery spot.",
+    "accuracy": "Your location isn’t accurate enough yet. Turn on precise location and try again outdoors.",
+    "stale": "This proof is out of date. Please take the photo and location again.",
+    "required": "Please take a photo and get your location first.",
+    "captured": "Location saved",
     "submitted": "Submitted",
-    "coordinates": "Coordinates",
-    "verified": "Delivery location verified",
-    "unverified": "Delivery location could not be verified",
+    "coordinates": "Location",
+    "verified": "Delivery location confirmed",
+    "unverified": "We couldn’t confirm the delivery location",
     "distance": "Distance from destination"
   }
 }

@@ -16,8 +16,8 @@ export default function LoginScreen({ navigation }) {
 	const login = async () => {
 		if (lock.current) return;
 		setError('');
-		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Enter a valid email address.'); return; }
-		if (!password) { setError('Enter your password.'); return; }
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Please enter a valid email address.'); return; }
+		if (!password) { setError('Please enter your password.'); return; }
 		lock.current = true; setBusy(true);
 		try {
 			await signInWithEmail(email.trim(), password);
@@ -28,11 +28,11 @@ export default function LoginScreen({ navigation }) {
 		finally { lock.current = false; setBusy(false); }
 	};
 	return <AuthPage title="Sign in">
-		{!authConfigured && <Text style={s.error}>Supabase configuration is required.</Text>}
+		{!authConfigured && <Text style={s.error}>Signing in isn’t available right now. Please try again later.</Text>}
 		<AuthInput placeholder="Email" accessibilityLabel="Email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} editable={!busy} />
 		<PasswordInput style={s.input} placeholder="Password" accessibilityLabel="Password" value={password} onChangeText={setPassword} editable={!busy} />
 		<AuthButton title="Continue" disabled={busy || !authConfigured} onPress={login} />
-		<Text style={s.note}>After your password is checked, we’ll email a one-time verification code.</Text>
+		<Text style={s.note}>We’ll email you a code to confirm it’s you.</Text>
 		<AuthButton variant="outline" title="Create account" onPress={() => navigation.navigate('Register')} />
 		<AuthButton variant="ghost" title="Forgot password" onPress={() => navigation.navigate('ForgotPassword')} />
 		{!!error && <Text style={s.error} accessibilityRole="alert">{error}</Text>}

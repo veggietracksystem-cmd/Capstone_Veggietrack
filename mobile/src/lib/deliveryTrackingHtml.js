@@ -9,6 +9,7 @@ export function buildDeliveryTrackingHtml() {
 html,body,#map{height:100%;margin:0;background:#e8efe6;font-family:system-ui,sans-serif}
 .marker{background:transparent;border:0}.pin{position:relative;display:grid;place-items:center;width:38px;height:38px;border:3px solid white;border-radius:50%;background:#244d36;box-shadow:0 2px 8px #0005;font-size:23px}
 .pin.rider{background:#218258}.pin.hub{background:#31598a}.pin.shop{background:#b8702b}.pin.viewer{background:#6654af}
+.pin svg{width:19px;height:19px;fill:#fff;display:block}
 .pin.pulse:before{content:'';position:absolute;inset:-9px;border:2px solid #218258;border-radius:50%;animation:radar 2s ease-out infinite}
 @keyframes radar{from{transform:scale(.7);opacity:.85}to{transform:scale(1.7);opacity:0}}
 @media(prefers-reduced-motion:reduce){.pin.pulse:before{animation:none}}
@@ -19,7 +20,7 @@ html,body,#map{height:100%;margin:0;background:#e8efe6;font-family:system-ui,san
 function post(data){data.channel='veggietrack-map';if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(JSON.stringify(data));else window.parent.postMessage(data,'*');}
 function fail(message){var el=document.getElementById('load-error');el.textContent=message;el.style.display='block';post({type:'error',message:message});}
 </script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="fail('Map could not load. Check your connection and retry.')"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="fail('The map could not load. Please check your internet connection and try again.')"></script>
 <script>
 if(window.L){
 var map=L.map('map',{zoomControl:true,attributionControl:true}).setView([14.0683,121.3256],13);
@@ -36,7 +37,16 @@ function moveRider(marker,target){
   riderFrame=part<1?requestAnimationFrame(tick):null;
  }riderFrame=requestAnimationFrame(tick);
 }
-function putMarker(key,p,emoji,title,details,pulse){
+// Monochrome glyphs (Material Symbols outlines, inlined so the map needs no
+// extra download) keyed by marker type.
+var GLYPHS={
+ hub:'<svg viewBox="0 0 24 24"><path d="M3 21V7l6-4 6 4v2h6v12H3zm2-2h4v-3H5v3zm0-5h4v-3H5v3zm0-5h4V6H5v3zm6 10h4v-3h-4v3zm0-5h4v-3h-4v3zm0-5h4V6h-4v3zm6 10h4v-3h-4v3zm0-5h4v-3h-4v3z"/></svg>',
+ shop:'<svg viewBox="0 0 24 24"><path d="M4 4h16l1.5 5a3 3 0 0 1-2.9 3.8A3 3 0 0 1 16 11a3 3 0 0 1-4 1.7A3 3 0 0 1 8 11a3 3 0 0 1-2.6 1.8A3 3 0 0 1 2.5 9L4 4zm1 9.9V20h14v-6.1a5 5 0 0 1-3-.6A5 5 0 0 1 12 14a5 5 0 0 1-4-.7 5 5 0 0 1-3 .6z"/></svg>',
+ rider:'<svg viewBox="0 0 24 24"><path d="M19 17a3 3 0 1 1-2.8-3H13l-3-4H7.2A3 3 0 1 1 5 7h3.5l1.5 2h4V7h5v4h1l1 3h-1.3A3 3 0 0 1 19 17z"/></svg>',
+ viewer:'<svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7zm0 9.5A2.5 2.5 0 1 0 12 6.5a2.5 2.5 0 0 0 0 5z"/></svg>'
+};
+function putMarker(key,p,glyphKey,title,details,pulse){
+ var emoji=GLYPHS[glyphKey]||GLYPHS.viewer;
  if(!valid(p)){if(key==='rider'&&riderFrame){cancelAnimationFrame(riderFrame);riderFrame=null;}if(markers[key]){map.removeLayer(markers[key]);delete markers[key];}return;}
  var icon=L.divIcon({className:'marker',html:'<div class="pin '+key+(pulse?' pulse':'')+'">'+emoji+'</div>',iconSize:[44,44],iconAnchor:[22,22]});
  if(!markers[key])markers[key]=L.marker(latLng(p),{icon:icon,title:title}).addTo(map);
@@ -47,13 +57,13 @@ function update(data){
  var cfg=data.tileConfig||{},url=cfg.url||'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
  if(url!==tileUrl){if(tiles)map.removeLayer(tiles);tileUrl=url;
   tiles=L.tileLayer(url,{maxZoom:19,keepBuffer:2,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'+(cfg.attribution?' · '+cfg.attribution:'')}).addTo(map);
-  tiles.on('tileerror',function(){fail('Map tiles unavailable. Tracking details remain available.');});
+  tiles.on('tileerror',function(){fail('The map could not load, but the delivery details below are still up to date.');});
   tiles.on('tileload',function(){document.getElementById('load-error').style.display='none';});
  }
- putMarker('hub',data.origin,'🏢',data.origin.name,data.origin.address,false);
- putMarker('shop',data.destination,'🏪',data.destination.name,[data.destination.address,data.destination.contact].filter(Boolean).join('\\n'),false);
- putMarker('rider',data.rider,data.riderEmoji==='🚛'?'🚛':'🛵',data.rider.name||'Delivery rider',data.rider.label,data.rider.live);
- putMarker('viewer',data.viewer,'📍','Your device',data.viewer?data.viewer.latitude.toFixed(5)+', '+data.viewer.longitude.toFixed(5):'',false);
+ putMarker('hub',data.origin,'hub',data.origin.name,data.origin.address,false);
+ putMarker('shop',data.destination,'shop',data.destination.name,[data.destination.address,data.destination.contact].filter(Boolean).join('\\n'),false);
+ putMarker('rider',data.rider,'rider',data.rider.name||'Delivery rider',data.rider.label,data.rider.live);
+ putMarker('viewer',data.viewer,'viewer','Your device',data.viewer?data.viewer.latitude.toFixed(5)+', '+data.viewer.longitude.toFixed(5):'',false);
  if(accuracy){map.removeLayer(accuracy);accuracy=null;}
  if(valid(data.rider)&&Number.isFinite(data.rider.accuracy)&&data.rider.accuracy>0)accuracy=L.circle(latLng(data.rider),{radius:data.rider.accuracy,color:'#218258',weight:1,fillOpacity:.12}).addTo(map);
  var pts=(data.route||[]).map(latLng),done=(data.completed||[]).map(latLng);

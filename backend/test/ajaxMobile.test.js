@@ -39,7 +39,10 @@ function handler(screen, name, scope) {
   return vm.runInNewContext(`(${source.slice(found.start, found.end)})`, scope);
 }
 function base() {
-  return { requestLock: newLock(), t: key => key, showAlert() {}, beginRead() {}, shortId: id => id };
+  // Screens now pass thrown errors through friendlyError() before showing
+  // them, so every handler under test needs it in scope.
+  const { friendlyError } = load('lib/errorMessages.js');
+  return { requestLock: newLock(), t: key => key, showAlert() {}, beginRead() {}, shortId: id => id, friendlyError };
 }
 
 test('synchronous locks block duplicate requests and permit retry after release', () => {

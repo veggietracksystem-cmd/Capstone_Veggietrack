@@ -51,7 +51,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
           }
         }
       } catch (e) {
-        if (!cancelled) setError(e.message || 'Could not determine location.');
+        if (!cancelled) setError('We couldn’t find your location. Please turn on location and try again.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -116,7 +116,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
             ) : null}
             {webviewError ? <Text style={styles.error}>{webviewError}</Text> : null}
             {!destination && address ? (
-              <Text style={styles.note}>Couldn’t pinpoint that address on the map; showing your location.</Text>
+              <Text style={styles.note}>We couldn’t find that address on the map, so we’re showing where you are.</Text>
             ) : null}
           </>
         )}

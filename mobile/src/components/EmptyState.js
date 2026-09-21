@@ -9,7 +9,6 @@ const PRIMARY = colors.leaf700;
  * Reusable empty-state placeholder for any list that can be empty.
  *
  * Props:
- *  - icon:     legacy string shown above the title
  *  - iconElement: optional vector icon shown above the title (default sprout)
  *  - title:    bold headline (e.g. "No harvests yet")
  *  - message:  optional secondary line (e.g. "Tap + to add one.")
@@ -17,13 +16,13 @@ const PRIMARY = colors.leaf700;
  *
  * Usage:
  *   {list.length === 0
- *     ? <EmptyState icon="🥬" title="No harvests yet" message="Tap “Add Harvest Update.”" />
+ *     ? <EmptyState title="No harvests yet" message="Tap Add Harvest Update." />
  *     : list.map(...)}
  */
-export default function EmptyState({ icon, iconElement, title, message, actionLabel, onAction }) {
+export default function EmptyState({ iconElement, title, message, actionLabel, onAction }) {
   return (
     <View style={styles.wrap}>
-      {iconElement || (icon ? <Text style={styles.icon}>{icon}</Text> : <MaterialCommunityIcons name="sprout" size={rf(44)} color={colors.inkFaint} style={styles.icon} />)}
+      {iconElement || <MaterialCommunityIcons name="sprout" size={rf(44)} color={colors.inkFaint} style={styles.icon} />}
       {title ? <Text style={styles.title}>{title}</Text> : null}
       {message ? <Text style={styles.message}>{message}</Text> : null}
       {actionLabel && onAction ? (
@@ -37,7 +36,7 @@ export default function EmptyState({ icon, iconElement, title, message, actionLa
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40, paddingHorizontal: 24 },
-  icon: { fontSize: rf(44), marginBottom: 12 },
+  icon: { marginBottom: 12 },
   title: { fontFamily: fonts.bodyBold, fontSize: rf(15), color: colors.inkSoft, textAlign: 'center' },
   message: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkFaint, textAlign: 'center', marginTop: 6, lineHeight: 19 },
   button: { marginTop: 16, backgroundColor: PRIMARY, paddingVertical: 12, paddingHorizontal: 22, borderRadius: radius.ctrl },

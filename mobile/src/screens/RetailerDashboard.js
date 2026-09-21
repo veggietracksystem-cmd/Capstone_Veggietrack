@@ -16,6 +16,7 @@ import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
 import LogoutButton from '../components/LogoutButton';
 import NotificationBell from '../components/NotificationBell';
+import ScreenHeader from '../components/ScreenHeader';
 import MessagesIcon from '../components/MessagesIcon';
 import BottomNavBar from '../components/BottomNavBar';
 import OfflineBanner from '../components/OfflineBanner';
@@ -29,7 +30,8 @@ import VegetableImage from '../components/VegetableImage';
 import { getVegetableTile, getVegetableIcon } from '../lib/vegetableIcons';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { friendlyError } from '../lib/errorMessages';
+import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { useAutoSync } from '../sync/SyncProvider';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -212,7 +214,7 @@ export default function RetailerDashboard({ navigation, route }) {
       if (tab === 'shop' || tab === 'cart') await loadProducts();
       else if (tab === 'orders') await loadOrders();
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('refresh');
       setRefreshing(false);
@@ -324,7 +326,7 @@ export default function RetailerDashboard({ navigation, route }) {
           setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o));
           await Promise.all([loadOrders(), loadProducts()]);
         } catch (err) {
-          showAlert(t('common.error'), err.message);
+          showAlert(t('common.error'), friendlyError(err));
         } finally {
           requestLock.release('cancel');
           setCancelling(false);
@@ -343,14 +345,11 @@ export default function RetailerDashboard({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Minimal Top Navigation Bar */}
-      <View style={styles.minimalHeader}>
-        <Text style={styles.minimalTitle}>{t('dashboards.retailer.storeTitle')}</Text>
-        <View style={styles.headerIcons}>
-          <MessagesIcon />
-          <NotificationBell />
-        </View>
-      </View>
+      {/* Same centred header every screen in the app uses. */}
+      <ScreenHeader
+        title={t('dashboards.retailer.storeTitle')}
+        right={<><MessagesIcon /><NotificationBell /></>}
+      />
 
       <SharedScreenTransition style={{ flex: 1 }} visible>
         <ScrollView
@@ -470,7 +469,7 @@ function HomeTab({ user, loading, products, orders, cart, searchQuery, setSearch
         <Ionicons name="search-outline" size={rf(19)} color="#999" />
         <TextInput
           style={styles.searchInput}
-          placeholder={t('dashboards.retailer.searchPlaceholder')}
+          placeholder={t('dashboards.retailer.searchPlaceholder')} placeholderTextColor={colors.placeholder}
           value={searchQuery}
           onChangeText={setSearchQuery}
           autoCapitalize="none"
@@ -618,7 +617,7 @@ function OrdersTab({ loading, cancelling, orders, onViewProof, onTrack, onCancel
           <Text style={styles.viewHistoryBtnText}>{t('dashboards.retailer.viewHistoryBtn')}</Text>
         </TouchableOpacity>
         <EmptyState
-          icon="🧾"
+          iconElement={<Ionicons name="receipt-outline" size={rf(44)} color={colors.inkFaint} />}
           title={t('dashboards.retailer.noOrdersTitle')}
           message={t('dashboards.retailer.noOrdersMessage')}
         />
@@ -717,20 +716,6 @@ function OrdersTab({ loading, cancelling, orders, onViewProof, onTrack, onCancel
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
 
-  headerIcons: { flexDirection: 'row', alignItems: 'center' },
-
-  minimalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.bgScreen,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  minimalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
-
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
@@ -795,10 +780,10 @@ const styles = StyleSheet.create({
   cartCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: colors.border, gap: 12, ...shadowCard },
   qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   qtyBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1.4, borderColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
-  qtyBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.xl) },
+  qtyBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.xl), textAlign: 'center' },
   qtyValue: { minWidth: 24, textAlign: 'center', fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
   removeBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: colors.dangerSoft, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
-  removeBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md) },
+  removeBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md), textAlign: 'center' },
 
   summaryRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, marginTop: 8,
@@ -825,14 +810,14 @@ const styles = StyleSheet.create({
   proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 8 },
   proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: colors.border },
   proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
-  trackBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY },
-  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md) },
+  trackBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY, justifyContent: 'center', minHeight: control.height  },
+  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md), textAlign: 'center' },
   cancelBtn: { borderColor: colors.danger, backgroundColor: colors.card },
-  cancelBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md) },
+  cancelBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md), textAlign: 'center' },
   detailsBtn: { borderColor: colors.border, backgroundColor: colors.leaf50 },
-  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
+  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md), textAlign: 'center' },
 
   ordersHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  viewHistoryBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY },
-  viewHistoryBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm) },
+  viewHistoryBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY, minHeight: control.height  },
+  viewHistoryBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm), textAlign: 'center' },
 });

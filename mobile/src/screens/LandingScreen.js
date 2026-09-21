@@ -2,7 +2,7 @@ import { rf } from '../lib/responsive';
 import { View, Text, TouchableOpacity, StyleSheet, Image, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from '../i18n/useTranslation';
-import { colors, fonts, fontSize, radius } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius } from '../theme/appTheme';
 
 // First screen for unauthenticated users (Issue 13). Logged-in users never reach
 // this because App.js renders the role dashboard stack instead of the auth stack.
@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   logo: { marginBottom: 12 },
   tagline: { fontFamily: fonts.body, fontSize: rf(fontSize.lg), color: colors.inkSoft, textAlign: 'center' },
   actions: { paddingHorizontal: 30, paddingBottom: 40, gap: 8 },
-  primaryBtn: { backgroundColor: colors.leaf700, paddingVertical: 16, borderRadius: radius.ctrl, alignItems: 'center' },
-  primaryBtnText: { color: '#fff', fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xl) },
+  primaryBtn: { backgroundColor: colors.leaf700, paddingVertical: 16, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center', minHeight: control.height },
+  primaryBtnText: { color: '#fff', fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xl), textAlign: 'center' },
   link: { textAlign: 'center', marginTop: 16, color: colors.leaf700, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md) },
 });

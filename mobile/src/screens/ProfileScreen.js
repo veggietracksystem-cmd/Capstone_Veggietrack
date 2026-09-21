@@ -7,6 +7,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { isDistributor, isRetailer, isDeliveryPersonnel, roleLabel } from '../lib/roles';
 import { useTranslation } from '../i18n/useTranslation';
 import { confirmAction } from '../lib/ui';
 import UserGuideModal from '../components/UserGuideModal';
@@ -54,14 +55,14 @@ export default function ProfileScreen({ navigation }) {
 
   const handleBottomTabPress = (tab) => {
     if (tab.id === 'profile') return;
-    if (user?.role === 'distributor') {
+    if (isDistributor(user)) {
       if (tab.id === 'stocks') navigation.navigate('Stocks');
       else if (tab.id === 'inventory') navigation.navigate('DistributorInventoryReport');
       else navigation.navigate('DistributorDashboard', { tab: tab.id });
-    } else if (user?.role === 'retailer') {
+    } else if (isRetailer(user)) {
       const RETAILER_TAB_PARAM = { home: 'shop', cart: 'cart', orders: 'orders' };
       navigation.navigate('RetailerDashboard', { tab: RETAILER_TAB_PARAM[tab.id] });
-    } else if (user?.role === 'delivery_personnel') {
+    } else if (isDeliveryPersonnel(user)) {
       const DELIVERY_FILTER_PARAM = { home: 'all', tasks: 'active', history: 'completed' };
       navigation.navigate('DeliveryDashboard', { filter: DELIVERY_FILTER_PARAM[tab.id] });
     }
@@ -87,7 +88,7 @@ export default function ProfileScreen({ navigation }) {
           <UserAvatar user={user} style={styles.avatarCircle} textStyle={styles.avatarText} />
           <Text style={styles.userName}>{fullName || user?.email || 'User'}</Text>
           <View style={styles.roleBadge}>
-            <Text style={styles.roleBadgeText}>{(user?.role || 'user').replace(/_/g, ' ').toUpperCase()}</Text>
+            <Text style={styles.roleBadgeText}>{roleLabel(user?.role).toUpperCase() || 'USER'}</Text>
           </View>
           <TouchableOpacity style={styles.editProfileBtn} onPress={() => navigation.navigate('EditProfile')} activeOpacity={0.8}>
             <Text style={styles.editProfileBtnText}>{t('profile.editProfile')}</Text>
@@ -121,7 +122,7 @@ export default function ProfileScreen({ navigation }) {
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
 
-          {user?.role !== 'distributor' && user?.role !== 'delivery_personnel' && (
+          {isRetailer(user) && (
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => navigation.navigate('ManageAddresses')}
@@ -152,9 +153,9 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         {/* Log Out: final list section (prototype renders this as a row, not
-            a standalone button). No Deactivate row here — that action already
-            lives on Edit Profile ("Disable account"); distributor accounts
-            don't get one at all, per this file's original role split. */}
+            a standalone button). No "Deactivate account" row — a user never
+            disables their own account; the distributor does that from User
+            Management. */}
         <View style={styles.sectionCard}>
           <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={logout}>
             <View style={styles.menuItemContent}>
@@ -228,7 +229,7 @@ const styles = StyleSheet.create({
     marginTop: 6, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20,
     borderWidth: 1.4, borderColor: colors.leaf700,
   },
-  editProfileBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
+  editProfileBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700, textAlign: 'center' },
   avatarCircle: {
     width: 68,
     height: 68,
@@ -298,5 +299,4 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   langRowText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
-  langCheck: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.leaf700 },
 });

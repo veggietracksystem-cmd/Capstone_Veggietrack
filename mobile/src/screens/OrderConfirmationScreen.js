@@ -12,6 +12,7 @@ import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert, peso } from '../lib/ui';
+import { friendlyError } from '../lib/errorMessages';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
 import { localizeVegetableName } from '../lib/vegetableNames';
@@ -111,14 +112,14 @@ export default function OrderConfirmationScreen({ navigation, route }) {
     } catch (err) {
       const code = err?.code || err?.data?.code;
       const message = err?.status === 401
-        ? 'Your session has expired. Please log in again.'
+        ? 'Your session has ended. Please sign in again.'
         : !err?.status
-          ? (err?.message === 'insufficient stock' ? err.message : 'Unable to connect to the server. Please check your internet connection and try again.')
+          ? (err?.message === 'insufficient stock' ? 'Some items just ran out of stock. Please check your cart and try again.' : 'Please check your internet connection and try again.')
           : code === 'ADDRESS_LOCATION_REQUIRED'
-            ? 'Your delivery address needs a map location. Update it in Manage Address.'
+            ? 'This address needs a map pin. Please open Manage Addresses and set it on the map.'
             : err?.data?.field === 'preferred_schedule'
-              ? 'Your selected delivery schedule is no longer available.'
-              : err?.message || 'We could not create your order. Please try again.';
+              ? 'That delivery time is no longer available. Please pick another one.'
+              : friendlyError(err, 'We couldn’t place your order. Please try again.');
       showAlert(t('dashboards.retailer.orderFailedTitle'), message);
     } finally {
       requestLock.release('Confirming');
@@ -318,7 +319,7 @@ const styles = StyleSheet.create({
     backgroundColor: PRIMARY,
     borderRadius: radius.ctrl,
   },
-  pinBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm) },
+  pinBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm), textAlign: 'center' },
   manageAddressesLink: { marginTop: 8 },
   manageAddressesLinkText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
 

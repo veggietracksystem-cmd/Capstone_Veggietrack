@@ -10,13 +10,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
+import { SegmentedTabs } from '../components/ui/SegmentedTabs';
 import StatusBadge from '../components/ui/StatusBadge';
 import BatchPhotoField from '../components/BatchPhotoField';
 import CustomModal from '../components/CustomModal';
 import BottomNavBar from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { showAlert, confirmAction, peso } from '../lib/ui';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { friendlyError } from '../lib/errorMessages';
+import { colors, control, fontSize, fonts, radius, shadowCard, spacing } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { localizeVegetableName } from '../lib/vegetableNames';
@@ -84,7 +86,7 @@ export default function StocksScreen({ navigation }) {
       setBatches(Array.isArray(data) ? data : []);
     } catch (err) {
       if (!isCurrent()) return;
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     }
   }, [t]);
 
@@ -109,10 +111,10 @@ export default function StocksScreen({ navigation }) {
   const isListable = (status) => status !== 'listed' && status !== 'sold_out';
   const showBatchPhotoError = (err) => {
     if (err?.status === 404) {
-      showAlert('Backend update required', 'The connected VeggieTrack server does not yet support batch photos. Deploy the latest backend, then try again.');
+      showAlert('Not available yet', 'Batch photos can’t be saved right now. Please try again later.');
       return;
     }
-    showAlert(t('common.error'), err.message);
+    showAlert(t('common.error'), friendlyError(err));
   };
 
   const submitListing = async (batch, price) => {
@@ -124,7 +126,7 @@ export default function StocksScreen({ navigation }) {
       setBatches((prev) => prev.map((b) => (b.id === batch.id ? { ...b, ...product } : b)));
       return true;
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('BusyId');
       setBusyId(null);
@@ -133,7 +135,7 @@ export default function StocksScreen({ navigation }) {
 
   const onAddToProductList = (batch) => {
     if (!batch.batch_photo_url) {
-      showAlert(t('common.error'), 'A recent batch photo is required. Select Edit to upload or take one before listing this batch.');
+      showAlert(t('common.error'), 'Please add a recent photo first. Tap Edit to upload or take one.');
       return;
     }
     const sibling = batches.find(
@@ -155,7 +157,7 @@ export default function StocksScreen({ navigation }) {
   };
   const saveBatchPhoto = async () => {
     if (!batchPhotoUrl || batchPhotoState !== 'ready') {
-      showAlert(t('common.error'), batchPhotoState === 'uploading' ? 'Please wait for the recent batch photo to finish uploading.' : 'A recent batch photo is required before this batch can be saved.');
+      showAlert(t('common.error'), batchPhotoState === 'uploading' ? 'Please wait for the photo to finish uploading.' : 'Please add a recent photo of this batch before saving.');
       return;
     }
     const canEditPrice = !isListable(editingBatch?.status);
@@ -179,7 +181,7 @@ export default function StocksScreen({ navigation }) {
   };
   const removeBatchPhoto = () => {
     if (!editingBatch || !isListable(editingBatch.status)) {
-      showAlert(t('common.error'), 'Listed batches must keep their photo so retailers can see the product they are ordering. Unlist it first to remove the photo.');
+      showAlert(t('common.error'), 'Listed batches need a photo so retailers can see what they are ordering. Remove it from the product list first.');
       return;
     }
     confirmAction('Remove batch photo', 'This batch will need a new recent photo before it can be listed.', async () => {
@@ -337,15 +339,15 @@ export default function StocksScreen({ navigation }) {
         }
       />
 
-      <Text style={styles.helperNote}>{t('stocks.segHelperNote')}</Text>
-      <View style={styles.segmented}>
-        <TouchableOpacity style={[styles.seg, seg === 'batches' && styles.segActive]} onPress={() => setSeg('batches')}>
-          <Text style={[styles.segText, seg === 'batches' && styles.segTextActive]}>{t('stocks.batchesSegLabel')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.seg, seg === 'products' && styles.segActive]} onPress={() => setSeg('products')}>
-          <Text style={[styles.segText, seg === 'products' && styles.segTextActive]}>{t('stocks.productsSegLabel')}</Text>
-        </TouchableOpacity>
-      </View>
+      <SegmentedTabs
+        style={styles.segmented}
+        value={seg}
+        onChange={setSeg}
+        options={[
+          { value: 'batches', label: t('stocks.batchesSegLabel') },
+          { value: 'products', label: t('stocks.productsSegLabel') },
+        ]}
+      />
 
       {loading ? (
         <View style={styles.center}>
@@ -381,16 +383,16 @@ export default function StocksScreen({ navigation }) {
           style={styles.priceInput}
           value={priceInput}
           onChangeText={setPriceInput}
-          placeholder={t('stocks.priceLabel')}
+          placeholder={t('stocks.priceLabel')} placeholderTextColor={colors.placeholder}
           keyboardType="decimal-pad"
         />
       </CustomModal>
 
       <CustomModal visible={!!editingBatch} title={`Edit ${localizeVegetableName(editingBatch?.vegetable_name, language)}`} confirmLabel="Save Batch" onConfirm={saveBatchPhoto} onCancel={() => setEditingBatch(null)} busy={photoBusy}>
-        <BatchPhotoField value={batchPhotoUrl} onChange={setBatchPhotoUrl} onStateChange={setBatchPhotoState} disabled={photoBusy} />
+        <BatchPhotoField label={t('stocks.batchPhotoLabel')} value={batchPhotoUrl} onChange={setBatchPhotoUrl} onStateChange={setBatchPhotoState} disabled={photoBusy} />
         {!isListable(editingBatch?.status) && <>
           <Text style={styles.editPriceLabel}>{t('productList.priceLabel')}</Text>
-          <TextInput style={styles.priceInput} value={editPriceInput} onChangeText={setEditPriceInput} placeholder={t('stocks.priceLabel')} keyboardType="decimal-pad" editable={!photoBusy} />
+          <TextInput style={styles.priceInput} value={editPriceInput} onChangeText={setEditPriceInput} placeholder={t('stocks.priceLabel')} placeholderTextColor={colors.placeholder} keyboardType="decimal-pad" editable={!photoBusy} />
         </>}
         {!!batchPhotoUrl && isListable(editingBatch?.status) && <TouchableOpacity onPress={removeBatchPhoto} disabled={photoBusy} style={styles.removePhotoBtn}>
           <Text style={styles.removePhotoText}>Remove photo</Text>
@@ -410,7 +412,7 @@ export default function StocksScreen({ navigation }) {
           style={styles.priceInput}
           value={addVegName}
           onChangeText={setAddVegName}
-          placeholder={t('stocks.vegetableNamePlaceholder')}
+          placeholder={t('stocks.vegetableNamePlaceholder')} placeholderTextColor={colors.placeholder}
           editable={!addBusy}
         />
         <Text style={styles.editPriceLabel}>{t('stocks.priceLabel')}</Text>
@@ -427,12 +429,11 @@ export default function StocksScreen({ navigation }) {
           style={styles.priceInput}
           value={addStock}
           onChangeText={setAddStock}
-          placeholder={t('stocks.stockLabel')}
+          placeholder={t('stocks.stockLabel')} placeholderTextColor={colors.placeholder}
           keyboardType="decimal-pad"
           editable={!addBusy}
         />
-        <Text style={styles.editPriceLabel}>{t('stocks.batchPhotoLabel')}</Text>
-        <BatchPhotoField value={addPhotoUrl} onChange={setAddPhotoUrl} onStateChange={setAddPhotoState} disabled={addBusy} />
+        <BatchPhotoField label={t('stocks.batchPhotoLabel')} value={addPhotoUrl} onChange={setAddPhotoUrl} onStateChange={setAddPhotoState} disabled={addBusy} />
       </CustomModal>
 
       <BottomNavBar
@@ -450,18 +451,9 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 100, flexGrow: 1 },
 
   addProductBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
-  addProductBtnText: { color: '#fff', fontSize: rf(fontSize.title), fontFamily: fonts.bodySemiBold, lineHeight: rf(22) },
+  addProductBtnText: { color: '#fff', fontSize: rf(fontSize.title), fontFamily: fonts.bodySemiBold, lineHeight: rf(22), textAlign: 'center' },
 
-  // Helper note + segmented control (prototype's .helper-note / .segmented)
-  helperNote: {
-    marginHorizontal: 16, marginTop: 12, fontFamily: fonts.body, fontSize: rf(fontSize.xs),
-    color: colors.inkSoft, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10,
-  },
-  segmented: { flexDirection: 'row', backgroundColor: colors.soil300, borderRadius: radius.ctrl, padding: 3, marginHorizontal: 16, marginTop: 12 },
-  seg: { flex: 1, paddingVertical: 8, borderRadius: radius.ctrl - 2, alignItems: 'center' },
-  segActive: { backgroundColor: colors.card, ...shadowCard },
-  segText: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, fontSize: rf(fontSize.md) },
-  segTextActive: { color: colors.leaf900 || PRIMARY },
+  segmented: { marginHorizontal: spacing.lg, marginTop: spacing.md },
 
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 14, marginBottom: 12, ...shadowCard },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 8 },
@@ -474,15 +466,15 @@ const styles = StyleSheet.create({
   label: { fontSize: rf(fontSize.sm), color: colors.inkFaint },
   value: { fontSize: rf(fontSize.sm), color: colors.ink, fontFamily: fonts.bodySemiBold },
 
-  addBtn: { marginTop: 10, backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 10, alignItems: 'center' },
+  addBtn: { marginTop: 10, backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', minHeight: control.height  },
   addBtnDisabled: { opacity: 0.6 },
-  addBtnText: { color: '#fff', fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md) },
-  editBtn: { marginTop: 8, borderWidth: 1, borderColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 9, alignItems: 'center' },
-  editBtnText: { color: PRIMARY, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md) },
+  addBtnText: { color: '#fff', fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), textAlign: 'center' },
+  editBtn: { marginTop: 8, borderWidth: 1, borderColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', minHeight: control.height  },
+  editBtnText: { color: PRIMARY, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), textAlign: 'center' },
 
   modalHint: { fontSize: rf(fontSize.sm), color: colors.inkFaint, marginBottom: 10 },
   priceInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, fontSize: rf(fontSize.lg) },
   editPriceLabel: { fontFamily: fonts.bodySemiBold, color: colors.ink, marginTop: 14, marginBottom: 7 },
-  removePhotoBtn: { alignSelf: 'flex-start', marginTop: 4, paddingVertical: 6 },
+  removePhotoBtn: { alignSelf: 'flex-start', marginTop: 4, paddingVertical: 6, minHeight: control.heightSm },
   removePhotoText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.sm) },
 });

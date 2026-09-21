@@ -10,12 +10,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { roleLabel } from '../lib/roles';
 import { showAlert } from '../lib/ui';
+import { friendlyError } from '../lib/errorMessages';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import ScreenHeader from '../components/ScreenHeader';
-
-const roleLabel = (r) => (r ? r.replace('_', ' ') : '');
 
 // Use the device's local calendar for both separators and message times.
 const messageDate = (timestamp) => {
@@ -60,7 +60,7 @@ export default function MessagesScreen({ navigation, embedded }) {
       const data = await api.get('/api/messages/contacts');
       if (mounted.current) setContacts(Array.isArray(data) ? data : []);
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     }
   }, []);
 
@@ -111,7 +111,7 @@ export default function MessagesScreen({ navigation, embedded }) {
       if (mounted.current && version === threadVersion.current && activeId.current === contact.id) setThread(Array.isArray(data) ? data : []);
       await loadContacts(); // opening marks incoming as read; refresh badges
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       if (mounted.current && activeId.current === contact.id) setLoading(false);
     }
@@ -139,7 +139,7 @@ export default function MessagesScreen({ navigation, embedded }) {
         setInput(current => current.trim() === body ? '' : current);
       }
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('Sending');
       setSending(false);
@@ -188,7 +188,7 @@ export default function MessagesScreen({ navigation, embedded }) {
             <View style={styles.searchRow}>
               <Ionicons name="search-outline" size={rf(18)} color={colors.inkFaint} />
               <TextInput style={styles.searchInput} value={contactSearch} onChangeText={setContactSearch}
-                placeholder="Search conversations" placeholderTextColor={colors.inkFaint} autoCapitalize="none"
+                placeholder="Search conversations" placeholderTextColor={colors.placeholder} autoCapitalize="none"
                 returnKeyType="search" accessibilityLabel="Search conversations" />
               {!!contactSearch && <TouchableOpacity onPress={() => setContactSearch('')} hitSlop={8}><Ionicons name="close-circle" size={rf(18)} color={colors.inkFaint} /></TouchableOpacity>}
             </View>
@@ -271,7 +271,7 @@ export default function MessagesScreen({ navigation, embedded }) {
               <TextInput
                 style={styles.input}
                 placeholder={t('messages.typePlaceholder')}
-                placeholderTextColor={colors.inkFaint}
+                placeholderTextColor={colors.placeholder}
                 value={input}
                 onChangeText={setInput}
                 editable={!sending}

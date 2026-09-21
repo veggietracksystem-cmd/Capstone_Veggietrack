@@ -4,7 +4,7 @@ import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Animated,
 } from 'react-native';
-import { colors, fonts, radius } from '../theme/appTheme';
+import { colors, control, fonts, radius } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { Ionicons } from '@expo/vector-icons';
 import { useBottomSheetMotion } from '../lib/motion';
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: '85%', paddingBottom: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
   title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
-  closeBtn: { padding: 6 },
+  closeBtn: { padding: 6, minWidth: control.minTouch, minHeight: control.minTouch, alignItems: 'center', justifyContent: 'center'  },
   closeText: { fontSize: rf(18), color: colors.inkSoft, fontWeight: 'bold' },
   tabBar: { flexDirection: 'row', paddingHorizontal: 16, marginVertical: 10 },
   tab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.leaf50, marginRight: 8 },

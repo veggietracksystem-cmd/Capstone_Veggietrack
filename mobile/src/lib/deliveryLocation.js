@@ -4,10 +4,17 @@ import { coordinate, distanceBetween } from './trackingGeometry';
 export const BASE_DELIVERY_RADIUS_METERS = 100;
 export const MAX_ACCURACY_ALLOWANCE_METERS = 50;
 export const STALE_LOCATION_SECONDS = 60;
-export const MAX_ACCEPTABLE_GPS_ACCURACY_METERS = 100;
-export const MISSING_DESTINATION_MESSAGE = 'Delivery location coordinates are unavailable. Contact the distributor.';
-export const POOR_ACCURACY_MESSAGE = 'Your current GPS signal is too inaccurate to verify your location. Refresh your location and try again.';
-export const REFRESH_ACCURACY_MESSAGE = 'Your GPS signal is not accurate enough yet. Move to an open area and tap Refresh Location.';
+// EXPO_PUBLIC_MAX_GPS_ACCURACY_METERS relaxes the cap for local testing on a
+// desktop browser, whose WiFi-derived fixes never reach 100m. Unset in any real
+// build, which keeps the policy mirrored with backend/lib/locationPolicy.js.
+// Read defensively: this module is also loaded outside a bundler (the mobile
+// unit tests evaluate it in a bare sandbox), where `process` does not exist and
+// a direct read would throw before any of these constants were defined.
+const ACCURACY_OVERRIDE = typeof process === 'undefined' ? NaN : Number(process.env?.EXPO_PUBLIC_MAX_GPS_ACCURACY_METERS);
+export const MAX_ACCEPTABLE_GPS_ACCURACY_METERS = ACCURACY_OVERRIDE || 100;
+export const MISSING_DESTINATION_MESSAGE = 'We don’t have a location for this delivery yet. Please contact the distributor.';
+export const POOR_ACCURACY_MESSAGE = 'Your location isn’t accurate enough to confirm where you are. Please refresh your location and try again.';
+export const REFRESH_ACCURACY_MESSAGE = 'Your location isn’t accurate enough yet. Move to an open area and tap Refresh Location.';
 
 export function orderDestination(order) {
   const snapshot = coordinate({ latitude: order?.delivery_latitude, longitude: order?.delivery_longitude });

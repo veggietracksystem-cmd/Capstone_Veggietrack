@@ -1,6 +1,7 @@
 import { ActivityIndicator, Keyboard, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import usePlaceAutocomplete from '../hooks/usePlaceAutocomplete';
 import { rf } from '../lib/responsive';
+import { colors } from '../theme/appTheme';
 
 export default function PlaceAutocomplete({ visible, onSelect }) {
   const search = usePlaceAutocomplete(visible);
@@ -9,7 +10,7 @@ export default function PlaceAutocomplete({ visible, onSelect }) {
       <View style={styles.row}>
         <TextInput
           style={styles.input}
-          placeholder="Search place, street, or city..."
+          placeholder="Search place, street, or city..." placeholderTextColor={colors.placeholder}
           accessibilityLabel="Search for a Philippine location"
           value={search.query}
           onChangeText={search.changeQuery}
@@ -29,7 +30,7 @@ export default function PlaceAutocomplete({ visible, onSelect }) {
           {search.searching ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.buttonText}>Search</Text>}
         </TouchableOpacity>
       </View>
-      {!search.configured && <Text style={styles.note}>Location search is not configured. You can still pin on the map.</Text>}
+      {!search.configured && <Text style={styles.note}>Search isn’t available right now. You can still pick the spot on the map.</Text>}
       {search.showResults && (
         <View style={styles.dropdown}>
           <ScrollView style={styles.list} keyboardShouldPersistTaps="handled" nestedScrollEnabled>

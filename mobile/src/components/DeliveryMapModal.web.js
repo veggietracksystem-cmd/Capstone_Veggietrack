@@ -148,7 +148,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
             <Text style={styles.addr}>{address}</Text>
           </View>
         ) : null}
-        <Text style={styles.note}>{gpsError || (courier ? 'Green dot: you (device GPS). Pin: destination.' : 'Waiting for your device GPS. Pin: destination.')}</Text>
+        <Text style={styles.note}>{gpsError || (courier ? 'The green dot is you. The pin is where you are going.' : 'Waiting for your location. The pin is where you are going.')}</Text>
 
         {loading ? (
           <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
@@ -156,7 +156,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
           <View style={styles.mapContainer}>
             <div id="delivery-map-leaflet" style={{ width: '100%', height: '100%', borderRadius: '12px' }} />
             {geocodeFailed ? (
-              <Text style={styles.note}>Could not pinpoint address on the map.</Text>
+              <Text style={styles.note}>We couldn’t find that address on the map.</Text>
             ) : null}
           </View>
         )}

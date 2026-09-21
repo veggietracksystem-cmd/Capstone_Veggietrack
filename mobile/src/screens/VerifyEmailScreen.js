@@ -24,7 +24,7 @@ export default function VerifyEmailScreen({ navigation, route }) {
 
   const verify = async () => {
     if (lock.current) return;
-    if (!otp.trim()) { setError('Enter the code sent to your email.'); return; }
+    if (!otp.trim()) { setError('Please enter the code we sent to your email.'); return; }
     lock.current = true; setBusy(true); setError('');
     try {
       const { error: verifyError } = await supabase.auth.verifyOtp({ email, token: otp.trim(), type: purpose === 'login' ? 'email' : 'signup' });
@@ -48,14 +48,14 @@ export default function VerifyEmailScreen({ navigation, route }) {
         : await supabase.auth.resend({ type: 'signup', email });
       if (resendError) throw resendError;
       setCooldown(60);
-      showAlert('Verification code', 'A new code has been sent to your email.');
+      showAlert('Code sent', 'We sent a new code to your email.');
     } catch (resendError) { setError(authError(resendError)); }
     finally { lock.current = false; setBusy(false); }
   };
 
   return (
     <AuthPage title="Verify your email">
-      <Text style={s.note}>{purpose === 'login' ? `We sent a sign-in verification code to ${email}.` : `We sent a verification code to ${email}. Enter it below to confirm your account. Once verified, your registration will be sent to the distributor for approval.`}</Text>
+      <Text style={s.note}>{purpose === 'login' ? `We sent a sign-in code to ${email}.` : `We sent a code to ${email}. Enter it below to confirm your account. After that, the distributor will review your registration.`}</Text>
       <OtpInput value={otp} onChangeText={setOtp} length={6} editable={!busy} accessibilityLabel="Verification code" />
       <AuthButton title="Verify" disabled={busy || !otp} onPress={verify} />
       <AuthButton title={cooldown ? `Resend in ${cooldown}s` : 'Resend Code'} variant="ghost" disabled={busy || cooldown > 0} onPress={resend} />

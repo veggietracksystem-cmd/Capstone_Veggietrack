@@ -3,7 +3,9 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../../api/client';
+import { friendlyError } from '../../lib/errorMessages';
 import { useAuth } from '../../context/AuthContext';
+import { isDeliveryPersonnel } from '../../lib/roles';
 import { useTranslation } from '../../i18n/useTranslation';
 import DeliveryTrackingMap from '../../components/DeliveryTrackingMap';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -16,7 +18,7 @@ export default function RiderNavigationScreen({ route, navigation }) {
   const { orderId } = route.params || {};
   const { user } = useAuth(), { t } = useTranslation();
   const { data, loading, error, refresh } = useDeliveryTracking(orderId);
-  const isAssigned = user?.role === 'delivery_personnel' && data?.delivery_personnel_id === user?.id && !['delivered', 'cancelled'].includes(data?.status);
+  const isAssigned = isDeliveryPersonnel(user) && data?.delivery_personnel_id === user?.id && !['delivered', 'cancelled'].includes(data?.status);
   const { position, error: gpsError, publish } = useRiderLocation(orderId, isAssigned);
   const [metrics, setMetrics] = useState(null), [actionError, setActionError] = useState(''), [opening, setOpening] = useState(false);
   const nav = data?.rider_view || {}, steps = nav.route_steps || [];
@@ -39,7 +41,7 @@ export default function RiderNavigationScreen({ route, navigation }) {
       const order = orders.find(item => item.id === orderId);
       if (!order) throw new Error('Delivery could not be loaded. Return to your dashboard and refresh.');
       navigation.navigate('DeliveryDetails', { order });
-    } catch (err) { setActionError(err.message); } finally { setOpening(false); }
+    } catch (err) { setActionError(friendlyError(err)); } finally { setOpening(false); }
   };
   return <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
     <ScreenHeader title="Rider navigation" onBack={() => navigation.goBack()} />

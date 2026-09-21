@@ -11,13 +11,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
+import { FilterChips } from '../components/ui/SegmentedTabs';
 import ScreenHeader from '../components/ScreenHeader';
 import { showAlert, confirmAction, peso } from '../lib/ui';
+import { friendlyError } from '../lib/errorMessages';
 import { CATEGORIES, getCategory } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
 import { localizeVegetableName } from '../lib/vegetableNames';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -55,7 +57,7 @@ export default function ProductListScreen({ navigation }) {
       setListings(Array.isArray(data) ? data : []);
     } catch (err) {
       if (!isCurrent()) return;
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     }
   }, [t]);
 
@@ -101,7 +103,7 @@ export default function ProductListScreen({ navigation }) {
       await api.put(`/api/products/${activeListing.id}`, { price_per_kg: priceNum });
       await loadListings();
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('productEdit');
       setSavingPrice(false);
@@ -125,7 +127,7 @@ export default function ProductListScreen({ navigation }) {
       await api.put(`/api/products/${activeListing.id}/reduce-quantity`, { new_total_kg: qtyNum });
       await loadListings();
     } catch (err) {
-      showAlert(t('common.error'), err.message);
+      showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('productEdit');
       setSavingQty(false);
@@ -150,7 +152,7 @@ export default function ProductListScreen({ navigation }) {
           await api.put(`/api/products/${target.id}/unlist`);
           await loadListings();
         } catch (err) {
-          showAlert(t('common.error'), err.message || t('productList.removeFailed'));
+          showAlert(t('common.error'), friendlyError(err, t('productList.removeFailed')));
         } finally {
           requestLock.release('productEdit');
           setRemoving(false);
@@ -205,23 +207,11 @@ export default function ProductListScreen({ navigation }) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListHeaderComponent={
             listings.length === 0 ? null : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filterChipRow}
-              >
-                {CATEGORIES.map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    style={[styles.filterChip, category === c && styles.filterChipActive]}
-                    onPress={() => setCategory(c)}
-                  >
-                    <Text style={[styles.filterChipText, category === c && styles.filterChipTextActive]}>
-                      {t(`categories.${c}`)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              <FilterChips
+                value={category}
+                onChange={setCategory}
+                options={CATEGORIES.map((c) => ({ value: c, label: t(`categories.${c}`) }))}
+              />
             )
           }
           ListEmptyComponent={
@@ -330,11 +320,6 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
 
-  filterChipRow: { gap: 8, paddingBottom: 16 },
-  filterChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ccc', backgroundColor: '#f8faf8' },
-  filterChipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  filterChipText: { color: colors.inkSoft, fontSize: rf(fontSize.sm) },
-  filterChipTextActive: { color: '#fff', fontWeight: '600' },
 
   rowCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: radius.card, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   productTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
@@ -342,8 +327,8 @@ const styles = StyleSheet.create({
   rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
-  smallBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
-  smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm) },
+  smallBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY, alignItems: 'center', justifyContent: 'center', minHeight: control.height  },
+  smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm), textAlign: 'center' },
   btnDisabled: { opacity: 0.5 },
 
   // Edit modal
@@ -364,6 +349,6 @@ const styles = StyleSheet.create({
   modalInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink, backgroundColor: colors.card },
   modalInputDisabled: { opacity: 0.5 },
 
-  removeBtn: { marginTop: 22, borderWidth: 1.4, borderColor: colors.danger, borderRadius: radius.ctrl, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  removeBtnText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.md) },
+  removeBtn: { marginTop: 22, borderWidth: 1.4, borderColor: colors.danger, borderRadius: radius.ctrl, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', minHeight: control.height },
+  removeBtnText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.md), textAlign: 'center' },
 });
