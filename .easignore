@@ -32,9 +32,6 @@ Thumbs.db
 /docs/
 /mobile/dist/
 
-# Git history is not needed to build and was over half the upload (~65 MB),
-# enough to make uploads over a slow connection fail with ECONNRESET.
-/.git/
 # Web export/verification output, not used by the native build.
 /mobile/.expo-web-build/
 /mobile/.expo-verify-out/
