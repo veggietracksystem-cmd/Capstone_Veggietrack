@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { roleLabel } from '../lib/roles';
 import { showAlert } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard, spacing } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import ScreenHeader from '../components/ScreenHeader';
 
@@ -175,7 +175,7 @@ export default function MessagesScreen({ navigation, embedded }) {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        style={styles.bodyFlex}
+        style={[styles.bodyFlex, styles.bodyPadded]}
       >
         {loading ? (
           <ActivityIndicator size="large" color={colors.leaf700} style={{ marginTop: 60 }} />
@@ -297,11 +297,12 @@ export default function MessagesScreen({ navigation, embedded }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF', minHeight: 0 },
-  bodyFlex: { flex: 1, minHeight: 0 },
+  bodyFlex: { flex: 1, minHeight: 0, width: '100%', maxWidth: 640, alignSelf: 'center' },
+  bodyPadded: { paddingHorizontal: spacing.lg },
 
   scrollArea: { flex: 1, minHeight: 0 },
-  content: { paddingHorizontal: 2, paddingBottom: 16 },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, marginBottom: 12 },
+  content: { paddingTop: spacing.md, paddingBottom: spacing.lg },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, marginBottom: spacing.lg },
   searchInput: { flex: 1, minWidth: 0, paddingVertical: 10, fontFamily: fonts.body, color: colors.ink, fontSize: rf(fontSize.md) },
 
   emptyContainer: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 24 },
@@ -311,7 +312,7 @@ const styles = StyleSheet.create({
 
   // Bordered list container with divided rows (prototype's .list/.row),
   // instead of separately floating cards per contact.
-  list: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 14, overflow: 'hidden' },
+  list: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, overflow: 'hidden' },
   contactRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -325,11 +326,13 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 11,
-    backgroundColor: colors.gold100,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { fontFamily: fonts.headingBold, color: colors.gold700, fontSize: rf(fontSize.lg) },
+  avatarText: { fontFamily: fonts.headingBold, color: colors.leaf700, fontSize: rf(fontSize.lg) },
   contactInfo: { flex: 1, minWidth: 0 },
   contactName: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
   contactRole: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2, textTransform: 'capitalize' },
@@ -345,15 +348,15 @@ const styles = StyleSheet.create({
   },
   contactBadgeText: { fontFamily: fonts.bodyBold, color: colors.soil800, fontSize: rf(fontSize.xs) },
 
-  threadContent: { paddingHorizontal: 2, paddingBottom: 8, flexGrow: 1 },
+  threadContent: { paddingTop: spacing.sm, paddingBottom: spacing.md, flexGrow: 1 },
   dateSeparator: { alignItems: 'center', marginTop: 12, marginBottom: 8 },
   dateLabel: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.inkSoft, backgroundColor: colors.leaf50, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4, textAlign: 'center' },
-  bubbleRow: { flexDirection: 'row', marginVertical: 3 },
+  bubbleRow: { flexDirection: 'row', marginVertical: 4 },
   rowMine: { justifyContent: 'flex-end' },
   rowTheirs: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '78%', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 16, ...shadowCard },
   bubbleMine: { backgroundColor: colors.leaf700, borderBottomRightRadius: 4 },
-  bubbleTheirs: { backgroundColor: colors.card, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: colors.border },
+  bubbleTheirs: { backgroundColor: colors.surface, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: colors.border },
   bubbleText: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink },
   bubbleTextMine: { color: '#ffffff' },
   messageTime: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginTop: 4, alignSelf: 'flex-end' },
@@ -363,7 +366,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingTop: 10,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
@@ -383,7 +387,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.leaf700,
+    backgroundColor: colors.soil800,
     alignItems: 'center',
     justifyContent: 'center',
   },

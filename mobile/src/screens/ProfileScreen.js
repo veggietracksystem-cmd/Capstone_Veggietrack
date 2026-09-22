@@ -13,7 +13,7 @@ import { confirmAction } from '../lib/ui';
 import UserGuideModal from '../components/UserGuideModal';
 import ContactUsModal from '../components/ContactUsModal';
 import CustomModal from '../components/CustomModal';
-import BottomNavBar from '../components/BottomNavBar';
+import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 
@@ -45,6 +45,7 @@ const TABS_BY_ROLE = {
 };
 
 export default function ProfileScreen({ navigation }) {
+  const navSpace = useBottomNavSpace();
   const { user, signOut } = useAuth();
   const { t, language, setLanguage } = useTranslation();
 
@@ -79,9 +80,10 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScreenHeader title={t('profile.title')} onBack={() => navigation.goBack()} />
+      {/* Distributors and delivery personnel reach Profile from the bottom nav, so no back arrow. */}
+      <ScreenHeader title={t('profile.title')} onBack={isDistributor(user) || isDeliveryPersonnel(user) ? undefined : () => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.content, bottomTabs && { paddingBottom: navSpace }]} keyboardShouldPersistTaps="handled">
         {/* Profile header: avatar + name + role + Edit Profile shortcut
             (prototype's profile-header block). */}
         <View style={styles.profileCard}>
@@ -127,10 +129,7 @@ export default function ProfileScreen({ navigation }) {
               style={styles.menuItem}
               onPress={() => navigation.navigate('ManageAddresses')}
             >
-              <View style={styles.menuItemContent}>
-                <Ionicons name="location-outline" size={rf(18)} color={colors.inkSoft} />
-                <Text style={styles.menuItemText}>Manage Addresses</Text>
-              </View>
+              <Text style={styles.menuItemText}>Manage Addresses</Text>
               <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
           )}
@@ -159,8 +158,8 @@ export default function ProfileScreen({ navigation }) {
         <View style={styles.sectionCard}>
           <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={logout}>
             <View style={styles.menuItemContent}>
-              <Ionicons name="log-out-outline" size={rf(18)} color={colors.leaf700} />
-              <Text style={[styles.menuItemText, { color: colors.leaf700 }]}>{t('profile.logout')}</Text>
+              <Ionicons name="log-out-outline" size={rf(18)} color={colors.danger} />
+              <Text style={[styles.menuItemText, styles.logoutText]}>{t('profile.logout')}</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -201,7 +200,9 @@ export default function ProfileScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+// Exported so the Farmer's inline Profile tab renders with exactly the same
+// cards, rows and typography as this screen.
+export const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
   header: {
     flexDirection: 'row',
@@ -216,7 +217,7 @@ const styles = StyleSheet.create({
 
   // User Profile Card
   profileCard: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderRadius: radius.card,
     padding: 20,
     alignItems: 'center',
@@ -262,11 +263,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   infoLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint },
-  infoValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.ink, marginTop: 1 },
+  infoValue: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 2 },
 
   // Section Card
   sectionCard: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderRadius: radius.card,
     padding: 16,
     marginBottom: 16,
@@ -288,6 +289,7 @@ const styles = StyleSheet.create({
   menuItemLast: { borderBottomWidth: 0 },
   menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
   chevron: { fontSize: rf(fontSize.xl), color: colors.inkFaint, fontWeight: '600' },
+  logoutText: { color: colors.danger },
 
   // Language modal rows
   langRow: {

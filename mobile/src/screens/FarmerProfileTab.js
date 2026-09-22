@@ -1,16 +1,18 @@
 import UserAvatar from '../components/UserAvatar';
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { roleLabel } from '../lib/roles';
 import { confirmAction } from '../lib/ui';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { colors } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import CustomModal from '../components/CustomModal';
 import UserGuideModal from '../components/UserGuideModal';
 import ContactUsModal from '../components/ContactUsModal';
 import { rf } from '../lib/responsive';
+import { useBottomNavSpace } from '../components/BottomNavBar';
+import { styles as profileStyles } from './ProfileScreen';
 
 // Farmer-only Profile tab, restyled to match the shared ProfileScreen design
 // (used by Retailer/Distributor/Delivery Personnel) so all four roles look
@@ -18,6 +20,7 @@ import { rf } from '../lib/responsive';
 // logout button. Still embedded inline inside FarmerDashboard's "profile"
 // tab (not a pushed screen), and still shows farm-specific info (location).
 export default function FarmerProfileTab({ navigation }) {
+  const navSpace = useBottomNavSpace();
   const { user, signOut } = useAuth();
   const { t, language, setLanguage } = useTranslation();
   const fullName = user?.full_name || user?.name || t('dashboards.farmer.defaultFarmerName');
@@ -31,7 +34,7 @@ export default function FarmerProfileTab({ navigation }) {
   };
 
   return (
-    <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.scrollArea} contentContainerStyle={[styles.content, { paddingBottom: navSpace }]} showsVerticalScrollIndicator={false}>
       {/* Profile header: avatar + name + role + Edit Profile shortcut
           (prototype's profile-header block, matches farmer-profile). */}
       <View style={styles.profileCard}>
@@ -53,7 +56,7 @@ export default function FarmerProfileTab({ navigation }) {
         <View style={[styles.infoRow, !user?.farm_location && styles.menuItemLast]}>
           <View style={styles.infoIconBox}><Ionicons name="mail-outline" size={rf(16)} color={colors.leaf700} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.infoLabel}>Email</Text>
+            <Text style={styles.infoLabel}>{t('profile.emailLabel')}</Text>
             <Text style={styles.infoValue}>{user?.email || '—'}</Text>
           </View>
         </View>
@@ -106,8 +109,8 @@ export default function FarmerProfileTab({ navigation }) {
       <View style={styles.sectionCard}>
         <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={logout}>
           <View style={styles.menuItemContent}>
-            <Ionicons name="log-out-outline" size={rf(18)} color={colors.leaf700} />
-            <Text style={[styles.menuItemText, { color: colors.leaf700 }]}>{t('profile.logout')}</Text>
+            <Ionicons name="log-out-outline" size={rf(18)} color={colors.danger} />
+            <Text style={[styles.menuItemText, styles.logoutText]}>{t('profile.logout')}</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -139,94 +142,9 @@ export default function FarmerProfileTab({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = {
+  ...profileStyles,
   scrollArea: { flex: 1 },
+  // Side/top padding comes from the Farmer dashboard's content wrapper.
   content: { paddingBottom: 90 },
-
-  // User Profile Card
-  profileCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadowCard,
-  },
-  editProfileBtn: {
-    marginTop: 6, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20,
-    borderWidth: 1.4, borderColor: colors.leaf700,
-  },
-  editProfileBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700, textAlign: 'center' },
-  avatarCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: colors.leaf100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-    borderWidth: 2,
-    borderColor: colors.leaf700,
-  },
-  avatarText: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: colors.leaf700 },
-  userName: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 4 },
-  roleBadge: {
-    backgroundColor: colors.leaf100,
-    borderRadius: 12,
-    paddingVertical: 3,
-    paddingHorizontal: 10,
-    marginBottom: 6,
-  },
-  roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.leaf700, letterSpacing: 0.5 },
-
-  // Account list rows (icon + label + value) — the prototype's read-only
-  // Account section, separate from the profile header card above.
-  infoRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  infoIconBox: {
-    width: 34, height: 34, borderRadius: 10, backgroundColor: colors.leaf50,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  infoLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint },
-  infoValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.ink, marginTop: 1 },
-
-  // Section Card
-  sectionCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadowCard,
-  },
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 12 },
-
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  menuItemContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  menuItemLast: { borderBottomWidth: 0 },
-  menuItemText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
-  chevron: { fontSize: rf(fontSize.xl), color: colors.inkFaint, fontWeight: '600' },
-
-  // Language modal rows
-  langRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  langRowText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
-});
+};

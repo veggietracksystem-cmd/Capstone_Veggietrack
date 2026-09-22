@@ -3,8 +3,7 @@ import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Text, View, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, StyleSheet, RefreshControl,
+  Text, View, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
@@ -20,6 +19,8 @@ import ScreenHeader from '../components/ScreenHeader';
 import StatusBadge from '../components/ui/StatusBadge';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
+import RemoteImage from '../components/RemoteImage';
+import { Ionicons } from '@expo/vector-icons';
 
 const PRIMARY = colors.leaf700;
 
@@ -105,7 +106,7 @@ export default function OrderHistoryScreen({ navigation }) {
 
                 {getProofUrl(o) && (
                   <TouchableOpacity style={styles.proofRow} onPress={() => setProofUri(getDelivery(o))} activeOpacity={0.8}>
-                    <Image source={{ uri: getProofUrl(o) }} style={styles.proofThumb} />
+                    <RemoteImage uri={getProofUrl(o)} style={styles.proofThumb} />
                     <Text style={styles.proofText}>{t('dashboards.retailer.proofOfDelivery')}</Text>
                   </TouchableOpacity>
                 )}
@@ -135,12 +136,12 @@ const styles = StyleSheet.create({
   title: { fontSize: rf(19), fontFamily: fonts.heading, color: colors.ink },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
 
-  orderCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
+  orderCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   orderTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: PRIMARY, marginBottom: 4 },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
-  list: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
+  list: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   listRowLast: { borderBottomWidth: 0 },
   itemTile: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },

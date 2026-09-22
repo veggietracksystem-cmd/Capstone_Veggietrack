@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
 
   // Section Card
   sectionCard: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderRadius: radius.card,
     padding: spacing.lg,
     marginBottom: spacing.lg,

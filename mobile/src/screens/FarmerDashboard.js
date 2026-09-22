@@ -15,7 +15,7 @@ import {
 } from '../offline/harvestStore';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from '../components/NotificationBell';
-import BottomNavBar from '../components/BottomNavBar';
+import BottomNavBar, { useBottomNavHeight, useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import BottomSheet from '../components/BottomSheet';
 import EmptyState from '../components/EmptyState';
@@ -169,6 +169,8 @@ function buildWeeklyBuckets(harvests) {
 }
 
 export default function FarmerDashboard({ navigation, route }) {
+  const navHeight = useBottomNavHeight();
+  const navSpace = useBottomNavSpace();
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
   const { user } = useAuth();
@@ -605,7 +607,7 @@ export default function FarmerDashboard({ navigation, route }) {
     harvest: t('dashboards.farmer.tabHarvestNew'),
     messages: t('dashboards.farmer.tabMessagesNew'),
     pickup: t('dashboards.farmer.tabPickupNew'),
-    profile: t('dashboards.farmer.tabProfile'),
+    profile: t('profile.title'),
     notifications: t('dashboards.farmer.notificationsTitle'),
   };
   const headerRight = activeTab === 'home' ? (
@@ -616,7 +618,7 @@ export default function FarmerDashboard({ navigation, route }) {
       accessibilityRole="button"
       accessibilityLabel={t('dashboards.farmer.notificationsTitle')}
     >
-      <Ionicons name="notifications-outline" size={rf(19)} color={colors.soil800} />
+      <Ionicons name="notifications-outline" size={rf(25)} color={colors.soil800} />
       {notifUnreadCount > 0 && <View style={styles.notifDot} />}
     </TouchableOpacity>
   ) : activeTab === 'harvest' ? (
@@ -630,6 +632,8 @@ export default function FarmerDashboard({ navigation, route }) {
       <Ionicons name="add" size={rf(20)} color={colors.leaf700} />
     </TouchableOpacity>
   ) : null;
+
+  const showCartBar = activeTab === 'pickup' && cartIds.length > 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -654,14 +658,16 @@ export default function FarmerDashboard({ navigation, route }) {
             <FarmerProfileTab navigation={navigation} />
           </SharedScreenTransition>
         ) : activeTab === 'messages' ? (
-          <SharedScreenTransition style={[styles.bodyFlex, styles.content, { paddingBottom: 90 }]} visible>
+          // Messages pads its own body, so its header spans the full width
+          // like every other header.
+          <SharedScreenTransition style={[styles.bodyFlex, { paddingBottom: navHeight }]} visible>
             <MessagesScreen embedded navigation={navigation} />
           </SharedScreenTransition>
         ) : (
           <SharedScreenTransition style={styles.bodyFlex} visible>
             <ScrollView
               style={styles.scrollArea}
-              contentContainerStyle={[styles.content, { paddingBottom: 90 }]}
+              contentContainerStyle={[styles.content, { paddingBottom: navSpace + (showCartBar ? 64 : 0) }]}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
               showsVerticalScrollIndicator={false}
             >
@@ -707,7 +713,7 @@ export default function FarmerDashboard({ navigation, route }) {
                     >
                       <View style={styles.pickupCardHeader}>
                         <Text style={styles.pickupCardId}>{`Pickup #${String(pickup.id).slice(0, 8)}`}</Text>
-                        <StatusBadge status={pickup.status} />
+                        <StatusBadge status={pickup.status === 'picked_up' ? 'completed' : pickup.status} />
                       </View>
                       <Text style={styles.vegMeta}>{localizeVegetableName(pickup.harvests?.vegetable_name || 'Vegetables', language)} · {pickup.harvests?.quantity_kg ?? '—'} kg</Text>
                       <Text style={styles.vegMeta}>{pickup.rider?.full_name ? `Rider: ${pickup.rider.full_name}` : 'Waiting for rider assignment'}</Text>
@@ -897,8 +903,9 @@ export default function FarmerDashboard({ navigation, route }) {
       <BottomNavBar tabs={FARMER_TABS} activeTab={activeTab} onTabPress={handleTabPress} />
 
       {/* Cart bar (Pick-up tab only) */}
-      {activeTab === 'pickup' && cartIds.length > 0 && (
-        <View style={styles.cartBar}>
+      {showCartBar && (
+        // Sits 8px above the bottom nav, whatever the phone's bottom inset.
+        <View style={[styles.cartBar, { bottom: navHeight + 8 }]}>
           <Text style={styles.cartBarText}>
             {t('dashboards.farmer.itemsSelected', { count: cartIds.length, plural: cartIds.length === 1 ? '' : 's', kg: cartTotalKg })}
           </Text>
@@ -1204,7 +1211,7 @@ const styles = StyleSheet.create({
   statusLabelOffline: { color: colors.inkSoft },
 
   iconBtn: {
-    width: 38, height: 38, borderRadius: radius.ctrl, backgroundColor: colors.card,
+    width: 42, height: 42, borderRadius: radius.ctrl, backgroundColor: colors.card,
     borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', position: 'relative',
   },
   notifDot: {
@@ -1216,12 +1223,12 @@ const styles = StyleSheet.create({
   syncBannerText: { flex: 1, fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.gold700 },
 
   // Generic bordered card — Active Pickup preview (prototype's `.card` block).
-  card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, marginBottom: 14, ...shadowCard },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, marginBottom: 14, ...shadowCard },
   cardHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 },
   cardHeadText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink },
 
   summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  statCard: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, ...shadowCard },
+  statCard: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, ...shadowCard },
   statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft },
   statValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), marginTop: 6, color: colors.ink },
@@ -1243,11 +1250,11 @@ const styles = StyleSheet.create({
   linkBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700, textAlign: 'center' },
 
   vegCard: {
-    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 14,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14,
     padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 9,
   },
   pickupCard: {
-    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 14,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14,
     padding: 14, gap: 4, marginBottom: 10, ...shadowCard,
   },
   pickupCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
@@ -1256,7 +1263,7 @@ const styles = StyleSheet.create({
   // Single bordered list container with divided rows (prototype's .list/.row
   // pattern) — used where the Home tab shows a flat list of items, instead of
   // separate floating cards per row.
-  list: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
+  list: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
   listRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
     borderBottomWidth: 1, borderBottomColor: colors.border,
@@ -1289,7 +1296,7 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, textAlign: 'center' },
 
   cartBar: {
-    position: 'absolute', left: 12, right: 12, bottom: 88, backgroundColor: colors.ink,
+    position: 'absolute', left: 16, right: 16, backgroundColor: colors.ink,
     borderRadius: 16, padding: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 10,
   },
@@ -1337,7 +1344,7 @@ const styles = StyleSheet.create({
   stepperValueText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
 
   sheetHint: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 12, marginTop: -4 },
-  reportWrap: { borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, padding: 6 },
+  reportWrap: { borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, padding: 6 },
   reportHeaderRow: { flexDirection: 'row', borderBottomWidth: 1.5, borderBottomColor: colors.border, paddingVertical: 6, paddingHorizontal: 6 },
   reportHeaderCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3, paddingRight: 6 },
   reportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: colors.border },

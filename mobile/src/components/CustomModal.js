@@ -22,6 +22,7 @@ const PRIMARY = colors.leaf700;
  *  - cancelLabel  / onCancel:   outline button (also fired on backdrop/back press)
  *  - busy:         disables buttons + shows the confirm button as disabled
  *  - confirmDisabled: independently disable the confirm button
+ *  - compactActions: smaller, centred buttons (read-only detail views)
  */
 export default function CustomModal({
   visible,
@@ -33,6 +34,7 @@ export default function CustomModal({
   onCancel,
   busy = false,
   confirmDisabled = false,
+  compactActions = false,
 }) {
   const { t } = useTranslation();
   const resolvedCancelLabel = cancelLabel ?? t('common.close');
@@ -59,19 +61,20 @@ export default function CustomModal({
               {children}
             </ScrollView>
 
-            <View style={styles.actions}>
+            <View style={[styles.actions, compactActions && styles.actionsCompact]}>
               {onCancel ? (
                 <TouchableOpacity
-                  style={[styles.btn, styles.btnOutline, busy && styles.btnDisabled]}
+                  style={[styles.btn, styles.btnOutline, compactActions && styles.btnCompact, busy && styles.btnDisabled]}
                   onPress={onCancel}
                   disabled={busy}
+                  hitSlop={compactActions ? { top: 6, bottom: 6, left: 6, right: 6 } : undefined}
                 >
-                  <Text style={styles.btnOutlineText}>{resolvedCancelLabel}</Text>
+                  <Text style={[styles.btnOutlineText, compactActions && styles.btnTextCompact]}>{resolvedCancelLabel}</Text>
                 </TouchableOpacity>
               ) : null}
               {onConfirm ? (
                 <TouchableOpacity
-                  style={[styles.btn, styles.btnPrimary, (busy || confirmDisabled) && styles.btnDisabled]}
+                  style={[styles.btn, styles.btnPrimary, compactActions && styles.btnCompact, (busy || confirmDisabled) && styles.btnDisabled]}
                   onPress={onConfirm}
                   disabled={busy || confirmDisabled}
                 >
@@ -101,4 +104,7 @@ const styles = StyleSheet.create({
   btnOutline: { borderWidth: 1.5, borderColor: PRIMARY },
   btnOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15) },
   btnDisabled: { opacity: 0.5 },
+  actionsCompact: { justifyContent: 'center' },
+  btnCompact: { flex: 0, minHeight: 38, paddingVertical: 8, paddingHorizontal: 28 },
+  btnTextCompact: { fontSize: rf(14) },
 });

@@ -2,7 +2,11 @@
 // parts of the approved redesign: the same palette can be used by every role
 // without changing any authentication, inventory, delivery, or offline flow.
 export const colors = {
-  bgScreen: '#FBF7EE',
+  // Main screen background is pure white; cards, list groups and grouped
+  // sections sit on `surface`, a very light off-white, so they separate
+  // from the page without heavy shadows. Inputs and controls stay `card` white.
+  bgScreen: '#FFFFFF',
+  surface: '#FAFAF7',
   leaf900: '#123005',
   leaf700: '#1E4E09',
   leaf500: '#3C7A1E',

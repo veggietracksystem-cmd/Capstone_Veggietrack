@@ -1,7 +1,7 @@
 import { rf } from '../../lib/responsive';
 import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../api/client';
 import { friendlyError } from '../../lib/errorMessages';
 import { useAuth } from '../../context/AuthContext';
@@ -15,6 +15,8 @@ import { coordinate, routePoints, routeProgress } from '../../lib/trackingGeomet
 import { colors, fonts, fontSize, radius } from '../../theme/appTheme';
 
 export default function RiderNavigationScreen({ route, navigation }) {
+  // Screen skips the bottom safe-area edge, so pad the scroll content instead.
+  const insets = useSafeAreaInsets();
   const { orderId } = route.params || {};
   const { user } = useAuth(), { t } = useTranslation();
   const { data, loading, error, refresh } = useDeliveryTracking(orderId);
@@ -45,7 +47,7 @@ export default function RiderNavigationScreen({ route, navigation }) {
   };
   return <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
     <ScreenHeader title="Rider navigation" onBack={() => navigation.goBack()} />
-    {loading && !data ? <ActivityIndicator style={{ padding: 30 }} color={colors.leaf700} /> : <ScrollView contentContainerStyle={styles.content}>
+    {loading && !data ? <ActivityIndicator style={{ padding: 30 }} color={colors.leaf700} /> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
       <View style={styles.instruction}>
         <Text style={styles.turn}>{metrics?.demo ? 'Demo playback • return to live for navigation' : !metrics?.live ? 'Waiting for fresh rider GPS' : offRoute ? 'Off route • waiting for updated road guidance' : guidance?.instruction || nav.navigation_error || 'Waiting for a road route'}</Text>
         {metrics?.live && !metrics?.demo && !offRoute && turnDistance != null && <Text style={styles.turnDistance}>In {turnDistance < 1000 ? `${Math.round(turnDistance)} m` : `${(turnDistance / 1000).toFixed(1)} km`}</Text>}
@@ -61,7 +63,7 @@ export default function RiderNavigationScreen({ route, navigation }) {
 }
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
-  content: { padding: 12, gap: 10, paddingBottom: 30 },
+  content: { padding: 16, gap: 12, paddingBottom: 30 },
   instruction: { borderRadius: radius.card, padding: 16, backgroundColor: colors.leaf700 },
   turn: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xl), color: '#fff' },
   turnDistance: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.h1), color: '#fff', marginTop: 6 },

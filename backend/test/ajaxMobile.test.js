@@ -155,7 +155,7 @@ test('message send cannot append to a different conversation after switching con
 test('rider pickup card renders its existing completion action and disables repeat taps', () => {
   const source = fs.readFileSync(path.join(root, 'screens/DeliveryDashboard.js'), 'utf8');
   const start = source.indexOf('  const renderPickupCard = ');
-  const end = source.indexOf('\n  const ModeToggle', start);
+  const end = source.indexOf('\n  const modeToggle', start);
   assert.ok(start > 0 && end > start);
   const code = babel.transformSync(`${source.slice(start, end)}\nresult = renderPickupCard;`, {
     configFile: false, babelrc: false,

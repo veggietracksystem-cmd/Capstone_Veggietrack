@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
     emptyTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink },
     emptyMessage: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, textAlign: 'center', marginTop: 8 },
     addressCard: {
-        backgroundColor: colors.card,
+        backgroundColor: colors.surface,
         borderRadius: radius.card,
         padding: 16,
         marginBottom: 12,

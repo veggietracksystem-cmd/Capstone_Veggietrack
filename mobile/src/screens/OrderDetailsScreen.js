@@ -4,7 +4,7 @@ import api from '../api/client';
 import useLatestRequest from '../hooks/useLatestRequest';
 import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
 import { manilaSchedule } from '../lib/deliverySchedule';
-import { Text, View, ScrollView, TouchableOpacity, Image, StyleSheet, RefreshControl } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OrderStepIndicator from '../components/OrderStepIndicator';
 import { peso, shortId, showAlert } from '../lib/ui';
@@ -19,6 +19,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import StatusBadge from '../components/ui/StatusBadge';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
+import RemoteImage from '../components/RemoteImage';
 
 const PRIMARY = colors.leaf700;
 
@@ -141,7 +142,7 @@ export default function OrderDetailsScreen({ navigation, route }) {
         {proofUrl && (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>{t('dashboards.retailer.proofOfDelivery')}</Text>
-            <Image source={{ uri: proofUrl }} style={styles.proofImage} resizeMode="contain" />
+            <RemoteImage uri={proofUrl} style={styles.proofImage} resizeMode="contain" />
             <ProofDetails proof={delivery?.pod} />
           </View>
         )}
@@ -157,7 +158,7 @@ const styles = StyleSheet.create({
   title: { fontSize: rf(19), fontFamily: fonts.heading, color: colors.ink },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
 
-  card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
+  card: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   total: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: PRIMARY, marginBottom: 4 },

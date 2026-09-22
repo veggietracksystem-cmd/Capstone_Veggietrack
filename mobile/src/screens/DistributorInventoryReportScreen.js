@@ -12,7 +12,7 @@ import api from '../api/client';
 import EmptyState from '../components/EmptyState';
 import { SegmentedTabs } from '../components/ui/SegmentedTabs';
 import StatusBadge from '../components/ui/StatusBadge';
-import BottomNavBar from '../components/BottomNavBar';
+import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { exportReportPdf, printReport } from '../lib/reportPdf';
 import { showAlert, peso } from '../lib/ui';
@@ -107,6 +107,7 @@ function ReportTable({ columns, rows, emptyLabel }) {
 }
 
 export default function DistributorInventoryReportScreen({ navigation }) {
+  const navSpace = useBottomNavSpace();
   const beginRead = useLatestRequest();
   const { t } = useTranslation();
   const DISTRIBUTOR_TABS = DISTRIBUTOR_TABS_KEYS.map((tab) => ({ ...tab, label: t(tab.labelKey) }));
@@ -179,7 +180,6 @@ export default function DistributorInventoryReportScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <ScreenHeader
         title={t('inventoryReport.title')}
-        onBack={() => navigation.goBack()}
         right={
           <TouchableOpacity onPress={onRefresh} accessibilityRole="button" accessibilityLabel={t('common.retry')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="refresh-outline" size={rf(20)} color={PRIMARY} />
@@ -201,7 +201,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
         <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: navSpace }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
           <View style={styles.summaryGrid}>
@@ -257,15 +257,17 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
   content: { padding: 16, paddingBottom: 100, flexGrow: 1 },
 
-  tabRow: { marginHorizontal: spacing.lg },
+  // 16px from the header and screen edges; the list's own 16px padding
+  // provides the gap below.
+  tabRow: { marginHorizontal: spacing.lg, marginTop: spacing.lg, marginBottom: 0 },
 
   // Compact Received/Sold summary tiles (prototype's .tile-grid/.tile)
   summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  statTile: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14 },
+  statTile: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14 },
   statTileLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft },
   statTileValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: colors.ink, marginTop: 4 },
 
-  reportWrap: { borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, padding: 6 },
+  reportWrap: { borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, padding: 6 },
   reportHeaderRow: { flexDirection: 'row', borderBottomWidth: 1.5, borderBottomColor: colors.border, paddingVertical: 6, paddingHorizontal: 6 },
   reportHeaderCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3, paddingRight: 6 },
   reportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: colors.border },

@@ -1,7 +1,7 @@
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useRef } from 'react';
 import { Text, View, ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthButton, AuthInput, authStyles as s } from '../components/AuthForm';
 import ScreenHeader from '../components/ScreenHeader';
@@ -34,6 +34,8 @@ const ACTION_WORDING = {
 };
 
 export default function AccountManagementScreen({ navigation }) {
+  // Screen skips the bottom safe-area edge, so pad the scroll content instead.
+  const insets = useSafeAreaInsets();
   const [status, setStatus] = useState('pending_approval');
   const [users, setUsers] = useState([]);
   const [error, setError] = useState('');
@@ -100,7 +102,7 @@ export default function AccountManagementScreen({ navigation }) {
           </TouchableOpacity>
         )}
       />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         {/* No second "Accounts" title here - the header already says what
             this screen is. The chips scroll sideways so the longer labels
             stay readable instead of being squeezed together. */}
@@ -183,7 +185,7 @@ const styles = StyleSheet.create({
   },
   card: {
     padding: spacing.lg,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderRadius: radius.card,
     marginBottom: spacing.md,
     borderWidth: 1,

@@ -4,7 +4,7 @@ import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Text, View, Image, FlatList, TouchableOpacity,
+  Text, View, FlatList, TouchableOpacity,
   ActivityIndicator, StyleSheet, RefreshControl, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,7 +14,7 @@ import { SegmentedTabs } from '../components/ui/SegmentedTabs';
 import StatusBadge from '../components/ui/StatusBadge';
 import BatchPhotoField from '../components/BatchPhotoField';
 import CustomModal from '../components/CustomModal';
-import BottomNavBar from '../components/BottomNavBar';
+import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { showAlert, confirmAction, peso } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
@@ -24,6 +24,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
+import VegetableImage from '../components/VegetableImage';
 
 const PRIMARY = colors.leaf700;
 
@@ -36,6 +37,7 @@ const DISTRIBUTOR_TABS_KEYS = [
 ];
 
 export default function StocksScreen({ navigation }) {
+  const navSpace = useBottomNavSpace();
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
   const { t, language } = useTranslation();
@@ -249,59 +251,74 @@ export default function StocksScreen({ navigation }) {
     }
   };
 
+  // Trailing badge matches the prototype's per-segment badge: Batches shows
+  // whether the required batch photo has been captured yet; Products shows
+  // the retailer-facing stock level. Both are derived from fields already
+  // on the record — no new data.
+  const renderBadge = (b) => {
+    if (isListable(b.status)) {
+      return <StatusBadge status={b.batch_photo_url ? 'completed' : 'pending'} label={b.batch_photo_url ? t('stocks.photoCaptured') : t('stocks.photoMissing')} />;
+    }
+    const isLowStock = b.stock_kg != null && b.stock_kg <= 10 && b.stock_kg > 0;
+    return (
+      <StatusBadge
+        status={b.status === 'sold_out' ? 'cancelled' : isLowStock ? 'pending' : 'active'}
+        label={b.status === 'sold_out' ? t('stocks.statusSoldOut') : isLowStock ? t('stocks.statusLowStock') : t('stocks.statusActive')}
+      />
+    );
+  };
+
+  // List rows always use the vegetable illustration; the distributor's
+  // uploaded photo is shown in the View / Edit modal instead.
+  const renderTile = (b, large = false) => {
+    const tile = getVegetableTile(b.vegetable_name);
+    return (
+      <View style={[large ? styles.tileLg : styles.tile, { backgroundColor: tile.bg }]}>
+        <VegetableImage source={tile.source} style={large ? styles.tileIconLg : styles.tileIcon} fallbackSize={rf(large ? 26 : 20)} />
+      </View>
+    );
+  };
+
+  const renderDetails = (b) => (
+    <>
+      <View style={styles.row}>
+        <Text style={styles.label}>{t('stocks.farmerName')}</Text>
+        <Text style={styles.value}>{b.farmer_name || '—'}</Text>
+      </View>
+      <View style={styles.row}>
+        <Text style={styles.label}>{t('stocks.harvestDate')}</Text>
+        <Text style={styles.value}>{b.harvest_date ? new Date(b.harvest_date).toLocaleDateString() : '—'}</Text>
+      </View>
+      <View style={styles.row}>
+        <Text style={styles.label}>{t('stocks.quantity')}</Text>
+        <Text style={styles.value}>
+          {b.stock_kg} kg{!isListable(b.status) && b.quantity_received != null ? ` / ${b.quantity_received} kg` : ''}
+        </Text>
+      </View>
+      <View style={styles.row}>
+        <Text style={styles.label}>{t('stocks.pickupDate')}</Text>
+        <Text style={styles.value}>{b.pickup_date ? new Date(b.pickup_date).toLocaleDateString() : '—'}</Text>
+      </View>
+      {!isListable(b.status) && b.price_per_kg != null && (
+        <View style={styles.row}>
+          <Text style={styles.label}>{t('productList.priceLabel')}</Text>
+          <Text style={styles.value}>{peso(b.price_per_kg)} / kg</Text>
+        </View>
+      )}
+    </>
+  );
+
   const renderItem = ({ item: b }) => {
     const busy = busyId != null;
-    const tile = getVegetableTile(b.vegetable_name);
-    // Trailing badge matches the prototype's per-segment badge: Batches shows
-    // whether the required batch photo has been captured yet; Products shows
-    // the retailer-facing stock level. Both are derived from fields already
-    // on the record — no new data.
-    const isLowStock = b.stock_kg != null && b.stock_kg <= 10 && b.stock_kg > 0;
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          {b.batch_photo_url ? (
-            <Image source={{ uri: b.batch_photo_url }} style={styles.thumb} />
-          ) : (
-            <View style={[styles.thumb, styles.thumbFallback, { backgroundColor: tile.bg }]}>
-              <Text style={styles.thumbIcon}>{tile.icon}</Text>
-            </View>
-          )}
+          {renderTile(b)}
           <Text style={[styles.product, { flex: 1 }]} numberOfLines={1}>{localizeVegetableName(b.vegetable_name, language)}</Text>
-          {isListable(b.status) ? (
-            <StatusBadge status={b.batch_photo_url ? 'completed' : 'pending'} label={b.batch_photo_url ? t('stocks.photoCaptured') : t('stocks.photoMissing')} />
-          ) : (
-            <StatusBadge
-              status={b.status === 'sold_out' ? 'cancelled' : isLowStock ? 'pending' : 'active'}
-              label={b.status === 'sold_out' ? t('stocks.statusSoldOut') : isLowStock ? t('stocks.statusLowStock') : t('stocks.statusActive')}
-            />
-          )}
+          {renderBadge(b)}
         </View>
 
-        <View style={styles.row}>
-          <Text style={styles.label}>{t('stocks.farmerName')}</Text>
-          <Text style={styles.value}>{b.farmer_name || '—'}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>{t('stocks.harvestDate')}</Text>
-          <Text style={styles.value}>{b.harvest_date ? new Date(b.harvest_date).toLocaleDateString() : '—'}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>{t('stocks.quantity')}</Text>
-          <Text style={styles.value}>
-            {b.stock_kg} kg{!isListable(b.status) && b.quantity_received != null ? ` / ${b.quantity_received} kg` : ''}
-          </Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>{t('stocks.pickupDate')}</Text>
-          <Text style={styles.value}>{b.pickup_date ? new Date(b.pickup_date).toLocaleDateString() : '—'}</Text>
-        </View>
-        {!isListable(b.status) && b.price_per_kg != null && (
-          <View style={styles.row}>
-            <Text style={styles.label}>{t('productList.priceLabel')}</Text>
-            <Text style={styles.value}>{peso(b.price_per_kg)} / kg</Text>
-          </View>
-        )}
+        {renderDetails(b)}
 
         {isListable(b.status) && (
           <TouchableOpacity
@@ -315,7 +332,7 @@ export default function StocksScreen({ navigation }) {
           </TouchableOpacity>
         )}
         <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(b)} disabled={busy}>
-          <Text style={styles.editBtnText}>Edit</Text>
+          <Text style={styles.editBtnText}>{isListable(b.status) ? t('common.edit') : 'View / Edit'}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -325,7 +342,6 @@ export default function StocksScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <ScreenHeader
         title={t('stocks.title')}
-        onBack={() => navigation.goBack()}
         right={
           <TouchableOpacity
             onPress={openAddProduct}
@@ -358,7 +374,7 @@ export default function StocksScreen({ navigation }) {
           data={batches.filter((b) => (seg === 'batches' ? isListable(b.status) : !isListable(b.status)))}
           keyExtractor={(b) => String(b.id)}
           renderItem={renderItem}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: navSpace }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
             <EmptyState
@@ -388,7 +404,24 @@ export default function StocksScreen({ navigation }) {
         />
       </CustomModal>
 
-      <CustomModal visible={!!editingBatch} title={`Edit ${localizeVegetableName(editingBatch?.vegetable_name, language)}`} confirmLabel="Save Batch" onConfirm={saveBatchPhoto} onCancel={() => setEditingBatch(null)} busy={photoBusy}>
+      <CustomModal
+        visible={!!editingBatch}
+        title={isListable(editingBatch?.status) ? 'Edit Batch' : 'View / Edit Product'}
+        confirmLabel={isListable(editingBatch?.status) ? 'Save Batch' : 'Save Changes'}
+        onConfirm={saveBatchPhoto}
+        onCancel={() => setEditingBatch(null)}
+        busy={photoBusy}
+      >
+        {!!editingBatch && (
+          <View style={styles.detailCard}>
+            <View style={styles.cardHeader}>
+              {renderTile(editingBatch, true)}
+              <Text style={[styles.product, { flex: 1 }]} numberOfLines={2}>{localizeVegetableName(editingBatch.vegetable_name, language)}</Text>
+              {renderBadge(editingBatch)}
+            </View>
+            {renderDetails(editingBatch)}
+          </View>
+        )}
         <BatchPhotoField label={t('stocks.batchPhotoLabel')} value={batchPhotoUrl} onChange={setBatchPhotoUrl} onStateChange={setBatchPhotoState} disabled={photoBusy} />
         {!isListable(editingBatch?.status) && <>
           <Text style={styles.editPriceLabel}>{t('productList.priceLabel')}</Text>
@@ -453,13 +486,16 @@ const styles = StyleSheet.create({
   addProductBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
   addProductBtnText: { color: '#fff', fontSize: rf(fontSize.title), fontFamily: fonts.bodySemiBold, lineHeight: rf(22), textAlign: 'center' },
 
-  segmented: { marginHorizontal: spacing.lg, marginTop: spacing.md },
+  // Same spacing as the other Distributor filter tabs.
+  segmented: { marginHorizontal: spacing.lg, marginTop: spacing.lg, marginBottom: 0 },
 
-  card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 14, marginBottom: 12, ...shadowCard },
+  card: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 14, marginBottom: 12, ...shadowCard },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 8 },
-  thumb: { width: 42, height: 42, borderRadius: 11 },
-  thumbFallback: { alignItems: 'center', justifyContent: 'center' },
-  thumbIcon: { fontSize: rf(18) },
+  tile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  tileIcon: { width: 34, height: 34 },
+  tileLg: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  tileIconLg: { width: 40, height: 40 },
+  detailCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, padding: 12, marginBottom: 14 },
   product: { fontSize: rf(fontSize.lg), fontFamily: fonts.bodySemiBold, color: colors.ink },
 
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },

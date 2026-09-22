@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
-import { colors, fonts } from '../theme/appTheme';
+import { colors, control, fonts } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
 
 const POLL_MS = 30000; // matches NotificationBell/MessagesIcon
@@ -49,7 +49,7 @@ export default function PendingAccountsIcon() {
       accessibilityRole="button"
       accessibilityLabel={pending > 0 ? `User Management, ${pending} awaiting approval` : 'User Management'}
     >
-      <Ionicons name="people-outline" size={rf(20)} color={colors.soil800} />
+      <Ionicons name="people-outline" size={rf(24)} color={colors.soil800} />
       {pending > 0 && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{pending > 9 ? '9+' : pending}</Text>
@@ -60,9 +60,9 @@ export default function PendingAccountsIcon() {
 }
 
 const styles = StyleSheet.create({
-  iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
+  iconBtn: { width: control.minTouch, height: control.minTouch, alignItems: 'center', justifyContent: 'center' },
   badge: {
-    position: 'absolute', top: 0, right: 0, minWidth: 18, height: 18, borderRadius: 9,
+    position: 'absolute', top: 3, right: 2, minWidth: 18, height: 18, borderRadius: 9,
     backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
   },
   badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(11) },

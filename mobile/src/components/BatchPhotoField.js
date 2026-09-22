@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { rf } from '../lib/responsive';
 import { colors, fonts, fontSize, radius } from '../theme/appTheme';
+import RemoteImage from './RemoteImage';
 
 // This stages a URL for the existing product/batch record; the parent owns
 // persistence so selecting a photo can never modify a different batch.
@@ -39,7 +40,8 @@ export default function BatchPhotoField({ value, disabled, onChange, onStateChan
     {label ? <Text style={{ fontFamily: fonts.bodySemiBold, color: colors.ink }}>{label} <Text style={{ color: colors.danger }}>*</Text></Text> : null}
     <Text style={{ fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(fontSize.sm) }}>Retailers will see this photo when they order.</Text>
     {value ? (
-      <Image source={{ uri: value }} style={{ width: '100%', height: 150, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 }} resizeMode="cover" />
+      <RemoteImage uri={value} style={{ width: '100%', height: 150, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 }} resizeMode="cover"
+/>
     ) : (
       // Matches the prototype's photoMissing placeholder — a dashed box with
       // a camera icon, instead of leaving blank space before a photo exists.
@@ -48,11 +50,14 @@ export default function BatchPhotoField({ value, disabled, onChange, onStateChan
         <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkFaint }}>No photo yet</Text>
       </View>
     )}
+    {/* Once a photo is attached, upload is hidden and Take photo stays visible but disabled. */}
     <View style={{ flexDirection: 'row', gap: 10 }}>
-      <TouchableOpacity disabled={disabled || busy} onPress={() => select(false)} style={{ flex: 1, alignItems: 'center', paddingVertical: 10, borderWidth: 1, borderColor: colors.leaf700, borderRadius: radius.ctrl, opacity: disabled || busy ? 0.55 : 1 }}>
-        <Text style={{ fontFamily: fonts.bodySemiBold, color: colors.leaf700 }}>{busy ? 'Uploading…' : value ? 'Replace photo' : 'Upload photo'}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity disabled={disabled || busy} onPress={() => select(true)} style={{ flex: 1, alignItems: 'center', paddingVertical: 10, backgroundColor: colors.leaf700, borderRadius: radius.ctrl, opacity: disabled || busy ? 0.55 : 1 }}>
+      {!value && (
+        <TouchableOpacity disabled={disabled || busy} onPress={() => select(false)} style={{ flex: 1, alignItems: 'center', paddingVertical: 10, borderWidth: 1, borderColor: colors.leaf700, borderRadius: radius.ctrl, opacity: disabled || busy ? 0.55 : 1 }}>
+          <Text style={{ fontFamily: fonts.bodySemiBold, color: colors.leaf700 }}>{busy ? 'Uploading…' : 'Upload photo'}</Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity disabled={disabled || busy || !!value} accessibilityState={{ disabled: disabled || busy || !!value }} onPress={() => select(true)} style={{ flex: 1, alignItems: 'center', paddingVertical: 10, backgroundColor: colors.leaf700, borderRadius: radius.ctrl, opacity: disabled || busy || value ? 0.55 : 1 }}>
         {busy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ fontFamily: fonts.bodySemiBold, color: '#fff' }}>Take photo</Text>}
       </TouchableOpacity>
     </View>

@@ -19,6 +19,20 @@ export function prepareNativeImage(asset) {
   return { uri, type, name: `${stem}.${MIME_EXTENSIONS[type]}` };
 }
 
+// Expo replaces the global fetch with expo/fetch, which rejects React Native's
+// { uri, type, name } FormData parts ("Unsupported FormDataPart implementation")
+// and needs a Blob-like file it can read bytes from. expo-file-system's File is one.
+function nativeUploadPart(asset) {
+  const image = prepareNativeImage(asset);
+  const { File } = require('expo-file-system');
+  return new File(image.uri);
+}
+
+function prepareNativeImageSafe(asset) {
+  try { return Platform.OS === 'web' ? { uri: asset?.uri } : { ...prepareNativeImage(asset), size: asset?.fileSize }; }
+  catch (error) { return { uri: asset?.uri, error: error.code }; }
+}
+
 // Only the public cloud name and unsigned preset belong in the mobile build.
 export async function uploadToCloudinary(asset, { timeoutMs = 30000 } = {}) {
   const cloud = CLOUDINARY_CLOUD_NAME?.trim();
@@ -44,7 +58,7 @@ export async function uploadToCloudinary(asset, { timeoutMs = 30000 } = {}) {
         }
         if (!file.size || !/^image\//.test(file.type || asset.mimeType || '')) throw uploadError('IMAGE_PREPARATION_FAILED');
         formData.append('file', file, asset.fileName || file.name || `proof.${MIME_EXTENSIONS[file.type] || 'jpg'}`);
-      } else formData.append('file', prepareNativeImage(asset));
+      } else formData.append('file', nativeUploadPart(asset));
     } catch (error) {
       if (timedOut) throw uploadError('UPLOAD_TIMEOUT');
       throw error.code ? error : uploadError('IMAGE_PREPARATION_FAILED');
@@ -53,12 +67,16 @@ export async function uploadToCloudinary(asset, { timeoutMs = 30000 } = {}) {
     try {
       // fetch supplies multipart Content-Type including the required boundary.
       response = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/image/upload`, { method: 'POST', body: formData, signal: controller.signal });
-    } catch { throw uploadError(timedOut ? 'UPLOAD_TIMEOUT' : 'CLOUDINARY_UNREACHABLE'); }
+    } catch (error) {
+      // TEMP rider-dashboard diagnostics — remove once pickup upload is fixed.
+      console.log('[rider-debug] UPLOAD fetch FAILED', error?.name, error?.message, JSON.stringify(prepareNativeImageSafe(asset)));
+      throw uploadError(timedOut ? 'UPLOAD_TIMEOUT' : 'CLOUDINARY_UNREACHABLE', { cause: `${error?.name}: ${error?.message}`, file: prepareNativeImageSafe(asset) });
+    }
     let data;
     try { data = JSON.parse(await response.text()); } catch { data = null; }
     if (!response.ok || !data?.secure_url) {
       const configurationFailure = /upload preset|unsigned|cloud name|api key/i.test(data?.error?.message || '');
-      throw uploadError(configurationFailure ? 'CLOUDINARY_CONFIGURATION' : 'CLOUDINARY_UPLOAD_FAILED', { status: response.status });
+      throw uploadError(configurationFailure ? 'CLOUDINARY_CONFIGURATION' : 'CLOUDINARY_UPLOAD_FAILED', { status: response.status, cause: data?.error?.message });
     }
     if (!/^https:\/\/res\.cloudinary\.com\//.test(data.secure_url)) throw uploadError('CLOUDINARY_UPLOAD_FAILED');
     return data.secure_url;

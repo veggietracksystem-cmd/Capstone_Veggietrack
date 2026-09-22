@@ -1,6 +1,6 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { rf } from '../../lib/responsive';
-import { colors, control, fonts, fontSize, radius, shadowCard, spacing } from '../../theme/appTheme';
+import { colors, control, fonts, fontSize, spacing } from '../../theme/appTheme';
 
 // The app's two filter-row patterns, in one place so every screen's tabs are
 // the same height, use the same padding and radius, and centre their labels.
@@ -9,7 +9,8 @@ import { colors, control, fonts, fontSize, radius, shadowCard, spacing } from '.
 // background and text colour change - so tapping a tab never nudges the row.
 
 /**
- * Segmented control: a single grey track with a white "selected" pill.
+ * Segmented filter: equal-width pill tabs in the same style as FilterChips
+ * (outlined when inactive, solid green with white text when active).
  * Use for a small, fixed set of views (Batches/Products, Unpaid/Paid).
  *
  * @param options  [{ value, label }]
@@ -17,8 +18,10 @@ import { colors, control, fonts, fontSize, radius, shadowCard, spacing } from '.
  * @param onChange called with the new value
  * @param scroll   true when the labels are long enough to need scrolling
  *                 instead of being squeezed into equal columns
+ * @param inset    scroll only: side padding inside the scrolling row, for a
+ *                 row that bleeds to the screen edges
  */
-export function SegmentedTabs({ options, value, onChange, scroll = false, style }) {
+export function SegmentedTabs({ options, value, onChange, scroll = false, inset = 0, style }) {
   const tabs = options.map((option) => {
     const selected = option.value === value;
     return (
@@ -46,7 +49,7 @@ export function SegmentedTabs({ options, value, onChange, scroll = false, style 
         horizontal
         showsHorizontalScrollIndicator={false}
         style={[styles.track, styles.trackScroll, style]}
-        contentContainerStyle={styles.trackScrollContent}
+        contentContainerStyle={[styles.trackScrollContent, inset ? { paddingHorizontal: inset } : null]}
       >
         {tabs}
       </ScrollView>
@@ -95,30 +98,31 @@ export default SegmentedTabs;
 const styles = StyleSheet.create({
   track: {
     flexDirection: 'row',
-    backgroundColor: colors.soil300,
-    borderRadius: radius.ctrl,
-    padding: 3,
+    gap: spacing.sm,
     marginBottom: spacing.md,
   },
   trackScroll: { flexGrow: 0 },
-  trackScrollContent: { alignItems: 'center' },
+  trackScrollContent: { alignItems: 'center', gap: spacing.sm, paddingRight: spacing.xs },
   tab: {
     height: control.heightSm,
-    borderRadius: radius.ctrl - 2,
+    borderRadius: control.heightSm / 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: control.paddingH,
   },
   tabEven: { flex: 1 },
   tabScroll: { paddingHorizontal: control.paddingH },
-  tabSelected: { backgroundColor: colors.card, ...shadowCard },
+  tabSelected: { backgroundColor: colors.leaf700, borderColor: colors.leaf700 },
   tabText: {
     fontFamily: fonts.bodySemiBold,
     color: colors.inkSoft,
-    fontSize: rf(fontSize.md),
+    fontSize: rf(fontSize.sm),
     textAlign: 'center',
   },
-  tabTextSelected: { color: colors.leaf900 },
+  tabTextSelected: { color: '#fff' },
 
   chipRow: { flexGrow: 0, marginBottom: spacing.md },
   chipRowContent: { gap: spacing.sm, alignItems: 'center', paddingRight: spacing.xs },

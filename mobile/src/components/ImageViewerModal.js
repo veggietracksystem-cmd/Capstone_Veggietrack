@@ -1,8 +1,9 @@
 import ProofDetails from './ProofDetails';
 import { rf } from '../lib/responsive';
-import { Modal, View, Image, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { Modal, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { control, fonts, radius } from '../theme/appTheme';
 import { Ionicons } from '@expo/vector-icons';
+import RemoteImage from './RemoteImage';
 
 // Full-screen image viewer. Pass a uri to show; onClose dismisses it.
 export default function ImageViewerModal({ uri, visible, onClose, proof }) {
@@ -11,7 +12,7 @@ export default function ImageViewerModal({ uri, visible, onClose, proof }) {
       <View style={styles.backdrop}>
         {/* Tap anywhere behind the image to dismiss */}
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
-        {uri ? <Image source={{ uri }} style={styles.image} resizeMode="contain" /> : null}
+        {uri ? <RemoteImage uri={uri} style={styles.image} resizeMode="contain" /> : null}
         {uri && <ProofDetails proof={proof} />}
         <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
           <Text style={styles.closeText}>Close</Text>

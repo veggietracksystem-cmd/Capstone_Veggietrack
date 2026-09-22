@@ -15,6 +15,7 @@ import { colors, control, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
+import { useBottomNavSpace } from './BottomNavBar';
 
 const PRIMARY = colors.leaf700;
 const INACTIVE = colors.inkFaint;
@@ -37,6 +38,7 @@ function timeAgo(iso, t) {
 }
 
 export default function NotificationBell({ asTabItem = false, active = false, onPress, fullScreen = false }) {
+  const navSpace = useBottomNavSpace();
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
   const [marking, setMarking] = useState(false);
@@ -130,21 +132,19 @@ export default function NotificationBell({ asTabItem = false, active = false, on
   if (fullScreen) {
     return (
       <SafeAreaView style={styles.screenContainer} edges={['left', 'right', 'bottom']}>
-        <View style={styles.screenHeader}>
-          <View style={styles.sheetTitleRow}>
-            <Ionicons name="notifications-outline" size={rf(20)} color={PRIMARY} />
-            <Text style={styles.screenTitle}>{t('notifications.screenTitle')}</Text>
-          </View>
-          {unread > 0 && (
+        {/* The screen's standard header (title + back arrow) comes from the
+            Farmer dashboard, so only the "Mark all read" action lives here. */}
+        {unread > 0 && (
+          <View style={styles.screenActions}>
             <TouchableOpacity disabled={marking} onPress={markAllRead} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.markAllText}>{marking ? t('common.loading') : t('notifications.markAllRead')}</Text>
             </TouchableOpacity>
-          )}
-        </View>
+          </View>
+        )}
 
         <ScrollView
           style={styles.screenList}
-          contentContainerStyle={styles.screenListContent}
+          contentContainerStyle={[styles.screenListContent, { paddingBottom: navSpace }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           showsVerticalScrollIndicator={false}
         >
@@ -212,7 +212,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
         </TouchableOpacity>
       ) : (
         <TouchableOpacity style={styles.bellBtn} onPress={openModal} activeOpacity={0.7}>
-          <Ionicons name="notifications-outline" size={rf(20)} color={colors.soil800} />
+          <Ionicons name="notifications-outline" size={rf(27)} color={colors.soil800} />
           {unread > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
@@ -308,19 +308,16 @@ export default function NotificationBell({ asTabItem = false, active = false, on
 }
 
 const styles = StyleSheet.create({
-  bellBtn: { padding: 6, marginRight: 4, minWidth: control.minTouch, minHeight: control.minTouch, alignItems: 'center', justifyContent: 'center'  },
+  // Shares its size with MessagesIcon's button so the pair sits evenly.
+  // Last icon in the header: a small right margin keeps it off the edge.
+  bellBtn: { width: 40, height: control.minTouch, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
 
   // Full-screen variant (farmer bottom-nav "Notifications" tab)
   screenContainer: { flex: 1, minHeight: 0, backgroundColor: colors.bgScreen },
-  screenHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 14,
-    backgroundColor: colors.bgScreen, borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  screenTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
+  screenActions: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 12 },
   markAllText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(13) },
   screenList: { flex: 1, minHeight: 0 },
-  screenListContent: { padding: 12, paddingBottom: 100 },
+  screenListContent: { padding: 16, paddingBottom: 100 },
 
   // Bottom-nav tab-item variant (matches BottomNavBar's own tab styling)
   tabItemBtn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -337,7 +334,7 @@ const styles = StyleSheet.create({
   tabLabelActive: { color: PRIMARY },
 
   badge: {
-    position: 'absolute', top: 0, right: 0, minWidth: 18, height: 18, borderRadius: 9,
+    position: 'absolute', top: 3, right: -1, minWidth: 18, height: 18, borderRadius: 9,
     backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
   },
   badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(11) },

@@ -1,7 +1,7 @@
 import { rf } from '../lib/responsive';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, RefreshControl, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import DeliveryTrackingMap from '../components/DeliveryTrackingMap';
 import OrderStepIndicator from '../components/OrderStepIndicator';
 import ScreenHeader from '../components/ScreenHeader';
@@ -18,6 +18,8 @@ import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
 
 export default function CustomerDeliveryTrackingScreen(props) {
+  // Screen skips the bottom safe-area edge, so pad the scroll content instead.
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   return isDeliveryPersonnel(user)
     ? <RiderNavigationScreen {...props} />
@@ -35,7 +37,7 @@ function CustomerTrackingView({ route, navigation }) {
       title={orderId ? t('orderTracking.orderNumber', { id: String(orderId).slice(0, 8) }) : t('orderTracking.titleFallback')}
       onBack={() => navigation.goBack()}
     />
-    <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => {
+    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => {
       setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); }
     }} />}>
       <View style={styles.status}>
@@ -80,11 +82,11 @@ function CustomerTrackingView({ route, navigation }) {
 }
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
-  content: { padding: 12, gap: 12, paddingBottom: 30 }, status: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 },
+  content: { padding: 16, gap: 12, paddingBottom: 30 }, status: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 },
   statusText: { textTransform: 'capitalize', fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.leaf700 },
   note: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkSoft },
   map: { height: 510, flex: 0 },
-  card: { padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: 6, ...shadowCard },
+  card: { padding: 14, borderRadius: radius.card, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, gap: 6, ...shadowCard },
   label: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.leaf700 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   value: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink },

@@ -3,6 +3,9 @@ const { STALE_LOCATION_SECONDS, MAX_ACCEPTABLE_GPS_ACCURACY_METERS } = require('
 
 const GPS_REFINEMENT_TIMEOUT_MS = 10000;
 const GPS_POLL_INTERVAL_MS = 700;
+// Tolerance between the GPS fix clock and the system clock when deciding a fix
+// was captured after the request began.
+const FRESH_FIX_SKEW_MS = 1000;
 const poorAccuracyMessage = 'Your GPS signal is not accurate enough yet. Move to an open area and tap Refresh Location.';
 const locationError = (code, message) => Object.assign(new Error(message), { code });
 
@@ -32,7 +35,8 @@ function withDeadline(operation, timeoutMs) {
 // by a device is still one observation. Keep the more accurate recent fix.
 async function refineLocation(readPosition, { timeoutMs = GPS_REFINEMENT_TIMEOUT_MS, now = Date.now,
   pause = ms => new Promise(resolve => setTimeout(resolve, ms)), pollIntervalMs = GPS_POLL_INTERVAL_MS } = {}) {
-  const deadline = now() + timeoutMs;
+  const startedAt = now();
+  const deadline = startedAt + timeoutMs;
   const samples = new Map();
   let sawStale = false, sawInaccurate = false, lastError;
   while (now() < deadline) {
@@ -51,6 +55,11 @@ async function refineLocation(readPosition, { timeoutMs = GPS_REFINEMENT_TIMEOUT
     const remaining = deadline - now();
     if (remaining > 0) await pause(Math.min(pollIntervalMs, remaining));
   }
+  // A stationary Android phone often repeats one fix for many seconds, so a
+  // second distinct observation may never arrive. One acceptable fix captured
+  // after this request began cannot be a cached reading, so it is enough.
+  const fresh = [...samples.values()].filter(item => isAcceptableSample(item, now()) && item.timestamp >= startedAt - FRESH_FIX_SKEW_MS);
+  if (fresh.length) return fresh.sort((a, b) => a.accuracy - b.accuracy || b.timestamp - a.timestamp)[0];
   if (sawInaccurate) throw locationError('GPS_INACCURATE', poorAccuracyMessage);
   if (sawStale && samples.size === 0) throw locationError('GPS_STALE', 'Your location is out of date. Tap Refresh Location and try again.');
   if (samples.size < 2 && samples.size > 0) throw locationError('GPS_UNCONFIRMED', 'Your location could not be confirmed. Tap Refresh Location and try again.');

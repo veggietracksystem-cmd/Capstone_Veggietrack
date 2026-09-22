@@ -1,5 +1,5 @@
 import { rf } from '../lib/responsive';
-import { Text, TextInput, TouchableOpacity, ScrollView, View, StyleSheet } from 'react-native';
+import { Image, Text, TextInput, TouchableOpacity, ScrollView, View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, control, fonts, fontSize, radius, spacing } from '../theme/appTheme';
@@ -28,13 +28,15 @@ export const authStyles = StyleSheet.create({
  adminLoginRow:{alignItems:'flex-end',marginBottom:12},adminLoginButton:{flexDirection:'row',alignItems:'center',gap:6,paddingVertical:6,paddingHorizontal:2},
  adminLoginText:{color:colors.leaf700,fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.sm)},
  brandMark:{backgroundColor:colors.leaf700,alignItems:'center',justifyContent:'center',alignSelf:'center',marginBottom:16},
+ // Optional app logo above the title (Login). Medium size, scaled with the screen.
+ logoImage:{width:rf(104),height:rf(104),alignSelf:'center',marginBottom:12},
 });
 // Solid green circle + leaf glyph. Shared brand mark used on Landing (large) and
 // AuthPage (small, opt-in via the `logo` prop) so the two screens feel related.
 export function BrandMark({ size = 56 }) {
  return <View style={[authStyles.brandMark,{width:size,height:size,borderRadius:size/2}]}><Ionicons name="leaf" size={size*0.5} color="#fff"/></View>;
 }
-export function AuthPage({title,children,logo}) { return <SafeAreaView style={authStyles.page}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={authStyles.content}>{logo && <BrandMark/>}<Text style={authStyles.title}>{title}</Text>{children}</ScrollView></SafeAreaView>; }
+export function AuthPage({title,children,logo,logoSource,logoSize,titleStyle}) { return <SafeAreaView style={authStyles.page}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={authStyles.content}>{logo && <BrandMark/>}{logoSource && <Image source={logoSource} style={[authStyles.logoImage,logoSize && {width:logoSize,height:logoSize}]} resizeMode="contain" accessibilityLabel="VeggieTrack"/>}<Text style={[authStyles.title,titleStyle]}>{title}</Text>{children}</ScrollView></SafeAreaView>; }
 const AUTH_BUTTON_VARIANTS = {
  primary:[authStyles.button,authStyles.white],
  outline:[authStyles.buttonOutline,authStyles.textOutline],

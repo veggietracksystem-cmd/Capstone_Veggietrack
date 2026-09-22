@@ -4,7 +4,7 @@ import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Animated,
 } from 'react-native';
-import { colors, control, fonts, radius } from '../theme/appTheme';
+import { colors, control, fonts, fontSize, radius } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { Ionicons } from '@expo/vector-icons';
 import { useBottomSheetMotion } from '../lib/motion';
@@ -154,19 +154,20 @@ const styles = StyleSheet.create({
   closeBtn: { padding: 6, minWidth: control.minTouch, minHeight: control.minTouch, alignItems: 'center', justifyContent: 'center'  },
   closeText: { fontSize: rf(18), color: colors.inkSoft, fontWeight: 'bold' },
   tabBar: { flexDirection: 'row', paddingHorizontal: 16, marginVertical: 10 },
-  tab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.leaf50, marginRight: 8 },
-  tabActive: { backgroundColor: PRIMARY },
-  tabText: { fontFamily: fonts.bodySemiBold, fontSize: rf(13), color: colors.inkSoft },
+  // Matches the shared FilterChips pill style.
+  tab: { height: control.heightSm, justifyContent: 'center', paddingHorizontal: control.paddingH, borderRadius: control.heightSm / 2, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, marginRight: 8 },
+  tabActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
+  tabText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft },
   tabTextActive: { color: '#fff' },
   content: { padding: 16 },
   stepContainer: { gap: 12 },
-  stepCard: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: radius.card, padding: 14, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+  stepCard: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.card, padding: 14, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
   stepNum: { width: 32, height: 32, borderRadius: 16, backgroundColor: PRIMARY, color: '#fff', textAlign: 'center', lineHeight: 32, fontWeight: 'bold', fontSize: rf(16), marginRight: 12 },
   stepInfo: { flex: 1 },
   stepTitle: { fontFamily: fonts.bodyBold, fontSize: rf(14.5), color: colors.ink, marginBottom: 2 },
   stepDesc: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, lineHeight: 18 },
   faqContainer: { gap: 10 },
-  faqCard: { backgroundColor: colors.card, borderRadius: radius.ctrl, padding: 14, borderWidth: 1, borderColor: colors.border },
+  faqCard: { backgroundColor: colors.surface, borderRadius: radius.ctrl, padding: 14, borderWidth: 1, borderColor: colors.border },
   faqHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   faqQuestion: { fontFamily: fonts.bodyBold, fontSize: rf(14), color: PRIMARY, flex: 1, paddingRight: 8 },
   faqToggle: { fontSize: rf(18), fontWeight: 'bold', color: PRIMARY },

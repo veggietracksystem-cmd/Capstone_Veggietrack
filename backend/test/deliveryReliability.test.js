@@ -104,7 +104,8 @@ test('a real pre-flight 404 still stops the attempt, and a retry after a rejecte
   assert.equal(prechecks, 1); assert.equal(uploads, 1); assert.equal(attempts, 2);
 });
 function uploadModule(fetch, env = { CLOUDINARY_CLOUD_NAME: 'test-cloud', CLOUDINARY_UPLOAD_PRESET: 'unsigned-test' }) {
-  return load('lib/cloudinary.js', { 'react-native': { Platform: { OS: 'android' } }, '@env': env }, { fetch,
+  return load('lib/cloudinary.js', { 'react-native': { Platform: { OS: 'android' } }, '@env': env,
+    'expo-file-system': { File: class { constructor(uri) { this.uri = uri; } } } }, { fetch,
     FormData: class { append() {} } });
 }
 test('native URI/MIME preparation, multipart boundary, upload errors/configuration and timeout', async () => {
@@ -135,6 +136,13 @@ test('fresh GPS refinement requires multiple observations, ignores stale and ina
   const best = await refineLocation(async () => readings[reads++], { now: () => now, pause: async ms => { now += ms; } });
   assert.equal(reads, 4); assert.equal(best.accuracy, 9);
   await assert.rejects(refineLocation(async () => readings[3], { now: () => now, timeoutMs: 5, pause: async ms => { now += ms; } }), { code: 'GPS_UNCONFIRMED' });
+});
+test('a stationary phone repeating one fix captured after the request is accepted', async () => {
+  const { refineLocation } = load('lib/locationSamples.js');
+  let now = 200000;
+  const fix = { timestamp: 200500, coords: { latitude: 0, longitude: 0, accuracy: 20 } };
+  const result = await refineLocation(async () => fix, { now: () => now, timeoutMs: 3000, pause: async ms => { now += ms; } });
+  assert.equal(result.timestamp, 200500); assert.equal(result.accuracy, 20);
 });
 test('current-leg ETA never uses static duration; routing failure leaves fresh GPS usable', () => {
   const { activeJourney, liveEtaSeconds, isLivePosition } = load('lib/trackingJourney.js');

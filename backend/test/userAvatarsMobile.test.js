@@ -71,15 +71,15 @@ test('profile upload stages hosted URL only after success; duplicate taps, failu
 });
 
 test('avatar renders initials without a URL, falls back on image failure and accepts a replacement', () => {
-  const avatar=component('UserAvatar.js');
+  const avatar=component('UserAvatar.js', { './RemoteImage': 'RemoteImage' });
   assert.equal(find(avatar.render({user:{full_name:'Farmer'}}),'Text').props.children,'F');
   let tree=avatar.render({user:{full_name:'Farmer',avatar_url:'photo1'}});
-  assert.equal(find(tree,'Image').props.source.uri,'photo1');
-  find(tree,'Image').props.onError();
+  assert.equal(find(tree,'RemoteImage').props.uri,'photo1');
+  find(tree,'RemoteImage').props.onError();
   tree=avatar.render({user:{full_name:'Farmer',avatar_url:'photo1'}});
   assert.equal(find(tree,'Text').props.children,'F');
   tree=avatar.render({user:{full_name:'Farmer',avatar_url:'photo2'}});
-  assert.equal(find(tree,'Image').props.source.uri,'photo2');
+  assert.equal(find(tree,'RemoteImage').props.uri,'photo2');
 });
 
 test('Edit Profile blocks Save during upload/failure, persists staged URL and refreshes shared profile', async () => {

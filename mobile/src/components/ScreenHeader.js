@@ -1,29 +1,21 @@
-import { useState } from 'react';
 import { rf } from '../lib/responsive';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, control, fonts, fontSize } from '../theme/appTheme';
+import { colors, control, fonts, fontSize, spacing } from '../theme/appTheme';
 
 // One header for every screen in the app - pushed screens and dashboards
 // alike - so height/background/title size/padding/border are identical
 // everywhere instead of each screen hand-rolling its own row.
 //
-// The title is always centred on screen. The two side slots keep the same
-// width as each other: the wider side is measured, and the other side is
-// padded to match, so a header with a back button on the left and three
-// icons on the right still shows its title in the middle of the screen
-// rather than pushed off to one side.
+// The title is left-aligned: it sits right after the back arrow (or at the
+// screen's 16px gutter when there is none) and takes all the space the
+// right-hand actions don't need, so long titles get the most room possible.
 //
 // Rendered as the first child inside a screen's existing SafeAreaView (every
 // screen already has one), which is what supplies the top notch/status-bar
 // inset - set `topInset` only for the rare screen that renders its header
 // outside any SafeAreaView.
 export default function ScreenHeader({ title, onBack, left, right, topInset = false }) {
-  const [sideWidth, setSideWidth] = useState(control.minTouch);
-  const measure = (event) => {
-    const width = Math.ceil(event.nativeEvent.layout.width);
-    setSideWidth((current) => (width > current ? width : current));
-  };
   const leftContent = onBack ? (
     <TouchableOpacity
       onPress={onBack}
@@ -33,15 +25,23 @@ export default function ScreenHeader({ title, onBack, left, right, topInset = fa
       accessibilityRole="button"
       accessibilityLabel="Go back"
     >
-      <Ionicons name="arrow-back" size={rf(20)} color={colors.ink} />
+      <Ionicons name="arrow-back" size={rf(22)} color={colors.ink} />
     </TouchableOpacity>
   ) : (left || null);
 
   return (
-    <View style={[styles.container, topInset && styles.topInset]}>
-      <View style={[styles.side, { minWidth: sideWidth }]} onLayout={measure}>{leftContent}</View>
-      <Text style={styles.title} numberOfLines={1}>{title}</Text>
-      <View style={[styles.side, styles.sideRight, { minWidth: sideWidth }]} onLayout={measure}>{right || null}</View>
+    <View style={[styles.container, leftContent ? styles.withLeft : null, topInset && styles.topInset]}>
+      {leftContent ? <View style={styles.left}>{leftContent}</View> : null}
+      <Text
+        style={styles.title}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+        accessibilityRole="header"
+      >
+        {title}
+      </Text>
+      {right ? <View style={styles.right}>{right}</View> : null}
     </View>
   );
 }
@@ -56,21 +56,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgScreen,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    paddingHorizontal: 8,
+    paddingLeft: spacing.lg,
+    // Right-hand icon buttons carry ~6px of inner padding, so this puts the
+    // icons themselves on the same 16px gutter as the content.
+    paddingRight: 10,
+  },
+  // The back button's 44px hit area is centred on its icon, so pull the row
+  // in a little to keep the arrow itself on the 16px content gutter.
+  withLeft: {
+    paddingLeft: spacing.xs,
   },
   topInset: {
     paddingTop: 4,
   },
-  // Both slots size to their own content and are then padded out to the
-  // wider of the two, so the flexed title lands dead centre.
-  side: {
+  left: {
     flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    marginRight: spacing.xs,
   },
-  sideRight: {
+  right: {
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'flex-end',
+    marginLeft: spacing.sm,
   },
   backHit: {
     width: control.minTouch,
@@ -80,10 +90,10 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    textAlign: 'center',
+    minWidth: 0,
+    textAlign: 'left',
     fontFamily: fonts.heading,
     fontSize: rf(fontSize.title),
     color: colors.ink,
-    marginHorizontal: 8,
   },
 });

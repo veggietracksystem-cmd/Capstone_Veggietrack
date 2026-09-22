@@ -19,6 +19,16 @@ export async function captureProofPhoto(t, picker, platform, onSelected) {
   catch (error) { error.selectedPhoto = asset; throw error; }
 }
 
+// Android can destroy the app while the camera is open (common on low-memory
+// phones and in development builds); the photo is then delivered after the app
+// restarts instead of to the launchCameraAsync promise, which no longer exists.
+export async function recoverPendingProofPhoto(picker, platform) {
+  if (platform !== 'android' || typeof picker.getPendingResultAsync !== 'function') return null;
+  const result = await picker.getPendingResultAsync();
+  if (!result || result.canceled) return null;
+  return result.assets?.[0]?.uri ? result.assets[0] : null;
+}
+
 export async function currentProofLocation(t) {
   try {
     const position = await acquireDevicePosition({ timeoutMs: 10000 });
@@ -26,7 +36,7 @@ export async function currentProofLocation(t) {
       captured_at: new Date(position.timestamp).toISOString() };
   } catch (error) {
     if (error.code === 'GPS_INACCURATE') throw Object.assign(new Error('Your current GPS signal is too inaccurate to verify your location. Refresh your location and try again.'), { code: error.code });
-    const key = { LOCATION_PERMISSION_DENIED: 'permission', LOCATION_SERVICES_DISABLED: 'services', GPS_STALE: 'stale', GPS_UNCONFIRMED: 'stale', GPS_TIMEOUT: 'timeout', LOCATION_UNAVAILABLE: 'unavailable' }[error.code];
+    const key = { LOCATION_PERMISSION_DENIED: 'permission', LOCATION_SERVICES_DISABLED: 'services', GPS_STALE: 'stale', GPS_UNCONFIRMED: 'timeout', GPS_TIMEOUT: 'timeout', LOCATION_UNAVAILABLE: 'unavailable' }[error.code];
     if (key) throw Object.assign(new Error(t(`pod.${key}`)), { code: error.code });
     throw error;
   }

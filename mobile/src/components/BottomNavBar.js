@@ -13,6 +13,18 @@ import { colors, fonts } from '../theme/appTheme';
 const BASE_PADDING_BOTTOM = 10;
 const BASE_HEIGHT = 74;
 
+// The bar floats over the screen, and its real height depends on the phone's
+// bottom inset. Screens use these so their last card/button is never hidden
+// behind it (a fixed paddingBottom of ~90 was too short on phones with a
+// home indicator).
+export function useBottomNavHeight() {
+  return BASE_HEIGHT + useSafeAreaInsets().bottom;
+}
+// Scroll padding for content that sits above the bar, with a 16px gap.
+export function useBottomNavSpace() {
+  return useBottomNavHeight() + 16;
+}
+
 // Small count badge shown on a tab's icon (e.g. cart item count). Bumps with
 // a quick pop animation whenever the count goes up, so adding an item feels
 // immediately reflected here.

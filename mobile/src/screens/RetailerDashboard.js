@@ -7,18 +7,16 @@ import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import { SharedScreenTransition } from '../lib/motion';
 import {
-  Text, View, ScrollView, TextInput, TouchableOpacity, Image,
-  ActivityIndicator, StyleSheet, Platform, RefreshControl,
+  Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
 import LogoutButton from '../components/LogoutButton';
-import NotificationBell from '../components/NotificationBell';
 import ScreenHeader from '../components/ScreenHeader';
-import MessagesIcon from '../components/MessagesIcon';
-import BottomNavBar from '../components/BottomNavBar';
+import HomeHeaderActions from '../components/HomeHeaderActions';
+import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import OfflineBanner from '../components/OfflineBanner';
 import ImageViewerModal from '../components/ImageViewerModal';
 import CustomModal from '../components/CustomModal';
@@ -35,6 +33,7 @@ import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/a
 import { useTranslation } from '../i18n/useTranslation';
 import { useAutoSync } from '../sync/SyncProvider';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import RemoteImage from '../components/RemoteImage';
 
 const PRIMARY = colors.leaf700;
 
@@ -75,6 +74,7 @@ export function isOldCompleted(order) {
 }
 
 export default function RetailerDashboard({ navigation, route }) {
+  const navSpace = useBottomNavSpace();
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
   const [cancelling, setCancelling] = useState(false);
@@ -82,10 +82,11 @@ export default function RetailerDashboard({ navigation, route }) {
   const { t, language } = useTranslation();
 
   const [tab, setTab] = useState('shop'); // 'shop' (Home/browse) | 'cart' | 'orders'
-  const [activeBottomTab, setActiveBottomTab] = useState('home');
+  // Derived from the content on screen so the highlight can't be left on
+  // Profile after navigating back to the dashboard.
+  const activeBottomTab = BOTTOM_TAB_FOR[tab] || 'home';
 
   const handleBottomTabPress = (tab) => {
-    setActiveBottomTab(tab.id);
     if (tab.id === 'profile') {
       navigation.navigate('Profile');
     } else if (tab.id === 'cart') {
@@ -100,9 +101,9 @@ export default function RetailerDashboard({ navigation, route }) {
   useEffect(() => {
     if (route.params?.tab) {
       setTab(route.params.tab);
-      setActiveBottomTab(BOTTOM_TAB_FOR[route.params.tab] || 'home');
     }
-  }, [route.params?.tab]);
+    // Params object is new on every navigate, so a repeated tab still applies.
+  }, [route.params]);
 
   // Checkout now happens on a separate OrderConfirmation screen. When it
   // finishes placing an order, it navigates back here with `orderPlaced: true`
@@ -112,7 +113,7 @@ export default function RetailerDashboard({ navigation, route }) {
       setCart([]);
       setAddress(user?.store_location || '');
       Promise.all([loadOrders(), loadProducts()]);
-      navigation.setParams({ orderPlaced: false });
+      navigation.setParams({ orderPlaced: false, tab: undefined });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.params?.orderPlaced]);
@@ -348,12 +349,13 @@ export default function RetailerDashboard({ navigation, route }) {
       {/* Same centred header every screen in the app uses. */}
       <ScreenHeader
         title={t('dashboards.retailer.storeTitle')}
-        right={<><MessagesIcon /><NotificationBell /></>}
+        // Messages and notifications only appear on Home (the shop tab).
+        right={tab === 'shop' ? <HomeHeaderActions /> : null}
       />
 
       <SharedScreenTransition style={{ flex: 1 }} visible>
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: 90 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: navSpace }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
           {/* Only flag offline when the device is actually disconnected AND we're
@@ -415,7 +417,7 @@ export default function RetailerDashboard({ navigation, route }) {
       <CustomModal visible={!!selectedProduct} title={selectedProduct ? localizeVegetableName(selectedProduct.vegetable_name, language) : ''}
         cancelLabel={t('common.close')} onCancel={() => setSelectedProduct(null)}
         confirmLabel={t('dashboards.retailer.addToCart')} onConfirm={() => { addToCart(selectedProduct); setSelectedProduct(null); }}>
-        {selectedProduct?.batch_photo_url ? <Image source={{ uri: selectedProduct.batch_photo_url }} style={styles.productModalPhoto} resizeMode="cover" /> : <View style={[styles.productModalFallback, { backgroundColor: getVegetableTile(selectedProduct?.vegetable_name).bg }]}><Text style={styles.productModalIcon}>{getVegetableTile(selectedProduct?.vegetable_name).icon}</Text></View>}
+        {selectedProduct?.batch_photo_url ? <RemoteImage uri={selectedProduct.batch_photo_url} style={styles.productModalPhoto} resizeMode="cover" /> : <View style={[styles.productModalFallback, { backgroundColor: getVegetableTile(selectedProduct?.vegetable_name).bg }]}><Text style={styles.productModalIcon}>{getVegetableTile(selectedProduct?.vegetable_name).icon}</Text></View>}
         <Text style={styles.productModalPrice}>{peso(selectedProduct?.price_per_kg)} / kg</Text>
         <Text style={styles.productModalMeta}>{t('dashboards.retailer.kgAvailable', { qty: selectedProduct?.available_kg || 0 })}</Text>
         <Text style={styles.productModalHint}>Tap Add to Cart to include this product in your order.</Text>
@@ -671,7 +673,7 @@ function OrdersTab({ loading, cancelling, orders, onViewProof, onTrack, onCancel
               onPress={() => onViewProof(getDelivery(o))}
               activeOpacity={0.8}
             >
-              <Image source={{ uri: getProofUrl(o) }} style={styles.proofThumb} />
+              <RemoteImage uri={getProofUrl(o)} style={styles.proofThumb} />
               <Text style={styles.proofText}>{t('dashboards.retailer.proofOfDelivery')}</Text>
             </TouchableOpacity>
           )}
@@ -745,7 +747,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, paddingVertical: Platform.OS === 'ios' ? 12 : 8, fontFamily: fonts.body, fontSize: rf(fontSize.lg), color: colors.ink },
   searchClear: { fontSize: rf(fontSize.lg), color: colors.inkFaint, paddingLeft: 8 },
 
-  rowCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, gap: 12, ...shadowCard },
+  rowCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, gap: 12, ...shadowCard },
   rowTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   rowTileIcon: { width: 30, height: 30 },
   rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
@@ -755,7 +757,7 @@ const styles = StyleSheet.create({
   // full-width photo tile, left-aligned name/stock, price+quick-add bottom row.
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   kpiCard: {
-    width: '47%', backgroundColor: colors.card, borderRadius: radius.card, padding: 10,
+    width: '47%', backgroundColor: colors.surface, borderRadius: radius.card, padding: 10,
     borderWidth: 1, borderColor: colors.border, ...shadowCard,
   },
   kpiIconWrap: { width: '100%', height: 72, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
@@ -777,7 +779,7 @@ const styles = StyleSheet.create({
   smallBtnFilled: { backgroundColor: PRIMARY, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.ctrl },
   smallBtnFilledText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm) },
 
-  cartCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: colors.border, gap: 12, ...shadowCard },
+  cartCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: colors.border, gap: 12, ...shadowCard },
   qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   qtyBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1.4, borderColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
   qtyBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.xl), textAlign: 'center' },
@@ -787,7 +789,7 @@ const styles = StyleSheet.create({
 
   summaryRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, marginTop: 8,
-    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, ...shadowCard,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, ...shadowCard,
   },
   summaryLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
   summaryTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: PRIMARY },
@@ -800,7 +802,7 @@ const styles = StyleSheet.create({
   buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
   buttonDisabled: { opacity: 0.6 },
 
-  orderCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
+  orderCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   orderTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: PRIMARY, marginBottom: 4 },

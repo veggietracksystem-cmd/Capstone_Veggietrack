@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
@@ -10,6 +10,7 @@ import usePickupTracking from '../hooks/usePickupTracking';
 import ScreenHeader from '../components/ScreenHeader';
 import StatusBadge from '../components/ui/StatusBadge';
 import { Ionicons } from '@expo/vector-icons';
+import RemoteImage from '../components/RemoteImage';
 
 const STATUS = {
   requested: ['Pending', 'Your request is waiting for distributor action.'],
@@ -22,6 +23,7 @@ const STATUS = {
 // arrived — before that there is nothing to track, and after pickup the
 // journey is over (the Proof of pickup card below takes over).
 const TRACKABLE_STATUSES = ['assigned', 'otw'];
+const FINAL_STATUSES = ['picked_up', 'completed'];
 const date = value => value ? new Date(value).toLocaleString() : '—';
 
 export default function FarmerPickupTrackingScreen({ navigation, route }) {
@@ -43,7 +45,10 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
   useEffect(() => { refresh(); }, [refresh]);
   const trackable = TRACKABLE_STATUSES.includes(pickup?.status);
   const { data: trackingData, error: trackingError } = usePickupTracking(trackable ? id : null);
-  const [label, detail] = STATUS[pickup?.status] || [String(pickup?.status || 'Pending').replace(/_/g, ' '), 'Pickup status updated.'];
+  // The backend has no separate 'completed' pickup state: 'picked_up' (set when
+  // the rider submits proof) is final, so show it as the completed transaction.
+  const displayStatus = FINAL_STATUSES.includes(pickup?.status) ? 'completed' : pickup?.status;
+  const [label, detail] = STATUS[displayStatus] || [String(displayStatus || 'Pending').replace(/_/g, ' '), 'Pickup status updated.'];
   return <SafeAreaView style={s.container}>
     <ScreenHeader title="Pickup Tracking" onBack={() => navigation.goBack()} />
     <ScrollView contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false); }} />}>
@@ -56,7 +61,7 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
               <Text style={s.idLabel}>{pickup?.id ? `#${String(pickup.id).slice(0, 8)}` : ''}</Text>
               <Text style={s.status}>{label}</Text>
             </View>
-            <StatusBadge status={pickup?.status} label={label} />
+            <StatusBadge status={displayStatus} label={label} />
           </View>
           <Text style={s.muted}>{detail}</Text>
           <Text style={s.muted}>Requested {date(pickup?.requested_at)}</Text>
@@ -87,7 +92,7 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
           {!!pickup?.rider?.phone && <Row label="Contact" value={pickup.rider.phone} />}
           <Text style={s.muted}>ETA will appear when live rider-route data is available.</Text>
         </Card>
-        {(pickup?.proof_photo_url || pickup?.pod) && <Card title="Proof of pickup">{pickup?.proof_photo_url && <Image source={{ uri: pickup.proof_photo_url }} style={s.photo} />}<Text style={s.muted}>{pickup?.pod?.submitted_at ? `Recorded ${date(pickup.pod.submitted_at)}` : 'Pickup proof recorded'}</Text>{pickup?.pod?.latitude != null && <Text style={s.muted}>Location: {Number(pickup.pod.latitude).toFixed(5)}, {Number(pickup.pod.longitude).toFixed(5)}</Text>}</Card>}
+        {(pickup?.proof_photo_url || pickup?.pod) && <Card title="Proof of pickup">{pickup?.proof_photo_url && <RemoteImage uri={pickup.proof_photo_url} style={s.photo} />}<Text style={s.muted}>{pickup?.pod?.submitted_at ? `Recorded ${date(pickup.pod.submitted_at)}` : 'Pickup proof recorded'}</Text>{pickup?.pod?.latitude != null && <Text style={s.muted}>Location: {Number(pickup.pod.latitude).toFixed(5)}, {Number(pickup.pod.longitude).toFixed(5)}</Text>}</Card>}
       </>}
     </ScrollView>
   </SafeAreaView>;
@@ -100,7 +105,7 @@ function Row({ label, value }) { return <View style={s.row}><Text style={s.muted
 // does not add, remove, or reorder any pickup state.
 const STATUS_ORDER = ['requested', 'assigned', 'otw', 'picked_up', 'completed'];
 function Timeline({ status, pickup }) {
-  const currentIndex = Math.max(0, STATUS_ORDER.indexOf(status || 'requested'));
+  const currentIndex = FINAL_STATUSES.includes(status) ? STATUS_ORDER.length : Math.max(0, STATUS_ORDER.indexOf(status || 'requested'));
   return (
     <View>
       {STATUS_ORDER.map((key, i) => {
@@ -108,6 +113,7 @@ function Timeline({ status, pickup }) {
         const sub = key === 'requested' ? date(pickup?.requested_at)
           : key === 'assigned' ? (pickup?.rider?.full_name ? `Assigned to ${pickup.rider.full_name}` : '')
           : key === 'picked_up' ? (pickup?.received_at ? date(pickup.received_at) : '')
+          : key === 'completed' && FINAL_STATUSES.includes(status) ? (pickup?.received_at ? date(pickup.received_at) : 'Proof of pickup recorded')
           : '';
         return (
           <View key={key} style={s.tlStep}>
@@ -128,7 +134,7 @@ function Timeline({ status, pickup }) {
   );
 }
 
-const s = StyleSheet.create({ container:{flex:1,backgroundColor:colors.bgScreen},content:{padding:16,gap:12,paddingBottom:32},card:{backgroundColor:colors.card,borderRadius:radius.card,padding:16,gap:9,borderWidth:1,borderColor:colors.border,...shadowCard},cardTitle:{fontFamily:fonts.heading,fontSize:rf(fontSize.lg),color:colors.ink},status:{fontFamily:fonts.heading,fontSize:rf(fontSize.title),color:colors.leaf700},row:{flexDirection:'row',justifyContent:'space-between',gap:12},muted:{fontFamily:fonts.body,fontSize:rf(fontSize.sm),color:colors.inkSoft,flexShrink:1},value:{fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.sm),color:colors.ink,flexShrink:1,textAlign:'right'},error:{fontFamily:fonts.body,color:colors.danger},photo:{width:'100%',height:210,borderRadius:radius.ctrl,resizeMode:'cover'},map:{height:380,flex:0,marginTop:4},
+const s = StyleSheet.create({ container:{flex:1,backgroundColor:colors.bgScreen},content:{padding:16,gap:12,paddingBottom:32},card:{backgroundColor:colors.surface,borderRadius:radius.card,padding:16,gap:9,borderWidth:1,borderColor:colors.border,...shadowCard},cardTitle:{fontFamily:fonts.heading,fontSize:rf(fontSize.lg),color:colors.ink},status:{fontFamily:fonts.heading,fontSize:rf(fontSize.title),color:colors.leaf700},row:{flexDirection:'row',justifyContent:'space-between',gap:12},muted:{fontFamily:fonts.body,fontSize:rf(fontSize.sm),color:colors.inkSoft,flexShrink:1},value:{fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.sm),color:colors.ink,flexShrink:1,textAlign:'right'},error:{fontFamily:fonts.body,color:colors.danger},photo:{width:'100%',height:210,borderRadius:radius.ctrl,resizeMode:'cover'},map:{height:380,flex:0,marginTop:4},
   headerRow:{flexDirection:'row',alignItems:'flex-start',justifyContent:'space-between',gap:10},
   idLabel:{fontFamily:fonts.bodySemiBold,fontSize:rf(fontSize.xs),color:colors.inkFaint,textTransform:'uppercase',letterSpacing:0.3},
   banner:{flexDirection:'row',alignItems:'center',gap:12,backgroundColor:colors.leaf50,borderWidth:1,borderColor:colors.border,borderRadius:radius.card,padding:14},

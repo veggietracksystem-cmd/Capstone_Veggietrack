@@ -5,10 +5,9 @@ import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Text, View, ScrollView, TextInput, TouchableOpacity, Image,
-  ActivityIndicator, StyleSheet, RefreshControl, Platform,
+  Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet, RefreshControl, Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
 import ScreenHeader from '../components/ScreenHeader';
@@ -20,10 +19,13 @@ import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import RemoteImage from '../components/RemoteImage';
 
 const PRIMARY = colors.leaf700;
 
 export default function HarvestListScreen({ navigation }) {
+  // Screen skips the bottom safe-area edge, so pad the scroll content instead.
+  const insets = useSafeAreaInsets();
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
   const { t } = useTranslation();
@@ -114,7 +116,7 @@ export default function HarvestListScreen({ navigation }) {
       <ScreenHeader title={t('harvestList.title')} onBack={() => navigation.goBack()} />
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Search Input Bar (Marketplace Style) */}
@@ -154,7 +156,7 @@ export default function HarvestListScreen({ navigation }) {
                 <View key={String(h.id)} style={styles.productCard}>
                   {/* Photo (if uploaded) or soft icon tile */}
                   {h.image_url ? (
-                    <Image source={{ uri: h.image_url }} style={styles.tileContainer} resizeMode="cover" />
+                    <RemoteImage uri={h.image_url} style={styles.tileContainer} resizeMode="cover" />
                   ) : (
                     <View style={[styles.tileContainer, { backgroundColor: tile.bg }]}>
                       <VegetableImage source={tile.source} style={styles.tileIcon} fallbackSize={rf(32)} />
@@ -262,7 +264,7 @@ const styles = StyleSheet.create({
   },
   productCard: {
     width: '48%',
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderRadius: radius.card,
     padding: 12,
     borderWidth: 1,

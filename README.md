@@ -1,4 +1,4 @@
-Last reviewed: 2026-09-20
+Last reviewed: 2026-09-22
 
 # VeggieTrack
 
@@ -18,7 +18,7 @@ The hosted database is migrated for every table and RPC the API calls, and the h
 | `backend/sql/` | Inspections, guarded migrations and historical schema scripts |
 | `backend/scripts/` | Read-only hosted inspections and one-off maintenance utilities |
 | `backend/test/` | Node regression tests, mobile handler tests and local PGlite integration tests |
-| `docs/` | Low-fidelity screen wireframes and their screen-by-screen descriptions; the module and data-flow diagrams are generated locally and not committed |
+| `docs/` | Low-fidelity screen wireframes, their screen-by-screen descriptions and the low-fidelity farmer module flow (`veggietrack-farmer-module-flow-low-fidelity.svg`); the other module and data-flow diagrams are generated locally and not committed |
 | `design-prototype/` | Standalone click-through visual prototype using fictional sample data |
 | `VeggieTrack-Clean/` | Separate Expo starter; not the business application |
 
@@ -28,7 +28,7 @@ The hosted database is migrated for every table and RPC the API calls, and the h
 - **Distributor:** assign pickup requests to riders, receive traceable inventory batches under FIFO stock rules, attach batch photos, list vegetables and set prices, approve or reject orders, assign riders to deliveries, record payments, review the inventory and weekly reports with history and PDF export, and move accounts between `unverified`, `pending_approval`, `active`, `declined` and `disabled` through a version-checked RPC that records an audit trail.
   - Payment Recording: Payment is recorded as an internal status by the distributor; no external payment processor is integrated.
 - **Retailer:** browse listed stock, build a cart, order at least 5 kg in total, save delivery pins (map pinning plus optional place search), choose a future delivery schedule, confirm the order, track delivery on a map, and review order details and history. A retailer or the distributor can cancel an order while it is still `pending` — the distributor must give a reason — and the reserved stock is restored to its batches under an atomic guard so a duplicate cancel cannot restore it twice. Separately, a pending, approved or assigned order whose preferred schedule has already passed is cancelled automatically on the next order read or write.
-- **Rider:** two legs. Farm pickups — accept an assigned pickup request, optionally mark on-the-way, then complete it with a mandatory photo and fresh GPS proof. Retailer deliveries — travel to the warehouse, mark picked up/in transit, navigate to the order destination and submit proof, or reject the assignment with a required reason that hands it back to the distributor.
+- **Rider:** two legs. Farm pickups — accept an assigned pickup request, optionally mark on-the-way, then complete it with a mandatory photo and fresh GPS proof. If Android restarts the app while the camera is open, the dashboard reopens the proof screen for the same pickup with the photo already taken. Retailer deliveries — travel to the warehouse, mark picked up/in transit, navigate to the order destination and submit proof, or reject the assignment with a required reason that hands it back to the distributor. The History tab merges completed deliveries and pickups into one list, most recent first; pickups open a details sheet with farmer, vegetable, quantity, farm address and last update.
 - **Shared:** profile photos, messages, notifications, saved delivery addresses, account approval, email/password authentication, email confirmation, email sign-in codes, password-reset links, English/Tagalog switching, an in-app user guide and a Contact Us screen.
 
 Account maintenance: **Change password** on Edit Profile sends the same emailed reset link as "Forgot password". There is no in-app password-change endpoint — `PUT /api/users/:id/password` deliberately answers `410`. Accounts are never deleted; `DELETE /api/users/:id` answers `409` and directs the user to ask the distributor to disable the account so transaction history is preserved.
@@ -51,7 +51,7 @@ The latest updates cover harvests, pickups, inventory, checkout, orders, address
 
 Messages and notifications are polled, not realtime: the notification bell every 30 seconds, the message contact list every 5 seconds, and an open thread every 3 seconds. No Supabase Realtime subscription or push notification is wired up.
 
-The current mobile redesign is applied through shared theme tokens and reusable UI components, including the cream surfaces, leaf-green actions, semantic status colors, rounded controls and elevated bottom navigation used across all roles. The implementation review is recorded in [DESIGN_INTEGRATION_REVIEW.md](DESIGN_INTEGRATION_REVIEW.md). The standalone [design prototype](design-prototype/README.md) is for visual review only; it is not connected to the API, Supabase or the production app, and its proposed states are not production functionality.
+The current mobile redesign is applied through shared theme tokens and reusable UI components, including the white screen background with light off-white (`surface`) cards and grouped sections, leaf-green actions, semantic status colors, rounded controls and elevated bottom navigation used across all roles. `ScreenHeader` left-aligns titles after the back arrow on a 16 px gutter, and each role's Home header carries Messages and Notifications through the shared `HomeHeaderActions`. Screens pad scrolling content with `useBottomNavSpace()` so the floating bottom bar never covers the last card on phones with a home indicator. Background refreshes on the rider dashboard update lists in place instead of flashing a spinner. The implementation review is recorded in [DESIGN_INTEGRATION_REVIEW.md](DESIGN_INTEGRATION_REVIEW.md). The standalone [design prototype](design-prototype/README.md) is for visual review only; it is not connected to the API, Supabase or the production app, and its proposed states are not production functionality.
 
 ## Delivery, GPS and proof
 
@@ -69,6 +69,10 @@ The flow is: open delivery -> refine GPS -> capture/select proof -> submit -> ve
 Farm pickups use the same capture pipeline and the same mandatory photo, accuracy and timestamp rules, completed through `complete_pickup_with_proof`, which additionally checks proximity to the farmer's saved location when one exists.
 
 The pre-flight step exists because an image uploaded for a completion the server then rejects is orphaned in Cloudinary with nothing referencing it. `POST /api/deliveries/:id/complete/check` and `POST /api/pickup-requests/:id/pickup/check` run the assignment, status, destination and GPS checks the real completion runs — everything except the photo — and write nothing. The pickup check also mirrors the 150 m proximity rule that `complete_pickup_with_proof` enforces, so a rider standing too far from the farm is told to move closer before spending an upload. Those endpoints are advisory: both completion routes re-run the same guards (`backend/lib/proofGuards.js`), and the SQL functions remain the authority. The phone skips the pre-flight on a retry whose photo is already hosted, and a backend that does not serve these routes yet never blocks a completion it would have accepted.
+
+On Android, the refinement takes its first fix from `getCurrentPositionAsync` and later fixes from a position watch, so two distinct fixes arrive within the deadline; a stationary phone repeating one fix captured after the request started is accepted.
+
+Native photo uploads send an `expo-file-system` `File` as the multipart part, because Expo's `fetch` rejects React Native's `{ uri, type, name }` form parts. Remote photos are shown through `RemoteImage`, which downloads each https image into the app cache and displays the local copy, since React Native's `<Image>` can hang on remote photos in the Android builds; web and local URIs pass straight through.
 
 Cloudinary uploads and API fetches have 30-second timeouts. Upload configuration, file preparation, upload rejection, real offline, unreachable API, expired session, backend rejection and server failure have distinct handling. Only NetInfo reporting offline produces the offline message. Authentication tokens come from the current Supabase session, never a bundled service credential.
 
@@ -115,6 +119,8 @@ Get-ChildItem backend/lib -Filter *.js | ForEach-Object { node --check $_.FullNa
 cd mobile
 npx.cmd --no-install expo export --platform web --output-dir .expo/delivery-verification/web
 ```
+
+Temporary `[rider-debug]` console diagnostics are currently in `DeliveryDashboard.js`, `deviceLocation.js` and `cloudinary.js` while a pickup-proof issue on Android is investigated; they break the two rider pickup tests in `ajaxMobile.test.js` (`dbg`/`useRef` are undefined in the test harness) and must be removed before release.
 
 The test suite includes Auth/security, avatars, checkout, cross-role inventory handoff, POD/upload retry, GPS/radius, ETA and local PostgreSQL/PGlite migration checks. PGlite tests run serially to remain within Node's memory limit. Main mobile has no configured lint/typecheck script. A successful web export does not validate a native release or real GPS/camera/provider setup. See [delivery verification report](DELIVERY_RELIABILITY_REPORT.md) for results, remaining deployment work and a rider-phone test script.
 

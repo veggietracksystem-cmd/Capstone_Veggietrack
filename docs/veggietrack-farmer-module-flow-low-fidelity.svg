@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" role="img" aria-labelledby="title desc">
+  <title id="title">VeggieTrack farmer module user flow</title>
+  <desc id="desc">A low-fidelity monochrome flowchart of farmer dashboard access, harvest management, pickup management, communications, notifications, and profile actions.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9z" fill="#111"/></marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill:#111; text-anchor:middle; }
+      .title { font-size:27px; font-weight:700; }
+      .section { font-size:17px; font-weight:700; }
+      .label { font-size:14px; font-weight:600; }
+      .small { font-size:12px; }
+      .box { fill:#fff; stroke:#111; stroke-width:2; }
+      .soft { fill:#fff; stroke:#111; stroke-width:1.5; stroke-dasharray:5 4; }
+      .line { fill:none; stroke:#111; stroke-width:1.6; marker-end:url(#arrow); }
+      .branch { fill:none; stroke:#111; stroke-width:1.4; marker-end:url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1050" fill="#fff"/>
+  <text class="title" x="800" y="39">VeggieTrack — Farmer Module User Flow</text>
+  <text class="small" x="800" y="61">Low-fidelity · farmer-facing user journey</text>
+
+  <!-- Section headers -->
+  <g>
+    <rect class="box" x="25" y="80" width="280" height="42"/><text class="section" x="165" y="107">1. Access &amp; Dashboard</text>
+    <rect class="box" x="325" y="80" width="290" height="42"/><text class="section" x="470" y="107">2. Harvest Management</text>
+    <rect class="box" x="635" y="80" width="290" height="42"/><text class="section" x="780" y="107">3. Pickup Management</text>
+    <rect class="box" x="945" y="80" width="305" height="42"/><text class="section" x="1097" y="107">4. Messages &amp; Alerts</text>
+    <rect class="box" x="1270" y="80" width="305" height="42"/><text class="section" x="1422" y="107">5. Profile &amp; Account</text>
+  </g>
+
+  <!-- Access -->
+  <g>
+    <rect class="box" x="95" y="145" rx="24" width="140" height="40"/><text class="label" x="165" y="171">START</text>
+    <path class="line" d="M165 185V214"/>
+    <rect class="box" x="65" y="220" width="200" height="48"/><text class="label" x="165" y="241">Active farmer account</text><text class="small" x="165" y="258">Sign in / session restored</text>
+    <path class="line" d="M165 268V300"/>
+    <rect class="box" x="65" y="306" width="200" height="54"/><text class="label" x="165" y="330">Farmer dashboard</text><text class="small" x="165" y="348">Home tab opens</text>
+    <path class="line" d="M165 360V392"/>
+    <rect class="soft" x="48" y="398" width="234" height="110"/><text class="label" x="165" y="424">Home overview</text><text class="small" x="165" y="445">Greeting · harvest summary</text><text class="small" x="165" y="462">Active pickup · recent activity</text><text class="small" x="165" y="479">Quick action: Add Harvest</text><text class="small" x="165" y="496">Header: notifications / refresh</text>
+    <path class="line" d="M165 508V539"/>
+    <rect class="box" x="48" y="545" width="234" height="70"/><text class="label" x="165" y="570">Bottom navigation</text><text class="small" x="165" y="590">Home · Harvest · Pickup</text><text class="small" x="165" y="606">Messages · Profile</text>
+    <path class="branch" d="M48 580H22V680H78"/>
+    <rect class="soft" x="45" y="686" width="240" height="90"/><text class="label" x="165" y="712">Offline state</text><text class="small" x="165" y="733">Cache current data</text><text class="small" x="165" y="750">Queue updates to sync later</text>
+    <path class="branch" d="M165 776V807"/>
+    <rect class="box" x="66" y="813" width="198" height="66"/><text class="label" x="165" y="840">Reports</text><text class="small" x="165" y="859">Weekly report / harvest history</text>
+  </g>
+
+  <!-- Harvest -->
+  <g>
+    <text class="small" x="470" y="151">From Home quick action or Harvest tab</text>
+    <path class="line" d="M470 160V190"/>
+    <rect class="box" x="370" y="196" width="200" height="48"/><text class="label" x="470" y="225">Add Harvest</text>
+    <path class="line" d="M470 244V272"/>
+    <path class="box" d="M385 278h170l-15 58H400z"/><text class="small" x="470" y="303">Vegetable · quantity (kg)</text><text class="small" x="470" y="320">Harvest date · notes</text>
+    <path class="line" d="M470 336V365"/>
+    <rect class="box" x="390" y="371" width="160" height="45"/><text class="label" x="470" y="399">Save Harvest</text>
+    <path class="line" d="M470 416V445"/>
+    <path class="box" d="M470 446l69 42-69 42-69-42z"/><text class="small" x="470" y="484">Valid input?</text>
+    <path class="branch" d="M539 488H585V465H602"/><text class="small" x="571" y="479">No</text>
+    <rect class="soft" x="605" y="442" width="100" height="46"/><text class="small" x="655" y="462">Show validation</text><text class="small" x="655" y="478">error</text>
+    <path class="branch" d="M655 488V550H555"/><text class="small" x="674" y="527">Retry</text>
+    <path class="line" d="M470 530V558"/><text class="small" x="493" y="550">Yes</text>
+    <rect class="box" x="365" y="564" width="210" height="58"/><text class="label" x="470" y="588">Harvest created</text><text class="small" x="470" y="607">Queued locally if offline</text>
+    <path class="line" d="M470 622V652"/>
+    <rect class="box" x="350" y="658" width="240" height="64"/><text class="label" x="470" y="683">Harvest list</text><text class="small" x="470" y="703">Status · search · quantity · date</text>
+    <path class="line" d="M470 722V752"/>
+    <rect class="box" x="335" y="758" width="110" height="56"/><text class="small" x="390" y="783">Edit harvest</text><text class="small" x="390" y="800">Save changes</text>
+    <rect class="box" x="495" y="758" width="110" height="56"/><text class="small" x="550" y="783">Delete harvest</text><text class="small" x="550" y="800">Confirm</text>
+    <path class="branch" d="M430 722V744H390V758"/><path class="branch" d="M510 722V744H550V758"/>
+  </g>
+
+  <!-- Pickup -->
+  <g>
+    <text class="small" x="780" y="151">Pickup tab: choose approved harvest(s)</text>
+    <path class="line" d="M780 160V190"/>
+    <rect class="box" x="680" y="196" width="200" height="48"/><text class="label" x="780" y="225">Create pickup request</text>
+    <path class="line" d="M780 244V273"/>
+    <path class="box" d="M695 279h170l-15 58H710z"/><text class="small" x="780" y="304">Select eligible harvest(s)</text><text class="small" x="780" y="321">Pickup details</text>
+    <path class="line" d="M780 337V365"/>
+    <path class="box" d="M780 366l69 42-69 42-69-42z"/><text class="small" x="780" y="404">Selection valid?</text>
+    <path class="branch" d="M849 408H890V385H905"/><text class="small" x="874" y="399">No</text>
+    <rect class="soft" x="908" y="362" width="95" height="47"/><text class="small" x="955" y="382">Show error</text><text class="small" x="955" y="398">Retry</text>
+    <path class="line" d="M780 450V480"/><text class="small" x="804" y="470">Yes</text>
+    <rect class="box" x="678" y="486" width="204" height="58"/><text class="label" x="780" y="510">Submit pickup request</text><text class="small" x="780" y="529">Distributor notified</text>
+    <path class="line" d="M780 544V576"/>
+    <rect class="soft" x="678" y="582" width="204" height="52"/><text class="label" x="780" y="606">Pickup confirmation</text><text class="small" x="780" y="624">Request status appears</text>
+    <path class="line" d="M780 634V664"/>
+    <rect class="box" x="670" y="670" width="220" height="72"/><text class="label" x="780" y="695">Pickup tracking</text><text class="small" x="780" y="714">Requested · assigned · on the way</text><text class="small" x="780" y="731">Picked up · completed</text>
+    <path class="line" d="M780 742V772"/>
+    <rect class="box" x="690" y="778" width="180" height="45"/><text class="label" x="780" y="806">Refresh tracking</text>
+    <path class="line" d="M780 823V853"/>
+    <rect class="soft" x="670" y="859" width="220" height="58"/><text class="small" x="780" y="884">No rider / GPS route available:</text><text class="small" x="780" y="901">show latest available status</text>
+  </g>
+
+  <!-- Messages and notifications -->
+  <g>
+    <text class="small" x="1097" y="151">Messages tab</text><path class="line" d="M1097 160V190"/>
+    <rect class="box" x="995" y="196" width="204" height="58"/><text class="label" x="1097" y="220">Conversations</text><text class="small" x="1097" y="239">Contacts · previews · unread</text>
+    <path class="line" d="M1097 254V284"/>
+    <path class="box" d="M1015 290h164l-15 55h-164z"/><text class="small" x="1097" y="322">Enter message</text>
+    <path class="line" d="M1097 345V375"/>
+    <rect class="box" x="1022" y="381" width="150" height="45"/><text class="label" x="1097" y="409">Send</text>
+    <path class="line" d="M1097 426V456"/>
+    <rect class="soft" x="995" y="462" width="204" height="52"/><text class="small" x="1097" y="483">Message sent or</text><text class="small" x="1097" y="500">show delivery error</text>
+    <path class="line" d="M1097 514V570"/>
+    <text class="small" x="1097" y="560">Notification center</text>
+    <rect class="box" x="995" y="578" width="204" height="58"/><text class="label" x="1097" y="602">Notifications</text><text class="small" x="1097" y="621">Read / unread list</text>
+    <path class="line" d="M1097 636V666"/>
+    <rect class="box" x="995" y="672" width="204" height="57"/><text class="small" x="1097" y="695">Open related harvest</text><text class="small" x="1097" y="712">or pickup / mark read</text>
+  </g>
+
+  <!-- Profile -->
+  <g>
+    <text class="small" x="1422" y="151">Profile tab</text><path class="line" d="M1422 160V190"/>
+    <rect class="box" x="1320" y="196" width="204" height="66"/><text class="label" x="1422" y="220">Profile summary</text><text class="small" x="1422" y="239">Avatar · name · farmer role</text><text class="small" x="1422" y="255">Email · phone · farm address</text>
+    <path class="line" d="M1422 262V293"/>
+    <rect class="box" x="1310" y="299" width="224" height="78"/><text class="small" x="1422" y="323">Edit Profile · Manage Addresses</text><text class="small" x="1422" y="341">Change Password · User Guide</text><text class="small" x="1422" y="359">Contact Support · Log out</text>
+    <path class="branch" d="M1385 377V409H1355V432"/>
+    <rect class="soft" x="1285" y="438" width="140" height="50"/><text class="small" x="1355" y="459">Edit name, phone,</text><text class="small" x="1355" y="476">farm details</text>
+    <path class="line" d="M1355 488V518"/>
+    <rect class="box" x="1285" y="524" width="140" height="47"/><text class="small" x="1355" y="544">Save profile</text><text class="small" x="1355" y="560">Updated / error</text>
+    <path class="branch" d="M1460 377V432"/>
+    <rect class="box" x="1438" y="438" width="86" height="50"/><text class="label" x="1481" y="468">Log out</text>
+    <path class="line" d="M1481 488V518"/>
+    <rect class="soft" x="1438" y="524" width="86" height="56"/><text class="small" x="1481" y="546">Clear session</text><text class="small" x="1481" y="563">local data</text>
+    <path class="line" d="M1481 580V610"/>
+    <rect class="box" x="1428" y="616" width="106" height="47"/><text class="small" x="1481" y="636">Landing screen</text><text class="small" x="1481" y="652">logged out</text>
+    <path class="line" d="M1481 663V694"/>
+    <rect class="box" x="1430" y="700" rx="24" width="102" height="42"/><text class="label" x="1481" y="727">END</text>
+  </g>
+
+  <text class="small" x="800" y="1015">Solid outlines represent screens/actions. Dashed outlines represent feedback, temporary states, or system responses.</text>
+</svg>

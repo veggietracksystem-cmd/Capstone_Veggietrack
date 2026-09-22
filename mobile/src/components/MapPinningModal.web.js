@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   locateBtn: { position: 'absolute', top: 12, right: 12, minHeight: 40, backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ddd', alignItems: 'center', justifyContent: 'center', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3, zIndex: 1000 },
   locateBtnContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   locateBtnText: { color: PRIMARY, fontWeight: '700', fontSize: rf(13), textAlign: 'center' },
-  locationError: { position: 'absolute', top: 54, left: 12, right: 12, padding: 8, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.94)', color: '#8a3b12', fontSize: rf(12), textAlign: 'center' },
+  locationError: { position: 'absolute', zIndex: 1000, top: 58, left: 12, right: 12, padding: 8, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.94)', color: '#8a3b12', fontSize: rf(12), textAlign: 'center' },
 
   footer: { padding: 16, borderTopWidth: 1, borderColor: '#eee', backgroundColor: '#fafafa' },
   addressLabel: { fontSize: rf(13), fontWeight: '700', color: '#555' },

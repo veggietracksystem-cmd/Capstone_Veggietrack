@@ -21,6 +21,12 @@ export default function RegisterScreen({ navigation, route }) {
   const { width, height } = useWindowDimensions();
   const compactLayout = width < 380;
   const tallScreen = height >= 760;
+  // The Password placeholder is long, so its font follows the space left
+  // beside the eye icon: 16px screen margins, 12px left / 46px right input
+  // padding and 2px of border. ~24.5px of text width per font px, clamped to
+  // 11–13px so it stays readable on small phones and never oversized.
+  const passwordFieldText = Math.min(width, 560) - 32 - 12 - 46 - 2;
+  const passwordFontSize = Math.max(11, Math.min(13, Math.floor((passwordFieldText / 24.5) * 2) / 2));
 
   // Role -> location field key + i18n keys. The backend reads the matching key.
   const ROLES = [
@@ -137,8 +143,8 @@ export default function RegisterScreen({ navigation, route }) {
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Password</Text>
               <PasswordInput
-                style={[styles.input, styles.passwordInput]}
-                placeholder="Enter your password (at least 8 characters)"
+                style={[styles.input, styles.passwordInput, { fontSize: passwordFontSize }]}
+                placeholder="Enter your password (use at least 8 characters)"
                 placeholderTextColor={colors.placeholder}
                 accessibilityLabel="Password"
                 value={password}
@@ -257,25 +263,25 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl,
     paddingBottom: 24,
     flexGrow: 1,
   },
   innerTall: { minHeight: 760 },
   contentWrap: { flexGrow: 1, justifyContent: 'flex-start' },
-  fieldGroup: { marginBottom: spacing.lg },
-  fieldLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: spacing.sm, marginTop: 0 },
+  fieldGroup: { marginBottom: 14 },
+  fieldLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 6, marginTop: 0 },
   matchText: { fontFamily: 'Poppins_400Regular', fontSize: rf(13), color: PRIMARY, marginTop: 4, marginBottom: 0 },
   passwordError: { fontFamily: 'Poppins_400Regular', fontSize: rf(13), color: '#A32621', marginTop: 4, marginBottom: 0 },
   input: {
     backgroundColor: colors.card,
     borderRadius: radius.ctrl,
     paddingHorizontal: spacing.md,
-    paddingVertical: 11,
+    paddingVertical: 10,
     minHeight: control.height,
     fontFamily: 'Poppins_400Regular',
-    fontSize: rf(fontSize.md),
+    fontSize: rf(13),
     color: colors.ink,
     borderWidth: 1,
     borderColor: colors.border,
@@ -285,12 +291,12 @@ const styles = StyleSheet.create({
   roleWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   roleChip: { height: control.height, justifyContent: 'center', alignItems: 'center', paddingHorizontal: control.paddingH, borderRadius: control.height / 2, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   roleChipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  roleChipText: { color: colors.inkSoft, fontFamily: 'Poppins_500Medium', fontSize: rf(fontSize.md), textAlign: 'center' },
+  roleChipText: { color: colors.inkSoft, fontFamily: 'Poppins_500Medium', fontSize: rf(13), textAlign: 'center' },
   roleChipTextActive: { color: '#fff', fontFamily: 'Poppins_600SemiBold' },
   ctaBlock: { marginTop: 8 },
-  button: { backgroundColor: PRIMARY, minHeight: 50, paddingHorizontal: control.paddingH, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
+  button: { backgroundColor: PRIMARY, minHeight: 48, paddingHorizontal: control.paddingH, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: rf(fontSize.xl), textAlign: 'center' },
+  buttonText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: rf(fontSize.lg), textAlign: 'center' },
   nextStep: { fontFamily: 'Poppins_400Regular', textAlign: 'center', color: '#687065', fontSize: rf(11), lineHeight: rf(16), marginTop: 14 },
   footerSpacer: { flexGrow: 1, minHeight: 10, marginTop: 22, marginBottom: 10 },
   footerSpacerTall: { minHeight: 28, maxHeight: 96 },
