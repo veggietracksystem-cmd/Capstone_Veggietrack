@@ -4,6 +4,7 @@ import { View, Text, ScrollView, ActivityIndicator, RefreshControl, StyleSheet }
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import DeliveryTrackingMap from '../components/DeliveryTrackingMap';
 import OrderStepIndicator from '../components/OrderStepIndicator';
+import RiderEtaCard from '../components/RiderEtaCard';
 import ScreenHeader from '../components/ScreenHeader';
 import useDeliveryTracking from '../hooks/useDeliveryTracking';
 import { useTranslation } from '../i18n/useTranslation';
@@ -48,6 +49,7 @@ function CustomerTrackingView({ route, navigation }) {
       </View>
       <Text style={styles.note}>{t('cmp.locUpdates')}</Text>
       {status !== 'cancelled' && <OrderStepIndicator status={status} />}
+      <RiderEtaCard data={data} status={status} />
       {/* Rider row (prototype's rider-info row, shown above the map) —
           name/live fields already come back from the tracking API. */}
       {!!view?.rider && (

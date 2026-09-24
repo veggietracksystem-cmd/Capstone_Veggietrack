@@ -59,6 +59,13 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
   const offRoute = !!journey.route && !demo && progress.offRoute != null && progress.offRoute > 150;
   const remainingKm = (journey.route || demo) && points.length > 1 && shownRider && !offRoute ? progress.remaining / 1000 : null;
   const etaSeconds = liveEtaSeconds(journey, { live, ended, offRoute, demo });
+  // Without a live GPS fix the map used to say "ETA unavailable". Fall back to the
+  // planned route time (customer view only) or say what we're waiting for.
+  const plannedSeconds = mode === 'tracking' && phase === 'delivery' && !ended && !offRoute && !demo ? formatEta(journey.estimatedRouteSeconds) : null;
+  const etaText = etaSeconds != null ? t('cmp.liveEta', { eta: formatEta(etaSeconds) })
+    : plannedSeconds ? t('cmp.etaEstimated', { eta: plannedSeconds })
+    : !ended && !offRoute && !demo && mode === 'tracking' && phase === 'delivery' ? t('cmp.etaWaiting')
+    : t('cmp.etaUnavailable');
   const label = demo ? t('cmp.demoLabel') : ended ? (['delivered', 'completed', 'cancelled', 'picked_up'].includes(trackingData.status) ? t(`status.${trackingData.status}`) : String(trackingData.status).replace(/_/g, ' ')) :
     live ? t('cmp.liveGps') : actualRider ? t('cmp.lastKnown') : t('cmp.waitingGps');
   const accuracy = demo ? null : numberOrNull(actualPosition?.accuracy);
@@ -107,7 +114,7 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
     </View>
     <View style={styles.metrics}>
       <Text style={styles.metric}>{remainingKm != null ? t('cmp.kmRemaining', { km: remainingKm.toFixed(2) }) : points.length > 1 ? t('cmp.kmRoute', { km: (length / 1000).toFixed(2) }) : t('cmp.routeUnavailable')}</Text>
-      <Text style={styles.metric}>{etaSeconds != null ? t('cmp.liveEta', { eta: formatEta(etaSeconds) }) : t('cmp.etaUnavailable')}</Text>
+      <Text style={styles.metric}>{etaText}</Text>
     </View>
     <Text style={styles.hint}>{demo ? t('cmp.practiceMode') : offRoute ? t('cmp.offRoute') : (phase === 'pickup' ? t('cmp.onWayHub') : t('cmp.onWayShop'))}</Text>
     {mode === 'navigation' ? (!!nav.navigation_error && <Text style={styles.warning}>{nav.navigation_error}</Text>) : <>

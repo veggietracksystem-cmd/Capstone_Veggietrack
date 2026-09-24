@@ -7,6 +7,8 @@ import { manilaSchedule } from '../lib/deliverySchedule';
 import { Text, View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OrderStepIndicator from '../components/OrderStepIndicator';
+import RiderEtaCard from '../components/RiderEtaCard';
+import useDeliveryTracking from '../hooks/useDeliveryTracking';
 import { peso, shortId, showAlert } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
@@ -61,6 +63,8 @@ export default function OrderDetailsScreen({ navigation, route }) {
   useAutoSync(`order-details-${orderId || 'unknown'}`, refreshOrder);
   useEffect(() => { setOrder(route.params?.order); void refreshOrder(); }, [refreshOrder]);
   useRefreshOnFocus(refreshOrder);
+  const trackable = ['approved', 'assigned', 'picked_up', 'in_transit', 'out_for_delivery'].includes(order?.status);
+  const { data: tracking } = useDeliveryTracking(trackable ? orderId : null);
 
   if (!order) {
     return (
@@ -95,6 +99,8 @@ export default function OrderDetailsScreen({ navigation, route }) {
           ) : (
             <OrderStepIndicator status={order.status} />
           )}
+
+          {order.status !== 'cancelled' && <RiderEtaCard data={tracking} status={order.status} style={styles.etaCard} />}
 
           {canTrack && (
             <TouchableOpacity
@@ -164,6 +170,7 @@ const styles = StyleSheet.create({
   orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   total: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: PRIMARY, marginBottom: 4 },
   cancelledNote: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.danger, fontStyle: 'italic', marginTop: 8 },
+  etaCard: { marginTop: 10 },
   trackBtn: { ...actionBtn, ...actionBtnOutline, marginTop: 10 },
   trackBtnText: { ...actionBtnText, color: PRIMARY },
 
