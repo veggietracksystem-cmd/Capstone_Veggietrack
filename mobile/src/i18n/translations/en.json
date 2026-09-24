@@ -3,6 +3,7 @@
     "title": "Profile picture",
     "choose": "Choose picture",
     "replace": "Replace picture",
+    "remove": "Remove picture",
     "uploadFailed": "We couldn’t upload the picture. Please choose it again.",
     "saveHint": "Save changes to update your profile picture."
   },

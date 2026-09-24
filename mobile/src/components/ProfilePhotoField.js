@@ -37,15 +37,28 @@ export default function ProfilePhotoField({ user, value, disabled, onChange, onS
     }
   };
 
+  // Staged like a new picture: the avatar falls back to initials right away and
+  // the removal is saved with the parent's Save button.
+  const remove = () => {
+    if (disabled || busy || !value) return;
+    setError(''); onChange(null);
+  };
+
   return <View style={{ marginBottom: 16, gap: 8 }}>
     <Text style={{ fontFamily: fonts.bodySemiBold, color: colors.inkSoft }}>{t('avatar.title')}</Text>
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 14 }}>
       <UserAvatar user={{ ...user, avatar_url: value }} />
       <TouchableOpacity accessibilityRole="button" disabled={disabled || busy} onPress={choose}
         style={{ opacity: disabled || busy ? 0.6 : 1, paddingVertical: 10 }}>
         {busy ? <ActivityIndicator color={colors.leaf700} /> :
           <Text style={{ fontFamily: fonts.bodySemiBold, color: colors.leaf700 }}>{t(value ? 'avatar.replace' : 'avatar.choose')}</Text>}
       </TouchableOpacity>
+      {!!value && (
+        <TouchableOpacity accessibilityRole="button" disabled={disabled || busy} onPress={remove}
+          style={{ opacity: disabled || busy ? 0.6 : 1, paddingVertical: 10 }}>
+          <Text style={{ fontFamily: fonts.bodySemiBold, color: colors.danger }}>{t('avatar.remove')}</Text>
+        </TouchableOpacity>
+      )}
     </View>
     {!!error && <Text accessibilityLiveRegion="polite" style={{ color: colors.danger }}>{error}</Text>}
     <Text style={{ fontFamily: fonts.body, color: colors.inkSoft }}>{t('avatar.saveHint')}</Text>

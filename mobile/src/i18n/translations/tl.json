@@ -3,6 +3,7 @@
     "title": "Larawan sa profile",
     "choose": "Pumili ng larawan",
     "replace": "Palitan ang larawan",
+    "remove": "Alisin ang larawan",
     "uploadFailed": "Hindi na-upload ang larawan. Pumili ng larawan upang subukang muli.",
     "saveHint": "I-save ang mga pagbabago upang ma-update ang larawan sa profile."
   },
