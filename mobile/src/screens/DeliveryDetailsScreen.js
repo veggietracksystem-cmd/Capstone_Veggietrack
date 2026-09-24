@@ -10,7 +10,6 @@ import { uploadToCloudinary } from '../lib/cloudinary';
 import { createProofSubmission, proofFailureMessage } from '../lib/podSubmission';
 import { orderDestination, validateDeliveryLocation, missingDestinationMessage, refreshAccuracyMessage } from '../lib/deliveryLocation';
 import { isOnline } from '../offline/net';
-import DeliveryMapModal from '../components/DeliveryMapModal';
 import ProofPreviewModal from '../components/ProofPreviewModal';
 import CustomModal from '../components/CustomModal';
 import ScreenHeader from '../components/ScreenHeader';
@@ -65,8 +64,6 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
   const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState(null);
   const [confirmVisible, setConfirmVisible] = useState(false);
-  const [mapAddress, setMapAddress] = useState(null);
-  const [mapCoords, setMapCoords] = useState(null);
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [rejectReasonKey, setRejectReasonKey] = useState(null);
   const [rejectOtherText, setRejectOtherText] = useState('');
@@ -117,13 +114,6 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
   const finished = status === 'delivered' || status === 'cancelled';
   const items = order.order_items || [];
   const scheduleParts = formatScheduleParts(order.preferred_schedule);
-  // Single Route button: routes to the pickup warehouse until the rider has
-  // picked up, then to the retailer's delivery address — same map modal and
-  // coordinates as before, just one button instead of two.
-  const routeTarget = rank < 1
-    ? { address: order.distributor_address, coords: order.distributor_coords }
-    : { address: order.retailer_address, coords: orderDestination(order) };
-
   const verifiedLocation = async () => {
     const requestGeneration = ++locationGeneration.current;
     if (!orderDestination(order)) throw new Error(missingDestinationMessage());
@@ -136,14 +126,6 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
       if (mounted.current && requestGeneration === locationGeneration.current) { setLocationDetails(Number.isFinite(error.distanceMeters) ? error : null); setLocationError(error.message); }
       throw error;
     }
-  };
-
-  const refreshLocation = async () => {
-    if (actionRef.current) return;
-    actionRef.current = 'location'; setBusy(true);
-    try { await verifiedLocation(); }
-    catch (error) { setLocationError(error.code === 'GPS_INACCURATE' ? refreshAccuracyMessage() : error.message); }
-    finally { actionRef.current = null; if (mounted.current) setBusy(false); }
   };
 
   const updateStatus = async (newStatus) => {
@@ -309,20 +291,6 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
             ))
           )}
 
-          <View style={styles.divider} />
-
-          {/* 5. Route — the single View Route button, targeting whichever stop is next */}
-          <Text style={styles.sectionTitle}>{t('deliveryDetails.routeTitle')}</Text>
-          <TouchableOpacity
-            style={styles.routeBtnCentered}
-            onPress={() => {
-              if (!routeTarget.coords) { showAlert(t('common.error'), rank < 1 ? t('cmp.pickupCoordsMissing') : missingDestinationMessage()); return; }
-              setMapAddress(routeTarget.address || t('cmp.deliveryRouteFallback')); setMapCoords(routeTarget.coords);
-            }}
-          >
-            <Text style={styles.routeBtnText}>{t('dashboards.delivery.viewRoute')}</Text>
-          </TouchableOpacity>
-
           {!finished && (
             <>
               <View style={styles.divider} />
@@ -334,9 +302,6 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
                 <Text style={styles.rowMeta}>Location accuracy: about {Math.round(locationDetails.accuracy)} m</Text>
               </>}
               {!!locationError && <Text style={[styles.rowMeta, { color: colors.danger }]}>{locationError}</Text>}
-              <TouchableOpacity style={[styles.routeBtnCentered, busy && styles.buttonDisabled]} disabled={busy} onPress={refreshLocation}>
-                <Text style={styles.routeBtnText}>{t('cmp.refreshLocation')}</Text>
-              </TouchableOpacity>
 
               {PROGRESS_STEPS.map((step) => {
                 if (rank >= step.rank) {
@@ -386,13 +351,6 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
           )}
         </View>
       </ScrollView>
-
-      <DeliveryMapModal
-        visible={!!mapAddress}
-        address={mapAddress}
-        coords={mapCoords}
-        onClose={() => { setMapAddress(null); setMapCoords(null); }}
-      />
 
       <ProofPreviewModal
         visible={confirmVisible}

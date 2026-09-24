@@ -126,9 +126,10 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
       <TouchableOpacity accessibilityRole="button" disabled={gpsBusy} style={styles.button} onPress={acquire}>
         <Text style={styles.buttonText}>{gpsBusy ? t('cmp.acquiringShort') : onAcquirePosition ? t('cmp.refreshLocation') : Platform.OS === 'web' ? t('cmp.acquireBrowser') : t('cmp.acquireDevice')}</Text>
       </TouchableOpacity>
-      <TouchableOpacity accessibilityRole="button" disabled={points.length < 2} style={[styles.button, points.length < 2 && styles.disabled]} onPress={() => { setDemo(v => !v); setDemoMetres(0); setAutoRecenter(true); }}>
+      {/* Practice playback is a development aid only; real riders and customers never see it. */}
+      {__DEV__ && <TouchableOpacity accessibilityRole="button" disabled={points.length < 2} style={[styles.button, points.length < 2 && styles.disabled]} onPress={() => { setDemo(v => !v); setDemoMetres(0); setAutoRecenter(true); }}>
         <Text style={styles.buttonText}>{demo ? t('cmp.returnLive') : t('cmp.simulate')}</Text>
-      </TouchableOpacity>
+      </TouchableOpacity>}
       <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: autoRecenter }} style={styles.button}
         onPress={() => { setAutoRecenter(v => !v); setFitToken(v => v + 1); }}>
         <Text style={styles.buttonText}>{t('cmp.autoRecenter', { state: autoRecenter ? t('cmp.on') : t('cmp.off') })}</Text>

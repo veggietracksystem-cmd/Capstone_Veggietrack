@@ -69,11 +69,17 @@ function update(data){
  if(accuracy){map.removeLayer(accuracy);accuracy=null;}
  if(valid(data.rider)&&Number.isFinite(data.rider.accuracy)&&data.rider.accuracy>0)accuracy=L.circle(latLng(data.rider),{radius:data.rider.accuracy,color:'#218258',weight:1,fillOpacity:.12}).addTo(map);
  var pts=(data.route||[]).map(latLng),done=(data.completed||[]).map(latLng);
- if(!route)route=L.polyline([],{color:'#4a7295',weight:6,opacity:.65}).addTo(map);route.setLatLngs(pts);
- if(!progress)progress=L.polyline([],{color:'#198656',weight:6}).addTo(map);progress.setLatLngs(done);
+ // Navigation mode: a bold green road line, with the part already driven greyed out.
+ if(!route)route=L.polyline([],{color:'#4a7295',weight:6,opacity:.65}).addTo(map);
+ route.setStyle(data.nav?{color:'#198656',weight:8,opacity:.95}:{color:'#4a7295',weight:6,opacity:.65});route.setLatLngs(pts);
+ if(!progress)progress=L.polyline([],{color:'#198656',weight:6}).addTo(map);
+ progress.setStyle(data.nav?{color:'#9aa79f',weight:8,opacity:.9}:{color:'#198656',weight:6});progress.setLatLngs(done);
  var bounds=(data.focusPoints||[data.origin,data.destination,data.rider]).filter(valid).map(latLng);
  var force=data.fitToken!==lastToken;lastToken=data.fitToken;
- if(bounds.length&&(force||!initialFit||(data.autoRecenter&&Date.now()-lastFit>1500))){map.fitBounds(L.latLngBounds(bounds),{padding:[38,38],maxZoom:16,animate:initialFit});initialFit=true;lastFit=Date.now();}
+ if(data.follow&&valid(data.rider)){
+  // Follow the rider at street level; leave the map alone if they dragged it away.
+  if(force||!initialFit||data.autoRecenter){map.setView(latLng(data.rider),data.followZoom||17,{animate:initialFit,duration:.6});initialFit=true;lastFit=Date.now();}
+ }else if(bounds.length&&(force||!initialFit||(data.autoRecenter&&Date.now()-lastFit>1500))){map.fitBounds(L.latLngBounds(bounds),{padding:[38,38],maxZoom:16,animate:initialFit});initialFit=true;lastFit=Date.now();}
  if(data.viewer&&data.viewerToken!==window.viewerToken){window.viewerToken=data.viewerToken;map.panTo(latLng(data.viewer));}
 }
 window.updateDeliveryMap=update;
