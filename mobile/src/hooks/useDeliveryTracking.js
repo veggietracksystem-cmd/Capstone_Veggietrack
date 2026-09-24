@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import api from '../api/client';
+import { friendlyError } from '../lib/errorMessages';
 import { useAuth } from '../context/AuthContext';
 
 export default function useDeliveryTracking(orderId) {
@@ -23,7 +24,7 @@ export default function useDeliveryTracking(orderId) {
     request.promise = (async () => {
     try { const next = await api.get(`/api/delivery/tracking/${encodeURIComponent(orderId)}`, { signal: request.controller.signal });
       if (version === generation.current) { setData(next); setError(null); }
-    } catch (err) { if (version === generation.current && !request.controller.signal.aborted) setError(err.message || 'Tracking unavailable'); }
+    } catch (err) { if (version === generation.current && !request.controller.signal.aborted) setError(friendlyError(err, 'We can’t load the tracking right now.')); }
     finally {
       if (pending.current === request) pending.current = null;
       if (version === generation.current) setLoading(false);

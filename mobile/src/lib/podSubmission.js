@@ -43,7 +43,7 @@ export function createProofSubmission({ upload, complete, isOnline, precheck, is
       if (completed) return Promise.resolve(completed);
       if (inFlight) return inFlight;
       inFlight = (async () => {
-        if (!photo?.uri) throw new Error('Select a proof photo before completing the delivery.');
+        if (!photo?.uri) throw new Error('Please take a delivery photo before completing the delivery.');
         if (!(await isOnline())) throw Object.assign(new Error(POD_MESSAGES.offline), { code: 'OFFLINE' });
         // Fresh verification on every attempt, without discarding the image.
         const preflight = await getLocation();

@@ -1123,7 +1123,13 @@
     "notAllowed": "Hindi ito magagawa ngayon. I-refresh at subukan muli.",
     "tookTooLong": "Natagalan ito. Maghintay sandali at subukan muli.",
     "cantReach": "Hindi maabot ang VeggieTrack ngayon. Subukan muli maya-maya.",
-    "tryAgain": "Pakisubukan muli."
+    "tryAgain": "Pakisubukan muli.",
+    "locationNotShared": "Hindi naibahagi ang iyong lokasyon. Pakisubukang muli.",
+    "needLocation": "Kailangan namin ang iyong kasalukuyang lokasyon. Pakirefresh ito at subukang muli.",
+    "alreadyUpdated": "Na-update na ito. I-pull down para mag-refresh at subukang muli.",
+    "cantCancel": "Hindi na maaaring kanselahin ang order na ito.",
+    "cantRejectDelivery": "Hindi na maaaring ibalik ang delivery na ito.",
+    "unlistFirst": "Pakialis muna ang batch na ito sa listahan ng mga produkto."
   },
   "authErr": {
     "emailProviderDisabled": "Hindi available ngayon ang pag-sign in gamit ang email address. Subukan muli mamaya.",

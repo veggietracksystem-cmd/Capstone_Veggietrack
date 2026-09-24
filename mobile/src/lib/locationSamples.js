@@ -28,7 +28,7 @@ function isAcceptableSample(sample, now = Date.now()) {
 function withDeadline(operation, timeoutMs) {
   let timer;
   return Promise.race([Promise.resolve().then(operation), new Promise((_, reject) => {
-    timer = setTimeout(() => reject(locationError('GPS_TIMEOUT', 'Location refresh timed out. Tap Refresh Location and try again.')), timeoutMs);
+    timer = setTimeout(() => reject(locationError('GPS_TIMEOUT', 'Finding your location took too long. Tap Refresh Location and try again.')), timeoutMs);
   })]).finally(() => clearTimeout(timer));
 }
 
@@ -63,8 +63,8 @@ async function refineLocation(readPosition, { timeoutMs = GPS_REFINEMENT_TIMEOUT
   if (fresh.length) return fresh.sort((a, b) => a.accuracy - b.accuracy || b.timestamp - a.timestamp)[0];
   if (sawInaccurate) throw locationError('GPS_INACCURATE', poorAccuracyMessage());
   if (sawStale && samples.size === 0) throw locationError('GPS_STALE', 'Your location is out of date. Tap Refresh Location and try again.');
-  if (samples.size < 2 && samples.size > 0) throw locationError('GPS_UNCONFIRMED', 'Your location could not be confirmed. Tap Refresh Location and try again.');
-  throw lastError || locationError('LOCATION_UNAVAILABLE', 'GPS unavailable. Move to an open area and tap Refresh Location.');
+  if (samples.size < 2 && samples.size > 0) throw locationError('GPS_UNCONFIRMED', 'We couldn’t confirm your location. Tap Refresh Location and try again.');
+  throw lastError || locationError('LOCATION_UNAVAILABLE', 'We can’t find your location. Move to an open area and tap Refresh Location.');
 }
 
 module.exports = { GPS_REFINEMENT_TIMEOUT_MS, GPS_POLL_INTERVAL_MS, locationSample, isRecentSample,

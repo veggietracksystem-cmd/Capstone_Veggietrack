@@ -330,8 +330,8 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
               {/* 6. Delivery Progress */}
               <Text style={styles.sectionTitle}>{t('deliveryDetails.progressTitle')}</Text>
               {locationDetails && <>
-                <Text style={styles.rowMeta}>Distance to delivery point: {Math.round(locationDetails.distanceMeters)} m</Text>
-                <Text style={styles.rowMeta}>GPS accuracy: ±{Math.round(locationDetails.accuracy)} m</Text>
+                <Text style={styles.rowMeta}>Distance from the delivery address: {Math.round(locationDetails.distanceMeters)} m</Text>
+                <Text style={styles.rowMeta}>Location accuracy: about {Math.round(locationDetails.accuracy)} m</Text>
               </>}
               {!!locationError && <Text style={[styles.rowMeta, { color: colors.danger }]}>{locationError}</Text>}
               <TouchableOpacity style={[styles.routeBtnCentered, busy && styles.buttonDisabled]} disabled={busy} onPress={refreshLocation}>

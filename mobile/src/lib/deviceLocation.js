@@ -8,7 +8,7 @@ import { tr } from '../i18n/translate';
 export async function acquireDevicePosition(options = {}) {
   const timeoutMs = options.timeoutMs ?? GPS_REFINEMENT_TIMEOUT_MS;
   if (Platform.OS === 'web') {
-    if (!globalThis.navigator?.geolocation) throw locationError('LOCATION_UNAVAILABLE', 'This browser does not support GPS.');
+    if (!globalThis.navigator?.geolocation) throw locationError('LOCATION_UNAVAILABLE', 'This browser can’t find your location.');
     return refineLocation(timeoutMs => new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(
       resolve,
       error => reject(locationError(error.code === 1 ? 'LOCATION_PERMISSION_DENIED' : error.code === 3 ? 'GPS_TIMEOUT' : 'LOCATION_UNAVAILABLE',
@@ -18,8 +18,8 @@ export async function acquireDevicePosition(options = {}) {
   }
   await withDeadline(async () => {
     const permission = await Location.requestForegroundPermissionsAsync();
-    if (!(permission.granted || permission.status === 'granted')) throw locationError('LOCATION_PERMISSION_DENIED', 'Location permission denied. Enable it in your device settings.');
-    if (!await Location.hasServicesEnabledAsync()) throw locationError('LOCATION_SERVICES_DISABLED', 'Location services are disabled. Enable GPS in your device settings.');
+    if (!(permission.granted || permission.status === 'granted')) throw locationError('LOCATION_PERMISSION_DENIED', 'Location access is turned off. Please allow it in your phone’s settings.');
+    if (!await Location.hasServicesEnabledAsync()) throw locationError('LOCATION_SERVICES_DISABLED', 'Location is turned off on your phone. Please turn it on in your phone’s settings.');
   }, timeoutMs);
   // refineLocation needs two distinct fixes. On Android each Highest-accuracy
   // getCurrentPositionAsync can take several seconds, so asking for fixes one
@@ -42,8 +42,8 @@ export async function acquireDevicePosition(options = {}) {
       }
       catch (error) {
         if (error?.code === 'GPS_STALE') throw error;
-        if (error?.code === 3 || error?.code === 'E_LOCATION_TIMEOUT') throw locationError('GPS_TIMEOUT', 'Location refresh timed out. Tap Refresh Location and try again.');
-        throw locationError('LOCATION_UNAVAILABLE', 'GPS unavailable. Move to an open area and tap Refresh Location.');
+        if (error?.code === 3 || error?.code === 'E_LOCATION_TIMEOUT') throw locationError('GPS_TIMEOUT', 'Finding your location took too long. Tap Refresh Location and try again.');
+        throw locationError('LOCATION_UNAVAILABLE', 'We can’t find your location. Move to an open area and tap Refresh Location.');
       }
     }, options);
   } finally {

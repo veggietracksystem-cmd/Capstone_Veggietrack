@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { rf } from '../lib/responsive';
+import { friendlyError } from '../lib/errorMessages';
 import { colors, fonts, fontSize, radius } from '../theme/appTheme';
 import RemoteImage from './RemoteImage';
 import { useTranslation } from '../i18n/useTranslation';
@@ -34,7 +35,7 @@ export default function BatchPhotoField({ value, disabled, onChange, onStateChan
       }
       if (alive.current) onStateChange?.('ready');
     } catch (err) {
-      if (alive.current) { setError(err.message || t('cmp.uploadFailed')); onStateChange?.('error'); }
+      if (alive.current) { setError(friendlyError(err, t('cmp.uploadFailed'))); onStateChange?.('error'); }
     } finally { if (alive.current) setBusy(false); }
   };
 

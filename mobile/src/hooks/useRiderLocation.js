@@ -3,6 +3,7 @@ import { AppState, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { useIsFocused } from '@react-navigation/native';
 import api from '../api/client';
+import { friendlyError } from '../lib/errorMessages';
 import { locationSample, isRecentSample } from '../lib/locationSamples';
 import { acquireDevicePosition } from '../lib/deviceLocation';
 
@@ -45,7 +46,7 @@ export default function useRiderLocation(orderId, enabled) {
       return true;
     } catch (err) {
       if (controller.signal.aborted || version !== generation.current) return false;
-      if (alive.current) setError(`GPS not shared: ${err.message}`);
+      if (alive.current) setError(`Your location couldn’t be shared. ${friendlyError(err)}`);
       if (force) throw err;
       return false;
     } finally { if (sending.current === request) sending.current = null; }
@@ -63,7 +64,7 @@ export default function useRiderLocation(orderId, enabled) {
       if (shouldPublish) await publish(next, true);
       return next;
     }).catch(err => {
-      if (alive.current && version === generation.current) setError(err.message);
+      if (alive.current && version === generation.current) setError(friendlyError(err));
       throw err;
     }).finally(() => {
       if (refreshPromise.current === operation) refreshPromise.current = null;
@@ -80,16 +81,16 @@ export default function useRiderLocation(orderId, enabled) {
       const sample = locationSample(location);
       if (sample) publish(sample);
     };
-    const fail = err => { if (!cancelled) setError(err.message || 'GPS unavailable. Check location permission.'); };
+    const fail = err => { if (!cancelled) setError(friendlyError(err, 'We can’t find your location. Please check that location access is turned on.')); };
     (async () => {
       try {
         if (Platform.OS === 'web') {
-          if (!globalThis.navigator?.geolocation) throw new Error('GPS requires a supported browser on HTTPS.');
+          if (!globalThis.navigator?.geolocation) throw new Error('Sharing your location isn’t supported in this browser.');
           browserWatch = navigator.geolocation.watchPosition(receive, fail, { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
         } else {
           const permission = await Location.requestForegroundPermissionsAsync();
           if (cancelled) return;
-          if (permission.status !== 'granted') throw new Error('Enable location permission to share rider GPS.');
+          if (permission.status !== 'granted') throw new Error('Please allow location access so your location can be shared.');
           subscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 5 }, receive);
           if (cancelled) subscription.remove();
         }

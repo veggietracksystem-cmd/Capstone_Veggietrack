@@ -29,8 +29,34 @@ const TECHNICAL = [
 
 const CONNECTION_CODES = ['BACKEND_UNREACHABLE', 'REQUEST_TIMEOUT', 'REQUEST_ABORTED', 'NETWORK_ERROR'];
 
+// Backend sentences that are accurate but written for developers (field names,
+// role checks, raw status words). Each is swapped for plain wording; anything
+// not listed still passes through the technical filter above.
+const PLAIN_WORDING = [
+  [/^only [\w\s-]+ can /i, () => NOT_ALLOWED()],
+  [/access denied|not allowed|access required|cannot access this feature|not assigned to you|unauthorized to cancel|you can only (cancel|delete|update) your own/i, () => NOT_ALLOWED()],
+  [/^failed to /i, () => GENERIC()],
+  [/^location update failed/i, () => tr('errors.locationNotShared')],
+  [/valid latitude and longitude|gps accuracy must be/i, () => tr('errors.needLocation')],
+  [/order id and valid amount/i, () => tr('dashboards.distributor.invalidAmount')],
+  [/invalid delivery status transition|status was already updated|order was already updated/i, () => tr('errors.alreadyUpdated')],
+  [/cannot cancel order with status/i, () => tr('errors.cantCancel')],
+  [/cannot reject a delivery with status/i, () => tr('errors.cantRejectDelivery')],
+  [/pickup request cannot be (marked on the way|picked up)/i, () => tr('errors.alreadyUpdated')],
+  [/only un-?listed batches can be deleted/i, () => tr('errors.unlistFirst')],
+  [/endpoint does not exist|use supabase auth|^status must be|invalid message participant|no fields to update|^invalid (status|harvest_date)/i, () => GENERIC()],
+];
+
 function looksTechnical(message) {
-  return TECHNICAL.some((pattern) => pattern.test(message));
+  return TECHNICAL.some((pattern) => pattern.test(message)) || /\b[a-z]+_[a-z_]+\b/.test(message);
+}
+
+// Removes shorthand and leftover internal words from an otherwise friendly sentence.
+function plainer(message) {
+  return message
+    .replace(/\s*\((?:status|code):[^)]*\)/gi, '')
+    .replace(/\bGPS location\b/gi, 'location')
+    .replace(/\bGPS\b/g, 'location');
 }
 
 /**
@@ -50,7 +76,9 @@ export function friendlyError(error, fallback = GENERIC()) {
   // A 400/403/404/409 usually carries a helpful sentence about the user's own
   // data ("A pickup has already been requested for this harvest."). Keep it,
   // unless it reads like developer output.
-  if (message && !looksTechnical(message)) return message;
+  const known = PLAIN_WORDING.find(([pattern]) => pattern.test(message));
+  if (known) return known[1]();
+  if (message && !looksTechnical(message)) return plainer(message);
   if (status === 403) return NOT_ALLOWED();
   return fallback;
 }

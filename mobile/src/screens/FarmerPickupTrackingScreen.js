@@ -37,7 +37,7 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
       const next = (Array.isArray(list) ? list : []).find(row => row.id === id);
       if (!next) throw new Error(t('ptrack.noLongerAvailable'));
       setPickup(next); setError('');
-    } catch (err) { setError(err.message || t('ptrack.refreshFailed')); }
+    } catch (err) { setError(friendlyError(err, t('ptrack.refreshFailed'))); }
     finally { setLoading(false); }
   }, [id, t]);
   useAutoSync(`farmer-pickup-${id || 'unknown'}`, refresh);
