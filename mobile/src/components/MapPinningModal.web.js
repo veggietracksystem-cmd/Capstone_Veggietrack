@@ -3,13 +3,16 @@ import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } fr
 import { rf } from '../lib/responsive';
 import PlaceAutocomplete from './PlaceAutocomplete';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from '../i18n/useTranslation';
+import { MAP_ZOOM_CSS } from '../lib/mapZoomStyle';
 
 const PRIMARY = '#1E4E09';
 const SAN_PABLO = { latitude: 14.0683, longitude: 121.3256 };
 
 export default function MapPinningModal({ visible, onConfirm, onClose, initialCoords, initialAddress }) {
+  const { t } = useTranslation();
   const [pinnedCoords, setPinnedCoords] = useState(initialCoords || SAN_PABLO);
-  const [addressName, setAddressName] = useState(initialAddress || 'Fetching address...');
+  const [addressName, setAddressName] = useState(initialAddress || t('cmp.fetchingAddress'));
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const [loadingAddress, setLoadingAddress] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
@@ -23,7 +26,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
   useEffect(() => {
     if (!visible || !initialCoords) return;
     setPinnedCoords(initialCoords);
-    setAddressName(initialAddress || 'Fetching address...');
+    setAddressName(initialAddress || t('cmp.fetchingAddress'));
   }, [visible]);
 
   // 1. Load Leaflet CDN script dynamically
@@ -37,6 +40,13 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     link.rel = 'stylesheet';
     link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
     document.head.appendChild(link);
+    // Green zoom buttons (added once, after Leaflet's own CSS so it wins).
+    if (!document.getElementById('vt-map-zoom-style')) {
+      const zoomStyle = document.createElement('style');
+      zoomStyle.id = 'vt-map-zoom-style';
+      zoomStyle.textContent = MAP_ZOOM_CSS;
+      document.head.appendChild(zoomStyle);
+    }
 
     const script = document.createElement('script');
     script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
@@ -54,7 +64,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
 
   const handleDetectLocation = () => {
     if (typeof window === 'undefined' || !navigator.geolocation) {
-      setLocationError('Location is unavailable in this browser. Search or place the pin on the map instead.');
+      setLocationError(t('cmp.locUnavailBrowser'));
       return;
     }
     setLocationError('');
@@ -73,8 +83,8 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
       },
       (err) => {
         setLocationError(err?.code === 1
-          ? 'Location access is blocked. Allow location for this site in your browser, then try again.'
-          : 'Could not get your location. Search or place the pin on the map instead.');
+          ? t('cmp.locBlocked')
+          : t('cmp.locFailed'));
         setDetectingLocation(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
@@ -190,9 +200,9 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Pin Your Location</Text>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={styles.close}>Cancel</Text>
+          <Text style={styles.title}>{t('cmp.pinTitle')}</Text>
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+            <Ionicons name="close" size={rf(18)} color="#555" />
           </TouchableOpacity>
         </View>
 
@@ -213,7 +223,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
             ) : (
               <View style={styles.locateBtnContent}>
                 <Ionicons name="locate-outline" size={rf(18)} color={PRIMARY} />
-                <Text style={styles.locateBtnText}>My Location</Text>
+                <Text style={styles.locateBtnText}>{t('cmp.myLocation')}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -221,7 +231,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.addressLabel}>Selected Address:</Text>
+          <Text style={styles.addressLabel}>{t('cmp.selectedAddress')}</Text>
           {loadingAddress ? (
             <ActivityIndicator size="small" color={PRIMARY} style={{ marginVertical: 8 }} />
           ) : (
@@ -229,7 +239,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
           )}
 
           <TouchableOpacity style={styles.btn} onPress={handleConfirm}>
-            <Text style={styles.btnText}>Confirm Location Pin</Text>
+            <Text style={styles.btnText}>{t('cmp.confirmPin')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -241,7 +251,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
   title: { fontSize: rf(20), fontWeight: '700', color: PRIMARY },
-  close: { color: '#c62828', fontSize: rf(16), fontWeight: '600' },
+  // Same small rounded outlined close button every other modal uses.
+  closeBtn: {
+    width: 38, height: 38, borderRadius: 10, backgroundColor: '#fff',
+    borderWidth: 1, borderColor: '#ddd', alignItems: 'center', justifyContent: 'center',
+  },
 
   mapContainer: { flex: 1, marginHorizontal: 16, marginBottom: 12, borderRadius: 12, overflow: 'hidden', backgroundColor: '#f9f9f9', minHeight: 280, position: 'relative' },
   locateBtn: { position: 'absolute', top: 12, right: 12, minHeight: 40, backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ddd', alignItems: 'center', justifyContent: 'center', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3, zIndex: 1000 },

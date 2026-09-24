@@ -11,7 +11,7 @@ import EmptyState from '../components/EmptyState';
 import ImageViewerModal from '../components/ImageViewerModal';
 import { showAlert, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { getProofUrl, getDelivery, isOldCompleted } from './RetailerDashboard';
@@ -150,6 +150,6 @@ const styles = StyleSheet.create({
   proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 8 },
   proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: colors.border },
   proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
-  detailsBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: colors.border, backgroundColor: colors.leaf50, justifyContent: 'center', minHeight: control.height  },
-  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md), textAlign: 'center' },
+  detailsBtn: { ...actionBtn, ...actionBtnOutline, marginTop: 10 },
+  detailsBtnText: { ...actionBtnText, color: PRIMARY },
 });

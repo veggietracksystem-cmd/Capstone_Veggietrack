@@ -4,9 +4,10 @@ import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { SharedScreenTransition } from '../lib/motion';
 import {
-  Text, View, ScrollView, TextInput, TouchableOpacity,
+  Text, View, ScrollView, TouchableOpacity,
   ActivityIndicator, StyleSheet, RefreshControl, Platform, Modal,
 } from 'react-native';
+import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../api/client';
@@ -14,17 +15,16 @@ import {
   fetchHarvests, queueHarvest, syncPending, getQueue,
 } from '../offline/harvestStore';
 import { useAuth } from '../context/AuthContext';
-import NotificationBell from '../components/NotificationBell';
+import HomeHeaderActions from '../components/HomeHeaderActions';
 import BottomNavBar, { useBottomNavHeight, useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import BottomSheet from '../components/BottomSheet';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/ui/StatusBadge';
 import FarmerProfileTab from './FarmerProfileTab';
-import MessagesScreen from './MessagesScreen';
 import { showAlert, confirmAction } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
@@ -32,6 +32,7 @@ import VegetableImage from '../components/VegetableImage';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { exportReportPdf, printReport } from '../lib/reportPdf';
 import { useAutoSync } from '../sync/SyncProvider';
+import { titleCaseWords } from '../lib/textFormat';
 
 // Manually selectable only — 'for_pickup'/'picked_up' are system-driven states
 // set automatically by the pickup request/completion workflow, not by the farmer.
@@ -99,7 +100,7 @@ function ReportTable({ columns, rows, emptyLabel }) {
       <View style={styles.reportWrap}>
         <View style={styles.reportHeaderRow}>
           {columns.map((c) => (
-            <Text key={c.key} style={[styles.reportHeaderCell, { width: c.width }]} numberOfLines={1}>{c.label}</Text>
+            <Text key={c.key} style={[styles.reportHeaderCell, { width: c.width }]} numberOfLines={2}>{c.label}</Text>
           ))}
         </View>
         {rows.length === 0 ? (
@@ -174,18 +175,16 @@ export default function FarmerDashboard({ navigation, route }) {
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
   const { user } = useAuth();
-  const { t, language } = useTranslation();
-  const farmerDisplayName = user?.full_name || user?.name || t('dashboards.farmer.defaultFarmerName');
+  const { t, tc, language } = useTranslation();
   const [activeTab, setActiveTab] = useState('home');
   const [messagesUnreadCount, setMessagesUnreadCount] = useState(0);
 
   const FARMER_TABS = useMemo(() => ([
     { id: 'home', iconName: 'home-outline', label: t('dashboards.farmer.tabHome') },
     { id: 'harvest', iconName: 'leaf-outline', label: t('dashboards.farmer.tabHarvestNew') },
-    { id: 'messages', iconName: 'mail-outline', label: t('dashboards.farmer.tabMessagesNew'), badge: messagesUnreadCount },
     { id: 'pickup', iconName: 'truck-outline', iconSet: 'material', label: t('dashboards.farmer.tabPickupNew') },
     { id: 'profile', iconName: 'person-outline', label: t('dashboards.farmer.tabProfile') },
-  ]), [t, messagesUnreadCount]);
+  ]), [t]);
 
   const STATUS_LABELS = useMemo(() => ({
     available: t('dashboards.farmer.statusAvailable'),
@@ -603,33 +602,26 @@ export default function FarmerDashboard({ navigation, route }) {
   // One centred header for the whole dashboard, so the farmer's screens sit
   // at the same height and use the same title style as every other role.
   const HEADER_TITLES = {
-    home: t('dashboards.farmer.hubTitle'),
+    home: t('dashboards.farmer.tabHome'),
     harvest: t('dashboards.farmer.tabHarvestNew'),
-    messages: t('dashboards.farmer.tabMessagesNew'),
     pickup: t('dashboards.farmer.tabPickupNew'),
     profile: t('profile.title'),
-    notifications: t('dashboards.farmer.notificationsTitle'),
   };
+  // Home header actions: same shared Messages+Notifications pair (icon,
+  // sizing, spacing, divider, and notification modal design) every other
+  // module uses.
   const headerRight = activeTab === 'home' ? (
-    <TouchableOpacity
-      style={styles.iconBtn}
-      onPress={() => setActiveTab('notifications')}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={t('dashboards.farmer.notificationsTitle')}
-    >
-      <Ionicons name="notifications-outline" size={rf(25)} color={colors.soil800} />
-      {notifUnreadCount > 0 && <View style={styles.notifDot} />}
-    </TouchableOpacity>
+    <HomeHeaderActions />
   ) : activeTab === 'harvest' ? (
     <TouchableOpacity
       style={styles.iconBtn}
       onPress={openAddSheet}
       activeOpacity={0.7}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       accessibilityRole="button"
       accessibilityLabel={t('dashboards.farmer.addHarvestSheetTitle')}
     >
-      <Ionicons name="add" size={rf(20)} color={colors.leaf700} />
+      <Ionicons name="add" size={rf(18)} color="#fff" />
     </TouchableOpacity>
   ) : null;
 
@@ -637,35 +629,18 @@ export default function FarmerDashboard({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Messages renders its own header (it swaps the title for the
-          contact's name inside a thread), so don't stack a second one. */}
-      {activeTab !== 'messages' && (
-        <ScreenHeader
-          title={HEADER_TITLES[activeTab] || HEADER_TITLES.home}
-          onBack={activeTab === 'notifications' ? () => setActiveTab('home') : undefined}
-          right={headerRight}
-        />
-      )}
+      <ScreenHeader
+        title={HEADER_TITLES[activeTab] || HEADER_TITLES.home}
+        right={headerRight}
+      />
       <View style={styles.bodyFlex}>
-        {activeTab === 'notifications' ? (
-          <SharedScreenTransition style={styles.bodyFlex} visible>
-            <View style={styles.bodyFlex}>
-              <NotificationBell fullScreen />
-            </View>
-          </SharedScreenTransition>
-        ) : activeTab === 'profile' ? (
+        {activeTab === 'profile' ? (
           <SharedScreenTransition style={[styles.bodyFlex, styles.content]} visible>
             <FarmerProfileTab navigation={navigation} />
           </SharedScreenTransition>
-        ) : activeTab === 'messages' ? (
-          // Messages pads its own body, so its header spans the full width
-          // like every other header.
-          <SharedScreenTransition style={[styles.bodyFlex, { paddingBottom: navHeight }]} visible>
-            <MessagesScreen embedded navigation={navigation} />
-          </SharedScreenTransition>
         ) : (
           <SharedScreenTransition style={styles.bodyFlex} visible>
-            <ScrollView
+            <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled"
               style={styles.scrollArea}
               contentContainerStyle={[styles.content, { paddingBottom: navSpace + (showCartBar ? 64 : 0) }]}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -703,7 +678,7 @@ export default function FarmerDashboard({ navigation, route }) {
                   })
                 )}
                 {pickupRequests.length > 0 && <>
-                  <View style={styles.sectionHead}><Text style={styles.sectionHeadTitle}>Your pickup tracking</Text></View>
+                  <View style={styles.sectionHead}><Text style={styles.sectionHeadTitle}>{t('cmp.yourPickups')}</Text></View>
                   {pickupRequests.map((pickup) => (
                     <TouchableOpacity
                       key={pickup.id}
@@ -712,13 +687,13 @@ export default function FarmerDashboard({ navigation, route }) {
                       onPress={() => navigation.navigate('FarmerPickupTracking', { pickupId: pickup.id, pickup })}
                     >
                       <View style={styles.pickupCardHeader}>
-                        <Text style={styles.pickupCardId}>{`Pickup #${String(pickup.id).slice(0, 8)}`}</Text>
+                        <Text style={styles.pickupCardId}>{t('cmp.pickupNo', { id: String(pickup.id).slice(0, 8) })}</Text>
                         <StatusBadge status={pickup.status === 'picked_up' ? 'completed' : pickup.status} />
                       </View>
-                      <Text style={styles.vegMeta}>{localizeVegetableName(pickup.harvests?.vegetable_name || 'Vegetables', language)} · {pickup.harvests?.quantity_kg ?? '—'} kg</Text>
-                      <Text style={styles.vegMeta}>{pickup.rider?.full_name ? `Rider: ${pickup.rider.full_name}` : 'Waiting for rider assignment'}</Text>
+                      <Text style={styles.vegMeta}>{localizeVegetableName(pickup.harvests?.vegetable_name || t('cmp.vegetables'), language)} · {pickup.harvests?.quantity_kg ?? '—'} kg</Text>
+                      <Text style={styles.vegMeta}>{pickup.rider?.full_name ? t('cmp.riderName', { name: pickup.rider.full_name }) : t('cmp.waitingRider')}</Text>
                       <View style={styles.pickupCardFooter}>
-                        <Text style={styles.linkBtnText}>Track pickup</Text>
+                        <Text style={styles.linkBtnText}>{t('cmp.trackPickup')}</Text>
                         <Ionicons name="chevron-forward" size={rf(16)} color={colors.leaf700} />
                       </View>
                     </TouchableOpacity>
@@ -744,18 +719,34 @@ export default function FarmerDashboard({ navigation, route }) {
                 ) : (
                   <View style={styles.list}>
                     {harvests.map((h, i, arr) => (
-                      <View key={String(h.id)} style={[styles.listRow, i === arr.length - 1 && styles.listRowLast]}>
+                      <View key={String(h.id)} style={[styles.listRow, styles.harvestRow, i === arr.length - 1 && styles.listRowLast]}>
                         <View style={styles.vegEmoji}><VegetableImage source={getVegTile(h.vegetable_name).source} style={styles.vegEmojiImage} fallbackSize={rf(20)} /></View>
                         <View style={styles.vegInfo}>
                           <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
                           <Text style={styles.vegMeta}>{t('dashboards.farmer.harvestedMeta', { qty: h.quantity_kg, date: formatDate(h.recorded_at) })}</Text>
                         </View>
-                        <StatusBadge status={h.status} label={getStatusPillStyle(h.status, t).label} />
-                        {!isHarvestLocked(h.status) && (
-                          <TouchableOpacity style={styles.editIconBtn} onPress={() => openEditForm(h)} activeOpacity={0.7}>
-                            <Ionicons name="pencil-outline" size={rf(15)} color={colors.inkSoft} />
-                          </TouchableOpacity>
-                        )}
+                        {/* Badge sits top-right, above the Edit action, so
+                            every row's top-right corner looks the same. */}
+                        <View style={styles.harvestActionCol}>
+                          <View style={styles.harvestBadgeWrap}>
+                            <StatusBadge status={h.status} label={getStatusPillStyle(h.status, t).label} compact />
+                          </View>
+                          {isHarvestLocked(h.status) ? (
+                            // Reserves the same footprint the Edit button would
+                            // take, so the badge lines up the same whether or
+                            // not this row has an Edit action.
+                            <View style={styles.editIconBtnPlaceholder} />
+                          ) : (
+                            <TouchableOpacity
+                              style={styles.editIconBtn}
+                              onPress={() => openEditForm(h)}
+                              activeOpacity={0.7}
+                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            >
+                              <Text style={styles.editIconBtnText}>{t('common.edit')}</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
                       </View>
                     ))}
                   </View>
@@ -764,25 +755,15 @@ export default function FarmerDashboard({ navigation, route }) {
             ) : (
               <>
                 {/* HOME — shell order matches prototype's farmer-dashboard: bare
-                    top bar (bell only) -> hero greeting -> status pill as its
-                    own row -> sync banner -> stats -> add CTA -> list section. */}
-                <View style={styles.greetingRow}>
-                  <Text style={styles.greetingEyebrow}>{t('dashboards.farmer.greetingHome')}</Text>
-                  <Text style={styles.greetingName} numberOfLines={1}>{farmerDisplayName}</Text>
-                </View>
-
-                <View style={[styles.statusBadge, styles.statusBadgeRow, syncState === 'offline' ? styles.statusOffline : styles.statusOnline]}>
-                  <View style={[styles.statusDot, syncState === 'offline' ? styles.statusDotOffline : styles.statusDotOnline]} />
-                  <Text style={[styles.statusLabel, syncState === 'offline' && styles.statusLabelOffline]}>{syncState === 'offline' ? t('dashboards.farmer.offlineStatus') : t('dashboards.farmer.onlineStatus')}</Text>
-                </View>
-
+                    top bar (bell only) -> sync banner -> stats -> add CTA ->
+                    list section. */}
                 {(syncState === 'offline' || pendingCount > 0) && (
                   <View style={styles.syncBanner}>
                     <Ionicons name={syncState === 'offline' ? 'cloud-offline-outline' : 'sync-outline'} size={rf(15)} color={colors.gold700} />
                     <Text style={styles.syncBannerText}>
                       {syncState === 'offline' ? t('dashboards.farmer.offlinePrefixClean') : ''}
                       {pendingCount > 0
-                        ? t('dashboards.farmer.changesWaiting', { count: pendingCount, plural: pendingCount > 1 ? 's' : '' })
+                        ? tc('plural.changesWaiting', pendingCount)
                         : t('dashboards.farmer.willSyncAuto')}
                     </Text>
                   </View>
@@ -851,7 +832,7 @@ export default function FarmerDashboard({ navigation, route }) {
                   <View style={styles.statCard}>
                     <View style={styles.statLabelRow}>
                       <MaterialCommunityIcons name="truck-outline" size={rf(14)} color={colors.inkSoft} />
-                      <Text style={styles.statLabel}>{t('dashboards.farmer.pendingPickupLabel')}</Text>
+                      <Text style={styles.statLabel}>{tc('plural.pendingPickupLabel', pendingPickupHarvests.length)}</Text>
                     </View>
                     <Text style={styles.statValue}>{pendingPickupHarvests.length}</Text>
                     <View style={styles.weave}><View style={[styles.weaveFill, styles.weaveFillGold, { width: `${pendingWeavePct}%` }]} /></View>
@@ -907,7 +888,7 @@ export default function FarmerDashboard({ navigation, route }) {
         // Sits 8px above the bottom nav, whatever the phone's bottom inset.
         <View style={[styles.cartBar, { bottom: navHeight + 8 }]}>
           <Text style={styles.cartBarText}>
-            {t('dashboards.farmer.itemsSelected', { count: cartIds.length, plural: cartIds.length === 1 ? '' : 's', kg: cartTotalKg })}
+            {tc('plural.itemsSelected', cartIds.length, { kg: cartTotalKg })}
           </Text>
           <TouchableOpacity style={styles.cartBarBtn} onPress={() => setShowCartSheet(true)} activeOpacity={0.85}>
             <Text style={styles.cartBarBtnText}>{t('dashboards.farmer.reviewBtn')}</Text>
@@ -923,7 +904,8 @@ export default function FarmerDashboard({ navigation, route }) {
           placeholder={t('dashboards.farmer.vegetableNamePlaceholderNew')}
           placeholderTextColor={colors.placeholder}
           value={vegetableName}
-          onChangeText={setVegetableName}
+                    autoCapitalize="words"
+          onChangeText={(v) => setVegetableName(titleCaseWords(v))}
           editable={!submitting}
         />
         <Text style={styles.fieldLabel}>{t('dashboards.farmer.quantityHarvestedLabel')}</Text>
@@ -937,11 +919,11 @@ export default function FarmerDashboard({ navigation, route }) {
           editable={!submitting}
         />
         <Text style={styles.fieldLabel}>{t('dashboards.farmer.statusFieldLabel')}</Text>
-        <View style={styles.statusRow}>
+        <View style={[styles.statusRow, styles.statusRowCenter]}>
           {STATUS_OPTIONS.map((opt) => (
             <TouchableOpacity
               key={opt}
-              style={[styles.chip, status === opt && styles.chipActive]}
+              style={[styles.chip, styles.chipEven, status === opt && styles.chipActive]}
               onPress={() => setStatus(opt)}
               disabled={submitting}
             >
@@ -973,7 +955,7 @@ export default function FarmerDashboard({ navigation, route }) {
               <TouchableOpacity onPress={closeEditModal} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="arrow-back" size={rf(20)} color={colors.ink} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle} numberOfLines={1}>{t('dashboards.farmer.editHarvestModalTitle', { name: editVegetableName })}</Text>
+              <Text style={styles.modalTitle} numberOfLines={2}>{t('dashboards.farmer.editHarvestModalTitle', { name: editVegetableName })}</Text>
             </View>
 
             <Text style={styles.fieldLabel}>{t('dashboards.farmer.quantityFieldLabel')}</Text>
@@ -1195,28 +1177,9 @@ const styles = StyleSheet.create({
   scrollArea: { flex: 1, minHeight: 0 },
   content: { padding: 16 },
 
-  greetingRow: { marginBottom: 10 },
-  greetingEyebrow: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
-  greetingName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.title), color: colors.leaf900 || colors.leaf700, marginTop: 1 },
-
-
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20 },
-  statusBadgeRow: { alignSelf: 'flex-start', marginBottom: 14 },
-  statusOnline: { backgroundColor: colors.leaf100 },
-  statusOffline: { backgroundColor: colors.soil300 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusDotOnline: { backgroundColor: colors.leaf500 },
-  statusDotOffline: { backgroundColor: colors.inkFaint },
-  statusLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf900 || colors.leaf700 },
-  statusLabelOffline: { color: colors.inkSoft },
-
   iconBtn: {
-    width: 42, height: 42, borderRadius: radius.ctrl, backgroundColor: colors.card,
-    borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', position: 'relative',
-  },
-  notifDot: {
-    position: 'absolute', top: 7, right: 7, width: 7, height: 7, borderRadius: 4,
-    backgroundColor: colors.gold500, borderWidth: 1.5, borderColor: colors.card,
+    width: 34, height: 34, borderRadius: 10, backgroundColor: colors.leaf700,
+    alignItems: 'center', justifyContent: 'center', position: 'relative',
   },
 
   syncBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.gold100, borderRadius: 12, padding: 10, marginBottom: 14 },
@@ -1251,7 +1214,7 @@ const styles = StyleSheet.create({
 
   vegCard: {
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14,
-    padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 9,
+    padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10,
   },
   pickupCard: {
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14,
@@ -1269,15 +1232,28 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   listRowLast: { borderBottomWidth: 0 },
+  // Harvest tab's rows stack the badge above the Edit action in a top-right
+  // column, so the row itself top-aligns instead of centering.
+  harvestRow: { alignItems: 'flex-start' },
   vegEmoji: { width: 42, height: 42, borderRadius: 11, backgroundColor: colors.leaf50, alignItems: 'center', justifyContent: 'center' },
   vegEmojiImage: { width: 32, height: 32 },
   vegInfo: { flex: 1, minWidth: 0 },
   vegName: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
   vegMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
-  editIconBtn: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  harvestActionCol: { alignItems: 'flex-end', gap: 14 },
+  // Nudges the badge flush with the top of the vegetable name/emoji, the
+  // same amount whether or not this row also shows an Edit button below.
+  harvestBadgeWrap: { marginTop: -3 },
+  // Matches the Distributor module's Edit action button exactly (compact
+  // outlined green pill) so Edit looks the same everywhere it appears.
+  editIconBtn: { ...actionBtn, ...actionBtnOutline, width: 56 },
+  editIconBtnText: { ...actionBtnText, color: colors.leaf700 },
+  // Same footprint as editIconBtn (no border/text) so locked rows keep the
+  // status badge aligned with rows that do show the Edit button.
+  editIconBtnPlaceholder: { width: 56, minHeight: 32 },
 
-  btnOutlineSm: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.4, borderColor: colors.leaf700 },
-  btnOutlineSmText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
+  btnOutlineSm: { ...actionBtn, ...actionBtnOutline },
+  btnOutlineSmText: { ...actionBtnText, color: colors.leaf700 },
 
   btnOutlineBlock: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -1286,9 +1262,9 @@ const styles = StyleSheet.create({
   },
   btnOutlineText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.leaf700 },
 
-  selectToggle: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.4, borderColor: colors.leaf700, backgroundColor: colors.card },
+  selectToggle: { ...actionBtn, ...actionBtnOutline },
   selectToggleOn: { backgroundColor: colors.leaf700 },
-  selectToggleText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
+  selectToggleText: { ...actionBtnText, color: colors.leaf700 },
   selectToggleTextOn: { color: '#fff' },
 
   emptyContainer: { alignItems: 'center', paddingVertical: 50, paddingHorizontal: 24, gap: 6 },
@@ -1296,21 +1272,24 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, textAlign: 'center' },
 
   cartBar: {
-    position: 'absolute', left: 16, right: 16, backgroundColor: colors.ink,
+    position: 'absolute', left: 16, right: 16, backgroundColor: colors.leaf900 || colors.leaf700,
     borderRadius: 16, padding: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 10,
   },
   cartBarText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: '#fff', flexShrink: 1 },
-  cartBarCount: { fontFamily: fonts.bodyBold, color: colors.gold500 },
-  cartBarBtn: { backgroundColor: colors.gold500, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 14, minHeight: control.height  },
-  cartBarBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), color: colors.soil800, textAlign: 'center' },
+  cartBarBtn: { backgroundColor: colors.leaf100, borderRadius: 9, paddingVertical: 7, paddingHorizontal: 14, minHeight: control.heightSm, alignItems: 'center', justifyContent: 'center' },
+  cartBarBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), color: colors.leaf900 || colors.leaf700, textAlign: 'center' },
 
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 6, marginTop: 8 },
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.labelInk, marginBottom: 6, marginTop: 8 },
   input: {
     backgroundColor: '#fff', borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.border,
     padding: 11, fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink,
   },
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  // Add Harvest sheet's status row: centered, with both chips the same
+  // height/width so Available and Reserved sit evenly balanced.
+  statusRowCenter: { justifyContent: 'center', gap: 12 },
+  chipEven: { minWidth: 108, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   chipActive: { backgroundColor: colors.leaf700, borderColor: colors.leaf700 },
   chipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(fontSize.sm) },
@@ -1333,8 +1312,8 @@ const styles = StyleSheet.create({
     marginTop: 16, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 12, textAlign: 'center',
   },
 
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end', zIndex: 9999, elevation: 9999 },
-  modalCard: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, paddingBottom: 30 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24, zIndex: 9999, elevation: 9999 },
+  modalCard: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
   modalHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 6 },
   modalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, flexShrink: 1 },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },

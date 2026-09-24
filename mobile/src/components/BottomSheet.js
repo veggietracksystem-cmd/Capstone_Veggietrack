@@ -4,14 +4,14 @@ import {
   KeyboardAvoidingView, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, radius } from '../theme/appTheme';
-import { useBottomSheetMotion } from '../lib/motion';
+import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { useSharedModalMotion } from '../lib/motion';
 
-// Matches the mockup's .overlay/.sheet: dimmed backdrop, rounded-top sheet
-// sliding up from the bottom, drag handle, title + close (X) button.
+// Centered white card, dim backdrop, title + close (X) button - same shape
+// as CustomModal, so this and every other in-app dialog read as one system.
 export default function BottomSheet({ visible, onClose, title, children, scroll = true }) {
   const Body = scroll ? ScrollView : View;
-  const { backdropStyle, sheetStyle } = useBottomSheetMotion(visible);
+  const { backdropStyle, cardStyle } = useSharedModalMotion(visible);
 
   return (
     <Modal
@@ -26,8 +26,7 @@ export default function BottomSheet({ visible, onClose, title, children, scroll 
       >
         <Animated.View style={[styles.backdrop, backdropStyle]}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
-          <Animated.View style={[styles.sheet, sheetStyle]}>
-            <View style={styles.handle} />
+          <Animated.View style={[styles.card, cardStyle]}>
             <View style={styles.head}>
               <Text style={styles.title} numberOfLines={1}>{title}</Text>
               <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
@@ -53,25 +52,20 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(20,17,16,0.42)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
     zIndex: 9999,
     elevation: 9999,
   },
-  sheet: {
+  card: {
+    width: '100%',
+    maxWidth: 380,
+    maxHeight: '90%',
     backgroundColor: colors.bgScreen,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    padding: 18,
-    paddingBottom: 26,
-    maxHeight: '88%',
-  },
-  handle: {
-    width: 38,
-    height: 4,
-    backgroundColor: colors.soil300,
-    borderRadius: 3,
-    alignSelf: 'center',
-    marginBottom: 14,
+    borderRadius: radius.card,
+    padding: 22,
+    ...shadowCard,
   },
   head: {
     flexDirection: 'row',

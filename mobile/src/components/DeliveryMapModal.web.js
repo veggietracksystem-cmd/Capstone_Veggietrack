@@ -4,11 +4,14 @@ import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator, Pla
 import { colors, fonts, radius } from '../theme/appTheme';
 import { coordinate } from '../lib/trackingGeometry';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from '../i18n/useTranslation';
+import { MAP_ZOOM_CSS } from '../lib/mapZoomStyle';
 
 const PRIMARY = colors.leaf700;
 const SAN_PABLO = { latitude: 14.0683, longitude: 121.3256 };
 
 export default function DeliveryMapModal({ visible, address, coords, onClose }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [destination, setDestination] = useState(null);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
@@ -22,13 +25,13 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
     setCourier(null); setGpsError('');
     let cancelled = false;
     if (!navigator.geolocation) {
-      setGpsError('Device location unavailable. The destination pin is not your location.');
+      setGpsError(t('cmp.gpsUnavailable'));
       return;
     }
     const watch = navigator.geolocation.watchPosition(position => {
       if (!cancelled) { setCourier(coordinate(position.coords)); setGpsError(''); }
     }, () => {
-      if (!cancelled) setGpsError('Cannot get your GPS. Enable location permission. The destination pin is not your location.');
+      if (!cancelled) setGpsError(t('cmp.gpsCannot'));
     }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
     return () => { cancelled = true; navigator.geolocation.clearWatch(watch); };
   }, [visible]);
@@ -44,6 +47,13 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
     link.rel = 'stylesheet';
     link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
     document.head.appendChild(link);
+    // Green zoom buttons (added once, after Leaflet's own CSS so it wins).
+    if (!document.getElementById('vt-map-zoom-style')) {
+      const zoomStyle = document.createElement('style');
+      zoomStyle.id = 'vt-map-zoom-style';
+      zoomStyle.textContent = MAP_ZOOM_CSS;
+      document.head.appendChild(zoomStyle);
+    }
 
     const script = document.createElement('script');
     script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
@@ -107,8 +117,8 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
 
     if (destination) {
       const label = document.createElement('div');
-      label.textContent = `Destination: ${address || 'Delivery address'}`;
-      window.L.marker([destination.latitude, destination.longitude], { title: 'Destination' }).addTo(map).bindPopup(label);
+      label.textContent = t('cmp.destination', { address: address || t('cmp.deliveryAddress') });
+      window.L.marker([destination.latitude, destination.longitude], { title: t('cmp.destinationTitle') }).addTo(map).bindPopup(label);
     }
 
     return () => {
@@ -124,7 +134,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
     if (courierMarker.current) courierMarker.current.setLatLng(point);
     else {
       courierMarker.current = window.L.circleMarker(point, { radius: 9, color: '#fff', weight: 3, fillColor: '#218258', fillOpacity: 1 })
-        .addTo(map).bindPopup('You (courier) — device GPS');
+        .addTo(map).bindPopup(t('cmp.popupYouGps'));
       if (destination) map.fitBounds([point, [destination.latitude, destination.longitude]], { padding: [35, 35], maxZoom: 16 });
       else map.setView(point, 16);
     }
@@ -134,12 +144,9 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Map Navigation</Text>
-          <TouchableOpacity onPress={onClose}>
-            <View style={styles.closeLabel}>
-              <Text style={styles.close}>Close</Text>
-              <Ionicons name="close" size={rf(20)} color={PRIMARY} />
-            </View>
+          <Text style={styles.title}>{t('cmp.mapNavigation')}</Text>
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+            <Ionicons name="close" size={rf(18)} color={colors.soil800} />
           </TouchableOpacity>
         </View>
         {address ? (
@@ -148,7 +155,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
             <Text style={styles.addr}>{address}</Text>
           </View>
         ) : null}
-        <Text style={styles.note}>{gpsError || (courier ? 'The green dot is you. The pin is where you are going.' : 'Waiting for your location. The pin is where you are going.')}</Text>
+        <Text style={styles.note}>{gpsError || (courier ? t('cmp.dotYou') : t('cmp.waitingLoc'))}</Text>
 
         {loading ? (
           <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
@@ -156,7 +163,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
           <View style={styles.mapContainer}>
             <div id="delivery-map-leaflet" style={{ width: '100%', height: '100%', borderRadius: '12px' }} />
             {geocodeFailed ? (
-              <Text style={styles.note}>We couldn’t find that address on the map.</Text>
+              <Text style={styles.note}>{t('cmp.addrNotFound')}</Text>
             ) : null}
           </View>
         )}
@@ -169,8 +176,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
   title: { fontFamily: fonts.heading, fontSize: rf(19), color: colors.ink },
-  close: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15) },
-  closeLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  // Same small rounded outlined close button every other modal uses.
+  closeBtn: {
+    width: 38, height: 38, borderRadius: radius.ctrl, backgroundColor: colors.card,
+    borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
+  },
   addrRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginBottom: 8 },
   addr: { flex: 1, fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft },
   mapContainer: { flex: 1, margin: 16, borderRadius: radius.card, overflow: 'hidden', backgroundColor: colors.leaf50, minHeight: 300 },

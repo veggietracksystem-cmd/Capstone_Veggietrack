@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { refineLocation, locationError, withDeadline, GPS_REFINEMENT_TIMEOUT_MS } from './locationSamples';
+import { tr } from '../i18n/translate';
 
 // High accuracy and maximumAge: 0 explicitly ask the OS/browser for fresh fixes.
 // Permission/services checks have their own deadline, then refinement is bounded.
@@ -11,7 +12,7 @@ export async function acquireDevicePosition(options = {}) {
     return refineLocation(timeoutMs => new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(
       resolve,
       error => reject(locationError(error.code === 1 ? 'LOCATION_PERMISSION_DENIED' : error.code === 3 ? 'GPS_TIMEOUT' : 'LOCATION_UNAVAILABLE',
-        error.code === 1 ? 'Location permission denied. Enable it in your browser settings.' : 'GPS unavailable. Move to an open area and tap Refresh Location.')),
+        error.code === 1 ? tr('misc.gpsDenied') : tr('misc.gpsUnavail'))),
       { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 0 }
     )), options);
   }

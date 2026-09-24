@@ -2,13 +2,13 @@ import useRequestLock from '../hooks/useRequestLock';
 import useLatestRequest from '../hooks/useLatestRequest';
 import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
 import { readCart, saveCart, subscribeCart, reconcileCart } from '../lib/cartStore';
-import { manilaSchedule } from '../lib/deliverySchedule';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import { SharedScreenTransition } from '../lib/motion';
 import {
-  Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, RefreshControl,
+  Text, View, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, RefreshControl,
 } from 'react-native';
+import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
@@ -18,9 +18,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import HomeHeaderActions from '../components/HomeHeaderActions';
 import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import OfflineBanner from '../components/OfflineBanner';
-import ImageViewerModal from '../components/ImageViewerModal';
 import CustomModal from '../components/CustomModal';
-import OrderStepIndicator from '../components/OrderStepIndicator';
 import StatusBadge from '../components/ui/StatusBadge';
 import EmptyState from '../components/EmptyState';
 import AddToCartFlyOverlay from '../components/AddToCartFlyOverlay';
@@ -29,11 +27,12 @@ import { getVegetableTile, getVegetableIcon } from '../lib/vegetableIcons';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { useAutoSync } from '../sync/SyncProvider';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import RemoteImage from '../components/RemoteImage';
+import { statusLabel } from '../i18n/translate';
 
 const PRIMARY = colors.leaf700;
 
@@ -167,7 +166,6 @@ export default function RetailerDashboard({ navigation, route }) {
   const [refreshing, setRefreshing] = useState(false);
   const [shopOffline, setShopOffline] = useState(false);
   const [ordersOffline, setOrdersOffline] = useState(false);
-  const [proofUri, setProofUri] = useState(null); // proof-of-delivery image being viewed
   const [selectedProduct, setSelectedProduct] = useState(null);
 
   // ---------- Loaders (read-through cache; placing an order stays online) ----------
@@ -348,13 +346,13 @@ export default function RetailerDashboard({ navigation, route }) {
     <SafeAreaView style={styles.container}>
       {/* Same centred header every screen in the app uses. */}
       <ScreenHeader
-        title={t('dashboards.retailer.storeTitle')}
+        title={tab === 'cart' ? t('dashboards.retailer.tabCart') : tab === 'orders' ? t('dashboards.retailer.tabOrders') : t('dashboards.retailer.tabHome')}
         // Messages and notifications only appear on Home (the shop tab).
         right={tab === 'shop' ? <HomeHeaderActions /> : null}
       />
 
       <SharedScreenTransition style={{ flex: 1 }} visible>
-        <ScrollView
+        <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled"
           contentContainerStyle={[styles.content, { paddingBottom: navSpace }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
@@ -364,7 +362,6 @@ export default function RetailerDashboard({ navigation, route }) {
 
         {tab === 'shop' && (
           <HomeTab
-            user={user}
             loading={loadingProducts}
             products={products}
             orders={orders}
@@ -391,8 +388,6 @@ export default function RetailerDashboard({ navigation, route }) {
             <OrdersTab
               loading={loadingOrders}
               orders={orders}
-              onViewProof={setProofUri}
-              onTrack={(o) => navigation.navigate('ShopeeTracking', { orderId: o.id })}
               cancelling={cancelling}
               onCancel={cancelOrder}
               onViewDetails={(o) => navigation.navigate('OrderDetails', { order: o })}
@@ -402,11 +397,6 @@ export default function RetailerDashboard({ navigation, route }) {
         </ScrollView>
       </SharedScreenTransition>
 
-      <ImageViewerModal
-        uri={proofUri?.proof_photo_url} proof={proofUri?.pod}
-        visible={!!proofUri}
-        onClose={() => setProofUri(null)}
-      />
       <BottomNavBar
         tabs={RETAILER_TABS}
         activeTab={activeBottomTab}
@@ -420,16 +410,15 @@ export default function RetailerDashboard({ navigation, route }) {
         {selectedProduct?.batch_photo_url ? <RemoteImage uri={selectedProduct.batch_photo_url} style={styles.productModalPhoto} resizeMode="cover" /> : <View style={[styles.productModalFallback, { backgroundColor: getVegetableTile(selectedProduct?.vegetable_name).bg }]}><Text style={styles.productModalIcon}>{getVegetableTile(selectedProduct?.vegetable_name).icon}</Text></View>}
         <Text style={styles.productModalPrice}>{peso(selectedProduct?.price_per_kg)} / kg</Text>
         <Text style={styles.productModalMeta}>{t('dashboards.retailer.kgAvailable', { qty: selectedProduct?.available_kg || 0 })}</Text>
-        <Text style={styles.productModalHint}>Tap Add to Cart to include this product in your order.</Text>
+        <Text style={styles.productModalHint}>{t('cmp.addToCartHint')}</Text>
       </CustomModal>
     </SafeAreaView>
   );
 }
 
 // ================= Home tab (browse only) =================
-function HomeTab({ user, loading, products, orders, cart, searchQuery, setSearchQuery, onAdd, onSelect, onTrackOrder }) {
+function HomeTab({ loading, products, orders, cart, searchQuery, setSearchQuery, onAdd, onSelect, onTrackOrder }) {
   const { t, language } = useTranslation();
-  const displayName = user?.full_name || user?.name || t('dashboards.retailer.defaultName');
 
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
@@ -445,27 +434,6 @@ function HomeTab({ user, loading, products, orders, cart, searchQuery, setSearch
 
   return (
     <View>
-      <View style={styles.greetingRow}>
-        <Text style={styles.greetingEyebrow}>{t('dashboards.retailer.greetingHome')}</Text>
-        <Text style={styles.greetingName} numberOfLines={1}>{displayName}</Text>
-      </View>
-
-      {!!activeOrder && (
-        <TouchableOpacity style={styles.activeOrderBanner} onPress={() => onTrackOrder(activeOrder)} activeOpacity={0.85}>
-          <View style={styles.activeOrderIconBox}>
-            <Ionicons name="bicycle-outline" size={rf(20)} color={PRIMARY} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.activeOrderTitle}>{t('dashboards.retailer.orderNumber', { id: shortId(activeOrder.id) })} · {activeOrder.status}</Text>
-            <Text style={styles.activeOrderSub}>
-              {activeOrder.delivery_personnel_name
-                ? t('dashboards.retailer.riderLabel', { name: activeOrder.delivery_personnel_name })
-                : t('dashboards.retailer.awaitingRider')}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      )}
-
       {/* Search bar */}
       <View style={styles.searchRow}>
         <Ionicons name="search-outline" size={rf(19)} color="#999" />
@@ -529,6 +497,24 @@ function HomeTab({ user, loading, products, orders, cart, searchQuery, setSearch
               </TouchableOpacity>
             );
           })}
+        </View>
+      )}
+
+      {/* Active order: its own section below the products */}
+      {!!activeOrder && (
+        <View style={styles.activeOrderSection}>
+          <Text style={styles.sectionTitle}>{t('ordy.activeOrder')}</Text>
+          <TouchableOpacity style={styles.activeOrderCard} onPress={() => onTrackOrder(activeOrder)} activeOpacity={0.85}>
+            <View style={styles.activeOrderHeader}>
+              <Text style={styles.activeOrderTitle}>{t('dashboards.retailer.orderNumber', { id: shortId(activeOrder.id) })}</Text>
+              <StatusBadge status={activeOrder.status} />
+            </View>
+            <Text style={styles.activeOrderSub}>
+              {activeOrder.delivery_personnel_name
+                ? t('dashboards.retailer.riderLabel', { name: activeOrder.delivery_personnel_name })
+                : t('dashboards.retailer.awaitingRider')}
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -605,8 +591,8 @@ export function getProofUrl(order) {
   return delivery?.proof_photo_url || null;
 }
 
-function OrdersTab({ loading, cancelling, orders, onViewProof, onTrack, onCancel, onViewDetails, onViewHistory }) {
-  const { t, language } = useTranslation();
+function OrdersTab({ loading, cancelling, orders, onCancel, onViewDetails, onViewHistory }) {
+  const { t } = useTranslation();
 
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
@@ -615,26 +601,19 @@ function OrdersTab({ loading, cancelling, orders, onViewProof, onTrack, onCancel
   if (activeOrders.length === 0) {
     return (
       <View>
-        <TouchableOpacity style={styles.viewHistoryBtn} onPress={onViewHistory} activeOpacity={0.8}>
-          <Text style={styles.viewHistoryBtnText}>{t('dashboards.retailer.viewHistoryBtn')}</Text>
-        </TouchableOpacity>
         <EmptyState
           iconElement={<Ionicons name="receipt-outline" size={rf(44)} color={colors.inkFaint} />}
           title={t('dashboards.retailer.noOrdersTitle')}
           message={t('dashboards.retailer.noOrdersMessage')}
         />
+        <HistoryCard onPress={onViewHistory} />
       </View>
     );
   }
 
   return (
     <View>
-      <View style={styles.ordersHeaderRow}>
-        <Text style={styles.sectionTitle}>{t('dashboards.retailer.myOrders')}</Text>
-        <TouchableOpacity style={styles.viewHistoryBtn} onPress={onViewHistory} activeOpacity={0.8}>
-          <Text style={styles.viewHistoryBtnText}>{t('dashboards.retailer.viewHistoryBtn')}</Text>
-        </TouchableOpacity>
-      </View>
+      <Text style={[styles.sectionTitle, styles.ordersHeaderTitle]}>{t('dashboards.retailer.myOrders')}</Text>
       {activeOrders.map((o) => (
         <View key={o.id} style={styles.orderCard}>
           <View style={styles.orderHeader}>
@@ -642,43 +621,10 @@ function OrdersTab({ loading, cancelling, orders, onViewProof, onTrack, onCancel
             <StatusBadge status={o.status} />
           </View>
           <Text style={styles.orderTotal}>{peso(o.total_amount)}</Text>
-          {o.delivery_address ? (
-            <Text style={styles.rowMeta}>{t('dashboards.retailer.deliverTo', { address: o.delivery_address })}</Text>
-          ) : null}
-          {o.preferred_schedule ? (
-            <Text style={styles.rowMeta}>{t('dashboards.retailer.schedule', { schedule: manilaSchedule(o.preferred_schedule) })}</Text>
-          ) : null}
 
-          {/* Issue 16: visual progress (Pending → Approved → Out for Delivery → Delivered).
-              Cancelled orders skip the tracker; the status badge above already conveys it. */}
-          {o.status === 'cancelled' ? (
-            <Text style={styles.cancelledNote}>{t('dashboards.retailer.orderCancelledNote')}</Text>
-          ) : (
-            <OrderStepIndicator status={o.status} />
-          )}
-
-          {Array.isArray(o.order_items) && o.order_items.length > 0 && (
-            <View style={styles.itemsBox}>
-              {o.order_items.map((it, i) => (
-                <Text key={i} style={styles.itemLine}>
-                  • {localizeVegetableName(it.vegetable_name, language)} — {it.quantity_kg}kg @ {peso(it.price_at_order)}
-                </Text>
-              ))}
-            </View>
-          )}
-
-          {getProofUrl(o) && (
-            <TouchableOpacity
-              style={styles.proofRow}
-              onPress={() => onViewProof(getDelivery(o))}
-              activeOpacity={0.8}
-            >
-              <RemoteImage uri={getProofUrl(o)} style={styles.proofThumb} />
-              <Text style={styles.proofText}>{t('dashboards.retailer.proofOfDelivery')}</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Cancel Order - only for pending status */}
+          {/* Cancel Order - only for pending status. Everything else (address,
+              schedule, progress, items, proof, tracking) lives in View Details
+              now, so this list stays a simple summary card. */}
           {o.status === 'pending' && (
             <TouchableOpacity
               style={[styles.trackBtn, styles.cancelBtn]}
@@ -687,17 +633,6 @@ function OrdersTab({ loading, cancelling, orders, onViewProof, onTrack, onCancel
               activeOpacity={0.8}
             >
               <Text style={styles.cancelBtnText}>{t('dashboards.retailer.cancelOrderBtn')}</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Track Order — opens the map tracking screen for this order. */}
-          {o.status !== 'pending' && o.status !== 'cancelled' && (
-            <TouchableOpacity
-              style={styles.trackBtn}
-              onPress={() => onTrack(o)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.trackBtnText}>{t('dashboards.retailer.trackOrderBtn')}</Text>
             </TouchableOpacity>
           )}
 
@@ -711,7 +646,25 @@ function OrdersTab({ loading, cancelling, orders, onViewProof, onTrack, onCancel
           </TouchableOpacity>
         </View>
       ))}
+      <HistoryCard onPress={onViewHistory} />
     </View>
+  );
+}
+
+// Separate card-style entry to past orders, visually apart from the current orders above it.
+function HistoryCard({ onPress }) {
+  const { t } = useTranslation();
+  return (
+    <TouchableOpacity style={styles.historyCard} onPress={onPress} activeOpacity={0.8} accessibilityRole="button">
+      <View style={styles.historyIconBox}>
+        <Ionicons name="time-outline" size={rf(20)} color={PRIMARY} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.historyTitle}>{t('dashboards.retailer.viewHistoryBtn')}</Text>
+        <Text style={styles.historySub}>{t('ordx.historySub')}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={rf(18)} color={colors.inkFaint} />
+    </TouchableOpacity>
   );
 }
 
@@ -728,18 +681,12 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 10 },
   emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
-  greetingRow: { marginBottom: 14 },
-  greetingEyebrow: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
-  greetingName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.title), color: colors.leaf900 || colors.leaf700, marginTop: 1 },
-
   // Home tab: active-order preview banner (prototype's .banner)
-  activeOrderBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.leaf50,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, marginBottom: 16,
-  },
-  activeOrderIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.leaf100, alignItems: 'center', justifyContent: 'center' },
-  activeOrderTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
-  activeOrderSub: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
+  activeOrderSection: { marginTop: 20 },
+  activeOrderCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, borderWidth: 1, borderColor: colors.border, gap: 6, ...shadowCard },
+  activeOrderHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  activeOrderTitle: { flexShrink: 1, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
+  activeOrderSub: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft },
 
   // Search bar
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 16 },
@@ -776,8 +723,8 @@ const styles = StyleSheet.create({
   productModalMeta: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, marginTop: 4 },
   productModalHint: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(fontSize.sm), marginTop: 10 },
 
-  smallBtnFilled: { backgroundColor: PRIMARY, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.ctrl },
-  smallBtnFilledText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm) },
+  smallBtnFilled: { ...actionBtn, ...actionBtnPrimary },
+  smallBtnFilledText: { ...actionBtnText, color: '#fff' },
 
   cartCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: colors.border, gap: 12, ...shadowCard },
   qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -794,7 +741,7 @@ const styles = StyleSheet.create({
   summaryLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
   summaryTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: PRIMARY },
 
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 10, marginBottom: 6 },
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.labelInk, marginTop: 10, marginBottom: 6 },
   input: { backgroundColor: colors.card, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: rf(fontSize.lg), borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center' },
@@ -806,20 +753,20 @@ const styles = StyleSheet.create({
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   orderTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: PRIMARY, marginBottom: 4 },
-  itemsBox: { backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10, marginTop: 8 },
-  itemLine: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 2 },
-  cancelledNote: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.danger, fontStyle: 'italic', marginTop: 8 },
-  proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 8 },
-  proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: colors.border },
-  proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
-  trackBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY, justifyContent: 'center', minHeight: control.height  },
-  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md), textAlign: 'center' },
-  cancelBtn: { borderColor: colors.danger, backgroundColor: colors.card },
-  cancelBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md), textAlign: 'center' },
-  detailsBtn: { borderColor: colors.border, backgroundColor: colors.leaf50 },
-  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md), textAlign: 'center' },
+  trackBtn: { ...actionBtn, ...actionBtnOutline, marginTop: 10 },
+  trackBtnText: { ...actionBtnText, color: PRIMARY },
+  cancelBtn: { ...actionBtnDanger },
+  cancelBtnText: { ...actionBtnText, color: colors.danger },
+  // Reuses the app's dark green primary color (same as other primary
+  // action buttons) instead of a new shade, with clear white contrast text.
+  // Primary action on the order card: a touch taller than the secondary View History pill.
+  detailsBtn: { ...actionBtnOutline, minHeight: 44, paddingVertical: 10 },
+  detailsBtnText: { ...actionBtnText, fontSize: 14, color: PRIMARY },
 
-  ordersHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  viewHistoryBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY, minHeight: control.height  },
-  viewHistoryBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm), textAlign: 'center' },
+  ordersHeaderTitle: { marginBottom: 10 },
+  // View History card: same card language as the order cards, with its own space above.
+  historyCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12, backgroundColor: colors.leaf50, borderRadius: radius.card, padding: 14, borderWidth: 1, borderColor: colors.leaf100 },
+  historyIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.leaf100, alignItems: 'center', justifyContent: 'center' },
+  historyTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink },
+  historySub: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
 });

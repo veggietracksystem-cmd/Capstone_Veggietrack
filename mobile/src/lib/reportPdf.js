@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { tr } from '../i18n/translate';
 
 // Escapes text dropped into the generated HTML report so stray "<"/"&" in a
 // vegetable name or a farmer's name can't break the table markup.
@@ -20,7 +21,7 @@ function buildReportHtml(title, columns, rows, subtitle) {
   const head = columns.map((c) => `<th>${esc(c.label)}</th>`).join('');
   const body = rows.length
     ? rows.map((r) => `<tr>${columns.map((c) => `<td>${esc(r[c.key])}</td>`).join('')}</tr>`).join('')
-    : `<tr><td colspan="${columns.length}" class="empty">No records</td></tr>`;
+    : `<tr><td colspan="${columns.length}" class="empty">${esc(tr('cmp.noRecords'))}</td></tr>`;
 
   return `
     <html>
@@ -42,7 +43,7 @@ function buildReportHtml(title, columns, rows, subtitle) {
       <body>
         <h1>VeggieTrack — ${esc(title)}</h1>
         ${subtitle ? `<p class="subtitle">${esc(subtitle)}</p>` : ''}
-        <p class="generated">Generated on ${esc(generatedOn)}</p>
+        <p class="generated">${esc(tr('cmp2.generatedOn', { date: generatedOn }))}</p>
         <table>
           <thead><tr>${head}</tr></thead>
           <tbody>${body}</tbody>

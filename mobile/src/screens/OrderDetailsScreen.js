@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import OrderStepIndicator from '../components/OrderStepIndicator';
 import { peso, shortId, showAlert } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { getProofUrl, getDelivery } from './RetailerDashboard';
@@ -20,6 +20,7 @@ import StatusBadge from '../components/ui/StatusBadge';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
 import RemoteImage from '../components/RemoteImage';
+import { statusLabel } from '../i18n/translate';
 
 const PRIMARY = colors.leaf700;
 
@@ -136,7 +137,7 @@ export default function OrderDetailsScreen({ navigation, route }) {
           <Row label={t('orderDetails.deliveryAddress')} value={order.delivery_address} />
           <Row label={t('orderDetails.preferredDate')} value={date} />
           <Row label={t('orderDetails.preferredTime')} value={time} />
-          <Row label={t('orderDetails.deliveryStatus')} value={delivery?.status} />
+          <Row label={t('orderDetails.deliveryStatus')} value={statusLabel(delivery?.status)} />
         </View>
 
         {proofUrl && (
@@ -163,8 +164,8 @@ const styles = StyleSheet.create({
   orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   total: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: PRIMARY, marginBottom: 4 },
   cancelledNote: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.danger, fontStyle: 'italic', marginTop: 8 },
-  trackBtn: { marginTop: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY, justifyContent: 'center', minHeight: control.height  },
-  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md), textAlign: 'center' },
+  trackBtn: { ...actionBtn, ...actionBtnOutline, marginTop: 10 },
+  trackBtnText: { ...actionBtnText, color: PRIMARY },
 
   sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 8 },
 

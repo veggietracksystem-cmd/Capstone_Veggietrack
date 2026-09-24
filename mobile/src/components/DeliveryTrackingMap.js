@@ -5,6 +5,7 @@ import { formatEta } from '../lib/formatEta';
 import { coordinate, routePoints, routeLength, routeProgress, positionAlong } from '../lib/trackingGeometry';
 import { acquireDevicePosition } from '../lib/deviceLocation';
 import { activeJourney, isLivePosition, liveEtaSeconds } from '../lib/trackingJourney';
+import { useTranslation } from '../i18n/useTranslation';
 
 export { acquireDevicePosition } from '../lib/deviceLocation';
 
@@ -13,6 +14,7 @@ const numberOrNull = value => value != null && Number.isFinite(Number(value)) ? 
 // A display component: only an explicit onAcquirePosition callback can publish real GPS.
 // Simulation never calls that callback and never makes an API mutation.
 export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcquirePosition, onMetrics, mode = 'tracking', style }) {
+  const { t } = useTranslation();
   const view = trackingData?.retailer_view || {};
   const nav = trackingData?.rider_view || {};
   const journey = activeJourney(trackingData, mode);
@@ -20,7 +22,7 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
   const delivery = journey.delivery;
   const rider = view.rider || {};
   const origin = { ...pickup, ...coordinate(pickup), name: pickup.name || 'Central Laguna Vegetable Hub' };
-  const destination = { ...delivery, ...coordinate(delivery), name: delivery.name || 'Retailer destination' };
+  const destination = { ...delivery, ...coordinate(delivery), name: delivery.name || t('cmp.retailerDest') };
   const phase = journey.phase;
   const navigationTarget = journey.target;
   const actualPosition = coordinate(riderPosition) ? riderPosition : coordinate(rider) ? rider : nav.current_location;
@@ -57,12 +59,12 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
   const offRoute = !!journey.route && !demo && progress.offRoute != null && progress.offRoute > 150;
   const remainingKm = (journey.route || demo) && points.length > 1 && shownRider && !offRoute ? progress.remaining / 1000 : null;
   const etaSeconds = liveEtaSeconds(journey, { live, ended, offRoute, demo });
-  const label = demo ? 'DEMO • not live GPS' : ended ? String(trackingData.status).replace(/_/g, ' ') :
-    live ? 'LIVE GPS' : actualRider ? 'Last known location' : 'Waiting for rider GPS';
+  const label = demo ? t('cmp.demoLabel') : ended ? (['delivered', 'completed', 'cancelled', 'picked_up'].includes(trackingData.status) ? t(`status.${trackingData.status}`) : String(trackingData.status).replace(/_/g, ' ')) :
+    live ? t('cmp.liveGps') : actualRider ? t('cmp.lastKnown') : t('cmp.waitingGps');
   const accuracy = demo ? null : numberOrNull(actualPosition?.accuracy);
   useEffect(() => { onMetrics?.({ distanceKm: remainingKm, etaSeconds, demo, offRoute, live }); }, [remainingKm, etaSeconds, demo, offRoute, live, onMetrics]);
   const data = {
-    origin, destination, rider: { ...shownRider, name: rider.name || 'Delivery rider', live: live || demo, label, accuracy },
+    origin, destination, rider: { ...shownRider, name: rider.name || t('cmp.deliveryRider'), live: live || demo, label, accuracy },
     viewer, viewerToken, route: points, completed: offRoute ? [] : progress.completed,
     // Once the rider has picked up the order, the retailer's map is a
     // destination view: rider -> retailer, never the earlier warehouse leg.
@@ -73,25 +75,25 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
     if (acquiring.current) return;
     acquiring.current = true;
     const version = acquisitionGeneration.current;
-    setGpsBusy(true); setGpsFeedback('Acquiring GPS…');
+    setGpsBusy(true); setGpsFeedback(t('cmp.acquiring'));
     try {
       const position = await acquireDevicePosition();
       if (!mounted.current || version !== acquisitionGeneration.current) return;
       setViewer(position); setViewerToken(v => v + 1);
-      setGpsFeedback(`Your location: ${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}${position.accuracy != null ? ` • ±${Math.round(position.accuracy)} m` : ''}`);
+      setGpsFeedback(t('cmp.yourLocation', { lat: position.latitude.toFixed(5), lng: position.longitude.toFixed(5), acc: position.accuracy != null ? ` • ±${Math.round(position.accuracy)} m` : '' }));
       if (onAcquirePosition) {
         const sent = await onAcquirePosition(position);
         if (mounted.current && version === acquisitionGeneration.current && sent) setGpsFeedback(value => `${value} • sent to delivery tracking`);
       }
-    } catch (error) { if (mounted.current && version === acquisitionGeneration.current) setGpsFeedback('We couldn’t get your location. Please turn on location and try again.'); }
+    } catch (error) { if (mounted.current && version === acquisitionGeneration.current) setGpsFeedback(t('cmp.cantGetLoc')); }
     finally { if (mounted.current && version === acquisitionGeneration.current) { setGpsBusy(false); acquiring.current = false; } }
   };
   return <View style={[styles.container, style]}>
     <View style={styles.status}>
       <View style={[styles.dot, { backgroundColor: demo ? '#a7660b' : live ? '#218258' : '#808b84' }]} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.riderName} numberOfLines={1}>{rider.name || 'Delivery rider'} · {label}</Text>
-        <Text style={styles.detail}>{shownRider ? `${shownRider.latitude.toFixed(5)}, ${shownRider.longitude.toFixed(5)}` : 'Location not available yet'}
+        <Text style={styles.riderName} numberOfLines={1}>{rider.name || t('cmp.deliveryRider')} · {label}</Text>
+        <Text style={styles.detail}>{shownRider ? `${shownRider.latitude.toFixed(5)}, ${shownRider.longitude.toFixed(5)}` : t('cmp.locNotYet')}
           {accuracy != null && accuracy >= 0 ? `  ±${Math.round(accuracy)} m` : ''}</Text>
       </View>
     </View>
@@ -101,32 +103,32 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
         if (event.type === 'error') { setMapReady(true); setMapError(event.message); }
         if (event.type === 'manual-pan') setAutoRecenter(false);
       }} />
-      {!mapReady && <View style={[styles.loading, { pointerEvents: 'none' }]}><ActivityIndicator color="#218258" /><Text>Loading map…</Text></View>}
+      {!mapReady && <View style={[styles.loading, { pointerEvents: 'none' }]}><ActivityIndicator color="#218258" /><Text>{t('cmp.loadingMap')}</Text></View>}
     </View>
     <View style={styles.metrics}>
-      <Text style={styles.metric}>{remainingKm != null ? `${remainingKm.toFixed(2)} km remaining` : points.length > 1 ? `${(length / 1000).toFixed(2)} km route` : 'Road route unavailable'}</Text>
-      <Text style={styles.metric}>{etaSeconds != null ? `LIVE ETA: ${formatEta(etaSeconds)}` : 'ETA unavailable'}</Text>
+      <Text style={styles.metric}>{remainingKm != null ? t('cmp.kmRemaining', { km: remainingKm.toFixed(2) }) : points.length > 1 ? t('cmp.kmRoute', { km: (length / 1000).toFixed(2) }) : t('cmp.routeUnavailable')}</Text>
+      <Text style={styles.metric}>{etaSeconds != null ? t('cmp.liveEta', { eta: formatEta(etaSeconds) }) : t('cmp.etaUnavailable')}</Text>
     </View>
-    <Text style={styles.hint}>{demo ? 'Practice mode. Switch back to live to see the real location.' : offRoute ? 'The rider is off the planned route, so we can’t estimate the arrival time.' : `On the way to the ${phase === 'pickup' ? 'dispatch hub' : 'shop'}. Arrival time is an estimate.`}</Text>
+    <Text style={styles.hint}>{demo ? t('cmp.practiceMode') : offRoute ? t('cmp.offRoute') : (phase === 'pickup' ? t('cmp.onWayHub') : t('cmp.onWayShop'))}</Text>
     {mode === 'navigation' ? (!!nav.navigation_error && <Text style={styles.warning}>{nav.navigation_error}</Text>) : <>
-      {!coordinate(origin) && <Text style={styles.warning}>Dispatch hub has no saved map pin. Update the distributor warehouse location.</Text>}
-      {!coordinate(destination) && <Text style={styles.warning}>We don’t have a location for this delivery yet. Please contact the distributor.</Text>}
+      {!coordinate(origin) && <Text style={styles.warning}>{t('cmp.hubNoPin')}</Text>}
+      {!coordinate(destination) && <Text style={styles.warning}>{t('cmp.noDeliveryLoc')}</Text>}
       {!!view.tracking?.route_error && <Text style={styles.warning}>{view.tracking.route_error}</Text>}
     </>}
     <View style={styles.controls}>
       <TouchableOpacity accessibilityRole="button" disabled={gpsBusy} style={styles.button} onPress={acquire}>
-        <Text style={styles.buttonText}>{gpsBusy ? 'Acquiring…' : onAcquirePosition ? 'Refresh Location' : Platform.OS === 'web' ? 'Acquire Browser GPS' : 'Acquire Device GPS'}</Text>
+        <Text style={styles.buttonText}>{gpsBusy ? t('cmp.acquiringShort') : onAcquirePosition ? t('cmp.refreshLocation') : Platform.OS === 'web' ? t('cmp.acquireBrowser') : t('cmp.acquireDevice')}</Text>
       </TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" disabled={points.length < 2} style={[styles.button, points.length < 2 && styles.disabled]} onPress={() => { setDemo(v => !v); setDemoMetres(0); setAutoRecenter(true); }}>
-        <Text style={styles.buttonText}>{demo ? 'Return to live' : 'Simulate Road Movement'}</Text>
+        <Text style={styles.buttonText}>{demo ? t('cmp.returnLive') : t('cmp.simulate')}</Text>
       </TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: autoRecenter }} style={styles.button}
         onPress={() => { setAutoRecenter(v => !v); setFitToken(v => v + 1); }}>
-        <Text style={styles.buttonText}>Auto-recenter: {autoRecenter ? 'on' : 'off'}</Text>
+        <Text style={styles.buttonText}>{t('cmp.autoRecenter', { state: autoRecenter ? t('cmp.on') : t('cmp.off') })}</Text>
       </TouchableOpacity>
     </View>
     {!!gpsFeedback && <Text accessibilityLiveRegion="polite" style={styles.feedback}>{gpsFeedback}</Text>}
-    {!!mapError && <TouchableOpacity accessibilityRole="button" onPress={() => { setRetry(v => v + 1); setMapError(''); setMapReady(false); }}><Text style={styles.warning}>{mapError} Tap to retry.</Text></TouchableOpacity>}
+    {!!mapError && <TouchableOpacity accessibilityRole="button" onPress={() => { setRetry(v => v + 1); setMapError(''); setMapReady(false); }}><Text style={styles.warning}>{t('cmp2.tapRetry', { error: mapError })}</Text></TouchableOpacity>}
   </View>;
 }
 const styles = StyleSheet.create({

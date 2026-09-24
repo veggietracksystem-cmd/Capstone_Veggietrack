@@ -3,9 +3,10 @@ import UserAvatar from '../components/UserAvatar';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Text, View, TextInput, TouchableOpacity, ScrollView,
+  Text, View, TouchableOpacity, ScrollView,
   ActivityIndicator, StyleSheet, Platform, KeyboardAvoidingView,
 } from 'react-native';
+import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
@@ -16,6 +17,7 @@ import { friendlyError } from '../lib/errorMessages';
 import { colors, fonts, fontSize, radius, shadowCard, spacing } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import ScreenHeader from '../components/ScreenHeader';
+import { tr } from '../i18n/translate';
 
 // Use the device's local calendar for both separators and message times.
 const messageDate = (timestamp) => {
@@ -30,11 +32,11 @@ const sameDay = (a, b) => Boolean(a && b
   && a.getDate() === b.getDate());
 
 const messageDateLabel = (date, now) => {
-  if (sameDay(date, now)) return 'Today';
+  if (sameDay(date, now)) return tr('cmp.today');
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
-  if (sameDay(date, yesterday)) return 'Yesterday';
-  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  if (sameDay(date, yesterday)) return tr('cmp.yesterday');
+  return date.toLocaleDateString(tr('cmpx.dateLocale'), { month: 'long', day: 'numeric', year: 'numeric' });
 };
 
 // `embedded`: rendered as the "Messages" bottom tab (no back arrow, no own
@@ -180,7 +182,7 @@ export default function MessagesScreen({ navigation, embedded }) {
         {loading ? (
           <ActivityIndicator size="large" color={colors.leaf700} style={{ marginTop: 60 }} />
         ) : view === 'contacts' ? (
-          <ScrollView
+          <ScrollView keyboardShouldPersistTaps="handled"
             style={styles.scrollArea}
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
@@ -188,8 +190,8 @@ export default function MessagesScreen({ navigation, embedded }) {
             <View style={styles.searchRow}>
               <Ionicons name="search-outline" size={rf(18)} color={colors.inkFaint} />
               <TextInput style={styles.searchInput} value={contactSearch} onChangeText={setContactSearch}
-                placeholder="Search conversations" placeholderTextColor={colors.placeholder} autoCapitalize="none"
-                returnKeyType="search" accessibilityLabel="Search conversations" />
+                placeholder={t('cmp.searchConvos')} placeholderTextColor={colors.placeholder} autoCapitalize="none"
+                returnKeyType="search" accessibilityLabel={t('cmp.searchConvos')} />
               {!!contactSearch && <TouchableOpacity onPress={() => setContactSearch('')} hitSlop={8}><Ionicons name="close-circle" size={rf(18)} color={colors.inkFaint} /></TouchableOpacity>}
             </View>
             {contacts.length === 0 ? (
@@ -201,14 +203,14 @@ export default function MessagesScreen({ navigation, embedded }) {
             ) : filteredContacts.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Ionicons name="search-outline" size={rf(40)} color={colors.inkFaint} style={styles.emptyIcon} />
-                <Text style={styles.emptyTitle}>No conversations found</Text>
+                <Text style={styles.emptyTitle}>{t('cmp.noConversations')}</Text>
               </View>
             ) : (
               <View style={styles.list}>
-                {filteredContacts.map((c, i, arr) => (
+                {filteredContacts.map((c) => (
                   <TouchableOpacity
                     key={c.id}
-                    style={[styles.contactRow, i === arr.length - 1 && styles.contactRowLast]}
+                    style={styles.contactRow}
                     onPress={() => openThread(c)}
                     activeOpacity={0.7}
                   >
@@ -231,7 +233,7 @@ export default function MessagesScreen({ navigation, embedded }) {
           </ScrollView>
         ) : (
           <>
-            <ScrollView style={styles.scrollArea} contentContainerStyle={styles.threadContent} showsVerticalScrollIndicator={false}>
+            <ScrollView keyboardShouldPersistTaps="handled" style={styles.scrollArea} contentContainerStyle={styles.threadContent} showsVerticalScrollIndicator={false}>
               {thread.length === 0 ? (
                 <View style={styles.emptyContainer}>
                   <Ionicons name="chatbubble-ellipses-outline" size={rf(40)} color={colors.inkFaint} style={styles.emptyIcon} />
@@ -310,18 +312,19 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.inkSoft, marginBottom: 4 },
   emptySubtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, textAlign: 'center' },
 
-  // Bordered list container with divided rows (prototype's .list/.row),
-  // instead of separately floating cards per contact.
-  list: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, overflow: 'hidden' },
+  // Each conversation is its own card with a gap between - not one
+  // continuous bordered block with divider lines between rows.
+  list: { gap: 10 },
   contactRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
   },
-  contactRowLast: { borderBottomWidth: 0 },
   avatar: {
     width: 42,
     height: 42,
@@ -387,7 +390,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.soil800,
+    backgroundColor: colors.leaf700,
     alignItems: 'center',
     justifyContent: 'center',
   },

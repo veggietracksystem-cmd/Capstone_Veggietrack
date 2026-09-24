@@ -12,32 +12,36 @@ import { api } from '../api/client';
 import { confirmAction } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import { roleLabel } from '../lib/roles';
+import { useTranslation } from '../i18n/useTranslation';
 
 // The distributor's User Management screen: approve, decline, disable and
 // reactivate other people's accounts. This is the only place an account is
 // disabled - a user never disables their own from their profile.
 const FILTERS = [
-  { value: 'pending_approval', label: 'Waiting for approval' },
-  { value: 'active', label: 'Active' },
-  { value: 'declined', label: 'Declined' },
-  { value: 'disabled', label: 'Disabled' },
-  { value: 'unverified', label: 'Not confirmed' },
+  { value: 'pending_approval', labelKey: 'acct.filterPending' },
+  { value: 'active', labelKey: 'acct.filterActive' },
+  { value: 'declined', labelKey: 'acct.filterDeclined' },
+  { value: 'disabled', labelKey: 'acct.filterDisabled' },
+  { value: 'unverified', labelKey: 'acct.filterUnverified' },
 ];
 
 // What each action is called where the distributor can see it, so the confirm
 // box reads like a sentence instead of a status code.
 const ACTION_WORDING = {
-  APPROVED: { verb: 'Approve', title: 'Approve this account?' },
-  DECLINED: { verb: 'Decline', title: 'Decline this account?' },
-  DISABLED: { verb: 'Disable', title: 'Disable this account?' },
-  REACTIVATED: { verb: 'Turn back on', title: 'Turn this account back on?' },
+  APPROVED: { verbKey: 'acct.verbApprove', titleKey: 'acct.approveTitle' },
+  DECLINED: { verbKey: 'acct.verbDecline', titleKey: 'acct.declineTitle' },
+  DISABLED: { verbKey: 'acct.verbDisable', titleKey: 'acct.disableTitle' },
+  REACTIVATED: { verbKey: 'acct.verbTurnOn', titleKey: 'acct.turnOnTitle' },
 };
 
+
 export default function AccountManagementScreen({ navigation }) {
+  const { t } = useTranslation();
   // Screen skips the bottom safe-area edge, so pad the scroll content instead.
   const insets = useSafeAreaInsets();
   const [status, setStatus] = useState('pending_approval');
   const [users, setUsers] = useState([]);
+  const [pendingCount, setPendingCount] = useState(0); // last known size of the approval queue
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [reasons, setReasons] = useState({});
@@ -49,9 +53,12 @@ export default function AccountManagementScreen({ navigation }) {
     setError(''); setLoading(true);
     try {
       const rows = await api.get(`/api/accounts?status=${status}`);
-      if (version === generation.current) setUsers(rows);
+      if (version === generation.current) {
+        setUsers(rows);
+        if (status === 'pending_approval') setPendingCount(rows.length);
+      }
     } catch (e) {
-      if (version === generation.current) setError(friendlyError(e, 'We couldn’t load these accounts right now.'));
+      if (version === generation.current) setError(friendlyError(e, t('acct.loadFailed')));
     } finally {
       if (version === generation.current) setLoading(false);
     }
@@ -63,12 +70,12 @@ export default function AccountManagementScreen({ navigation }) {
     const reason = (reasons[user.id] || '').trim();
     const wording = ACTION_WORDING[action];
     if (['DECLINED', 'DISABLED'].includes(action) && !reason) {
-      setError('Please write a short reason first. This user will see it.');
+      setError(t('acct.reasonFirst'));
       return;
     }
     confirmAction(
-      wording.title,
-      `${wording.verb} ${user.full_name}.${reason ? `\n\nReason they will see: ${reason}` : ''}`,
+      t(wording.titleKey),
+      `${t(wording.verbKey, { name: user.full_name })}${reason ? `\n\n${t('acct.reasonShown', { reason })}` : ''}`,
       async () => {
         if (lock.current) return;
         lock.current = true; setBusy(true); setError('');
@@ -76,7 +83,7 @@ export default function AccountManagementScreen({ navigation }) {
           await api.post(`/api/accounts/${user.id}/transition`, { action, reason, version: user.status_version });
           await load();
         } catch (e) {
-          setError(friendlyError(e, 'We couldn’t update this account. Please try again.'));
+          setError(friendlyError(e, t('acct.updateFailed')));
         } finally {
           lock.current = false; setBusy(false);
         }
@@ -87,14 +94,14 @@ export default function AccountManagementScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.page} edges={['top', 'left', 'right']}>
       <ScreenHeader
-        title="User Management"
+        title={t('acct.title')}
         onBack={() => navigation.goBack()}
         right={(
           <TouchableOpacity
             onPress={load}
             disabled={busy || loading}
             accessibilityRole="button"
-            accessibilityLabel="Refresh"
+            accessibilityLabel={t('acct.refresh')}
             style={styles.headerBtn}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
@@ -102,15 +109,15 @@ export default function AccountManagementScreen({ navigation }) {
           </TouchableOpacity>
         )}
       />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
+      <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         {/* No second "Accounts" title here - the header already says what
             this screen is. The chips scroll sideways so the longer labels
             stay readable instead of being squeezed together. */}
-        <FilterChips options={FILTERS} value={status} onChange={setStatus} disabled={busy} />
+        <FilterChips options={FILTERS.map((f) => ({ value: f.value, label: t(f.labelKey), count: f.value === 'pending_approval' ? pendingCount : 0 }))} value={status} onChange={setStatus} disabled={busy} />
 
         {!!error && <Text style={[s.error, styles.errorText]} accessibilityRole="alert">{error}</Text>}
-        {loading && <ActivityIndicator accessibilityLabel="Loading accounts" color={colors.leaf700} style={styles.loader} />}
-        {!loading && !users.length && <Text style={[s.note, styles.emptyNote]}>There are no accounts in this list.</Text>}
+        {loading && <ActivityIndicator accessibilityLabel={t('acct.loading')} color={colors.leaf700} style={styles.loader} />}
+        {!loading && !users.length && <Text style={[s.note, styles.emptyNote]}>{t('acct.empty')}</Text>}
 
         {users.map((u) => (
           <View key={u.id} style={styles.card}>
@@ -119,23 +126,22 @@ export default function AccountManagementScreen({ navigation }) {
               <StatusBadge status={u.account_status || status} />
             </View>
             <Text style={styles.role}>{roleLabel(u.role)}</Text>
-            <Text style={styles.meta}>{u.email} · {u.legacy_access ? 'Existing account' : 'Email confirmed'}</Text>
+            <Text style={styles.meta}>{u.email} · {u.legacy_access ? t('acct.legacy') : t('acct.emailConfirmed')}</Text>
             {!!(u.farm_location || u.store_location || u.service_area) && (
               <Text style={styles.meta}>{u.farm_location || u.store_location || u.service_area}</Text>
             )}
-            <Text style={styles.meta}>Applied: {new Date(u.created_at).toLocaleString()}</Text>
+            <Text style={styles.meta}>{t('acct.applied', { date: new Date(u.created_at).toLocaleString() })}</Text>
             {!!u.status_reason && <Text style={styles.meta}>{u.status_reason}</Text>}
             {!!u.unfinished_assignments?.length && (
               <Text style={[s.error, styles.warning]}>
-                This user still has {u.unfinished_assignments.length} unfinished {u.unfinished_assignments.length === 1 ? 'job' : 'jobs'}.
-                Please reassign {u.unfinished_assignments.length === 1 ? 'it' : 'them'} before disabling this account.
+                {u.unfinished_assignments.length === 1 ? t('acct.unfinishedOne') : t('acct.unfinishedMany', { n: u.unfinished_assignments.length })}
               </Text>
             )}
 
             {['active', 'pending_approval'].includes(status) && (
               <AuthInput
                 style={styles.reasonInput}
-                placeholder="Reason (this user will see it)"
+                placeholder={t('acct.reasonPh')}
                 maxLength={500}
                 value={reasons[u.id] || ''}
                 onChangeText={(v) => setReasons((r) => ({ ...r, [u.id]: v }))}
@@ -145,17 +151,17 @@ export default function AccountManagementScreen({ navigation }) {
             {status === 'pending_approval' && (
               <View style={styles.actionRow}>
                 <View style={styles.actionSlot}>
-                  <AuthButton title="Approve" size="sm" disabled={busy} onPress={() => act(u, 'APPROVED')} />
+                  <AuthButton title={t('acct.approve')} size="sm" disabled={busy} onPress={() => act(u, 'APPROVED')} />
                 </View>
                 <View style={styles.actionSlot}>
-                  <AuthButton title="Decline" size="sm" variant="danger" disabled={busy} onPress={() => act(u, 'DECLINED')} />
+                  <AuthButton title={t('acct.decline')} size="sm" variant="danger" disabled={busy} onPress={() => act(u, 'DECLINED')} />
                 </View>
               </View>
             )}
             {status === 'active' && (
               <View style={styles.actionRow}>
                 <View style={styles.actionSlot}>
-                  <AuthButton title="Disable" size="sm" variant="danger" disabled={busy} onPress={() => act(u, 'DISABLED')} />
+                  <AuthButton title={t('acct.disable')} size="sm" variant="danger" disabled={busy} onPress={() => act(u, 'DISABLED')} />
                 </View>
               </View>
             )}
@@ -163,10 +169,10 @@ export default function AccountManagementScreen({ navigation }) {
               <>
                 <View style={styles.actionRow}>
                   <View style={styles.actionSlot}>
-                    <AuthButton title="Turn back on" size="sm" disabled={busy} onPress={() => act(u, 'REACTIVATED')} />
+                    <AuthButton title={t('acct.turnOn')} size="sm" disabled={busy} onPress={() => act(u, 'REACTIVATED')} />
                   </View>
                 </View>
-                <Text style={styles.meta}>They will need to sign in again.</Text>
+                <Text style={styles.meta}>{t('acct.signInAgain')}</Text>
               </>
             )}
           </View>

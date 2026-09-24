@@ -3,6 +3,7 @@ import { Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { buildDeliveryTrackingHtml } from '../lib/deliveryTrackingHtml';
 import { scriptJson } from '../lib/trackingGeometry';
+import { tr } from '../i18n/translate';
 
 export default function DeliveryMapFrame({ data, onEvent }) {
   const ref = useRef(null);
@@ -24,5 +25,5 @@ export default function DeliveryMapFrame({ data, onEvent }) {
         if (message.type === 'ready') setReady(true);
         onEvent(message);
       } catch { /* Ignore non-map messages. */ }
-    }} onError={() => onEvent({ type: 'error', message: 'Map unavailable. Check your connection.' })} />;
+    }} onError={() => onEvent({ type: 'error', message: tr('misc.mapUnavailable') })} />;
 }

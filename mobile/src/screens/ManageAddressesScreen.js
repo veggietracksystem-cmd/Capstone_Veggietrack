@@ -7,11 +7,11 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    TextInput,
     ActivityIndicator,
     Alert,
     Platform,
 } from 'react-native';
+import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -19,13 +19,15 @@ import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { showAlert, confirmAction } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { rf } from '../lib/responsive';
 import MapPinningModal from '../components/MapPinningModal';
 import ScreenHeader from '../components/ScreenHeader';
 import CustomModal from '../components/CustomModal';
 import StatusBadge from '../components/ui/StatusBadge';
+import { titleCaseWords } from '../lib/textFormat';
+import Checkbox from '../components/Checkbox';
 
 const PRIMARY = colors.leaf700;
 
@@ -61,7 +63,7 @@ export default function ManageAddressesScreen({ navigation }) {
         console.error('Load addresses error:', err);
         // Only show error if it's a real error, not empty data
         if (err.status !== 404) {
-            showAlert('We couldn’t load your addresses', 'Please check your internet connection and try again.');
+            showAlert(t('addr.loadFailedTitle'), t('addr.checkConnection'));
         }
     } finally {
         if (isCurrent()) { setLoading(false); setRefreshing(false); }
@@ -84,11 +86,11 @@ export default function ManageAddressesScreen({ navigation }) {
 
     const openEditModal = (address) => {
         setEditingAddress(address);
-        setFormLabel(address.label);
+        setFormLabel(titleCaseWords(address.label));
         setFormAddress(address.address);
         setFormLatitude(address.latitude ? String(address.latitude) : '');
         setFormLongitude(address.longitude ? String(address.longitude) : '');
-        setFormIsDefault(address.is_default || false);
+        setFormIsDefault(false); // never pre-checked; the user opts in each time
         setModalVisible(true);
     };
 
@@ -101,20 +103,21 @@ export default function ManageAddressesScreen({ navigation }) {
 
   const saveAddress = async () => {
     if (!formLabel.trim()) {
-        showAlert('Please fill in the required fields', 'Give this address a short name, for example Home or Shop.');
+        showAlert(t('addr.fillRequired'), t('addr.needLabel'));
         return;
     }
     if (!formAddress.trim()) {
-        showAlert('Please fill in the required fields', 'Please enter the address.');
+        showAlert(t('addr.fillRequired'), t('addr.needAddress'));
         return;
     }
 
     const payload = {
-        label: formLabel.trim(),
+        label: titleCaseWords(formLabel.trim()),
         address: formAddress.trim(),
         latitude: formLatitude ? parseFloat(formLatitude) : null,
         longitude: formLongitude ? parseFloat(formLongitude) : null,
-        is_default: formIsDefault,
+        // Unchecked means "leave as is": an address that is already the default stays the default.
+        is_default: formIsDefault || !!editingAddress?.is_default,
     };
 
     if (!requestLock.acquire('Saving')) return;
@@ -135,10 +138,10 @@ export default function ManageAddressesScreen({ navigation }) {
         });
         setModalVisible(false);
         await loadAddresses();
-        showAlert('Saved', editingAddress ? 'Your address has been updated.' : 'Your address has been added.');
+        showAlert(t('addr.saved'), editingAddress ? t('addr.updatedMsg') : t('addr.addedMsg'));
     } catch (err) {
         console.error('Save address error:', err);
-        showAlert('We couldn’t save this address', friendlyError(err, 'Please try again.'));
+        showAlert(t('addr.saveFailed'), friendlyError(err, t('errors.tryAgain')));
     } finally {
         requestLock.release('Saving');
         setSaving(false);
@@ -146,8 +149,8 @@ export default function ManageAddressesScreen({ navigation }) {
 };
     const deleteAddress = (address) => {
         confirmAction(
-            'Delete this address?',
-            `"${address.label}" will be removed from your saved addresses.`,
+            t('addr.deleteTitle'),
+            t('addr.deleteMsg', { label: titleCaseWords(address.label) }),
             async () => {
                 if (!requestLock.acquire('Saving')) return;
                 setSaving(true);
@@ -155,9 +158,9 @@ export default function ManageAddressesScreen({ navigation }) {
                     await api.delete(`/api/addresses/${address.id}`);
                     setAddresses(prev => prev.filter(a => a.id !== address.id));
                     await loadAddresses();
-                    showAlert('Deleted', 'Your address has been removed.');
+                    showAlert(t('addr.deleted'), t('addr.deletedMsg'));
                 } catch (err) {
-                    showAlert('We couldn’t delete this address', friendlyError(err, 'Please try again.'));
+                    showAlert(t('addr.deleteFailed'), friendlyError(err, t('errors.tryAgain')));
                 } finally {
                     requestLock.release('Saving');
                     setSaving(false);
@@ -175,9 +178,9 @@ export default function ManageAddressesScreen({ navigation }) {
                 is_default: true,
             });
             await loadAddresses();
-            showAlert('Saved', 'This is now your default address.');
+            showAlert(t('addr.saved'), t('addr.nowDefault'));
         } catch (err) {
-            showAlert('We couldn’t update your default address', friendlyError(err, 'Please try again.'));
+            showAlert(t('addr.defaultFailed'), friendlyError(err, t('errors.tryAgain')));
         } finally {
             requestLock.release('Saving');
             setSaving(false);
@@ -194,21 +197,21 @@ export default function ManageAddressesScreen({ navigation }) {
 
     return (
         <SafeAreaView style={styles.container}>
-            <ScreenHeader title="My Addresses" onBack={() => navigation.goBack()} />
+            <ScreenHeader title={t('addr.myAddresses')} onBack={() => navigation.goBack()} />
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
                 {addresses.length === 0 ? (
                     <View style={styles.empty}>
                         <Ionicons name="location-outline" size={rf(44)} color={colors.inkFaint} />
-                        <Text style={styles.emptyTitle}>No saved addresses</Text>
-                        <Text style={styles.emptyMessage}>Add your home, office, or other delivery locations</Text>
+                        <Text style={styles.emptyTitle}>{t('addr.noSaved')}</Text>
+                        <Text style={styles.emptyMessage}>{t('addr.noSavedHint')}</Text>
                     </View>
                 ) : (
                     addresses.map((addr) => (
                         <View key={addr.id} style={styles.addressCard}>
                             <View style={styles.addressHeader}>
-                                <Text style={styles.addressLabel}>{addr.label}</Text>
-                                {addr.is_default && <StatusBadge status="active" label="Default" />}
+                                <Text style={styles.addressLabel}>{titleCaseWords(addr.label)}</Text>
+                                {addr.is_default && <StatusBadge status="active" label={t('addr.default')} />}
                             </View>
                             <Text style={styles.addressText}>{addr.address}</Text>
                             {addr.latitude && addr.longitude && (
@@ -226,7 +229,7 @@ export default function ManageAddressesScreen({ navigation }) {
                                         disabled={saving}
                                         onPress={() => setDefaultAddress(addr)}
                                     >
-                                        <Text style={styles.actionBtnText}>Set Default</Text>
+                                        <Text style={styles.actionBtnText}>{t('addr.setDefault')}</Text>
                                     </TouchableOpacity>
                                 )}
                                 <TouchableOpacity
@@ -234,14 +237,14 @@ export default function ManageAddressesScreen({ navigation }) {
                                     disabled={saving}
                                     onPress={() => openEditModal(addr)}
                                 >
-                                    <Text style={styles.actionBtnText}>Edit</Text>
+                                    <Text style={[styles.actionBtnText, styles.editBtnText]}>{t('common.edit')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.actionBtn, styles.deleteBtn]}
                                     disabled={saving}
                                     onPress={() => deleteAddress(addr)}
                                 >
-                                    <Text style={[styles.actionBtnText, { color: colors.danger }]}>Delete</Text>
+                                    <Text style={[styles.actionBtnText, { color: colors.danger }]}>{t('common.delete')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -250,7 +253,7 @@ export default function ManageAddressesScreen({ navigation }) {
 
                 {saving && <ActivityIndicator color={PRIMARY} />}
                 <TouchableOpacity disabled={saving} style={styles.addBtn} onPress={openAddModal}>
-                    <Text style={styles.addBtnText}>+ Add New Address</Text>
+                    <Text style={styles.addBtnText}>{t('addr.addNew')}</Text>
                 </TouchableOpacity>
             </ScrollView>
 
@@ -258,40 +261,42 @@ export default function ManageAddressesScreen({ navigation }) {
                 every other modal in the app instead of a one-off overlay. */}
             <CustomModal
                 visible={modalVisible}
-                title={editingAddress ? 'Edit Address' : 'Add New Address'}
-                confirmLabel="Save"
+                title={editingAddress ? t('addr.editTitle') : t('addr.addTitle')}
+                confirmLabel={t('common.save')}
                 onConfirm={saveAddress}
-                cancelLabel="Cancel"
+                cancelLabel={t('common.cancel')}
                 onCancel={() => setModalVisible(false)}
                 busy={saving}
             >
-                <Text style={styles.fieldLabel}>Label (e.g., Home, Office)</Text>
+                <Text style={styles.fieldLabel}>{t('addr.labelField')}</Text>
                 <TextInput
                     style={styles.input}
                     value={formLabel}
-                    onChangeText={setFormLabel}
-                    placeholder="Home" placeholderTextColor={colors.placeholder}
+                                        autoCapitalize="words"
+                    onChangeText={(v) => setFormLabel(titleCaseWords(v))}
+                    placeholder={t('addr.labelPh')} placeholderTextColor={colors.placeholder}
                 />
 
-                <Text style={styles.fieldLabel}>Address</Text>
+                <Text style={styles.fieldLabel}>{t('addr.addressField')}</Text>
                 <View style={styles.addressRow}>
                     <TextInput
                         style={[styles.input, styles.addressInput, { flex: 1 }]}
                         value={formAddress}
-                        onChangeText={setFormAddress}
-                        placeholder="Street, City, Province" placeholderTextColor={colors.placeholder}
+                                                autoCapitalize="words"
+                        onChangeText={(v) => setFormAddress(titleCaseWords(v))}
+                        placeholder={t('addr.addressPh')} placeholderTextColor={colors.placeholder}
                         multiline
                     />
                     <TouchableOpacity
                         style={styles.pinBtn}
                         onPress={() => setMapModalVisible(true)}
                     >
-                        <Ionicons name="location" size={rf(18)} color="#fff" />
-                        <Text style={styles.pinBtnText}>Pin</Text>
+                        <Ionicons name="location-outline" size={rf(16)} color={colors.leaf700} />
+                        <Text style={styles.pinBtnText}>{t('addr.pin')}</Text>
                     </TouchableOpacity>
                 </View>
 
-                <Text style={styles.fieldLabel}>Latitude (optional)</Text>
+                <Text style={styles.fieldLabel}>{t('addr.latField')}</Text>
                 <TextInput
                     style={styles.input}
                     value={formLatitude}
@@ -300,7 +305,7 @@ export default function ManageAddressesScreen({ navigation }) {
                     keyboardType="numeric"
                 />
 
-                <Text style={styles.fieldLabel}>Longitude (optional)</Text>
+                <Text style={styles.fieldLabel}>{t('addr.lngField')}</Text>
                 <TextInput
                     style={styles.input}
                     value={formLongitude}
@@ -313,8 +318,8 @@ export default function ManageAddressesScreen({ navigation }) {
                     style={styles.checkboxRow}
                     onPress={() => setFormIsDefault(!formIsDefault)}
                 >
-                    <View style={[styles.checkbox, formIsDefault && styles.checkboxChecked]} />
-                    <Text style={styles.checkboxLabel}>Set as default address</Text>
+                    <Checkbox checked={formIsDefault} style={styles.checkbox} />
+                    <Text style={styles.checkboxLabel}>{t('addr.setAsDefault')}</Text>
                 </TouchableOpacity>
             </CustomModal>
 
@@ -357,11 +362,14 @@ const styles = StyleSheet.create({
     coordsText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 4 },
     coordsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     addressActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
-    actionBtn: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: radius.ctrl, borderWidth: 1, minHeight: control.height  },
-    setDefaultBtn: { borderColor: PRIMARY },
-    editBtn: { borderColor: colors.border },
-    deleteBtn: { borderColor: colors.danger },
-    actionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.ink, textAlign: 'center' },
+    actionBtn: { ...actionBtn },
+    setDefaultBtn: { ...actionBtnOutline },
+    // Matches the Distributor module's Edit action button exactly (compact
+    // outlined green pill) so Edit looks the same everywhere it appears.
+    editBtn: { ...actionBtnOutline },
+    editBtnText: { color: PRIMARY },
+    deleteBtn: { ...actionBtnDanger },
+    actionBtnText: { ...actionBtnText, color: colors.ink },
     addBtn: {
         backgroundColor: PRIMARY,
         borderRadius: radius.ctrl,
@@ -370,7 +378,7 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     addBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg), textAlign: 'center' },
-    fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 10, marginBottom: 4 },
+    fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.labelInk, marginTop: 10, marginBottom: 4 },
     input: {
         backgroundColor: colors.card,
         borderRadius: radius.ctrl,
@@ -382,20 +390,10 @@ const styles = StyleSheet.create({
         color: colors.ink,
     },
     addressInput: { minHeight: 50, textAlignVertical: 'top' },
-    addressRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-    pinBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        backgroundColor: PRIMARY,
-        borderRadius: radius.ctrl,
-        marginTop: 4,
-    },
-    pinBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm), textAlign: 'center' },
+    addressRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+    pinBtn: { ...actionBtn, ...actionBtnOutline, flexDirection: 'row', gap: 6, alignSelf: 'center', flexShrink: 0 },
+    pinBtnText: { ...actionBtnText, color: colors.leaf700 },
     checkboxRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
-    checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: PRIMARY, marginRight: 10 },
-    checkboxChecked: { backgroundColor: PRIMARY },
+    checkbox: { marginRight: 10 },
     checkboxLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink },
 });

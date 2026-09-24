@@ -5,9 +5,9 @@ import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
   Text, View, FlatList, ScrollView, TouchableOpacity, Modal,
-  ActivityIndicator, StyleSheet, RefreshControl, TextInput,
-  KeyboardAvoidingView, Platform,
+  ActivityIndicator, StyleSheet, RefreshControl, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
@@ -19,7 +19,7 @@ import { CATEGORIES, getCategory } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
 import { localizeVegetableName } from '../lib/vegetableNames';
-import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -179,8 +179,11 @@ export default function ProductListScreen({ navigation }) {
             )}
           </Text>
         </View>
-        <TouchableOpacity style={styles.smallBtn} onPress={() => openEditModal(l)}>
-          <Ionicons name="create-outline" size={rf(16)} color={PRIMARY} />
+        <TouchableOpacity
+          style={styles.smallBtn}
+          onPress={() => openEditModal(l)}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
           <Text style={styles.smallBtnText}>{t('productList.editBtn')}</Text>
         </TouchableOpacity>
       </View>
@@ -327,7 +330,9 @@ const styles = StyleSheet.create({
   rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
-  smallBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY, alignItems: 'center', justifyContent: 'center', minHeight: control.height  },
+  // Matches the Distributor module's Edit action button exactly (compact
+  // outlined green pill) so Edit looks the same everywhere it appears.
+  smallBtn: { ...actionBtn, ...actionBtnOutline },
   smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm), textAlign: 'center' },
   btnDisabled: { opacity: 0.5 },
 

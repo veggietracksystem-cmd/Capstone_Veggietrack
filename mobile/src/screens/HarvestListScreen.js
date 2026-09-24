@@ -5,8 +5,9 @@ import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet, RefreshControl, Platform,
+  Text, View, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, RefreshControl, Platform,
 } from 'react-native';
+import TextInput from '../components/AppTextInput';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
@@ -18,7 +19,7 @@ import { useTranslation } from '../i18n/useTranslation';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import RemoteImage from '../components/RemoteImage';
 
 const PRIMARY = colors.leaf700;
@@ -115,7 +116,7 @@ export default function HarvestListScreen({ navigation }) {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScreenHeader title={t('harvestList.title')} onBack={() => navigation.goBack()} />
 
-      <ScrollView
+      <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
@@ -303,41 +304,10 @@ const styles = StyleSheet.create({
   statusPillWrap: { marginBottom: 10, alignItems: 'center' },
 
   actionButtonsCol: { width: '100%', gap: 6 },
-  manageBtn: {
-    width: '100%',
-    flexDirection: 'row',
-    gap: 6,
-    backgroundColor: PRIMARY,
-    borderRadius: radius.ctrl,
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  manageBtnText: { color: '#fff', fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), textAlign: 'center' },
-  pickupBtn: {
-    width: '100%',
-    flexDirection: 'row',
-    gap: 6,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: PRIMARY,
-    borderRadius: radius.ctrl,
-    paddingVertical: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickupBtnText: { color: PRIMARY, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), textAlign: 'center' },
-  deleteBtn: {
-    width: '100%',
-    flexDirection: 'row',
-    gap: 6,
-    backgroundColor: colors.dangerSoft,
-    borderWidth: 1,
-    borderColor: colors.dangerSoft,
-    borderRadius: radius.ctrl,
-    paddingVertical: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteBtnText: { color: colors.danger, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), textAlign: 'center' },
+  manageBtn: { ...actionBtn, ...actionBtnPrimary, width: '100%', flexDirection: 'row', gap: 6 },
+  manageBtnText: { ...actionBtnText, color: '#fff' },
+  pickupBtn: { ...actionBtn, ...actionBtnOutline, width: '100%', flexDirection: 'row', gap: 6 },
+  pickupBtnText: { ...actionBtnText, color: PRIMARY },
+  deleteBtn: { ...actionBtn, ...actionBtnDanger, width: '100%', flexDirection: 'row', gap: 6 },
+  deleteBtnText: { ...actionBtnText, color: colors.danger },
 });

@@ -20,6 +20,8 @@ export const colors = {
   soil300: '#E8E2D2',
   ink: '#24301C',
   inkSoft: '#6E7566',
+  // Form field labels: darker than inkSoft so they read clearly, lighter than ink so they stay below titles.
+  labelInk: '#3D4834',
   inkFaint: '#9AA290',
   // One light-grey placeholder colour for every text input in the app, so a
   // hint never reads as if the user already typed something. Referenced by
@@ -91,3 +93,22 @@ export const shadowCard = {
   // green-tinted card shadow on native and web.
   boxShadow: '0 6px 20px rgba(30, 78, 9, 0.12)',
 };
+
+// One compact action-button design for card/row actions (Edit, View Details,
+// Set Default, Delete, Track Order, ...). Same height, padding, radius, border
+// and type everywhere; width stays flexible (set by the label / layout).
+// Variants only change colors: primary (solid dark green), outline (secondary,
+// outlined green) and danger (outlined red, for destructive actions).
+export const actionBtn = {
+  minHeight: 32,
+  paddingVertical: 6,
+  paddingHorizontal: 14,
+  borderRadius: radius.ctrl,
+  borderWidth: 1.4,
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+export const actionBtnOutline = { backgroundColor: colors.card, borderColor: colors.leaf700 };
+export const actionBtnPrimary = { backgroundColor: colors.leaf700, borderColor: colors.leaf700 };
+export const actionBtnDanger = { backgroundColor: colors.card, borderColor: colors.danger };
+export const actionBtnText = { fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, textAlign: 'center' };

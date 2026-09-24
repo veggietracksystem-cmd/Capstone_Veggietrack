@@ -43,6 +43,6 @@ const inputStyle = {
 };
 
 const styles = StyleSheet.create({
-  label: { fontFamily: fonts.bodySemiBold, fontSize: rf(12.5), color: colors.inkSoft, marginBottom: 8 },
+  label: { fontFamily: fonts.bodySemiBold, fontSize: rf(12.5), color: colors.labelInk, marginBottom: 8 },
   timeLabel: { marginTop: 14 },
 });

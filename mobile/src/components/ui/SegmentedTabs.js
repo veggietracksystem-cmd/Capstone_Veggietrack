@@ -8,12 +8,25 @@ import { colors, control, fonts, fontSize, spacing } from '../../theme/appTheme'
 // Selected and unselected tabs are deliberately identical in size - only the
 // background and text colour change - so tapping a tab never nudges the row.
 
+// Small alert-coloured count pill shared by every filter tab/chip, so size,
+// colour and spacing are identical everywhere. Hidden when the count is 0.
+function CountBadge({ count }) {
+  const n = Number(count) || 0;
+  if (n <= 0) return null;
+  return (
+    <View style={styles.badge} accessibilityLabel={`${n} new`}>
+      <Text style={styles.badgeText}>{n > 99 ? '99+' : n}</Text>
+    </View>
+  );
+}
+
 /**
  * Segmented filter: equal-width pill tabs in the same style as FilterChips
  * (outlined when inactive, solid green with white text when active).
  * Use for a small, fixed set of views (Batches/Products, Unpaid/Paid).
  *
- * @param options  [{ value, label }]
+ * @param options  [{ value, label, count? }] - `count` > 0 shows a small alert
+ *                 badge after the label (new/pending items in that tab)
  * @param value    the selected option's value
  * @param onChange called with the new value
  * @param scroll   true when the labels are long enough to need scrolling
@@ -21,7 +34,7 @@ import { colors, control, fonts, fontSize, spacing } from '../../theme/appTheme'
  * @param inset    scroll only: side padding inside the scrolling row, for a
  *                 row that bleeds to the screen edges
  */
-export function SegmentedTabs({ options, value, onChange, scroll = false, inset = 0, style }) {
+export function SegmentedTabs({ options, value, onChange, scroll = false, inset = 0, style, disabled = false }) {
   const tabs = options.map((option) => {
     const selected = option.value === value;
     return (
@@ -29,16 +42,20 @@ export function SegmentedTabs({ options, value, onChange, scroll = false, inset 
         key={option.value}
         style={[styles.tab, !scroll && styles.tabEven, scroll && styles.tabScroll, selected && styles.tabSelected]}
         onPress={() => onChange(option.value)}
+        disabled={disabled}
         activeOpacity={0.8}
         accessibilityRole="tab"
-        accessibilityState={{ selected }}
+        accessibilityState={{ selected, disabled }}
       >
-        <Text
-          style={[styles.tabText, selected && styles.tabTextSelected]}
-          numberOfLines={1}
-        >
-          {option.label}
-        </Text>
+        <View style={styles.labelRow}>
+          <Text
+            style={[styles.tabText, selected && styles.tabTextSelected, styles.labelShrink]}
+            numberOfLines={scroll ? 1 : 2}
+          >
+            {option.label}
+          </Text>
+          <CountBadge count={option.count} />
+        </View>
       </TouchableOpacity>
     );
   });
@@ -83,9 +100,12 @@ export function FilterChips({ options, value, onChange, disabled = false, style 
             accessibilityRole="tab"
             accessibilityState={{ selected, disabled }}
           >
-            <Text style={[styles.chipText, selected && styles.chipTextSelected]} numberOfLines={1}>
-              {option.label}
-            </Text>
+            <View style={styles.labelRow}>
+              <Text style={[styles.chipText, selected && styles.chipTextSelected]} numberOfLines={1}>
+                {option.label}
+              </Text>
+              <CountBadge count={option.count} />
+            </View>
           </TouchableOpacity>
         );
       })}
@@ -103,11 +123,14 @@ const styles = StyleSheet.create({
   },
   trackScroll: { flexGrow: 0 },
   trackScrollContent: { alignItems: 'center', gap: spacing.sm, paddingRight: spacing.xs },
+  // minHeight (not height) so a longer translation can wrap onto a second line
+  // instead of being cut off; every tab in the row still matches in height.
   tab: {
-    height: control.heightSm,
+    minHeight: control.heightSm,
+    paddingVertical: 4,
     borderRadius: control.heightSm / 2,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.leaf700,
     backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
@@ -118,11 +141,19 @@ const styles = StyleSheet.create({
   tabSelected: { backgroundColor: colors.leaf700, borderColor: colors.leaf700 },
   tabText: {
     fontFamily: fonts.bodySemiBold,
-    color: colors.inkSoft,
+    color: colors.leaf700,
     fontSize: rf(fontSize.sm),
     textAlign: 'center',
   },
   tabTextSelected: { color: '#fff' },
+
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', maxWidth: '100%' },
+  labelShrink: { flexShrink: 1 },
+  badge: {
+    minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4, marginLeft: 6,
+    backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center',
+  },
+  badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: 10, lineHeight: 12, includeFontPadding: false },
 
   chipRow: { flexGrow: 0, marginBottom: spacing.md },
   chipRowContent: { gap: spacing.sm, alignItems: 'center', paddingRight: spacing.xs },
@@ -133,13 +164,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: control.paddingH,
     borderRadius: control.heightSm / 2,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.leaf700,
     backgroundColor: colors.card,
   },
   chipSelected: { backgroundColor: colors.leaf700, borderColor: colors.leaf700 },
   chipText: {
     fontFamily: fonts.bodySemiBold,
-    color: colors.inkSoft,
+    color: colors.leaf700,
     fontSize: rf(fontSize.sm),
     textAlign: 'center',
   },

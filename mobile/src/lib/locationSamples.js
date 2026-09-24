@@ -1,3 +1,4 @@
+import { tr } from '../i18n/translate';
 const { coordinate } = require('./trackingGeometry');
 const { STALE_LOCATION_SECONDS, MAX_ACCEPTABLE_GPS_ACCURACY_METERS } = require('./deliveryLocation');
 
@@ -6,7 +7,7 @@ const GPS_POLL_INTERVAL_MS = 700;
 // Tolerance between the GPS fix clock and the system clock when deciding a fix
 // was captured after the request began.
 const FRESH_FIX_SKEW_MS = 1000;
-const poorAccuracyMessage = 'Your GPS signal is not accurate enough yet. Move to an open area and tap Refresh Location.';
+const poorAccuracyMessage = () => tr('misc.gpsWeak');
 const locationError = (code, message) => Object.assign(new Error(message), { code });
 
 // Never manufacture a timestamp: missing capture time cannot establish freshness.
@@ -60,7 +61,7 @@ async function refineLocation(readPosition, { timeoutMs = GPS_REFINEMENT_TIMEOUT
   // after this request began cannot be a cached reading, so it is enough.
   const fresh = [...samples.values()].filter(item => isAcceptableSample(item, now()) && item.timestamp >= startedAt - FRESH_FIX_SKEW_MS);
   if (fresh.length) return fresh.sort((a, b) => a.accuracy - b.accuracy || b.timestamp - a.timestamp)[0];
-  if (sawInaccurate) throw locationError('GPS_INACCURATE', poorAccuracyMessage);
+  if (sawInaccurate) throw locationError('GPS_INACCURATE', poorAccuracyMessage());
   if (sawStale && samples.size === 0) throw locationError('GPS_STALE', 'Your location is out of date. Tap Refresh Location and try again.');
   if (samples.size < 2 && samples.size > 0) throw locationError('GPS_UNCONFIRMED', 'Your location could not be confirmed. Tap Refresh Location and try again.');
   throw lastError || locationError('LOCATION_UNAVAILABLE', 'GPS unavailable. Move to an open area and tap Refresh Location.');

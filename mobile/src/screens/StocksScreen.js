@@ -5,8 +5,8 @@ import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
   Text, View, FlatList, TouchableOpacity,
-  ActivityIndicator, StyleSheet, RefreshControl, TextInput,
-} from 'react-native';
+  ActivityIndicator, StyleSheet, RefreshControl, } from 'react-native';
+import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
@@ -18,13 +18,14 @@ import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { showAlert, confirmAction, peso } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, spacing } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
+import { titleCaseWords } from '../lib/textFormat';
 
 const PRIMARY = colors.leaf700;
 
@@ -113,7 +114,7 @@ export default function StocksScreen({ navigation }) {
   const isListable = (status) => status !== 'listed' && status !== 'sold_out';
   const showBatchPhotoError = (err) => {
     if (err?.status === 404) {
-      showAlert('Not available yet', 'Batch photos can’t be saved right now. Please try again later.');
+      showAlert(t('cmp2.notAvailableYet'), t('cmp2.batchPhotoCantSave'));
       return;
     }
     showAlert(t('common.error'), friendlyError(err));
@@ -137,7 +138,7 @@ export default function StocksScreen({ navigation }) {
 
   const onAddToProductList = (batch) => {
     if (!batch.batch_photo_url) {
-      showAlert(t('common.error'), 'Please add a recent photo first. Tap Edit to upload or take one.');
+      showAlert(t('common.error'), t('cmp2.photoFirst'));
       return;
     }
     const sibling = batches.find(
@@ -159,7 +160,7 @@ export default function StocksScreen({ navigation }) {
   };
   const saveBatchPhoto = async () => {
     if (!batchPhotoUrl || batchPhotoState !== 'ready') {
-      showAlert(t('common.error'), batchPhotoState === 'uploading' ? 'Please wait for the photo to finish uploading.' : 'Please add a recent photo of this batch before saving.');
+      showAlert(t('common.error'), batchPhotoState === 'uploading' ? t('cmp2.photoWait') : t('cmp2.photoBeforeSave'));
       return;
     }
     const canEditPrice = !isListable(editingBatch?.status);
@@ -183,10 +184,10 @@ export default function StocksScreen({ navigation }) {
   };
   const removeBatchPhoto = () => {
     if (!editingBatch || !isListable(editingBatch.status)) {
-      showAlert(t('common.error'), 'Listed batches need a photo so retailers can see what they are ordering. Remove it from the product list first.');
+      showAlert(t('common.error'), t('cmp2.listedNeedPhoto'));
       return;
     }
-    confirmAction('Remove batch photo', 'This batch will need a new recent photo before it can be listed.', async () => {
+    confirmAction(t('cmp2.removeBatchPhotoTitle'), t('cmp2.removeBatchPhotoMsg'), async () => {
       if (!requestLock.acquire('removeBatchPhoto')) return;
       setPhotoBusy(true);
       try {
@@ -230,7 +231,7 @@ export default function StocksScreen({ navigation }) {
     if (!price || price <= 0 || !Number.isFinite(price)) { showAlert(t('common.error'), t('stocks.priceRequired')); return; }
     if (!stock || stock <= 0 || !Number.isFinite(stock)) { showAlert(t('common.error'), t('stocks.stockRequired')); return; }
     if (!addPhotoUrl || addPhotoState !== 'ready') {
-      showAlert(t('common.error'), addPhotoState === 'uploading' ? 'Please wait for the recent batch photo to finish uploading.' : t('stocks.photoRequired'));
+      showAlert(t('common.error'), addPhotoState === 'uploading' ? t('cmp2.photoWaitRecent') : t('stocks.photoRequired'));
       return;
     }
     if (!requestLock.acquire('addProduct')) return;
@@ -406,8 +407,8 @@ export default function StocksScreen({ navigation }) {
 
       <CustomModal
         visible={!!editingBatch}
-        title={isListable(editingBatch?.status) ? 'Edit Batch' : 'View / Edit Product'}
-        confirmLabel={isListable(editingBatch?.status) ? 'Save Batch' : 'Save Changes'}
+        title={isListable(editingBatch?.status) ? t('cmp2.editBatch') : t('cmp2.viewEditProduct')}
+        confirmLabel={isListable(editingBatch?.status) ? t('cmp2.saveBatch') : t('cmp2.saveChanges')}
         onConfirm={saveBatchPhoto}
         onCancel={() => setEditingBatch(null)}
         busy={photoBusy}
@@ -428,7 +429,7 @@ export default function StocksScreen({ navigation }) {
           <TextInput style={styles.priceInput} value={editPriceInput} onChangeText={setEditPriceInput} placeholder={t('stocks.priceLabel')} placeholderTextColor={colors.placeholder} keyboardType="decimal-pad" editable={!photoBusy} />
         </>}
         {!!batchPhotoUrl && isListable(editingBatch?.status) && <TouchableOpacity onPress={removeBatchPhoto} disabled={photoBusy} style={styles.removePhotoBtn}>
-          <Text style={styles.removePhotoText}>Remove photo</Text>
+          <Text style={styles.removePhotoText}>{t('cmp.removePhoto')}</Text>
         </TouchableOpacity>}
       </CustomModal>
 
@@ -444,7 +445,8 @@ export default function StocksScreen({ navigation }) {
         <TextInput
           style={styles.priceInput}
           value={addVegName}
-          onChangeText={setAddVegName}
+                    autoCapitalize="words"
+          onChangeText={(v) => setAddVegName(titleCaseWords(v))}
           placeholder={t('stocks.vegetableNamePlaceholder')} placeholderTextColor={colors.placeholder}
           editable={!addBusy}
         />
@@ -489,7 +491,7 @@ const styles = StyleSheet.create({
   // Same spacing as the other Distributor filter tabs.
   segmented: { marginHorizontal: spacing.lg, marginTop: spacing.lg, marginBottom: 0 },
 
-  card: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 14, marginBottom: 12, ...shadowCard },
+  card: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 8 },
   tile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   tileIcon: { width: 34, height: 34 },
@@ -505,8 +507,8 @@ const styles = StyleSheet.create({
   addBtn: { marginTop: 10, backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', minHeight: control.height  },
   addBtnDisabled: { opacity: 0.6 },
   addBtnText: { color: '#fff', fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), textAlign: 'center' },
-  editBtn: { marginTop: 8, borderWidth: 1, borderColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', minHeight: control.height  },
-  editBtnText: { color: PRIMARY, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), textAlign: 'center' },
+  editBtn: { ...actionBtn, ...actionBtnOutline, marginTop: 8 },
+  editBtnText: { ...actionBtnText, color: PRIMARY },
 
   modalHint: { fontSize: rf(fontSize.sm), color: colors.inkFaint, marginBottom: 10 },
   priceInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, fontSize: rf(fontSize.lg) },

@@ -1,3 +1,4 @@
+import { MAP_ZOOM_CSS } from './mapZoomStyle';
 // One persistent Leaflet document for WebView (Android/iOS) and iframe (web).
 // Data updates move layers in place, preserving zoom, tile cache, and open controls.
 export function buildDeliveryTrackingHtml() {
@@ -7,6 +8,7 @@ export function buildDeliveryTrackingHtml() {
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 html,body,#map{height:100%;margin:0;background:#e8efe6;font-family:system-ui,sans-serif}
+${MAP_ZOOM_CSS}
 .marker{background:transparent;border:0}.pin{position:relative;display:grid;place-items:center;width:38px;height:38px;border:3px solid white;border-radius:50%;background:#244d36;box-shadow:0 2px 8px #0005;font-size:23px}
 .pin.rider{background:#218258}.pin.hub{background:#31598a}.pin.shop{background:#b8702b}.pin.viewer{background:#6654af}
 .pin svg{width:19px;height:19px;fill:#fff;display:block}

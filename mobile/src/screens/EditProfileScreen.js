@@ -3,9 +3,10 @@ import { rf } from '../lib/responsive';
 import ProfilePhotoField from '../components/ProfilePhotoField';
 import { useState } from 'react';
 import {
-  Text, TextInput, TouchableOpacity, ActivityIndicator, View, ScrollView,
+  Text, TouchableOpacity, ActivityIndicator, View, ScrollView,
   StyleSheet,
 } from 'react-native';
+import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api/client';
@@ -16,7 +17,8 @@ import { showAlert } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import MapPinningModal from '../components/MapPinningModal';
 import ScreenHeader from '../components/ScreenHeader';
-import { colors, control, fonts, fontSize, radius, shadowCard, spacing } from '../theme/appTheme';
+import { colors, control, fonts, fontSize, radius, shadowCard, spacing, actionBtn, actionBtnPrimary, actionBtnText, actionBtnOutline } from '../theme/appTheme';
+import { titleCaseWords } from '../lib/textFormat';
 
 export default function EditProfileScreen({ navigation }) {
   const requestLock = useRequestLock();
@@ -92,7 +94,7 @@ export default function EditProfileScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <ScreenHeader title={t('editProfile.title')} onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Profile Details Card */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('editProfile.profileDetails')}</Text>
@@ -104,7 +106,8 @@ export default function EditProfileScreen({ navigation }) {
           <TextInput
             style={styles.input}
             value={fullName}
-            onChangeText={setFullName}
+                        autoCapitalize="words"
+            onChangeText={(v) => setFullName(titleCaseWords(v))}
             editable={!saving}
           />
 
@@ -127,9 +130,10 @@ export default function EditProfileScreen({ navigation }) {
               <Text style={styles.fieldLabel}>{loc.label}</Text>
               <View style={styles.locationInputRow}>
                 <TextInput
-                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                  style={[styles.input, styles.locationInput]}
                   value={location}
-                  onChangeText={setLocation}
+                                    autoCapitalize="words"
+                  onChangeText={(v) => setLocation(titleCaseWords(v))}
                   editable={!saving}
                 />
                 <TouchableOpacity
@@ -137,7 +141,7 @@ export default function EditProfileScreen({ navigation }) {
                   onPress={() => setMapModalVisible(true)}
                   disabled={saving}
                 >
-                  <Ionicons name="location" size={rf(16)} color="#fff" />
+                  <Ionicons name="location-outline" size={rf(16)} color={colors.leaf700} />
                   <Text style={styles.pinBtnText}>{t('auth.register.pinMap')}</Text>
                 </TouchableOpacity>
               </View>
@@ -210,7 +214,7 @@ const styles = StyleSheet.create({
     ...shadowCard,
   },
   sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: spacing.md },
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 6, marginTop: spacing.md },
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.labelInk, marginBottom: 6, marginTop: spacing.md },
   input: {
     backgroundColor: '#fff',
     borderRadius: radius.ctrl,
@@ -227,18 +231,11 @@ const styles = StyleSheet.create({
   // alignItems: 'stretch' (not 'center') so the pin button is forced to the
   // exact same height as the TextInput next to it, rather than eyeballing a
   // matching paddingVertical that drifts once fonts/line-heights change.
-  locationInputRow: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
-  pinBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: control.paddingH,
-    minHeight: control.height,
-    backgroundColor: colors.leaf700,
-    borderRadius: radius.ctrl,
-  },
-  pinBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.sm), textAlign: 'center' },
+  // Wide field, compact Pin Map button on the right (same layout as Create Account).
+  locationInputRow: { flexDirection: 'row', gap: 10, alignItems: 'center', minWidth: 0 },
+  locationInput: { flex: 1, minWidth: 0, marginBottom: 0 },
+  pinBtn: { ...actionBtn, ...actionBtnOutline, flexDirection: 'row', gap: 6, alignSelf: 'center', flexShrink: 0 },
+  pinBtnText: { ...actionBtnText, color: colors.leaf700 },
   coordsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   coordsLabel: { fontFamily: fonts.body, color: colors.leaf700, fontSize: rf(fontSize.sm), fontWeight: '600', marginTop: 4, marginBottom: 4 },
 

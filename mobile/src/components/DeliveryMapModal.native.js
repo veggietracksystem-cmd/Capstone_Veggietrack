@@ -8,12 +8,14 @@ import * as Location from 'expo-location';
 import { colors, fonts } from '../theme/appTheme';
 import { buildStaticMapHtml } from '../lib/leafletMapHtml';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
 // Default center (Metro Manila) used until we have the courier's position.
 const FALLBACK = { latitude: 14.5995, longitude: 120.9842 };
 
 export default function DeliveryMapModal({ visible, address, coords, onClose }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [courier, setCourier] = useState(null);
   const [destination, setDestination] = useState(null);
@@ -31,7 +33,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
-          if (!cancelled) setError('Location permission denied — showing destination only.');
+          if (!cancelled) setError(t('cmp.permDenied'));
         } else {
           const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
           if (!cancelled) setCourier({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
@@ -51,7 +53,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
           }
         }
       } catch (e) {
-        if (!cancelled) setError('We couldn’t find your location. Please turn on location and try again.');
+        if (!cancelled) setError(t('cmp.cantFindYou'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -66,8 +68,8 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
   const html = useMemo(() => {
     const center = anchor || FALLBACK;
     const markers = [];
-    if (courier) markers.push({ lat: courier.latitude, lng: courier.longitude, color: PRIMARY, popup: 'You (courier)' });
-    if (destination) markers.push({ lat: destination.latitude, lng: destination.longitude, color: '#d32f2f', popup: 'Delivery address' });
+    if (courier) markers.push({ lat: courier.latitude, lng: courier.longitude, color: PRIMARY, popup: t('cmp.popupYou') });
+    if (destination) markers.push({ lat: destination.latitude, lng: destination.longitude, color: '#d32f2f', popup: t('cmp.deliveryAddress') });
     const polyline = courier && destination
       ? [{ lat: courier.latitude, lng: courier.longitude }, { lat: destination.latitude, lng: destination.longitude }]
       : null;
@@ -85,12 +87,9 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Delivery Route</Text>
-          <TouchableOpacity onPress={onClose}>
-            <View style={styles.closeLabel}>
-              <Text style={styles.close}>Close</Text>
-              <Ionicons name="close" size={rf(20)} color={PRIMARY} />
-            </View>
+          <Text style={styles.title}>{t('cmp.deliveryRoute')}</Text>
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+            <Ionicons name="close" size={rf(18)} color={colors.soil800} />
           </TouchableOpacity>
         </View>
         {address ? (
@@ -111,12 +110,12 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
                 originWhitelist={['*']}
                 source={{ html }}
                 style={styles.map}
-                onError={() => setWebviewError('Could not load the map. Check your internet connection.')}
+                onError={() => setWebviewError(t('cmp.mapLoadFailed'))}
               />
             ) : null}
             {webviewError ? <Text style={styles.error}>{webviewError}</Text> : null}
             {!destination && address ? (
-              <Text style={styles.note}>We couldn’t find that address on the map, so we’re showing where you are.</Text>
+              <Text style={styles.note}>{t('cmp.addrNotFoundYou')}</Text>
             ) : null}
           </>
         )}
@@ -129,8 +128,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
   title: { fontFamily: fonts.heading, fontSize: rf(19), color: colors.ink },
-  close: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15) },
-  closeLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  // Same small rounded outlined close button every other modal uses.
+  closeBtn: {
+    width: 38, height: 38, borderRadius: radius.ctrl, backgroundColor: colors.card,
+    borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
+  },
   addrRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginBottom: 8 },
   addr: { flex: 1, fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft },
   error: { fontFamily: fonts.body, color: colors.danger, paddingHorizontal: 16, marginBottom: 8 },

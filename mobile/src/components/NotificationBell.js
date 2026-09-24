@@ -3,19 +3,19 @@ import useRequestLock from '../hooks/useRequestLock';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Text, View, TouchableOpacity, Modal, ScrollView,
+  Text, View, TouchableOpacity, ScrollView,
   ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import CustomModal from './CustomModal';
 import EmptyState from './EmptyState';
-import { colors, control, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fonts, radius, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { useBottomNavSpace } from './BottomNavBar';
 
 const PRIMARY = colors.leaf700;
 const INACTIVE = colors.inkFaint;
@@ -38,14 +38,12 @@ function timeAgo(iso, t) {
 }
 
 export default function NotificationBell({ asTabItem = false, active = false, onPress, fullScreen = false }) {
-  const navSpace = useBottomNavSpace();
+  const navigation = useNavigation();
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
   const [marking, setMarking] = useState(false);
   const { t } = useTranslation();
   const [items, setItems] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [detailNotification, setDetailNotification] = useState(null); // shown before navigating anywhere
@@ -59,10 +57,13 @@ export default function NotificationBell({ asTabItem = false, active = false, on
       const data = await api.get('/api/notifications');
       if (isCurrent()) setItems(Array.isArray(data) ? data : []);
     } catch (err) {
-      // Silent on background polls; only surface if the modal/screen is open.
-      if (open || fullScreen) showAlert(t('common.error'), friendlyError(err));
+      // Silent on background polls; only surface on the Notifications screen.
+      if (fullScreen) showAlert(t('common.error'), friendlyError(err));
     }
-  }, [open, fullScreen, t]);
+  }, [fullScreen, t]);
+
+  // Re-sync the badge when coming back from the Notifications screen.
+  useEffect(() => navigation.addListener('focus', load), [navigation, load]);
 
   // Initial fetch + polling for the unread badge.
   useEffect(() => {
@@ -78,12 +79,8 @@ export default function NotificationBell({ asTabItem = false, active = false, on
     };
   }, [load]);
 
-  const openModal = async () => {
-    setOpen(true);
-    setLoading(true);
-    await load();
-    setLoading(false);
-  };
+  // Notifications is its own stack screen (like Messages), not a modal.
+  const openScreen = () => navigation.navigate('Notifications');
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -132,11 +129,11 @@ export default function NotificationBell({ asTabItem = false, active = false, on
   if (fullScreen) {
     return (
       <SafeAreaView style={styles.screenContainer} edges={['left', 'right', 'bottom']}>
-        {/* The screen's standard header (title + back arrow) comes from the
-            Farmer dashboard, so only the "Mark all read" action lives here. */}
+        {/* The screen's standard header (title + back arrow) comes from
+            NotificationsScreen, so only the "Mark all read" action lives here. */}
         {unread > 0 && (
           <View style={styles.screenActions}>
-            <TouchableOpacity disabled={marking} onPress={markAllRead} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.markAllBtn} disabled={marking} onPress={markAllRead} activeOpacity={0.8} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
               <Text style={styles.markAllText}>{marking ? t('common.loading') : t('notifications.markAllRead')}</Text>
             </TouchableOpacity>
           </View>
@@ -144,7 +141,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
 
         <ScrollView
           style={styles.screenList}
-          contentContainerStyle={[styles.screenListContent, { paddingBottom: navSpace }]}
+          contentContainerStyle={styles.screenListContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           showsVerticalScrollIndicator={false}
         >
@@ -173,7 +170,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
                   </View>
                   <Text style={styles.itemMessage} numberOfLines={2}>{n.message}</Text>
                 </View>
-                {!n.is_read && <View style={styles.unreadDot} />}
+                <View style={styles.unreadSlot}>{!n.is_read && <View style={styles.unreadDot} />}</View>
               </TouchableOpacity>
             ))
           )}
@@ -194,116 +191,35 @@ export default function NotificationBell({ asTabItem = false, active = false, on
     );
   }
 
-  return (
-    <>
-      {asTabItem ? (
-        <TouchableOpacity style={styles.tabItemBtn} onPress={onPress || openModal} activeOpacity={0.7}>
-          <View style={[styles.tabIconBadge, active && styles.tabIconBadgeActive]}>
-            <Ionicons name="notifications-outline" size={rf(20)} color={active ? PRIMARY : INACTIVE} />
-            {unread > 0 && (
-              <View style={styles.tabBadge}>
-                <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
-              </View>
-            )}
+  return asTabItem ? (
+    <TouchableOpacity style={styles.tabItemBtn} onPress={onPress || openScreen} activeOpacity={0.7}>
+      <View style={[styles.tabIconBadge, active && styles.tabIconBadgeActive]}>
+        <Ionicons name="notifications-outline" size={rf(20)} color={active ? PRIMARY : INACTIVE} />
+        {unread > 0 && (
+          <View style={styles.tabBadge}>
+            <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
           </View>
-          <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>
-            {t('notifications.screenTitle')}
-          </Text>
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity style={styles.bellBtn} onPress={openModal} activeOpacity={0.7}>
-          <Ionicons name="notifications-outline" size={rf(27)} color={colors.soil800} />
-          {unread > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      )}
-
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <View style={styles.backdrop}>
-          {/* Tap outside the card to dismiss. */}
-          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setOpen(false)} />
-
-          <View style={styles.card}>
-            <View style={styles.sheetHeader}>
-              <View style={styles.sheetTitleRow}>
-                <Ionicons name="notifications-outline" size={rf(18)} color={PRIMARY} />
-                <Text style={styles.sheetTitle}>{t('notifications.screenTitle')}</Text>
-              </View>
-              {unread > 0 && (
-                <View style={styles.headerBadge}>
-                  <Text style={styles.headerBadgeText}>{t('notifications.newBadge', { count: unread })}</Text>
-                </View>
-              )}
-            </View>
-
-            {loading ? (
-              <ActivityIndicator size="large" color={PRIMARY} style={{ marginVertical: 40 }} />
-            ) : items.length === 0 ? (
-              <EmptyState
-                iconElement={<Ionicons name="notifications-outline" size={rf(36)} color={colors.inkFaint} />}
-                title={t('notifications.emptyTitle')}
-                message={t('notifications.empty')}
-              />
-            ) : (
-              <ScrollView
-                style={styles.list}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-                showsVerticalScrollIndicator={false}
-              >
-                {items.map((n) => (
-                  <TouchableOpacity
-                    key={n.id}
-                    style={[styles.item, !n.is_read && styles.itemUnread]}
-                    onPress={() => handlePress(n)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.itemTop}>
-                        <Text style={[styles.itemTitle, !n.is_read && styles.itemTitleUnread]} numberOfLines={1}>
-                          {n.title}
-                        </Text>
-                        <Text style={styles.itemTime}>{timeAgo(n.created_at, t)}</Text>
-                      </View>
-                      <Text style={styles.itemMessage}>{n.message}</Text>
-                    </View>
-                    {!n.is_read && <View style={styles.unreadDot} />}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-
-            {/* Footer actions */}
-            <View style={styles.footer}>
-              <TouchableOpacity
-                style={[styles.footerBtn, styles.footerBtnOutline, unread === 0 && styles.btnDisabled]}
-                onPress={markAllRead}
-                disabled={marking || unread === 0}
-              >
-                <Text style={[styles.footerOutlineText, unread === 0 && styles.linkDisabled]}>{marking ? t('common.loading') : t('notifications.markAllRead')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.footerBtn, styles.footerBtnPrimary]} onPress={() => setOpen(false)}>
-                <Text style={styles.footerPrimaryText}>{t('notifications.close')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+        )}
+      </View>
+      <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>
+        {t('notifications.screenTitle')}
+      </Text>
+    </TouchableOpacity>
+  ) : (
+    <TouchableOpacity
+      style={styles.bellBtn}
+      onPress={openScreen}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={t('notifications.screenTitle')}
+    >
+      <Ionicons name="notifications-outline" size={rf(27)} color={colors.soil800} />
+      {unread > 0 && (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
         </View>
-      </Modal>
-
-      <CustomModal
-        visible={!!detailNotification}
-        title={detailNotification?.title}
-        cancelLabel={t('notifications.close')}
-        onCancel={() => setDetailNotification(null)}
-      >
-        <Text style={styles.detailMessage}>{detailNotification?.message}</Text>
-        <Text style={styles.detailTime}>
-          {detailNotification?.created_at ? new Date(detailNotification.created_at).toLocaleString() : ''}
-        </Text>
-      </CustomModal>
-    </>
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -312,12 +228,15 @@ const styles = StyleSheet.create({
   // Last icon in the header: a small right margin keeps it off the edge.
   bellBtn: { width: 40, height: control.minTouch, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
 
-  // Full-screen variant (farmer bottom-nav "Notifications" tab)
-  screenContainer: { flex: 1, minHeight: 0, backgroundColor: colors.bgScreen },
-  screenActions: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 12 },
-  markAllText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(13) },
+  // Full-screen variant (the dedicated Notifications screen)
+  screenContainer: { flex: 1, minHeight: 0, backgroundColor: '#FFFFFF', width: '100%', maxWidth: 640, alignSelf: 'center' },
+  // Centered under the header, low-key: small text, no fill, with room above the first card.
+  screenActions: { alignItems: 'center', paddingTop: 12, paddingBottom: 6 },
+  // Compact outlined action button (shared action-button style), centered by screenActions.
+  markAllBtn: { ...actionBtn, ...actionBtnOutline },
+  markAllText: { ...actionBtnText, color: PRIMARY },
   screenList: { flex: 1, minHeight: 0 },
-  screenListContent: { padding: 16, paddingBottom: 100 },
+  screenListContent: { padding: 16, paddingBottom: 24 },
 
   // Bottom-nav tab-item variant (matches BottomNavBar's own tab styling)
   tabItemBtn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -339,34 +258,17 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(11) },
 
-  backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  card: { width: '100%', maxWidth: 420, backgroundColor: colors.bgScreen, borderRadius: radius.card, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16, maxHeight: '80%', ...shadowCard },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sheetTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sheetTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
-  headerBadge: { backgroundColor: colors.leaf100, borderRadius: 12, paddingVertical: 3, paddingHorizontal: 10, borderWidth: 1, borderColor: PRIMARY },
-  headerBadgeText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(12) },
-  linkDisabled: { color: colors.inkFaint },
-
-  footer: { flexDirection: 'row', gap: 12, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
-  footerBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center', minHeight: control.height },
-  footerBtnOutline: { borderWidth: 1.5, borderColor: PRIMARY },
-  footerBtnPrimary: { backgroundColor: PRIMARY },
-  footerOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(14.5) },
-  footerPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(14.5) },
-  btnDisabled: { opacity: 0.5, borderColor: colors.border },
-
-  emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', textAlign: 'center', marginVertical: 30 },
-  list: { },
-
-  item: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, paddingHorizontal: 8, borderRadius: radius.ctrl, marginBottom: 4 },
-  itemUnread: { backgroundColor: colors.leaf50 },
+  // Each notification is its own card (same look and 10px gap as the Messages list).
+  item: { flexDirection: 'row', alignItems: 'flex-start', padding: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, marginBottom: 10 },
+  itemUnread: { backgroundColor: colors.leaf50, borderColor: colors.leaf100 },
   itemTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   itemTitle: { fontFamily: fonts.bodySemiBold, fontSize: rf(14.5), color: colors.ink, flex: 1, marginRight: 8 },
   itemTitleUnread: { fontFamily: fonts.bodyBold, color: colors.ink },
   itemTime: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkFaint },
   itemMessage: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY, marginLeft: 8, marginTop: 6 },
+  // Fixed-width slot: reserved on every card so the time never shifts, dot or not.
+  unreadSlot: { width: 8, marginLeft: 8, marginTop: 6, alignItems: 'center' },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY },
 
   detailMessage: { fontFamily: fonts.body, fontSize: rf(14.5), color: colors.ink, lineHeight: 21 },
   detailTime: { fontFamily: fonts.body, fontSize: rf(12.5), color: colors.inkFaint, marginTop: 10 },

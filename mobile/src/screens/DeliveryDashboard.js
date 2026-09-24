@@ -27,7 +27,7 @@ import StatusBadge from '../components/ui/StatusBadge';
 import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import { showAlert, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, spacing } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { useAutoSync } from '../sync/SyncProvider';
@@ -37,6 +37,7 @@ import { uploadToCloudinary } from '../lib/cloudinary';
 import { isOnline } from '../offline/net';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import useRiderLocation from '../hooks/useRiderLocation';
+import { tr } from '../i18n/translate';
 
 const PRIMARY = colors.leaf700;
 
@@ -58,22 +59,13 @@ export function statusColor(status) {
   }
 }
 
-const STATUS_LABELS = {
-  pending: 'Pending',
-  approved: 'Approved',
-  assigned: 'Assigned',
-  otw: 'On the Way',
-  picked_up: 'Picked Up',
-  in_transit: 'In Transit',
-  delivered: 'Completed',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
-};
+// Status codes with a translated label (see `status.*` in the translations).
+const STATUS_LABEL_KEYS = ['pending', 'approved', 'assigned', 'otw', 'picked_up', 'in_transit', 'delivered', 'completed', 'cancelled'];
 
 // Never show raw db values (snake_case) in the UI — always a friendly label.
 export function formatStatus(status) {
   if (!status) return '';
-  if (STATUS_LABELS[status]) return STATUS_LABELS[status];
+  if (STATUS_LABEL_KEYS.includes(status)) return tr(status === 'delivered' ? 'status.completed' : `status.${status}`);
   return status
     .split('_')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -118,8 +110,7 @@ export default function DeliveryDashboard({ navigation, route }) {
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
   const { user } = useAuth();
-  const { t, language } = useTranslation();
-  const riderDisplayName = user?.full_name || user?.name || t('dashboards.delivery.defaultName');
+  const { t, tc, language } = useTranslation();
 
   const RIDER_TABS = [
     { id: 'home', iconName: 'home-outline', label: t('dashboards.delivery.tabHome') },
@@ -518,8 +509,8 @@ ${JSON.stringify(err?.file || '')}` : '';
       value={mode}
       onChange={setMode}
       options={[
-        { value: 'deliveries', label: t('dashboards.delivery.modeDeliveries') },
-        { value: 'pickups', label: t('dashboards.delivery.modePickups') },
+        { value: 'deliveries', label: t('dashboards.delivery.modeDeliveries'), count: activeOrders.length },
+        { value: 'pickups', label: t('dashboards.delivery.modePickups'), count: activePickups.length },
       ]}
     />
   );
@@ -531,7 +522,7 @@ ${JSON.stringify(err?.file || '')}` : '';
         // Title follows the open tab (Home / Tasks / History).
         title={activeBottomTab === 'tasks' ? t('dashboards.delivery.tabTasks')
           : activeBottomTab === 'history' ? t('dashboards.delivery.tabHistory')
-          : t('dashboards.delivery.title')}
+          : t('dashboards.delivery.tabHome')}
         // Messages and notifications only appear on Home.
         right={activeBottomTab === 'home' ? <HomeHeaderActions /> : null}
       />
@@ -545,13 +536,8 @@ ${JSON.stringify(err?.file || '')}` : '';
 
           {activeBottomTab === 'home' && (
           <View>
-            <View style={styles.greetingRow}>
-              <Text style={styles.greetingEyebrow}>{t('dashboards.delivery.greetingHome')}</Text>
-              <Text style={styles.greetingName} numberOfLines={1}>{riderDisplayName}</Text>
-            </View>
-
             <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>{t('dashboards.delivery.homeActiveDeliveries')}</Text>
+              <Text style={styles.sectionTitle}>{tc('plural.activeDeliveries', activeOrders.length)}</Text>
               {activeOrders.length > 3 && (
                 <TouchableOpacity onPress={() => goToTasks('deliveries')} activeOpacity={0.7}>
                   <Text style={styles.seeAllText}>{t('dashboards.delivery.seeAllBtn')}</Text>
@@ -571,7 +557,7 @@ ${JSON.stringify(err?.file || '')}` : '';
             )}
 
             <View style={[styles.sectionHead, { marginTop: 8 }]}>
-              <Text style={styles.sectionTitle}>{t('dashboards.delivery.homePendingPickups')}</Text>
+              <Text style={styles.sectionTitle}>{tc('plural.pendingPickups', activePickups.length)}</Text>
               {activePickups.length > 3 && (
                 <TouchableOpacity onPress={() => goToTasks('pickups')} activeOpacity={0.7}>
                   <Text style={styles.seeAllText}>{t('dashboards.delivery.seeAllBtn')}</Text>
@@ -723,9 +709,6 @@ const styles = StyleSheet.create({
   subtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
   content: { padding: 16, paddingBottom: 40 },
-  greetingRow: { marginBottom: 14 },
-  greetingEyebrow: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
-  greetingName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.title), color: colors.leaf900 || colors.leaf700, marginTop: 1 },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 10 },
   seeAllText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
@@ -734,7 +717,7 @@ const styles = StyleSheet.create({
   orderCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   // History list: compact card (number + status, then View Details).
   historyCard: { backgroundColor: colors.surface, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
-  historyDetailsBtn: { marginTop: spacing.md, minHeight: control.heightSm + 4, borderRadius: radius.ctrl, borderWidth: 1.5, borderColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
+  historyDetailsBtn: { ...actionBtn, ...actionBtnOutline, marginTop: spacing.md },
   // Pickup details modal rows.
   detailStatusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   detailRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -745,19 +728,19 @@ const styles = StyleSheet.create({
   orderTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: PRIMARY, marginBottom: 4 },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  routeBtn: { flex: 1, paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY, justifyContent: 'center', minHeight: control.height  },
-  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.md), textAlign: 'center' },
+  routeBtn: { ...actionBtn, ...actionBtnOutline, flex: 1 },
+  routeBtnText: { ...actionBtnText, color: PRIMARY },
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 4 },
   buttonPrimary: { backgroundColor: PRIMARY },
   buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
   buttonDisabled: { opacity: 0.6 },
 
-  detailsBtn: { flex: 1, paddingVertical: 11, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.leaf50, justifyContent: 'center', minHeight: control.height  },
-  detailsBtnText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: rf(fontSize.md), textAlign: 'center' },
+  detailsBtn: { ...actionBtn, ...actionBtnOutline, flex: 1 },
+  detailsBtnText: { ...actionBtnText, color: PRIMARY },
 
   buttonRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   flexButton: { flex: 1 },
-  navigateBtn: { backgroundColor: colors.info, borderColor: colors.info, flex: 1 },
-  navigateBtnText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(fontSize.md), textAlign: 'center' },
+  navigateBtn: { ...actionBtn, ...actionBtnPrimary, flex: 1 },
+  navigateBtnText: { ...actionBtnText, color: '#fff' },
 });

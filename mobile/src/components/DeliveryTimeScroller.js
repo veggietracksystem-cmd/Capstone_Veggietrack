@@ -41,7 +41,7 @@ export default function DeliveryTimeScroller({ date, time, onTimeChange, disable
 }
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 12 }, column: { flex: 1 },
-  label: { fontFamily: fonts.bodySemiBold, color: colors.inkSoft, marginBottom: 6 },
+  label: { fontFamily: fonts.bodySemiBold, color: colors.labelInk, marginBottom: 6 },
   scroll: { height: 150, borderWidth: 1, borderColor: colors.border, borderRadius: 12 },
   option: { padding: 10, alignItems: 'center' }, selected: { backgroundColor: colors.leaf700, borderRadius: 10 },
   value: { fontFamily: fonts.body, color: colors.ink },

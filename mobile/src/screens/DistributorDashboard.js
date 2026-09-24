@@ -6,9 +6,10 @@ import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { SharedScreenTransition } from '../lib/motion';
 import {
-  Text, View, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, StyleSheet, RefreshControl, KeyboardAvoidingView, Platform,
+  Text, View, ScrollView, TouchableOpacity, Pressable, Modal, ActivityIndicator, StyleSheet, RefreshControl, KeyboardAvoidingView, Platform,
   BackHandler,
 } from 'react-native';
+import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -27,13 +28,14 @@ import CustomModal from '../components/CustomModal';
 import ImageViewerModal from '../components/ImageViewerModal';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, spacing } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { useAutoSync } from '../sync/SyncProvider';
 import RemoteImage from '../components/RemoteImage';
+import { statusLabel } from '../i18n/translate';
 
 const PRIMARY = colors.leaf700;
 
@@ -392,7 +394,7 @@ export default function DistributorDashboard({ navigation, route }) {
       ) : (
         <ScreenHeader
           key="hub-header"
-          title={tab === 'orders' ? t('dashboards.distributor.tabOrders') : t('dashboards.distributor.hubTitle')}
+          title={tab === 'orders' ? t('dashboards.distributor.tabOrders') : t('dashboards.distributor.tabHome')}
           // Messages and notifications only appear on Home; Account
           // Management is reached from Quick Actions.
           right={tab === 'home' ? <HomeHeaderActions /> : null}
@@ -400,7 +402,7 @@ export default function DistributorDashboard({ navigation, route }) {
       )}
 
       <SharedScreenTransition style={{ flex: 1 }} visible>
-        <ScrollView
+        <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled"
           // Full screens (Pickup Requests, Payment) have no bottom nav.
           contentContainerStyle={[styles.content, !isFullScreen && { paddingBottom: navSpace }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -412,7 +414,6 @@ export default function DistributorDashboard({ navigation, route }) {
 
           {tab === 'home' && (
             <HomeTab
-              user={user}
               refreshProducts={refreshProducts}
               pendingOrderCount={orders.length}
               pendingPickupCount={pendingReceiveCount}
@@ -600,31 +601,26 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
 // Product List (price editing) embedded inline — it used to be a separate
 // screen reached via a "Product List →" button; it now lives directly here.
 function HomeTab({
-  user,
   refreshProducts,
   pendingOrderCount, pendingPickupCount, unpaidCount,
   onViewPickups, onViewPayments, onManageAccounts,
 }) {
-  const { t } = useTranslation();
-  const displayName = user?.full_name || user?.name || t('dashboards.distributor.defaultName');
+  const { t, tc } = useTranslation();
   return (
     <View>
-      <View style={styles.greetingRow}>
-        <Text style={styles.greetingEyebrow}>{t('dashboards.distributor.greetingHome')}</Text>
-        <Text style={styles.greetingName} numberOfLines={1}>{displayName}</Text>
-      </View>
-
-      {/* Display-only summaries; navigation lives in Quick Actions below. */}
+      {/* One display-only summary card (not tappable); navigation lives in Quick Actions below. */}
       <View style={styles.homeStatsRow}>
-        <View style={styles.homeStatCard}>
+        <View style={styles.homeStatItem}>
           <Text style={styles.homeStatValue}>{pendingOrderCount}</Text>
-          <Text style={styles.homeStatLabel}>{t('dashboards.distributor.pendingOrders')}</Text>
+          <Text style={styles.homeStatLabel}>{tc('plural.pendingOrders', pendingOrderCount)}</Text>
         </View>
-        <View style={styles.homeStatCard}>
+        <View style={styles.homeStatDivider} />
+        <View style={styles.homeStatItem}>
           <Text style={styles.homeStatValue}>{pendingPickupCount}</Text>
-          <Text style={styles.homeStatLabel}>{t('dashboards.distributor.pickupRequests')}</Text>
+          <Text style={styles.homeStatLabel}>{tc('plural.pickupRequests', pendingPickupCount)}</Text>
         </View>
-        <View style={styles.homeStatCard}>
+        <View style={styles.homeStatDivider} />
+        <View style={styles.homeStatItem}>
           <Text style={styles.homeStatValue}>{unpaidCount}</Text>
           <Text style={styles.homeStatLabel}>{t('dashboards.distributor.unpaid')}</Text>
         </View>
@@ -636,18 +632,9 @@ function HomeTab({
           its own screen). */}
       <Text style={styles.sectionTitle}>{t('dashboards.distributor.quickActions')}</Text>
       <View style={styles.quickActionGrid}>
-        <TouchableOpacity style={styles.quickAction} onPress={onViewPickups} activeOpacity={0.8}>
-          <Ionicons name="checkmark-circle-outline" size={rf(20)} color={PRIMARY} />
-          <Text style={styles.quickActionLabel}>{t('dashboards.distributor.pickupRequests')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.quickAction} onPress={onManageAccounts} activeOpacity={0.8}>
-          <Ionicons name="people-outline" size={rf(20)} color={PRIMARY} />
-          <Text style={styles.quickActionLabel}>{t('dashboards.distributor.accountManagement')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.quickAction} onPress={onViewPayments} activeOpacity={0.8}>
-          <Ionicons name="wallet-outline" size={rf(20)} color={PRIMARY} />
-          <Text style={styles.quickActionLabel}>{t('dashboards.distributor.paymentAction')}</Text>
-        </TouchableOpacity>
+        <QuickAction icon="checkmark-circle-outline" label={t('dashboards.distributor.pickupRequests')} onPress={onViewPickups} />
+        <QuickAction icon="people-outline" label={t('dashboards.distributor.accountManagement')} onPress={onManageAccounts} />
+        <QuickAction icon="wallet-outline" label={t('dashboards.distributor.paymentAction')} onPress={onViewPayments} />
       </View>
 
       <Text style={[styles.sectionTitle, { marginTop: 4 }]}>{t('productList.title')}</Text>
@@ -934,6 +921,25 @@ function getProofUrl(order) {
   return getDelivery(order)?.proof_photo_url || null;
 }
 
+// One Quick Action card: same size/padding/radius for all three, a green-tinted
+// border and a small chevron so it reads as tappable, and a pressed state.
+function QuickAction({ icon, label, onPress }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.quickAction, pressed && styles.quickActionPressed]}
+    >
+      <View style={styles.quickActionIcon}>
+        <Ionicons name={icon} size={rf(20)} color={PRIMARY} />
+      </View>
+      <Text style={styles.quickActionLabel} numberOfLines={2}>{label}</Text>
+      <Ionicons name="chevron-forward" size={rf(13)} color={colors.leaf500} style={styles.quickActionChevron} />
+    </Pressable>
+  );
+}
+
 // ================= Orders tab =================
 const ORDER_SUB_TABS = ['pending', 'approved', 'cancelled', 'history'];
 
@@ -979,8 +985,8 @@ function OrdersTab({
         onChange={setSub}
         options={ORDER_SUB_TABS.map((s) => ({
           value: s,
-          label: t(`dashboards.distributor.ordersSub.${s}`)
-            + (s === 'pending' && orders.length ? ` (${orders.length})` : ''),
+          label: t(`dashboards.distributor.ordersSub.${s}`),
+          count: s === 'pending' ? orders.length : 0,
         }))}
       />
 
@@ -1222,7 +1228,7 @@ function PaymentsTab({
         value={sub}
         onChange={setSub}
         options={[
-          { value: 'unpaid', label: t('dashboards.distributor.unpaid') + (unpaidOrders.length ? ` (${unpaidOrders.length})` : '') },
+          { value: 'unpaid', label: t('dashboards.distributor.unpaid'), count: unpaidOrders.length },
           { value: 'paid', label: t('dashboards.distributor.paid') },
         ]}
       />
@@ -1235,7 +1241,7 @@ function PaymentsTab({
             <View key={o.id} style={styles.rowCard}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>{t('dashboards.distributor.orderNumber', { id: shortId(o.id) })}</Text>
-                <Text style={styles.rowMeta}>{peso(o.total_amount)} · {o.status}</Text>
+                <Text style={styles.rowMeta}>{peso(o.total_amount)} · {statusLabel(o.status)}</Text>
                 {o.delivery_address ? (
                   <Text style={styles.rowMeta}>{o.delivery_address}</Text>
                 ) : null}
@@ -1329,21 +1335,24 @@ const styles = StyleSheet.create({
   tabsSpaced: { marginBottom: spacing.lg },
   tabsBleed: { marginHorizontal: -spacing.lg, marginBottom: spacing.lg },
 
-  greetingRow: { marginBottom: 14 },
-  greetingEyebrow: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
-  greetingName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.title), color: colors.leaf900 || colors.leaf700, marginTop: 1 },
-  homeStatsRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  homeStatCard: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, paddingVertical: 16, alignItems: 'center', ...shadowCard },
+  homeStatsRow: { flexDirection: 'row', alignItems: 'stretch', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, paddingVertical: 16, marginBottom: 20, ...shadowCard },
+  // Three equal-width columns (flex 1, minWidth 0) so long labels wrap instead of squeezing a neighbor.
+  homeStatItem: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  homeStatDivider: { width: 1, backgroundColor: colors.border },
   homeStatValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: PRIMARY },
   homeStatLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginTop: 4, textAlign: 'center' },
 
   // Home tab: Quick Actions icon grid (prototype's quick-action-grid)
   quickActionGrid: { flexDirection: 'row', gap: 10, marginBottom: 20 },
   quickAction: {
-    flex: 1, alignItems: 'center', gap: 6, backgroundColor: colors.surface,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.card,
+    flex: 1, minHeight: 104, alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.surface, borderWidth: 1.4, borderColor: colors.leaf500, borderRadius: radius.card,
     paddingVertical: 14, paddingHorizontal: 6, ...shadowCard,
   },
+  // Pressed feedback: light-green fill, darker border, tiny press-in.
+  quickActionPressed: { backgroundColor: colors.leaf100, borderColor: colors.leaf700, transform: [{ scale: 0.97 }] },
+  quickActionIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.leaf100, alignItems: 'center', justifyContent: 'center' },
+  quickActionChevron: { position: 'absolute', top: 8, right: 8 },
   quickActionLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.ink, textAlign: 'center' },
 
   // Harvest Receiving card
@@ -1387,7 +1396,7 @@ const styles = StyleSheet.create({
 
   formCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   formTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 8 },
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 8, marginBottom: 6 },
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.labelInk, marginTop: 8, marginBottom: 6 },
   input: { backgroundColor: colors.bgScreen, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: rf(fontSize.lg), borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
   inputDisabled: { backgroundColor: colors.soil300, color: colors.inkFaint },
   hint: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 4 },
@@ -1422,10 +1431,10 @@ const styles = StyleSheet.create({
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   pendingBadge: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 10, backgroundColor: colors.gold100, borderWidth: 1, borderColor: colors.gold500 },
   pendingBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.gold700 },
-  smallBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY, minHeight: control.height  },
-  smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm), textAlign: 'center' },
+  smallBtn: { ...actionBtn, ...actionBtnOutline },
+  smallBtnText: { ...actionBtnText, color: PRIMARY },
   // Compact text-only Edit button; hitSlop keeps the tap area at ~44px.
-  productEditBtn: { minHeight: 32, paddingVertical: 6, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  productEditBtn: { minHeight: 32, paddingVertical: 6, paddingHorizontal: 14 },
 
   orderCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -1438,8 +1447,8 @@ const styles = StyleSheet.create({
   proofThumb: { width: 48, height: 48, borderRadius: 6, backgroundColor: colors.border },
   proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
 
-  trackBtn: { marginBottom: 10, paddingVertical: 10, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.4, borderColor: PRIMARY, justifyContent: 'center', minHeight: control.height  },
-  trackBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md), textAlign: 'center' },
+  trackBtn: { ...actionBtn, ...actionBtnOutline, marginBottom: 10 },
+  trackBtnText: { ...actionBtnText, color: PRIMARY },
 
   assignLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 6, marginBottom: 8 },
   personnelWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

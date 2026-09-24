@@ -9,10 +9,13 @@
 // because that is the part they can fix, while anything technical is replaced
 // by a simple sentence.
 
-const GENERIC = 'Something went wrong. Please try again.';
-const CONNECTION = 'Please check your internet connection and try again.';
-const SESSION_ENDED = 'Your session has ended. Please sign in again.';
-const NOT_ALLOWED = 'You can’t do this right now. Please refresh and try again.';
+import { tr } from '../i18n/translate';
+
+// Read at call time so the text follows the selected language.
+const GENERIC = () => tr('errors.generic');
+const CONNECTION = () => tr('errors.connection');
+const SESSION_ENDED = () => tr('errors.sessionEnded');
+const NOT_ALLOWED = () => tr('errors.notAllowed');
 
 // Anything that reads like server/developer wording never reaches the user.
 const TECHNICAL = [
@@ -34,21 +37,21 @@ function looksTechnical(message) {
  * @param error     the thrown error (from `api`, Supabase, or anywhere else)
  * @param fallback  what to say when the real reason can't be shown as-is
  */
-export function friendlyError(error, fallback = GENERIC) {
+export function friendlyError(error, fallback = GENERIC()) {
   const status = error?.status;
   const code = error?.code;
   const message = typeof error?.message === 'string' ? error.message.trim() : '';
 
-  if (CONNECTION_CODES.includes(code) || status === 0) return CONNECTION;
-  if (status === 401) return SESSION_ENDED;
-  if (status === 408 || status === 429) return 'That took too long. Please wait a moment and try again.';
-  if (status >= 500) return 'We can’t reach VeggieTrack right now. Please try again in a moment.';
+  if (CONNECTION_CODES.includes(code) || status === 0) return CONNECTION();
+  if (status === 401) return SESSION_ENDED();
+  if (status === 408 || status === 429) return tr('errors.tookTooLong');
+  if (status >= 500) return tr('errors.cantReach');
 
   // A 400/403/404/409 usually carries a helpful sentence about the user's own
   // data ("A pickup has already been requested for this harvest."). Keep it,
   // unless it reads like developer output.
   if (message && !looksTechnical(message)) return message;
-  if (status === 403) return NOT_ALLOWED;
+  if (status === 403) return NOT_ALLOWED();
   return fallback;
 }
 

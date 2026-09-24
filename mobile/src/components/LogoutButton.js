@@ -12,7 +12,7 @@ export default function LogoutButton() {
   const { t } = useTranslation();
 
   const confirmLogout = () => {
-    confirmAction(t('profile.logoutConfirmTitle'), t('profile.logoutConfirmMessage'), () => signOut());
+    confirmAction(t('profile.logoutConfirmTitle'), t('profile.logoutConfirmMessage'), () => signOut(), { danger: true, hideCloseIcon: true });
   };
 
   return (

@@ -41,23 +41,23 @@ export default function RiderNavigationScreen({ route, navigation }) {
     try {
       const orders = await api.get('/api/delivery/orders');
       const order = orders.find(item => item.id === orderId);
-      if (!order) throw new Error('Delivery could not be loaded. Return to your dashboard and refresh.');
+      if (!order) throw new Error(t('cmp2.deliveryLoadFail'));
       navigation.navigate('DeliveryDetails', { order });
     } catch (err) { setActionError(friendlyError(err)); } finally { setOpening(false); }
   };
   return <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-    <ScreenHeader title="Rider navigation" onBack={() => navigation.goBack()} />
+    <ScreenHeader title={t('cmp.riderNav')} onBack={() => navigation.goBack()} />
     {loading && !data ? <ActivityIndicator style={{ padding: 30 }} color={colors.leaf700} /> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
       <View style={styles.instruction}>
-        <Text style={styles.turn}>{metrics?.demo ? 'Demo playback • return to live for navigation' : !metrics?.live ? 'Waiting for fresh rider GPS' : offRoute ? 'Off route • waiting for updated road guidance' : guidance?.instruction || nav.navigation_error || 'Waiting for a road route'}</Text>
-        {metrics?.live && !metrics?.demo && !offRoute && turnDistance != null && <Text style={styles.turnDistance}>In {turnDistance < 1000 ? `${Math.round(turnDistance)} m` : `${(turnDistance / 1000).toFixed(1)} km`}</Text>}
-        <Text style={styles.destination}>To {toHub ? 'dispatch hub' : 'retailer'}: {target?.address || 'Address unavailable'}</Text>
+        <Text style={styles.turn}>{metrics?.demo ? t('cmp2.demoPlayback') : !metrics?.live ? t('cmp2.waitFreshGps') : offRoute ? t('cmp2.offRouteGuidance') : guidance?.instruction || nav.navigation_error || t('cmp2.waitRoute')}</Text>
+        {metrics?.live && !metrics?.demo && !offRoute && turnDistance != null && <Text style={styles.turnDistance}>{t('cmp2.inDistance', { d: turnDistance < 1000 ? `${Math.round(turnDistance)} m` : `${(turnDistance / 1000).toFixed(1)} km` })}</Text>}
+        <Text style={styles.destination}>{t(toHub ? 'cmp2.toHub' : 'cmp2.toRetailer', { addr: target?.address || t('cmp2.addrUnavailable') })}</Text>
       </View>
       <DeliveryTrackingMap mode="navigation" trackingData={data} riderPosition={position} onAcquirePosition={isAssigned ? next => publish(next, true) : undefined} onMetrics={setMetrics} style={styles.map} />
-      {(error || gpsError) && <TouchableOpacity accessibilityRole="button" onPress={refresh}><Text style={styles.error}>{error || gpsError} Tap to refresh.</Text></TouchableOpacity>}
-      <TouchableOpacity accessibilityRole="button" disabled={opening} style={styles.action} onPress={openDetails}><Text style={styles.actionText}>{opening ? 'Opening…' : 'Delivery details / mark delivered'}</Text></TouchableOpacity>
+      {(error || gpsError) && <TouchableOpacity accessibilityRole="button" onPress={refresh}><Text style={styles.error}>{t('cmp2.tapRefresh', { error: error || gpsError })}</Text></TouchableOpacity>}
+      <TouchableOpacity accessibilityRole="button" disabled={opening} style={styles.action} onPress={openDetails}><Text style={styles.actionText}>{opening ? t('cmp2.opening') : t('cmp2.detailsMark')}</Text></TouchableOpacity>
       {!!actionError && <Text style={styles.error}>{actionError}</Text>}
-      <Text style={styles.note}>GPS sharing runs while this screen is active. Keep the app open for live tracking. Directions follow mapped roads and do not include live traffic.</Text>
+      <Text style={styles.note}>{t('cmp.gpsNote')}</Text>
     </ScrollView>}
   </SafeAreaView>;
 }

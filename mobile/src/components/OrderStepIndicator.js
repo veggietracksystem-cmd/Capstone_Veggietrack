@@ -1,4 +1,3 @@
-import { rf } from '../lib/responsive';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts } from '../theme/appTheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,21 +42,24 @@ export default function OrderStepIndicator({ status }) {
   const current = stepIndexFor(status);
 
   return (
-    <View style={styles.row}>
+    <View style={styles.wrap}>
+     {/* Line lives in its own layer behind the step columns (each column is its own
+         stacking context on web, so a per-column line would cover the previous circle). */}
+     <View style={styles.track} pointerEvents="none">
+       <View style={[styles.trackFill, { width: `${Math.max(0, current) / (STEP_KEYS.length - 1) * 100}%` }]} />
+     </View>
+     <View style={styles.row}>
       {STEP_KEYS.map((step, i) => {
         const done = current >= 0 && i <= current;
         const isCurrent = i === current;
         return (
           <View key={step.key} style={styles.stepCol}>
-            {/* connector line to the previous circle (skipped on first step) */}
-            {i > 0 ? (
-              <View style={[styles.connector, current >= 0 && i <= current ? styles.connectorDone : null]} />
-            ) : null}
-
             <View style={[styles.circle, done && styles.circleDone, isCurrent && styles.circleCurrent]}>
-              <Text style={[styles.circleText, done && styles.circleTextDone]}>
-                {done ? <Ionicons name="checkmark-circle" size={rf(20)} color="#fff" /> : i + 1}
-              </Text>
+              {done ? (
+                <Ionicons name="checkmark" size={CHECK_SIZE} color="#fff" style={styles.check} />
+              ) : (
+                <Text style={styles.circleText}>{i + 1}</Text>
+              )}
             </View>
 
             <Text style={[styles.label, done && styles.labelDone]} numberOfLines={2}>
@@ -66,27 +68,32 @@ export default function OrderStepIndicator({ status }) {
           </View>
         );
       })}
+     </View>
     </View>
   );
 }
 
-const CIRCLE = 28;
+const CIRCLE = 22;
+const CHECK_SIZE = 14;
+const LINE = 1.5;
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 8, marginBottom: 4 },
+  wrap: { marginTop: 4, marginBottom: 2, paddingHorizontal: 4 },
+  row: { position: 'relative', zIndex: 1, flexDirection: 'row', alignItems: 'flex-start' },
   stepCol: { flex: 1, alignItems: 'center' },
 
-  // Connector runs from the previous circle's center to this one's (center-to-center
-  // is exactly one column wide), sitting at the circle's vertical center.
-  connector: { position: 'absolute', top: CIRCLE / 2 - 1, left: '-50%', right: '50%', height: 2, backgroundColor: GREY },
-  connectorDone: { backgroundColor: PRIMARY },
+  // Grey track spans first-circle center to last-circle center (columns are equal width,
+  // so those centers sit 10% in from each edge), vertically centered on the circles.
+  track: { position: 'absolute', top: (CIRCLE - LINE) / 2, left: '10%', right: '10%', height: LINE, backgroundColor: GREY },
+  trackFill: { height: LINE, backgroundColor: PRIMARY },
 
-  circle: { width: CIRCLE, height: CIRCLE, borderRadius: CIRCLE / 2, backgroundColor: colors.card, borderWidth: 2, borderColor: GREY, alignItems: 'center', justifyContent: 'center' },
+  circle: { width: CIRCLE, height: CIRCLE, borderRadius: CIRCLE / 2, backgroundColor: colors.card, borderWidth: 1.5, borderColor: GREY, alignItems: 'center', justifyContent: 'center' },
   circleDone: { backgroundColor: PRIMARY, borderColor: PRIMARY },
   circleCurrent: { borderColor: PRIMARY },
-  circleText: { fontFamily: fonts.bodyBold, fontSize: rf(13), color: GREY_TEXT },
-  circleTextDone: { color: '#fff' },
+  // Fixed-size, unpadded glyph boxes so the icon/number sit at the true center of the circle.
+  circleText: { fontFamily: fonts.bodyBold, fontSize: 11, lineHeight: 13, color: GREY_TEXT, textAlign: 'center', includeFontPadding: false },
+  check: { width: CHECK_SIZE, height: CHECK_SIZE, lineHeight: CHECK_SIZE, textAlign: 'center' },
 
-  label: { fontFamily: fonts.body, fontSize: rf(11), color: GREY_TEXT, textAlign: 'center', marginTop: 6, lineHeight: 14 },
+  label: { fontFamily: fonts.body, fontSize: 10, color: GREY_TEXT, textAlign: 'center', marginTop: 4, lineHeight: 12 },
   labelDone: { fontFamily: fonts.bodySemiBold, color: PRIMARY },
 });

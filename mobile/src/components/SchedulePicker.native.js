@@ -4,6 +4,7 @@ import {
   View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet,
 } from 'react-native';
 import { colors, control, fonts, radius, shadowCard } from '../theme/appTheme';
+import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
 
@@ -31,8 +32,8 @@ function nextDays(count = 7) {
 }
 
 // Pretty-print a stored "YYYY-MM-DDTHH:mm" value for the trigger button.
-function prettyValue(value) {
-  if (!value) return 'Select preferred date & time';
+function prettyValue(value, t) {
+  if (!value) return t('cmp.selectDateTime');
   const d = new Date(value);
   if (isNaN(d.getTime())) return value;
   return d.toLocaleString(undefined, {
@@ -42,6 +43,7 @@ function prettyValue(value) {
 
 // Native: a modal with day + time-slot chips. onChange receives "YYYY-MM-DDTHH:mm".
 export default function SchedulePicker({ value, onChange, disabled }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const days = nextDays();
   const [day, setDay] = useState(value ? value.slice(0, 10) : days[0].key);
@@ -62,16 +64,16 @@ export default function SchedulePicker({ value, onChange, disabled }) {
         activeOpacity={0.8}
       >
         <Text style={[styles.triggerText, !value && styles.triggerTextEmpty]}>
-          {prettyValue(value)}
+          {prettyValue(value, t)}
         </Text>
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Preferred delivery time</Text>
+            <Text style={styles.sheetTitle}>{t('cmp.prefTime')}</Text>
 
-            <Text style={styles.label}>Day</Text>
+            <Text style={styles.label}>{t('cmp.day')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
               {days.map((d) => {
                 const sel = day === d.key;
@@ -87,7 +89,7 @@ export default function SchedulePicker({ value, onChange, disabled }) {
               })}
             </ScrollView>
 
-            <Text style={styles.label}>Time</Text>
+            <Text style={styles.label}>{t('cmp.time')}</Text>
             <View style={styles.timeWrap}>
               {TIME_SLOTS.map((t) => {
                 const sel = time === t;
@@ -105,14 +107,14 @@ export default function SchedulePicker({ value, onChange, disabled }) {
 
             <View style={styles.actions}>
               <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={() => setOpen(false)}>
-                <Text style={styles.btnOutlineText}>Cancel</Text>
+                <Text style={styles.btnOutlineText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.btn, styles.btnPrimary, !time && styles.btnDisabled]}
                 onPress={confirm}
                 disabled={!time}
               >
-                <Text style={styles.btnPrimaryText}>Confirm</Text>
+                <Text style={styles.btnPrimaryText}>{t('common.confirm')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -132,7 +134,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingBottom: 28 },
   sheetTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 12 },
-  label: { fontFamily: fonts.bodySemiBold, fontSize: rf(12.5), color: colors.inkSoft, marginTop: 10, marginBottom: 8 },
+  label: { fontFamily: fonts.bodySemiBold, fontSize: rf(12.5), color: colors.labelInk, marginTop: 10, marginBottom: 8 },
   chipRow: { gap: 8, paddingRight: 8 },
   timeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },

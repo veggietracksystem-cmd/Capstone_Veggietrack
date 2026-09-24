@@ -13,9 +13,9 @@ export function showAlertModal(title, message, onPress) {
   controller.show({ mode: 'alert', title, message, onPress });
 }
 
-export function confirmActionModal(title, message, onConfirm) {
+export function confirmActionModal(title, message, onConfirm, options) {
   if (!controller) return;
-  controller.show({ mode: 'confirm', title, message, onConfirm });
+  controller.show({ mode: 'confirm', title, message, onConfirm, ...options });
 }
 
 // Mount once near the app root (see App.js) so every screen can trigger
@@ -51,6 +51,8 @@ export default function AlertModalHost() {
       onConfirm={state.mode === 'confirm' ? handleConfirm : handleDismiss}
       cancelLabel={state.mode === 'confirm' ? t('common.cancel') : undefined}
       onCancel={state.mode === 'confirm' ? close : undefined}
+      danger={state.danger}
+      hideCloseIcon={state.hideCloseIcon}
     >
       <Text>{state.message}</Text>
     </CustomModal>

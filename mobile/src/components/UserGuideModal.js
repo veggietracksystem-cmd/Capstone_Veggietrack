@@ -1,144 +1,71 @@
 import { rf } from '../lib/responsive';
-import { useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Animated,
 } from 'react-native';
-import { colors, control, fonts, fontSize, radius } from '../theme/appTheme';
+import { colors, control, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
+import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
-import { useBottomSheetMotion } from '../lib/motion';
+import { useSharedModalMotion } from '../lib/motion';
 
 const PRIMARY = colors.leaf700;
 
-const GUIDE_TAB_IDS = ['farmer', 'distributor', 'retailer', 'rider', 'faq'];
+// Backend role -> userGuide.<key>.sections translation key.
+const ROLE_GUIDE_KEY = {
+  farmer: 'farmer',
+  distributor: 'distributor',
+  retailer: 'retailer',
+  delivery_personnel: 'rider',
+};
 
 export default function UserGuideModal({ visible, onClose }) {
   const { t, tRaw } = useTranslation();
-  const [activeTab, setActiveTab] = useState('farmer');
-  const [expandedFaq, setExpandedFaq] = useState(null);
-  const { backdropStyle, sheetStyle } = useBottomSheetMotion(visible);
+  const { user } = useAuth();
+  // Only the logged-in user's own role guide is shown - no tabs to switch
+  // between, since there's nothing else to show.
+  const roleKey = ROLE_GUIDE_KEY[user?.role] || 'farmer';
+  const { backdropStyle, cardStyle } = useSharedModalMotion(visible);
 
-  const toggleFaq = (index) => {
-    setExpandedFaq(expandedFaq === index ? null : index);
-  };
-
-  const farmerSteps = tRaw('userGuide.farmer.steps') || [];
-  const distributorSteps = tRaw('userGuide.distributor.steps') || [];
-  const retailerSteps = tRaw('userGuide.retailer.steps') || [];
-  const riderSteps = tRaw('userGuide.rider.steps') || [];
-  const faqs = tRaw('userGuide.faqs') || [];
+  const roleSections = tRaw(`userGuide.${roleKey}.sections`) || [];
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <Animated.View style={[styles.backdrop, backdropStyle]}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
-        <Animated.View style={[styles.sheet, sheetStyle]}>
+        <Animated.View style={[styles.card, cardStyle]}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>{t('userGuide.title')}</Text>
+            <Text style={styles.title}>{t(`userGuide.${roleKey}.title`)}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={rf(22)} color={colors.ink} />
             </TouchableOpacity>
           </View>
 
-          {/* Role Tabs */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar}>
-            {GUIDE_TAB_IDS.map((id) => {
-              const active = activeTab === id;
-              return (
-                <TouchableOpacity
-                  key={id}
-                  style={[styles.tab, active && styles.tabActive]}
-                  onPress={() => setActiveTab(id)}
-                >
-                  <Text style={[styles.tabText, active && styles.tabTextActive]}>
-                    {t(`userGuide.tabs.${id}`)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
           {/* Content Body */}
           <ScrollView contentContainerStyle={styles.content}>
-            {activeTab === 'farmer' && (
-              <View style={styles.stepContainer}>
-                {farmerSteps.map((step, i) => (
-                  <View style={styles.stepCard} key={i}>
-                    <Text style={styles.stepNum}>{i + 1}</Text>
-                    <View style={styles.stepInfo}>
-                      <Text style={styles.stepTitle}>{step.title}</Text>
-                      <Text style={styles.stepDesc}>{step.desc}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {activeTab === 'distributor' && (
-              <View style={styles.stepContainer}>
-                {distributorSteps.map((step, i) => (
-                  <View style={styles.stepCard} key={i}>
-                    <Text style={styles.stepNum}>{i + 1}</Text>
-                    <View style={styles.stepInfo}>
-                      <Text style={styles.stepTitle}>{step.title}</Text>
-                      <Text style={styles.stepDesc}>{step.desc}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {activeTab === 'retailer' && (
-              <View style={styles.stepContainer}>
-                {retailerSteps.map((step, i) => (
-                  <View style={styles.stepCard} key={i}>
-                    <Text style={styles.stepNum}>{i + 1}</Text>
-                    <View style={styles.stepInfo}>
-                      <Text style={styles.stepTitle}>{step.title}</Text>
-                      <Text style={styles.stepDesc}>{step.desc}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {activeTab === 'rider' && (
-              <View style={styles.stepContainer}>
-                {riderSteps.map((step, i) => (
-                  <View style={styles.stepCard} key={i}>
-                    <Text style={styles.stepNum}>{i + 1}</Text>
-                    <View style={styles.stepInfo}>
-                      <Text style={styles.stepTitle}>{step.title}</Text>
-                      <Text style={styles.stepDesc}>{step.desc}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {activeTab === 'faq' && (
-              <View style={styles.faqContainer}>
-                {faqs.map((faq, index) => {
-                  const isOpen = expandedFaq === index;
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.faqCard}
-                      onPress={() => toggleFaq(index)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.faqHeader}>
-                        <Text style={styles.faqQuestion}>{faq.q}</Text>
-                        <Text style={styles.faqToggle}>{isOpen ? '−' : '+'}</Text>
+            <View style={styles.sectionList}>
+              {roleSections.map((section, s) => (
+                <View key={s} style={styles.section}>
+                  <Text style={styles.sectionHeading}>{section.heading}</Text>
+                  <View style={styles.stepContainer}>
+                    {(section.items || []).map((item, i) => (
+                      <View style={styles.stepCard} key={i}>
+                        {section.numbered ? (
+                          <Text style={styles.stepNum}>{i + 1}</Text>
+                        ) : (
+                          <View style={styles.stepDot} />
+                        )}
+                        <View style={styles.stepInfo}>
+                          {item.title ? <Text style={styles.stepTitle}>{item.title}</Text> : null}
+                          <Text style={styles.stepDesc}>{item.desc}</Text>
+                        </View>
                       </View>
-                      {isOpen && <Text style={styles.faqAnswer}>{faq.a}</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
           </ScrollView>
         </Animated.View>
       </Animated.View>
@@ -147,29 +74,25 @@ export default function UserGuideModal({ visible, onClose }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: '85%', paddingBottom: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
-  title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
+  backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  card: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, overflow: 'hidden', paddingBottom: 20, ...shadowCard },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title: { flex: 1, fontFamily: fonts.heading, fontSize: rf(17), color: colors.ink },
   closeBtn: { padding: 6, minWidth: control.minTouch, minHeight: control.minTouch, alignItems: 'center', justifyContent: 'center'  },
-  closeText: { fontSize: rf(18), color: colors.inkSoft, fontWeight: 'bold' },
-  tabBar: { flexDirection: 'row', paddingHorizontal: 16, marginVertical: 10 },
-  // Matches the shared FilterChips pill style.
-  tab: { height: control.heightSm, justifyContent: 'center', paddingHorizontal: control.paddingH, borderRadius: control.heightSm / 2, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, marginRight: 8 },
-  tabActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  tabText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft },
-  tabTextActive: { color: '#fff' },
   content: { padding: 16 },
-  stepContainer: { gap: 12 },
-  stepCard: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.card, padding: 14, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
-  stepNum: { width: 32, height: 32, borderRadius: 16, backgroundColor: PRIMARY, color: '#fff', textAlign: 'center', lineHeight: 32, fontWeight: 'bold', fontSize: rf(16), marginRight: 12 },
+  sectionList: { gap: 20 },
+  section: { gap: 10 },
+  sectionHeading: {
+    fontFamily: fonts.bodyBold, fontSize: rf(12.5), color: PRIMARY,
+    textTransform: 'uppercase', letterSpacing: 0.4,
+  },
+  stepContainer: { gap: 10 },
+  stepCard: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.card, padding: 14, borderWidth: 1, borderColor: colors.border, alignItems: 'flex-start' },
+  stepNum: { width: 26, height: 26, borderRadius: 13, backgroundColor: PRIMARY, color: '#fff', textAlign: 'center', lineHeight: 26, fontWeight: 'bold', fontSize: rf(13), marginRight: 12 },
+  // Plain reference items (screens, statuses, reminders) get a small dot
+  // instead of a number, so only real how-to steps read as "step 1, 2, 3…".
+  stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY, marginRight: 12, marginTop: 8 },
   stepInfo: { flex: 1 },
   stepTitle: { fontFamily: fonts.bodyBold, fontSize: rf(14.5), color: colors.ink, marginBottom: 2 },
   stepDesc: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, lineHeight: 18 },
-  faqContainer: { gap: 10 },
-  faqCard: { backgroundColor: colors.surface, borderRadius: radius.ctrl, padding: 14, borderWidth: 1, borderColor: colors.border },
-  faqHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  faqQuestion: { fontFamily: fonts.bodyBold, fontSize: rf(14), color: PRIMARY, flex: 1, paddingRight: 8 },
-  faqToggle: { fontSize: rf(18), fontWeight: 'bold', color: PRIMARY },
-  faqAnswer: { fontFamily: fonts.body, marginTop: 8, fontSize: rf(13), color: colors.inkSoft, lineHeight: 19 },
 });

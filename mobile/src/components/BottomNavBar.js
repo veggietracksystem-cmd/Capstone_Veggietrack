@@ -102,6 +102,8 @@ export default function BottomNavBar({ tabs, activeTab, onTabPress, onTabMeasure
             <Text
               style={[styles.label, isActive && styles.labelActive]}
               numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
             >
               {tab.label}
             </Text>
@@ -143,6 +145,9 @@ const styles = StyleSheet.create({
     fontSize: rf(11),
     color: colors.inkFaint,
     lineHeight: 15,
+    textAlign: 'center',
+    maxWidth: '100%',
+    paddingHorizontal: 2,
   },
   labelActive: {
     color: colors.leaf700,

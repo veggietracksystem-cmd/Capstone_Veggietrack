@@ -11,14 +11,12 @@ import ScreenHeader from '../components/ScreenHeader';
 import StatusBadge from '../components/ui/StatusBadge';
 import { Ionicons } from '@expo/vector-icons';
 import RemoteImage from '../components/RemoteImage';
+import { useTranslation } from '../i18n/useTranslation';
+import { tr } from '../i18n/translate';
 
-const STATUS = {
-  requested: ['Pending', 'Your request is waiting for distributor action.'],
-  assigned: ['Rider Assigned', 'A rider has been assigned to collect your vegetables.'],
-  otw: ['Rider On The Way', 'Your rider is heading to your farm to collect the vegetables.'],
-  picked_up: ['Picked Up', 'Your vegetables have been collected. This pickup is complete.'],
-  completed: ['Completed', 'This pickup transaction has been completed.'],
-};
+const STATUS_KEYS = ['requested', 'assigned', 'otw', 'picked_up', 'completed'];
+// [title, detail] for a known pickup status, translated at call time.
+const statusText = (key) => [tr(`ptrack.${key}Title`), tr(`ptrack.${key}Msg`)];
 // A live map is only meaningful once a rider is assigned and has not yet
 // arrived — before that there is nothing to track, and after pickup the
 // journey is over (the Proof of pickup card below takes over).
@@ -27,6 +25,7 @@ const FINAL_STATUSES = ['picked_up', 'completed'];
 const date = value => value ? new Date(value).toLocaleString() : '—';
 
 export default function FarmerPickupTrackingScreen({ navigation, route }) {
+  const { t } = useTranslation();
   const id = route.params?.pickupId;
   const [pickup, setPickup] = useState(route.params?.pickup || null);
   const [loading, setLoading] = useState(!pickup);
@@ -36,11 +35,11 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
     try {
       const list = await api.get('/api/pickup-requests');
       const next = (Array.isArray(list) ? list : []).find(row => row.id === id);
-      if (!next) throw new Error('Pickup request is no longer available.');
+      if (!next) throw new Error(t('ptrack.noLongerAvailable'));
       setPickup(next); setError('');
-    } catch (err) { setError(err.message || 'Could not refresh pickup tracking.'); }
+    } catch (err) { setError(err.message || t('ptrack.refreshFailed')); }
     finally { setLoading(false); }
-  }, [id]);
+  }, [id, t]);
   useAutoSync(`farmer-pickup-${id || 'unknown'}`, refresh);
   useEffect(() => { refresh(); }, [refresh]);
   const trackable = TRACKABLE_STATUSES.includes(pickup?.status);
@@ -48,9 +47,9 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
   // The backend has no separate 'completed' pickup state: 'picked_up' (set when
   // the rider submits proof) is final, so show it as the completed transaction.
   const displayStatus = FINAL_STATUSES.includes(pickup?.status) ? 'completed' : pickup?.status;
-  const [label, detail] = STATUS[displayStatus] || [String(displayStatus || 'Pending').replace(/_/g, ' '), 'Pickup status updated.'];
+  const [label, detail] = STATUS_KEYS.includes(displayStatus) ? statusText(displayStatus) : [String(displayStatus || t('status.pending')).replace(/_/g, ' '), t('ptrack.updatedMsg')];
   return <SafeAreaView style={s.container}>
-    <ScreenHeader title="Pickup Tracking" onBack={() => navigation.goBack()} />
+    <ScreenHeader title={t('ptrack.title')} onBack={() => navigation.goBack()} />
     <ScrollView contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false); }} />}>
       {loading && !pickup ? <ActivityIndicator color={colors.leaf700} style={{ padding: 32 }} /> : <>
         {/* Header card: id/veg summary + status badge on one row (prototype's
@@ -64,35 +63,35 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
             <StatusBadge status={displayStatus} label={label} />
           </View>
           <Text style={s.muted}>{detail}</Text>
-          <Text style={s.muted}>Requested {date(pickup?.requested_at)}</Text>
+          <Text style={s.muted}>{t('ptrack.requestedOn', { date: date(pickup?.requested_at) })}</Text>
         </Card>
-        {!!error && <Text style={s.error}>{error} Pull down to retry.</Text>}
+        {!!error && <Text style={s.error}>{t('ptrack.pullRetry', { error })}</Text>}
         {trackable ? (
-          <Card title="Live tracking">
+          <Card title={t('ptrack.live')}>
             <DeliveryTrackingMap trackingData={trackingData} style={s.map} />
-            {!!trackingError && <Text style={s.error}>{trackingError} Pull down to retry.</Text>}
+            {!!trackingError && <Text style={s.error}>{t('ptrack.pullRetry', { error: trackingError })}</Text>}
           </Card>
         ) : pickup?.status === 'requested' ? (
           <View style={s.banner}>
             <Ionicons name="time-outline" size={rf(20)} color={colors.gold700} />
             <View style={{ flex: 1 }}>
-              <Text style={s.bannerTitle}>Waiting for rider assignment</Text>
-              <Text style={s.bannerSub}>Live tracking will appear once a rider is assigned</Text>
+              <Text style={s.bannerTitle}>{t('ptrack.waitingRider')}</Text>
+              <Text style={s.bannerSub}>{t('ptrack.liveWhenAssigned')}</Text>
             </View>
           </View>
         ) : null}
-        <Card title="Status">
+        <Card title={t('ptrack.statusCard')}>
           <Timeline status={pickup?.status} pickup={pickup} />
         </Card>
-        <Card title="Details">
-          <Row label="Vegetables" value={`${pickup?.harvests?.vegetable_name || 'Vegetables'} · ${pickup?.harvests?.quantity_kg ?? '—'} kg`} />
-          <Row label="Pickup location" value={pickup?.pickup_location?.address || 'Farm location not available'} />
-          <Row label="Schedule" value={date(pickup?.requested_at)} />
-          <Row label="Rider" value={pickup?.rider?.full_name || 'Not assigned yet'} />
-          {!!pickup?.rider?.phone && <Row label="Contact" value={pickup.rider.phone} />}
-          <Text style={s.muted}>ETA will appear when live rider-route data is available.</Text>
+        <Card title={t('ptrack.details')}>
+          <Row label={t('ptrack.vegetables')} value={`${pickup?.harvests?.vegetable_name || t('ptrack.vegetables')} · ${pickup?.harvests?.quantity_kg ?? '—'} kg`} />
+          <Row label={t('ptrack.pickupLocation')} value={pickup?.pickup_location?.address || t('ptrack.farmUnavailable')} />
+          <Row label={t('ptrack.schedule')} value={date(pickup?.requested_at)} />
+          <Row label={t('ptrack.rider')} value={pickup?.rider?.full_name || t('ptrack.notAssigned')} />
+          {!!pickup?.rider?.phone && <Row label={t('ptrack.contact')} value={pickup.rider.phone} />}
+          <Text style={s.muted}>{t('ptrack.etaNote')}</Text>
         </Card>
-        {(pickup?.proof_photo_url || pickup?.pod) && <Card title="Proof of pickup">{pickup?.proof_photo_url && <RemoteImage uri={pickup.proof_photo_url} style={s.photo} />}<Text style={s.muted}>{pickup?.pod?.submitted_at ? `Recorded ${date(pickup.pod.submitted_at)}` : 'Pickup proof recorded'}</Text>{pickup?.pod?.latitude != null && <Text style={s.muted}>Location: {Number(pickup.pod.latitude).toFixed(5)}, {Number(pickup.pod.longitude).toFixed(5)}</Text>}</Card>}
+        {(pickup?.proof_photo_url || pickup?.pod) && <Card title={t('ptrack.proof')}>{pickup?.proof_photo_url && <RemoteImage uri={pickup.proof_photo_url} style={s.photo} />}<Text style={s.muted}>{pickup?.pod?.submitted_at ? t('ptrack.recorded', { date: date(pickup.pod.submitted_at) }) : t('ptrack.proofRecorded')}</Text>{pickup?.pod?.latitude != null && <Text style={s.muted}>{t('ptrack.location', { lat: Number(pickup.pod.latitude).toFixed(5), lng: Number(pickup.pod.longitude).toFixed(5) })}</Text>}</Card>}
       </>}
     </ScrollView>
   </SafeAreaView>;
@@ -111,9 +110,9 @@ function Timeline({ status, pickup }) {
       {STATUS_ORDER.map((key, i) => {
         const state = i < currentIndex ? 'done' : i === currentIndex ? 'active' : 'upcoming';
         const sub = key === 'requested' ? date(pickup?.requested_at)
-          : key === 'assigned' ? (pickup?.rider?.full_name ? `Assigned to ${pickup.rider.full_name}` : '')
+          : key === 'assigned' ? (pickup?.rider?.full_name ? tr('ptrack.assignedTo', { name: pickup.rider.full_name }) : '')
           : key === 'picked_up' ? (pickup?.received_at ? date(pickup.received_at) : '')
-          : key === 'completed' && FINAL_STATUSES.includes(status) ? (pickup?.received_at ? date(pickup.received_at) : 'Proof of pickup recorded')
+          : key === 'completed' && FINAL_STATUSES.includes(status) ? (pickup?.received_at ? date(pickup.received_at) : tr('ptrack.proofRecorded'))
           : '';
         return (
           <View key={key} style={s.tlStep}>
@@ -124,7 +123,7 @@ function Timeline({ status, pickup }) {
               {i < STATUS_ORDER.length - 1 && <View style={[s.tlLine, state === 'done' && s.tlLineFilled]} />}
             </View>
             <View style={s.tlBody}>
-              <Text style={[s.tlTitle, state === 'upcoming' && s.tlTitleUpcoming]}>{STATUS[key][0]}</Text>
+              <Text style={[s.tlTitle, state === 'upcoming' && s.tlTitleUpcoming]}>{statusText(key)[0]}</Text>
               {!!sub && <Text style={s.muted}>{sub}</Text>}
             </View>
           </View>

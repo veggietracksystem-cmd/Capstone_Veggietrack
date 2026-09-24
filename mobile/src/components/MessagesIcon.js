@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import api from '../api/client';
 import { colors, control, fonts } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
+import { useTranslation } from '../i18n/useTranslation';
 
 // Custom chat icon (two speech bubbles); a transparent PNG tinted to the
 // header icon colour so it matches NotificationBell.
@@ -14,6 +15,7 @@ const POLL_MS = 30000; // matches NotificationBell's unread-count poll interval
 // Header icon placed beside NotificationBell (Distributor/Retailer/Delivery).
 // Farmer instead has an embedded "Messages" bottom tab, so it doesn't use this.
 export default function MessagesIcon() {
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const [unread, setUnread] = useState(0);
   const mounted = useRef(true);
@@ -43,7 +45,7 @@ export default function MessagesIcon() {
       onPress={() => navigation.navigate('Messages')}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel="Messages"
+      accessibilityLabel={t('messages.title')}
     >
       <Image source={CHAT_ICON} style={styles.icon} resizeMode="contain" accessibilityIgnoresInvertColors />
       {unread > 0 && (

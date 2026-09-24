@@ -75,13 +75,13 @@ export default function ProfileScreen({ navigation }) {
   const [langOpen, setLangOpen] = useState(false);
 
   const logout = () => {
-    confirmAction(t('profile.logoutConfirmTitle'), t('profile.logoutConfirmMessage'), () => signOut());
+    confirmAction(t('profile.logoutConfirmTitle'), t('profile.logoutConfirmMessage'), () => signOut(), { danger: true, hideCloseIcon: true });
   };
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Distributors and delivery personnel reach Profile from the bottom nav, so no back arrow. */}
-      <ScreenHeader title={t('profile.title')} onBack={isDistributor(user) || isDeliveryPersonnel(user) ? undefined : () => navigation.goBack()} />
+      <ScreenHeader title={t('profile.title')} onBack={isDistributor(user) || isRetailer(user) || isDeliveryPersonnel(user) ? undefined : () => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={[styles.content, bottomTabs && { paddingBottom: navSpace }]} keyboardShouldPersistTaps="handled">
         {/* Profile header: avatar + name + role + Edit Profile shortcut
@@ -129,7 +129,7 @@ export default function ProfileScreen({ navigation }) {
               style={styles.menuItem}
               onPress={() => navigation.navigate('ManageAddresses')}
             >
-              <Text style={styles.menuItemText}>Manage Addresses</Text>
+              <Text style={styles.menuItemText}>{t('addr.manage')}</Text>
               <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
           )}
@@ -138,7 +138,9 @@ export default function ProfileScreen({ navigation }) {
             style={styles.menuItem}
             onPress={() => setGuideOpen(true)}
           >
-            <Text style={styles.menuItemText}>{t('profile.userGuide')}</Text>
+            <Text style={styles.menuItemText}>
+              {t(`profile.userGuideByRole.${isDistributor(user) ? 'distributor' : isRetailer(user) ? 'retailer' : isDeliveryPersonnel(user) ? 'rider' : 'farmer'}`)}
+            </Text>
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
 

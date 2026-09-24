@@ -2,6 +2,7 @@ import { rf } from '../lib/responsive';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, control, fonts, fontSize, spacing } from '../theme/appTheme';
+import { useTranslation } from '../i18n/useTranslation';
 
 // One header for every screen in the app - pushed screens and dashboards
 // alike - so height/background/title size/padding/border are identical
@@ -16,6 +17,7 @@ import { colors, control, fonts, fontSize, spacing } from '../theme/appTheme';
 // inset - set `topInset` only for the rare screen that renders its header
 // outside any SafeAreaView.
 export default function ScreenHeader({ title, onBack, left, right, topInset = false }) {
+  const { t } = useTranslation();
   const leftContent = onBack ? (
     <TouchableOpacity
       onPress={onBack}
@@ -23,7 +25,7 @@ export default function ScreenHeader({ title, onBack, left, right, topInset = fa
       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       style={styles.backHit}
       accessibilityRole="button"
-      accessibilityLabel="Go back"
+      accessibilityLabel={t('cmp.goBack')}
     >
       <Ionicons name="arrow-back" size={rf(22)} color={colors.ink} />
     </TouchableOpacity>

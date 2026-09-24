@@ -1,14 +1,18 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { View, TextInput, StyleSheet } from 'react-native';
 import { rf } from '../lib/responsive';
 import { colors, fonts, fontSize, radius } from '../theme/appTheme';
+import { useTranslation } from '../i18n/useTranslation';
 
 // Visual-only boxed code entry (matches the redesign prototype's OTP boxes).
 // Still just a single string value under the hood — `value`/`onChangeText`
 // behave exactly like a plain TextInput for the email verification screens.
-export default function OtpInput({ value = '', onChangeText, length = 6, editable = true, accessibilityLabel = 'Verification code' }) {
+export default function OtpInput({ value = '', onChangeText, length = 6, editable = true, accessibilityLabel }) {
+  const { t } = useTranslation();
+  const label = accessibilityLabel ?? t('misc.verificationCode');
   const inputs = useRef([]);
   const digits = Array.from({ length }, (_, i) => value[i] || '');
+  const [focusedIndex, setFocusedIndex] = useState(-1);
 
   const setDigit = (index, text) => {
     // Handles paste (multiple chars land in one box) as well as single keystrokes.
@@ -30,33 +34,43 @@ export default function OtpInput({ value = '', onChangeText, length = 6, editabl
   };
 
   return (
-    <View style={styles.row} accessibilityLabel={accessibilityLabel}>
+    <View style={styles.row} accessibilityLabel={label}>
       {digits.map((digit, index) => (
         <TextInput
           key={index}
           ref={(el) => { inputs.current[index] = el; }}
-          style={[styles.box, digit && styles.boxFilled]}
+          style={[styles.box, digit && styles.boxFilled, focusedIndex === index && styles.boxFocused]}
           value={digit}
           onChangeText={(text) => setDigit(index, text)}
           onKeyPress={(e) => onKeyPress(index, e)}
+          onFocus={() => setFocusedIndex(index)}
+          onBlur={() => setFocusedIndex((current) => (current === index ? -1 : current))}
           keyboardType="number-pad"
           maxLength={2}
           editable={editable}
           textAlign="center"
-          accessibilityLabel={`${accessibilityLabel} digit ${index + 1}`}
+          textAlignVertical="center"
+          accessibilityLabel={t('misc2.digitN', { label, n: index + 1 })}
         />
       ))}
     </View>
   );
 }
 
+const BOX_SIZE = 44;
+const BOX_HEIGHT = 54;
+
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginVertical: 16 },
   box: {
-    width: 44, height: 54,
+    width: BOX_SIZE, height: BOX_HEIGHT,
     borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.ctrl,
     backgroundColor: colors.card,
-    fontFamily: fonts.headingBold, fontSize: rf(fontSize.title), color: colors.leaf900 || colors.leaf700,
+    paddingVertical: 0, paddingHorizontal: 0,
+    textAlign: 'center',
+    fontFamily: fonts.headingBold, fontWeight: '700', fontSize: rf(fontSize.title), lineHeight: BOX_HEIGHT,
+    color: colors.leaf900 || colors.leaf700,
   },
   boxFilled: { borderColor: colors.leaf700 },
+  boxFocused: { borderColor: colors.leaf700, borderWidth: 2 },
 });

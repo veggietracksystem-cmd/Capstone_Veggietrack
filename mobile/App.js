@@ -38,6 +38,7 @@ import StocksScreen from './src/screens/StocksScreen';
 import DistributorInventoryReportScreen from './src/screens/DistributorInventoryReportScreen';
 import DeliveryDetailsScreen from './src/screens/DeliveryDetailsScreen';
 import MessagesScreen from './src/screens/MessagesScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
 import RiderNavigationScreen from './src/screens/delivery/RiderNavigationScreen';
 import ShopeeTrackingScreen from './src/screens/Retailer/ShopeeTrackingScreen';
 import ManageAddressesScreen from './src/screens/ManageAddressesScreen';
@@ -153,6 +154,8 @@ function RootNavigator() {
             {/* Distributor/Retailer/Delivery: pushed from the header Messages icon.
                 Farmer instead embeds MessagesScreen as a bottom tab. */}
             <Stack.Screen name="Messages" component={MessagesScreen} />
+            {/* All roles: pushed from the header bell (no bottom nav). */}
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </>
         ) : (
           <>

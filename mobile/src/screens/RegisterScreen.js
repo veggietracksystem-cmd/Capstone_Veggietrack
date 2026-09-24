@@ -3,17 +3,20 @@ import { useState, useRef } from 'react';
 import { supabase, authConfigured } from '../lib/supabase';
 import { authError } from '../lib/authErrors';
 import {
-  Text, TextInput, TouchableOpacity, ActivityIndicator, View, ScrollView,
+  Text, TouchableOpacity, ActivityIndicator, View, ScrollView,
   StyleSheet, KeyboardAvoidingView, Platform, useWindowDimensions,
 } from 'react-native';
+import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert } from '../lib/ui';
 import MapPinningModal from '../components/MapPinningModal';
 import ScreenHeader from '../components/ScreenHeader';
-import { colors, control, fontSize, radius, spacing } from '../theme/appTheme';
+import { colors, control, fontSize, radius, spacing, actionBtn, actionBtnPrimary, actionBtnText, actionBtnOutline } from '../theme/appTheme';
 import PasswordInput from '../components/PasswordInput';
+import { SegmentedTabs } from '../components/ui/SegmentedTabs';
 import { Ionicons } from '@expo/vector-icons';
+import { titleCaseWords } from '../lib/textFormat';
 const PRIMARY = colors.leaf700;
 
 export default function RegisterScreen({ navigation, route }) {
@@ -21,13 +24,6 @@ export default function RegisterScreen({ navigation, route }) {
   const { width, height } = useWindowDimensions();
   const compactLayout = width < 380;
   const tallScreen = height >= 760;
-  // The Password placeholder is long, so its font follows the space left
-  // beside the eye icon: 16px screen margins, 12px left / 46px right input
-  // padding and 2px of border. ~24.5px of text width per font px, clamped to
-  // 11–13px so it stays readable on small phones and never oversized.
-  const passwordFieldText = Math.min(width, 560) - 32 - 12 - 46 - 2;
-  const passwordFontSize = Math.max(11, Math.min(13, Math.floor((passwordFieldText / 24.5) * 2) / 2));
-
   // Role -> location field key + i18n keys. The backend reads the matching key.
   const ROLES = [
     { value: 'farmer', label: t('auth.register.roleFarmer'), locationKey: 'farm_location', locationLabel: t('auth.register.farmLocation') },
@@ -61,10 +57,10 @@ export default function RegisterScreen({ navigation, route }) {
 
   const register = async () => {
     if(lock.current)return;
-    if(!authConfigured){showAlert('Not available right now','We can’t create accounts at the moment. Please try again later.');return;}
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())){showAlert('Check your email address','Please enter a valid email address.');return;}
-    if(password.length<8 || password!==confirmPassword){showAlert('Check your password','Please use at least 8 characters, and make sure both passwords match.');return;}
-    if(!fullName.trim() || (roleConfig.locationKey && !location.trim())){showAlert('Please fill in the required fields', roleConfig.locationKey ? 'Please enter your name and location.' : 'Please enter your name.');return;}
+    if(!authConfigured){showAlert(t('authx.notAvailableTitle'),t('authx.cantCreate'));return;}
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())){showAlert(t('authx.checkEmailTitle'),t('authx.invalidEmail'));return;}
+    if(password.length<8 || password!==confirmPassword){showAlert(t('authx.checkPasswordTitle'),t('authx.checkPasswordMsg'));return;}
+    if(!fullName.trim() || (roleConfig.locationKey && !location.trim())){showAlert(t('authx.fillRequiredTitle'), roleConfig.locationKey ? t('authx.enterNameLocation') : t('authy.enterName'));return;}
     lock.current=true;setLoading(true);
     try {
       const profileData = { full_name: fullName.trim(), role };
@@ -86,7 +82,7 @@ export default function RegisterScreen({ navigation, route }) {
       // at 'unverified'.  VerifyEmailScreen's own Resend button covers the
       // case where the first email never arrives.
       navigation.navigate('VerifyEmail',{email:emailTrimmed, purpose:'signup'});
-    } catch(error){showAlert('We couldn’t create your account',authError(error));}
+    } catch(error){showAlert(t('authx.cantCreateTitle'),authError(error));}
     finally{lock.current=false;setLoading(false);}
   };
 
@@ -111,26 +107,26 @@ export default function RegisterScreen({ navigation, route }) {
         >
           <View style={styles.contentWrap}>
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Full Name</Text>
+              <Text style={styles.fieldLabel}>{t('authx.fullName')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your full name"
+                placeholder={t('authx.enterFullName')}
                 placeholderTextColor={colors.placeholder}
-                accessibilityLabel="Full Name"
+                accessibilityLabel={t('authx.fullName')}
                 autoCapitalize="words"
                 value={fullName}
-                onChangeText={setFullName}
+                onChangeText={(v) => setFullName(titleCaseWords(v))}
                 editable={!loading}
               />
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Email</Text>
+              <Text style={styles.fieldLabel}>{t('authx.email')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your email address"
+                placeholder={t('authx.enterEmail')}
                 placeholderTextColor={colors.placeholder}
-                accessibilityLabel="Email"
+                accessibilityLabel={t('authx.email')}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -141,12 +137,12 @@ export default function RegisterScreen({ navigation, route }) {
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Password</Text>
+              <Text style={styles.fieldLabel}>{t('authx.password')}</Text>
               <PasswordInput
-                style={[styles.input, styles.passwordInput, { fontSize: passwordFontSize }]}
-                placeholder="Enter your password (use at least 8 characters)"
+                style={[styles.input, styles.passwordInput]}
+                placeholder={t('authx.enterPasswordHint')}
                 placeholderTextColor={colors.placeholder}
-                accessibilityLabel="Password"
+                accessibilityLabel={t('authx.password')}
                 value={password}
                 onChangeText={setPassword}
                 editable={!loading}
@@ -155,9 +151,9 @@ export default function RegisterScreen({ navigation, route }) {
 
               <PasswordInput
                 style={[styles.input, styles.passwordInput]}
-                placeholder="Confirm password"
+                placeholder={t('authx.confirmPasswordPh')}
                 placeholderTextColor={colors.placeholder}
-                accessibilityLabel="Confirm Password"
+                accessibilityLabel={t('authx.confirmPassword')}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 editable={!loading}
@@ -165,50 +161,42 @@ export default function RegisterScreen({ navigation, route }) {
               />
               {!!confirmPassword && (
                 <Text style={password === confirmPassword ? styles.matchText : styles.passwordError} accessibilityRole="alert">
-                  {password === confirmPassword ? 'Passwords match.' : 'Passwords do not match.'}
+                  {password === confirmPassword ? t('authx.pwMatch') : t('authx.pwMismatch')}
                 </Text>
               )}
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Role</Text>
-              <View style={styles.roleWrap}>
-                {ROLES.map((r) => {
-                  const selected = role === r.value;
-                  return (
-                    <TouchableOpacity
-                      key={r.value}
-                      style={[styles.roleChip, selected && styles.roleChipActive]}
-                      onPress={() => handleRoleChange(r.value)}
-                      disabled={loading}
-                    >
-                      <Text style={[styles.roleChipText, selected && styles.roleChipTextActive]}>
-                        {r.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              <Text style={styles.fieldLabel}>{t('auth.register.roleLabel')}</Text>
+              {/* Same filter-tab component the rest of the app uses (equal widths, wraps long labels). */}
+              <SegmentedTabs
+                options={ROLES.map((r) => ({ value: r.value, label: r.label }))}
+                value={role}
+                onChange={handleRoleChange}
+                disabled={loading}
+                style={{ marginBottom: 0 }}
+              />
             </View>
 
             {locationRequired && (
               <View style={styles.fieldGroup}>
                 <Text style={styles.fieldLabel}>{roleConfig.locationLabel}</Text>
-                <View style={[styles.locationInputRow, compactLayout && styles.locationInputColumn]}>
+                <View style={styles.locationInputRow}>
                   <TextInput
-                    style={[styles.input, styles.locationInput, compactLayout && styles.locationInputFull]}
+                    style={[styles.input, styles.locationInput]}
                     placeholder={roleConfig.locationLabel}
                     placeholderTextColor={colors.placeholder}
                     value={location}
-                    onChangeText={setLocation}
+                                        autoCapitalize="words"
+                    onChangeText={(v) => setLocation(titleCaseWords(v))}
                     editable={!loading}
                   />
                   <TouchableOpacity
-                    style={[styles.pinBtn, compactLayout && styles.pinBtnFull]}
+                    style={styles.pinBtn}
                     onPress={() => setMapModalVisible(true)}
                     disabled={loading}
                   >
-                    <Ionicons name="location-outline" size={rf(17)} color="#fff" />
+                    <Ionicons name="location-outline" size={rf(16)} color={colors.leaf700} />
                     <Text style={styles.pinBtnText}>{t('auth.register.pinMap')}</Text>
                   </TouchableOpacity>
                 </View>
@@ -216,7 +204,7 @@ export default function RegisterScreen({ navigation, route }) {
                   <View style={styles.locationFeedback}>
                     <View style={styles.coordsRow}>
                       <Ionicons name="checkmark-circle-outline" size={rf(17)} color={PRIMARY} />
-                      <Text style={styles.coordsLabel}>Location pinned</Text>
+                      <Text style={styles.coordsLabel}>{t('authx.locationPinned')}</Text>
                     </View>
                     <Text style={styles.addressLabel}>{location}</Text>
                   </View>
@@ -234,7 +222,7 @@ export default function RegisterScreen({ navigation, route }) {
               >
                 {loading
                   ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.buttonText}>Create Account</Text>}
+                  : <Text style={styles.buttonText}>{t('authx.createAccountBtn')}</Text>}
               </TouchableOpacity>
 
               <Text style={styles.nextStep}>{t('auth.register.verificationNext')}</Text>
@@ -243,7 +231,9 @@ export default function RegisterScreen({ navigation, route }) {
             <View style={[styles.footerSpacer, tallScreen && styles.footerSpacerTall]} />
 
             <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={loading}>
-              <Text style={styles.link}>{t('auth.register.haveAccount')}</Text>
+              <Text style={styles.link}>
+                {t('regx.haveAccountText')} <Text style={styles.linkAction}>{t('regx.signIn')}</Text>
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -271,7 +261,7 @@ const styles = StyleSheet.create({
   innerTall: { minHeight: 760 },
   contentWrap: { flexGrow: 1, justifyContent: 'flex-start' },
   fieldGroup: { marginBottom: 14 },
-  fieldLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 6, marginTop: 0 },
+  fieldLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: rf(fontSize.sm), color: colors.labelInk, marginBottom: 6, marginTop: 0 },
   matchText: { fontFamily: 'Poppins_400Regular', fontSize: rf(13), color: PRIMARY, marginTop: 4, marginBottom: 0 },
   passwordError: { fontFamily: 'Poppins_400Regular', fontSize: rf(13), color: '#A32621', marginTop: 4, marginBottom: 0 },
   input: {
@@ -288,26 +278,21 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   passwordInput: { marginBottom: 8 },
-  roleWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  roleChip: { height: control.height, justifyContent: 'center', alignItems: 'center', paddingHorizontal: control.paddingH, borderRadius: control.height / 2, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
-  roleChipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  roleChipText: { color: colors.inkSoft, fontFamily: 'Poppins_500Medium', fontSize: rf(13), textAlign: 'center' },
-  roleChipTextActive: { color: '#fff', fontFamily: 'Poppins_600SemiBold' },
-  ctaBlock: { marginTop: 8 },
+  ctaBlock: { marginTop: 20 },
   button: { backgroundColor: PRIMARY, minHeight: 48, paddingHorizontal: control.paddingH, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: rf(fontSize.lg), textAlign: 'center' },
   nextStep: { fontFamily: 'Poppins_400Regular', textAlign: 'center', color: '#687065', fontSize: rf(11), lineHeight: rf(16), marginTop: 14 },
   footerSpacer: { flexGrow: 1, minHeight: 10, marginTop: 22, marginBottom: 10 },
   footerSpacerTall: { minHeight: 28, maxHeight: 96 },
-  link: { fontFamily: 'Poppins_500Medium', textAlign: 'center', color: PRIMARY, fontSize: rf(15), marginBottom: 4 },
-  locationInputRow: { flexDirection: 'row', gap: 8, alignItems: 'center', minWidth: 0 },
-  locationInputColumn: { flexDirection: 'column', alignItems: 'stretch' },
-  locationInput: { flex: 1, marginBottom: 0 },
-  locationInputFull: { width: '100%', flex: 0 },
-  pinBtn: { minHeight: control.height, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: control.paddingH, backgroundColor: PRIMARY, borderRadius: radius.ctrl },
-  pinBtnFull: { width: '100%' },
-  pinBtnText: { color: '#fff', fontFamily: 'Poppins_700Bold', fontSize: rf(14), textAlign: 'center' },
+  link: { fontFamily: 'Poppins_400Regular', textAlign: 'center', color: colors.inkSoft, fontSize: rf(15), marginBottom: 4 },
+  // Only the tappable part is green and underlined.
+  linkAction: { fontFamily: 'Poppins_500Medium', color: PRIMARY, textDecorationLine: 'underline' },
+  // Wide field with the compact Pin Map button to its right, vertically centered together.
+  locationInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
+  locationInput: { flex: 1, minWidth: 0, marginBottom: 0 },
+  pinBtn: { ...actionBtn, ...actionBtnOutline, flexDirection: 'row', gap: 6, flexShrink: 0 },
+  pinBtnText: { ...actionBtnText, color: colors.leaf700 },
   locationFeedback: { backgroundColor: '#edf5e9', borderRadius: 8, padding: 10, marginTop: 10 },
   coordsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   coordsLabel: { color: PRIMARY, fontFamily: 'Poppins_600SemiBold', fontSize: rf(13) },

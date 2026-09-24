@@ -4,6 +4,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import en from './translations/en.json';
 import tl from './translations/tl.json';
+import { setCurrentLanguage, trc } from './translate';
 
 const LANGUAGE_KEY = 'app_language';
 const TRANSLATIONS = { en, tl };
@@ -20,6 +21,9 @@ function resolve(dict, path) {
 
 export function LanguageProvider({ children }) {
   const [language, setLanguageState] = useState('en');
+  // Keep the non-hook translator (lib/ helpers) on the same language; done during
+  // render so it is already correct when children build alert/error text.
+  setCurrentLanguage(language);
 
   // Restore the saved language on app start (defaults to English if unset/invalid).
   useEffect(() => {
@@ -62,7 +66,10 @@ export function LanguageProvider({ children }) {
     return value !== undefined ? value : resolve(TRANSLATIONS.en, key);
   }, [language]);
 
-  const value = useMemo(() => ({ language, setLanguage, t, tRaw }), [language, setLanguage, t, tRaw]);
+  // tc('plural.orderItems', n): singular/plural wording chosen by the count.
+  const tc = useCallback((key, count, vars) => trc(key, count, vars), [language]);
+
+  const value = useMemo(() => ({ language, setLanguage, t, tc, tRaw }), [language, setLanguage, t, tc, tRaw]);
 
   return (
     <LanguageContext.Provider value={value}>

@@ -1,17 +1,21 @@
 import { rf } from '../../lib/responsive';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts, fontSize, radius } from '../../theme/appTheme';
+import { useTranslation } from '../../i18n/useTranslation';
 
-// Display-only mapping from a status string to a themed color + label.
-// Does not decide which statuses exist or when they change - callers keep
-// their own business logic and just pass the status string through.
+// One status color system for the whole app (display-only - callers keep their
+// own business logic and just pass the status string through):
+//   done     solid dark green, white text     - completed / active / paid
+//   progress solid medium green, white text   - approved, assigned, on the way
+//   pending  light green, dark green text     - waiting / not yet started
+//   danger   light red, red text              - declined, cancelled, disabled, out of stock
+//   neutral  soft gray, dark text             - informational / unknown
 const TONES = {
-  neutral: { bg: colors.soil300, fg: colors.soil800 },
-  info: { bg: colors.infoSoft, fg: colors.info },
-  warning: { bg: colors.gold100, fg: colors.gold700 },
-  success: { bg: colors.leaf100, fg: colors.leaf700 },
+  done: { bg: colors.leaf700, fg: '#fff' },
+  progress: { bg: colors.leaf500, fg: '#fff' },
+  pending: { bg: colors.leaf100, fg: colors.leaf700 },
   danger: { bg: colors.dangerSoft, fg: colors.danger },
-  purple: { bg: colors.purpleSoft, fg: colors.purple },
+  neutral: { bg: colors.soil300, fg: colors.soil800 },
 };
 
 // Common status strings used across accounts/orders/pickups/deliveries in
@@ -20,37 +24,36 @@ const TONES = {
 // enumerate.
 const STATUS_TONE = {
   unverified: 'neutral',
-  pending_approval: 'warning',
-  pending: 'warning',
-  active: 'success',
-  available: 'info',
-  reserved: 'purple',
-  for_pickup: 'warning',
-  approved: 'info',
-  assigned: 'info',
-  otw: 'purple',
-  picked_up: 'info',
-  in_transit: 'purple',
-  out_for_delivery: 'purple',
-  delivered: 'success',
-  completed: 'success',
+  pending_approval: 'pending',
+  pending: 'pending',
+  unpaid: 'pending',
+  for_pickup: 'pending',
+  available: 'pending',
+  reserved: 'pending',
+  approved: 'progress',
+  assigned: 'progress',
+  otw: 'progress',
+  picked_up: 'progress',
+  in_transit: 'progress',
+  out_for_delivery: 'progress',
+  active: 'done',
+  delivered: 'done',
+  completed: 'done',
+  paid: 'done',
   declined: 'danger',
   disabled: 'danger',
   cancelled: 'danger',
   rejected: 'danger',
-  paid: 'success',
-  unpaid: 'warning',
+  out_of_stock: 'danger',
 };
 
-// Status codes that don't read as words once "_" is swapped for a space
-// (e.g. "otw") need an explicit friendly label instead of the raw code.
-const STATUS_LABEL = {
-  otw: 'On the way',
-};
-
+// One badge size everywhere. `compact` is accepted for existing callers but no
+// longer changes the size, so badges look identical across every screen.
 export default function StatusBadge({ status, label }) {
+  const { t } = useTranslation();
   const tone = TONES[STATUS_TONE[status]] || TONES.neutral;
-  const text = label || STATUS_LABEL[status] || String(status || '').replace(/_/g, ' ');
+  const known = STATUS_TONE[status] ? t(`status.${status}`) : null;
+  const text = label || known || String(status || '').replace(/_/g, ' ');
   return (
     <View style={[styles.badge, { backgroundColor: tone.bg }]}>
       <Text style={[styles.text, { color: tone.fg }]} numberOfLines={1}>{text}</Text>
@@ -64,10 +67,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.ctrl,
     paddingHorizontal: 10,
     paddingVertical: 4,
+    minHeight: 24,
+    justifyContent: 'center',
   },
   text: {
     fontFamily: fonts.bodySemiBold,
     fontSize: rf(fontSize.xs),
+    lineHeight: 16,
     textTransform: 'capitalize',
+    textAlign: 'center',
   },
 });

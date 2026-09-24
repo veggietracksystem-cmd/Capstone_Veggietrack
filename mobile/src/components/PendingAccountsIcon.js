@@ -6,6 +6,7 @@ import api from '../api/client';
 import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
 import { colors, control, fonts } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
+import { useTranslation } from '../i18n/useTranslation';
 
 const POLL_MS = 30000; // matches NotificationBell/MessagesIcon
 
@@ -14,6 +15,7 @@ const POLL_MS = 30000; // matches NotificationBell/MessagesIcon
 // without opening the screen. /api/accounts is distributor-only and returns
 // the rows themselves; the screen needs them anyway, and the count is small.
 export default function PendingAccountsIcon() {
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const [pending, setPending] = useState(0);
   const mounted = useRef(true);
@@ -47,7 +49,7 @@ export default function PendingAccountsIcon() {
       onPress={() => navigation.navigate('AccountManagement')}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={pending > 0 ? `User Management, ${pending} awaiting approval` : 'User Management'}
+      accessibilityLabel={pending > 0 ? t('misc.userMgmtPending', { n: pending }) : t('misc.userMgmt')}
     >
       <Ionicons name="people-outline" size={rf(24)} color={colors.soil800} />
       {pending > 0 && (

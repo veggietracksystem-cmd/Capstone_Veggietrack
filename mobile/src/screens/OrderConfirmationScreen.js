@@ -21,6 +21,7 @@ import CustomModal from '../components/CustomModal';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 import ScreenHeader from '../components/ScreenHeader';
 import StatusBadge from '../components/ui/StatusBadge';
+import { titleCaseWords } from '../lib/textFormat';
 
 const PRIMARY = colors.leaf700;
 
@@ -112,14 +113,14 @@ export default function OrderConfirmationScreen({ navigation, route }) {
     } catch (err) {
       const code = err?.code || err?.data?.code;
       const message = err?.status === 401
-        ? 'Your session has ended. Please sign in again.'
+        ? t('errors.sessionEnded')
         : !err?.status
-          ? (err?.message === 'insufficient stock' ? 'Some items just ran out of stock. Please check your cart and try again.' : 'Please check your internet connection and try again.')
+          ? (err?.message === 'insufficient stock' ? t('addr.outOfStock') : t('errors.connection'))
           : code === 'ADDRESS_LOCATION_REQUIRED'
-            ? 'This address needs a map pin. Please open Manage Addresses and set it on the map.'
+            ? t('addr.needsPin')
             : err?.data?.field === 'preferred_schedule'
-              ? 'That delivery time is no longer available. Please pick another one.'
-              : friendlyError(err, 'We couldn’t place your order. Please try again.');
+              ? t('addr.timeGone')
+              : friendlyError(err, t('addr.orderFailed'));
       showAlert(t('dashboards.retailer.orderFailedTitle'), message);
     } finally {
       requestLock.release('Confirming');
@@ -186,20 +187,20 @@ export default function OrderConfirmationScreen({ navigation, route }) {
                     {selectedAddressId === addr.id && <View style={styles.addressRadioSelected} />}
                   </View>
                   <View style={styles.addressInfo}>
-                    <Text style={styles.addressLabel}>{addr.label}</Text>
+                    <Text style={styles.addressLabel}>{titleCaseWords(addr.label)}</Text>
                     <Text style={styles.addressText} numberOfLines={2}>{addr.address}</Text>
-                    {addr.is_default && <View style={{ marginTop: 4, alignSelf: 'flex-start' }}><StatusBadge status="active" label="Default" /></View>}
+                    {addr.is_default && <View style={{ marginTop: 4, alignSelf: 'flex-start' }}><StatusBadge status="active" label={t('addr.default')} /></View>}
                   </View>
                 </TouchableOpacity>
               ))}
 
             </>
           ) : (
-            <Text style={styles.noAddressesText}>No saved delivery address. Add one before placing your order.</Text>
+            <Text style={styles.noAddressesText}>{t('addr.noneForOrder')}</Text>
           )}
 
           <TouchableOpacity style={styles.manageAddressesLink} onPress={() => navigation.navigate('ManageAddresses')} disabled={confirming}>
-            <Text style={styles.manageAddressesLinkText}>Manage Address</Text>
+            <Text style={styles.manageAddressesLinkText}>{t('addr.manageShort')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -208,7 +209,7 @@ export default function OrderConfirmationScreen({ navigation, route }) {
           <Text style={styles.sectionTitle}>{t('dashboards.retailer.preferredTimeLabel')}</Text>
           <DeliveryDateTimeFields date={date} onDateChange={setDate} time={time} onTimeChange={setTime} disabled={confirming} />
           {!!date && !!time && !scheduleValid && <Text style={{ color: colors.danger }}>{t('pod.pastSchedule')}</Text>}
-          {(latitude == null || longitude == null) && <Text style={{ color: colors.danger }}>Choose a saved address with a map location, or update it in Manage Address.</Text>}
+          {(latitude == null || longitude == null) && <Text style={{ color: colors.danger }}>{t('addr.chooseOrUpdate')}</Text>}
         </View>
 
         {!weightValid && <Text style={{ color: colors.danger }}>{t('checkout.minimumWeight')}</Text>}

@@ -1,6 +1,7 @@
 import { rf } from '../lib/responsive';
 import { Component } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { tr } from '../i18n/translate';
 
 const PRIMARY = '#1E4E09';
 
@@ -38,14 +39,14 @@ export default class ErrorBoundary extends Component {
     if (this.state.hasError) {
       return (
         <View style={styles.container}>
-          <Text style={styles.title}>Something went wrong</Text>
+          <Text style={styles.title}>{tr('cmp.boundaryTitle')}</Text>
           <Text style={styles.message}>
-            Please restart the app and try again.
+            {tr('cmp.boundaryMsg')}
           </Text>
           {/* The raw error stays in the console for developers; showing it
               here only puts developer text in front of a user. */}
           <TouchableOpacity style={styles.button} onPress={this.handleRestart} activeOpacity={0.7}>
-            <Text style={styles.buttonText}>Restart app</Text>
+            <Text style={styles.buttonText}>{tr('cmp.restart')}</Text>
           </TouchableOpacity>
         </View>
       );

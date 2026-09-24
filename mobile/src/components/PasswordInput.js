@@ -1,6 +1,7 @@
 import { rf } from '../lib/responsive';
 import { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import TextInput from './AppTextInput';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/appTheme';
 
@@ -26,6 +27,7 @@ export default function PasswordInput({
 }) {
   const [show, setShow] = useState(false);
   const inputStyle = StyleSheet.flatten(style) || {};
+  const hasText = typeof value === 'string' ? value.length > 0 : !!value;
 
   return (
     <View style={[styles.wrap, { marginBottom: inputStyle.marginBottom || 0 }]}>
@@ -40,17 +42,21 @@ export default function PasswordInput({
         editable={editable}
         {...rest}
       />
-      <TouchableOpacity
-        style={styles.eyeBtn}
-        onPress={() => setShow((s) => !s)}
-        accessibilityRole="button"
-        accessibilityLabel={`${show ? 'Hide' : 'Show'} ${visibilityLabel}`}
-        disabled={!editable}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        activeOpacity={0.6}
-      >
-        <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={rf(20)} color={PRIMARY} />
-      </TouchableOpacity>
+      {/* The eye only appears once something has been typed. The input keeps its
+          right padding either way, so the text never shifts when it shows up. */}
+      {hasText ? (
+        <TouchableOpacity
+          style={styles.eyeBtn}
+          onPress={() => setShow((s) => !s)}
+          accessibilityRole="button"
+          accessibilityLabel={`${show ? 'Hide' : 'Show'} ${visibilityLabel}`}
+          disabled={!editable}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          activeOpacity={0.6}
+        >
+          <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={rf(20)} color={PRIMARY} />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }

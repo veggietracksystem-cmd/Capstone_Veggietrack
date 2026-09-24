@@ -81,7 +81,7 @@ function ReportTable({ columns, rows, emptyLabel }) {
       <View style={styles.reportWrap}>
         <View style={styles.reportHeaderRow}>
           {columns.map((c) => (
-            <Text key={c.key} style={[styles.reportHeaderCell, { width: c.width }]} numberOfLines={1}>{c.label}</Text>
+            <Text key={c.key} style={[styles.reportHeaderCell, { width: c.width }]} numberOfLines={2}>{c.label}</Text>
           ))}
         </View>
         {rows.length === 0 ? (

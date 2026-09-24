@@ -24,7 +24,7 @@ const PRIMARY = colors.leaf700;
  */
 export default function ProofPreviewModal({
   visible, orderLabel, photo, busy, onPickPhoto, onConfirm, onCancel,
-  title = 'Confirm Delivery', confirmIdleLabel = 'Confirm Delivery',
+  title, confirmIdleLabel,
 }) {
   const { t } = useTranslation();
   const { backdropStyle, cardStyle } = useSharedModalMotion(visible);
@@ -33,20 +33,20 @@ export default function ProofPreviewModal({
     <Modal visible={visible} transparent animationType="none" onRequestClose={busy ? undefined : onCancel}>
       <Animated.View style={[styles.backdrop, backdropStyle]}>
         <Animated.View style={[styles.card, cardStyle]}>
-          <Text style={styles.title}>{title}</Text>
-          {orderLabel ? <Text style={styles.subtitle}>Order {orderLabel}</Text> : null}
+          <Text style={styles.title}>{title ?? t('cmp.confirmDelivery')}</Text>
+          {orderLabel ? <Text style={styles.subtitle}>{t('cmp2.orderN', { label: orderLabel })}</Text> : null}
 
           {photo ? (
             <>
               <Image source={{ uri: photo.uri }} style={styles.preview} resizeMode="contain" />
               <ProofDetails proof={photo.pod} />
               <TouchableOpacity onPress={onPickPhoto} disabled={busy}>
-                <Text style={styles.retakeLink}>Retake photo</Text>
+                <Text style={styles.retakeLink}>{t('cmp.retake')}</Text>
               </TouchableOpacity>
             </>
           ) : (
             <TouchableOpacity style={styles.addPhotoBtn} onPress={onPickPhoto} disabled={busy}>
-              <Text style={styles.addPhotoText}>Add proof photo</Text>
+              <Text style={styles.addPhotoText}>{t('cmp.addProof')}</Text>
               <Text style={styles.optionalText}>{t('pod.required')}</Text>
             </TouchableOpacity>
           )}
@@ -58,7 +58,7 @@ export default function ProofPreviewModal({
           >
             {busy
               ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.buttonPrimaryText}>{photo ? 'Confirm & Upload' : confirmIdleLabel}</Text>}
+              : <Text style={styles.buttonPrimaryText}>{photo ? t('cmp.confirmUpload') : (confirmIdleLabel ?? t('cmp.confirmDelivery'))}</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -66,7 +66,7 @@ export default function ProofPreviewModal({
             onPress={onCancel}
             disabled={busy}
           >
-            <Text style={styles.buttonOutlineText}>Cancel</Text>
+            <Text style={styles.buttonOutlineText}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         </Animated.View>
       </Animated.View>

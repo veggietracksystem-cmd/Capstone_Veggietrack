@@ -1,7 +1,7 @@
 import ProofDetails from './ProofDetails';
 import { rf } from '../lib/responsive';
-import { Modal, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { control, fonts, radius } from '../theme/appTheme';
+import { Modal, View, TouchableOpacity, StyleSheet } from 'react-native';
+import { radius } from '../theme/appTheme';
 import { Ionicons } from '@expo/vector-icons';
 import RemoteImage from './RemoteImage';
 
@@ -14,9 +14,8 @@ export default function ImageViewerModal({ uri, visible, onClose, proof }) {
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
         {uri ? <RemoteImage uri={uri} style={styles.image} resizeMode="contain" /> : null}
         {uri && <ProofDetails proof={proof} />}
-        <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-          <Text style={styles.closeText}>Close</Text>
-          <Ionicons name="close" size={rf(20)} color="#fff" />
+        <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+          <Ionicons name="close" size={rf(18)} color="#fff" />
         </TouchableOpacity>
       </View>
     </Modal>
@@ -26,6 +25,12 @@ export default function ImageViewerModal({ uri, visible, onClose, proof }) {
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' },
   image: { width: '92%', height: '60%' },
-  closeBtn: { position: 'absolute', top: 40, right: 20, paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.ctrl, backgroundColor: 'rgba(255,255,255,0.15)', minWidth: control.minTouch, minHeight: control.minTouch, alignItems: 'center', justifyContent: 'center'  },
-  closeText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15) },
+  // Same small rounded outlined close button every other modal uses (tinted
+  // for the dark photo backdrop here).
+  closeBtn: {
+    position: 'absolute', top: 40, right: 20, width: 38, height: 38,
+    borderRadius: radius.ctrl, backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)',
+    alignItems: 'center', justifyContent: 'center',
+  },
 });

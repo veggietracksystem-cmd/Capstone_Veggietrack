@@ -1,13 +1,14 @@
 import { currentProofLocation, captureProofPhoto } from '../lib/podCapture';
 import { useState, useEffect, useRef } from 'react';
-import { Text, View, ScrollView, TouchableOpacity, TextInput, Platform, StyleSheet } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, Platform, StyleSheet } from 'react-native';
+import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../api/client';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { createProofSubmission, proofFailureMessage } from '../lib/podSubmission';
-import { orderDestination, validateDeliveryLocation, MISSING_DESTINATION_MESSAGE, REFRESH_ACCURACY_MESSAGE } from '../lib/deliveryLocation';
+import { orderDestination, validateDeliveryLocation, missingDestinationMessage, refreshAccuracyMessage } from '../lib/deliveryLocation';
 import { isOnline } from '../offline/net';
 import DeliveryMapModal from '../components/DeliveryMapModal';
 import ProofPreviewModal from '../components/ProofPreviewModal';
@@ -84,8 +85,8 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
       currentProofLocation(t).then(position => {
         if (cancelled || requestGeneration !== locationGeneration.current) return;
         try { setLocationDetails(validateDeliveryLocation(position, orderDestination(order))); setLocationError(''); }
-        catch (error) { setLocationDetails(Number.isFinite(error.distanceMeters) ? error : null); setLocationError(error.code === 'GPS_INACCURATE' ? REFRESH_ACCURACY_MESSAGE : error.message); }
-      }).catch(error => { if (!cancelled && requestGeneration === locationGeneration.current) setLocationError(error.code === 'GPS_INACCURATE' ? REFRESH_ACCURACY_MESSAGE : error.message); });
+        catch (error) { setLocationDetails(Number.isFinite(error.distanceMeters) ? error : null); setLocationError(error.code === 'GPS_INACCURATE' ? refreshAccuracyMessage() : error.message); }
+      }).catch(error => { if (!cancelled && requestGeneration === locationGeneration.current) setLocationError(error.code === 'GPS_INACCURATE' ? refreshAccuracyMessage() : error.message); });
     }
     return () => { cancelled = true; mounted.current = false; };
   }, [order?.id]);
@@ -125,7 +126,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
 
   const verifiedLocation = async () => {
     const requestGeneration = ++locationGeneration.current;
-    if (!orderDestination(order)) throw new Error(MISSING_DESTINATION_MESSAGE);
+    if (!orderDestination(order)) throw new Error(missingDestinationMessage());
     const position = await currentProofLocation(t);
     try {
       const details = validateDeliveryLocation(position, orderDestination(order));
@@ -141,7 +142,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
     if (actionRef.current) return;
     actionRef.current = 'location'; setBusy(true);
     try { await verifiedLocation(); }
-    catch (error) { setLocationError(error.code === 'GPS_INACCURATE' ? REFRESH_ACCURACY_MESSAGE : error.message); }
+    catch (error) { setLocationError(error.code === 'GPS_INACCURATE' ? refreshAccuracyMessage() : error.message); }
     finally { actionRef.current = null; if (mounted.current) setBusy(false); }
   };
 
@@ -258,7 +259,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
     <SafeAreaView style={styles.container}>
       <ScreenHeader title={t('deliveryDetails.title')} onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         <View style={styles.card}>
           {/* 1. Order Summary — status shown exactly once, as the badge */}
           <View style={styles.orderHeader}>
@@ -315,8 +316,8 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
           <TouchableOpacity
             style={styles.routeBtnCentered}
             onPress={() => {
-              if (!routeTarget.coords) { showAlert(t('common.error'), rank < 1 ? 'Pickup location coordinates are unavailable. Contact the distributor.' : MISSING_DESTINATION_MESSAGE); return; }
-              setMapAddress(routeTarget.address || 'Delivery route'); setMapCoords(routeTarget.coords);
+              if (!routeTarget.coords) { showAlert(t('common.error'), rank < 1 ? t('cmp.pickupCoordsMissing') : missingDestinationMessage()); return; }
+              setMapAddress(routeTarget.address || t('cmp.deliveryRouteFallback')); setMapCoords(routeTarget.coords);
             }}
           >
             <Text style={styles.routeBtnText}>{t('dashboards.delivery.viewRoute')}</Text>
@@ -334,7 +335,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
               </>}
               {!!locationError && <Text style={[styles.rowMeta, { color: colors.danger }]}>{locationError}</Text>}
               <TouchableOpacity style={[styles.routeBtnCentered, busy && styles.buttonDisabled]} disabled={busy} onPress={refreshLocation}>
-                <Text style={styles.routeBtnText}>Refresh Location</Text>
+                <Text style={styles.routeBtnText}>{t('cmp.refreshLocation')}</Text>
               </TouchableOpacity>
 
               {PROGRESS_STEPS.map((step) => {

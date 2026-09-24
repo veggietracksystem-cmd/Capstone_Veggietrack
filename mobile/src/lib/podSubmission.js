@@ -1,13 +1,15 @@
+import { tr } from '../i18n/translate';
+// Getters so the text follows the selected language at the moment it is shown.
 export const POD_MESSAGES = {
-  upload: 'We couldn’t upload the delivery photo. Please try again.',
-  completion: 'The photo was uploaded, but we couldn’t mark the delivery as done. Please try again.',
+  get upload() { return tr('misc.podUpload'); },
+  get completion() { return tr('misc.podCompletion'); },
   // The pre-flight runs before anything is uploaded, so this must never imply
   // a photo was sent — nothing was.
-  precheck: 'We couldn’t verify this yet, so the photo was not uploaded. Please try again.',
-  unreachable: 'Please check your internet connection and try again.',
-  offline: 'You’re offline right now. Please reconnect and try again.',
-  session: 'Your session has ended. Please sign in again.',
-  timeout: 'That took too long. Please try again.',
+  get precheck() { return tr('misc.podPrecheck'); },
+  get unreachable() { return tr('errors.connection'); },
+  get offline() { return tr('misc.podOffline'); },
+  get session() { return tr('errors.sessionEnded'); },
+  get timeout() { return tr('misc.podTimeout'); },
 };
 
 export function proofFailureMessage(error) {

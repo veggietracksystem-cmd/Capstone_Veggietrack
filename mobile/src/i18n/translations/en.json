@@ -54,7 +54,10 @@
     "requiredField": "This field is required.",
     "networkError": "Network error — is the backend running and reachable?",
     "phoneHint": "Use international format: + then country code and number, e.g. +639171234567",
-    "checkDetails": "Please check your details"
+    "checkDetails": "Please check your details",
+    "greetingMorning": "Good morning, {name}!",
+    "greetingAfternoon": "Good afternoon, {name}!",
+    "greetingEvening": "Good evening, {name}!"
   },
   "auth": {
     "login": {
@@ -718,66 +721,234 @@
       "faq": "FAQ"
     },
     "farmer": {
-      "steps": [
+      "title": "VeggieTrack Farmer User Guide",
+      "sections": [
         {
-          "title": "Record Harvest Batch",
-          "desc": "Enter vegetable name, quantity in kilograms, and pin your farm coordinates on the map."
+          "heading": "Your Screens",
+          "items": [
+            { "title": "Home", "desc": "A quick summary of your farm: this week's harvest total, pending pick-ups, your active pick-up, and a shortcut to add a new harvest." },
+            { "title": "Harvest", "desc": "Every harvest you've recorded, with its status. Edit or delete the ones that haven't been picked up yet." },
+            { "title": "Pick-up", "desc": "Select harvests that are ready and send a pick-up request to the distributor, and track requests you've already sent." },
+            { "title": "Profile", "desc": "Your account details, language setting, this guide, and support contact." }
+          ]
         },
         {
-          "title": "Request Pickup",
-          "desc": "Click \"Request Pickup\" to notify the central distributor to collect your produce."
+          "heading": "How to Record a Harvest",
+          "numbered": true,
+          "items": [
+            { "desc": "On Home or the Harvest tab, tap \"Add harvest vegetables.\"" },
+            { "desc": "Type the vegetable name and enter the quantity you harvested, in kilograms." },
+            { "desc": "Choose a status — Available if it's ready to be picked up, or Reserved if you're holding it back for now." },
+            { "desc": "Tap Save. The harvest date is recorded automatically — you don't need to set it yourself." }
+          ]
         },
         {
-          "title": "Marked Picked Up",
-          "desc": "Once the delivery rider collects the batch, it updates to \"Picked Up\" and stays recorded in your history."
+          "heading": "How to Request a Pick-up",
+          "numbered": true,
+          "items": [
+            { "desc": "Go to the Pick-up tab." },
+            { "desc": "Tap Select on each harvest you want the distributor to collect." },
+            { "desc": "Tap Review to see everything you've selected, then tap Request pick-up." },
+            { "desc": "Each harvest's status changes to Pending pick-up, and it appears in your pick-up tracking list." }
+          ]
+        },
+        {
+          "heading": "Harvest Status Meanings",
+          "items": [
+            { "title": "Available", "desc": "Ready to be requested for pick-up." },
+            { "title": "Reserved", "desc": "Held back — not yet offered for pick-up." },
+            { "title": "Pending pick-up", "desc": "You've requested a pick-up. This is set automatically — you can't change it by hand." },
+            { "title": "Picked Up", "desc": "The rider has collected it. Locked and kept in your history." }
+          ]
+        },
+        {
+          "heading": "Pick-up Request Progress",
+          "items": [
+            { "title": "Pending", "desc": "Waiting for the distributor to assign a rider." },
+            { "title": "Rider Assigned", "desc": "A rider has been assigned to collect your harvest." },
+            { "title": "Rider On The Way", "desc": "Your rider is heading to your farm." },
+            { "title": "Picked Up", "desc": "Your harvest has been collected — this pick-up is complete." }
+          ]
+        },
+        {
+          "heading": "Good to Know",
+          "items": [
+            { "desc": "You can only edit or delete a harvest while it's Available or Reserved. Once it's Pending pick-up or Picked Up, it's locked." },
+            { "desc": "Adding or editing a harvest works even without internet — it saves on your phone and syncs automatically once you're back online. Requesting a pick-up needs an internet connection." },
+            { "desc": "Only real vegetables can be added — other items aren't accepted." },
+            { "desc": "VeggieTrack has one central distributor, so every pick-up request goes to the same warehouse." }
+          ]
         }
       ]
     },
     "distributor": {
-      "steps": [
+      "title": "VeggieTrack Distributor User Guide",
+      "sections": [
         {
-          "title": "Inventory Intake",
-          "desc": "Approve incoming farmer harvest pickups and set product prices to add produce into warehouse inventory."
+          "heading": "Your Screens",
+          "items": [
+            { "title": "Home", "desc": "Pending orders, pickup requests, and unpaid totals at a glance, plus your live Product List with prices and stock." },
+            { "title": "Orders", "desc": "Every retailer order — Pending, Approved, Cancelled, and History — moved through approval and delivery." },
+            { "title": "Stocks", "desc": "Harvest batches picked up from farmers. Add a photo and a price, then list them for retailers to buy." },
+            { "title": "Inventory", "desc": "A full report of everything received, sold, and remaining, with payment and order status. Exportable as a PDF." },
+            { "title": "Profile", "desc": "Your account details, language setting, this guide, and support contact." }
+          ]
         },
         {
-          "title": "Approve & Assign Riders",
-          "desc": "Review pending retailer orders, approve them, and assign an available delivery personnel (rider)."
+          "heading": "How to Approve a Pick-up Request",
+          "numbered": true,
+          "items": [
+            { "desc": "From Home, open Pickup Requests under Quick Actions." },
+            { "desc": "Find the farmer's request and tap Approve & Assign." },
+            { "desc": "Optionally set a price per kg now, or leave it blank and set it later when you list the batch." },
+            { "desc": "Choose an available rider and confirm. The request becomes Assigned and the rider is notified." }
+          ]
         },
         {
-          "title": "Payment & Analytics",
-          "desc": "Record retailer payments and view 7-day business revenue and inventory reports."
+          "heading": "How to List Produce for Sale",
+          "numbered": true,
+          "items": [
+            { "desc": "Go to the Stocks tab and open the Batches view." },
+            { "desc": "Once a rider marks a harvest Picked Up, it appears here as a new batch." },
+            { "desc": "Make sure the batch has a photo — tap Edit to add one if it's missing." },
+            { "desc": "Tap Add to Product List, confirm the price per kg, and it becomes visible to retailers." }
+          ]
+        },
+        {
+          "heading": "How to Process a Retailer Order",
+          "numbered": true,
+          "items": [
+            { "desc": "Open the Orders tab — new orders appear under Pending." },
+            { "desc": "Tap Approve to accept it, or Reject and give a reason to decline it — this automatically returns the stock to your inventory." },
+            { "desc": "Once approved, choose an available rider and tap Assign Delivery." },
+            { "desc": "Track its progress under Approved, or view completed orders under History." }
+          ]
+        },
+        {
+          "heading": "Status Meanings",
+          "items": [
+            { "title": "Pending", "desc": "A new order or pick-up request waiting for your action." },
+            { "title": "Approved", "desc": "You've accepted the order; it's ready for a rider to be assigned." },
+            { "title": "Assigned", "desc": "A rider has been assigned and will start the pick-up or delivery." },
+            { "title": "Cancelled", "desc": "The order was rejected or cancelled; its stock has already been returned to your inventory." },
+            { "title": "Delivered", "desc": "The rider has completed the delivery." }
+          ]
+        },
+        {
+          "heading": "Good to Know",
+          "items": [
+            { "desc": "VeggieTrack has only one distributor account — you're the single central warehouse for every farmer and retailer." },
+            { "desc": "A batch needs a photo before it can be listed. To remove or replace the photo, unlist it first." },
+            { "desc": "Rejecting or cancelling a pending order automatically restores that stock to your inventory — no manual adjustment needed." },
+            { "desc": "Once a rider is assigned to an order, it can't be handed to someone else — you'd need the retailer or system to reset it first." }
+          ]
         }
       ]
     },
     "retailer": {
-      "steps": [
+      "title": "VeggieTrack Retailer User Guide",
+      "sections": [
         {
-          "title": "Browse FIFO Stock",
-          "desc": "Crops are listed oldest-first based on harvest dates to ensure freshness and reduce spoilage."
+          "heading": "Your Screens",
+          "items": [
+            { "title": "Home", "desc": "Everything currently available from the distributor. Search by name and add items to your cart." },
+            { "title": "Cart", "desc": "Review what you've selected, adjust quantities, and proceed to place your order." },
+            { "title": "Orders", "desc": "Track your active orders from approval to delivery, cancel a pending order, and view your order history." },
+            { "title": "Profile", "desc": "Your account details, saved addresses, language setting, this guide, and support contact." }
+          ]
         },
         {
-          "title": "Place Orders",
-          "desc": "Select stock quantities in kg. Orders check stock availability instantly."
+          "heading": "How to Place an Order",
+          "numbered": true,
+          "items": [
+            { "desc": "On Home, tap a product to see details, or use the quick + button to add it straight to your cart." },
+            { "desc": "Go to Cart and check your items and quantities — your order must total at least 5 kg." },
+            { "desc": "Tap Place Order, then choose a saved delivery address (or add a new one) and a delivery date and time." },
+            { "desc": "Tap Confirm Order. You'll see a confirmation, and the order appears under Orders as Pending." }
+          ]
         },
         {
-          "title": "Track Delivery",
-          "desc": "Once approved by the distributor, click \"Track Delivery\" to view rider route markers on the map."
+          "heading": "How to Track Your Order",
+          "numbered": true,
+          "items": [
+            { "desc": "Open the Orders tab and find your order." },
+            { "desc": "Once the distributor approves it and assigns a rider, tap Track Order to see the live route on the map." },
+            { "desc": "Tap View Details any time to see the full item list, delivery info, and current status." },
+            { "desc": "Once delivered, look for the proof-of-delivery photo attached to that order." }
+          ]
+        },
+        {
+          "heading": "Status Meanings",
+          "items": [
+            { "title": "Pending", "desc": "Sent to the distributor, waiting for approval." },
+            { "title": "Approved / Assigned", "desc": "Accepted, and a rider has been assigned." },
+            { "title": "In Transit", "desc": "Your rider is on the way with your order." },
+            { "title": "Delivered", "desc": "Your order has arrived." },
+            { "title": "Cancelled", "desc": "The order was cancelled — no charge, and stock was returned automatically." }
+          ]
+        },
+        {
+          "heading": "Good to Know",
+          "items": [
+            { "desc": "Orders are filled oldest-stock-first (FIFO), so you always receive the freshest available batches first." },
+            { "desc": "Minimum order size is 5 kg in total." },
+            { "desc": "Your delivery address needs a pinned map location — set this in Manage Address before checking out." },
+            { "desc": "You can only cancel an order while it's still Pending." },
+            { "desc": "Delivered orders move to your Order History after 5 days." }
+          ]
         }
       ]
     },
     "rider": {
-      "steps": [
+      "title": "VeggieTrack Delivery Personnel User Guide",
+      "sections": [
         {
-          "title": "View Assignments",
-          "desc": "Check assigned farmer pickups and retailer deliveries from your delivery dashboard."
+          "heading": "Your Screens",
+          "items": [
+            { "title": "Home", "desc": "A quick preview of your active deliveries and pending farmer pick-ups." },
+            { "title": "Tasks", "desc": "Switch between Deliveries and Pickups to see everything currently assigned to you." },
+            { "title": "History", "desc": "Your completed deliveries and pick-ups." },
+            { "title": "Profile", "desc": "Your account details, language setting, this guide, and support contact." }
+          ]
         },
         {
-          "title": "Embedded Map Routes",
-          "desc": "Use embedded OpenStreetMap route pins for farm pickups, central warehouse, and retailer store locations."
+          "heading": "How to Complete a Farmer Pick-up",
+          "numbered": true,
+          "items": [
+            { "desc": "Open Tasks and switch to Pickups." },
+            { "desc": "Tap Start Pickup to let the farmer know you're on your way (optional — you can skip straight to the next step)." },
+            { "desc": "When you arrive and collect the harvest, tap Mark Picked Up." },
+            { "desc": "Take or choose a proof photo, then tap Confirm. Your GPS location is recorded automatically, and the harvest is added to the distributor's inventory." }
+          ]
         },
         {
-          "title": "Upload Proof of Delivery",
-          "desc": "Advance status (Picked Up to In Transit to Delivered) and upload a proof photo upon completion."
+          "heading": "How to Complete a Retailer Delivery",
+          "numbered": true,
+          "items": [
+            { "desc": "Open Tasks and switch to Deliveries, or tap Navigate on an assigned order for turn-by-turn directions." },
+            { "desc": "Tap View Details, then move the order forward step by step: Picked Up, then In Transit." },
+            { "desc": "Once you've arrived, tap Mark Delivered." },
+            { "desc": "Take or choose a proof photo — your location is checked against the delivery address — then tap Confirm to complete it." }
+          ]
+        },
+        {
+          "heading": "Status Meanings",
+          "items": [
+            { "title": "Assigned", "desc": "Waiting for you to start." },
+            { "title": "On the Way / In Transit", "desc": "You've started heading to the pick-up or delivery." },
+            { "title": "Picked Up", "desc": "You've collected the harvest from the farmer." },
+            { "title": "Completed / Delivered", "desc": "The task is finished and recorded." },
+            { "title": "Cancelled", "desc": "The task was cancelled and is no longer yours." }
+          ]
+        },
+        {
+          "heading": "Good to Know",
+          "items": [
+            { "desc": "You can only reject a delivery before you've started it, while it's still Assigned." },
+            { "desc": "You can't mark an order Delivered until you've moved it through Picked Up and In Transit first." },
+            { "desc": "Completing a pick-up or delivery always needs a photo and your GPS location — make sure location access is turned on." },
+            { "desc": "If your GPS accuracy is too low, you'll be asked to wait a moment and try again before confirming." }
+          ]
         }
       ]
     },
@@ -874,7 +1045,12 @@
     "editProfile": "Edit Profile",
     "preferences": "Preferences",
     "helpSupport": "Help & Support",
-    "userGuide": "How VeggieTrack Works (User Guide)",
+    "userGuideByRole": {
+      "farmer": "Farmer User Guide",
+      "distributor": "Distributor User Guide",
+      "retailer": "Retailer User Guide",
+      "rider": "Delivery Personnel User Guide"
+    },
     "contactUs": "Contact Us & Support",
     "logout": "Log Out",
     "logoutConfirmTitle": "Log out",
@@ -933,5 +1109,444 @@
     "verified": "Delivery location confirmed",
     "unverified": "We couldn’t confirm the delivery location",
     "distance": "Distance from destination"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "connection": "Please check your internet connection and try again.",
+    "sessionEnded": "Your session has ended. Please sign in again.",
+    "notAllowed": "You can’t do this right now. Please refresh and try again.",
+    "tookTooLong": "That took too long. Please wait a moment and try again.",
+    "cantReach": "We can’t reach VeggieTrack right now. Please try again in a moment.",
+    "tryAgain": "Please try again."
+  },
+  "authErr": {
+    "emailProviderDisabled": "Signing in with an email address isn’t available right now. Please try again later.",
+    "providerDisabled": "This way of signing in isn’t available right now. Please contact the distributor.",
+    "emailFailed": "We couldn’t send the email. Please try again in a moment.",
+    "emailInUse": "This email address is already in use. Please use a different one.",
+    "tooManyTries": "Too many tries. Please wait a moment and try again.",
+    "invalidCredentials": "We couldn’t sign you in. Please check your details and try again.",
+    "otpExpired": "That code is wrong or has expired. Please try again or ask for a new code.",
+    "weakPassword": "Please choose a stronger password.",
+    "samePassword": "Please choose a password that is different from your current one.",
+    "generic": "Something went wrong. Please check your details and your internet connection, then try again."
+  },
+  "authx": {
+    "email": "Email",
+    "password": "Password",
+    "invalidEmail": "Please enter a valid email address.",
+    "logIn": "Log in",
+    "continue": "Continue",
+    "forgot": "Forgot password?",
+    "noAccount": "Don’t have an account?",
+    "createAccount": "Sign up",
+    "enterPassword": "Please enter your password.",
+    "signInUnavailable": "Signing in isn’t available right now. Please try again later.",
+    "unavailable": "This isn’t available right now. Please try again later.",
+    "resetTitle": "Reset password",
+    "sendLink": "Send reset link",
+    "linkSent": "We sent you an email. Open the link on this phone to set a new password.",
+    "verifyTitle": "Verify your email",
+    "codeSentLogin": "We sent a sign-in code to {email}.",
+    "codeSentSignup": "We sent a code to {email}. Enter it below to confirm your account. After that, the distributor will review your registration.",
+    "enterCode": "Please enter the code we sent to your email.",
+    "codeLabel": "Verification code",
+    "verify": "Verify",
+    "resendIn": "Resend in {n}s",
+    "resend": "Resend Code",
+    "codeSentTitle": "Code sent",
+    "codeSentMsg": "We sent a new code to your email.",
+    "pwShort": "Please use a password with at least 8 characters.",
+    "pwMismatch": "Passwords do not match.",
+    "linkExpired": "Your reset link has expired. Please ask for a new one.",
+    "openLink": "Open the link we emailed you on this phone to continue.",
+    "chooseNew": "Choose a new password, then sign in again.",
+    "newPassword": "New password",
+    "confirmNewPassword": "Confirm new password",
+    "saveNewPassword": "Save new password",
+    "statusUnverified": "Please check your email and confirm your account to continue.",
+    "statusPending": "Your account is verified. Please wait for the distributor to approve your account.",
+    "statusDeclined": "Your registration was declined.",
+    "statusDisabled": "Your account is disabled. Contact the distributor for assistance.",
+    "statusChecking": "Checking your account access.",
+    "connectionProblem": "Connection problem",
+    "accountStatus": "Account status",
+    "tryAgain": "Try again",
+    "refreshStatus": "Refresh / Check Status",
+    "logout": "Logout",
+    "notAvailableTitle": "Not available right now",
+    "cantCreate": "We can’t create accounts at the moment. Please try again later.",
+    "checkEmailTitle": "Check your email address",
+    "checkPasswordTitle": "Check your password",
+    "checkPasswordMsg": "Please use at least 8 characters, and make sure both passwords match.",
+    "fillRequiredTitle": "Please fill in the required fields",
+    "enterNameLocation": "Please enter your name and location.",
+    "cantCreateTitle": "We couldn’t create your account",
+    "fullName": "Full Name",
+    "enterFullName": "Enter your full name",
+    "enterEmail": "Enter your email address",
+    "enterPasswordHint": "Enter your password (use at least 8 characters)",
+    "confirmPassword": "Confirm Password",
+    "confirmPasswordPh": "Confirm password",
+    "pwMatch": "Passwords match.",
+    "locationPinned": "Location pinned",
+    "createAccountBtn": "Create Account"
+  },
+  "authy": {
+    "enterName": "Please enter your name."
+  },
+  "addr": {
+    "manage": "Manage Addresses",
+    "myAddresses": "My Addresses",
+    "manageShort": "Manage Address",
+    "loadFailedTitle": "We couldn’t load your addresses",
+    "checkConnection": "Please check your internet connection and try again.",
+    "fillRequired": "Please fill in the required fields",
+    "needLabel": "Give this address a short name, for example Home or Shop.",
+    "needAddress": "Please enter the address.",
+    "saved": "Saved",
+    "updatedMsg": "Your address has been updated.",
+    "addedMsg": "Your address has been added.",
+    "saveFailed": "We couldn’t save this address",
+    "deleteTitle": "Delete this address?",
+    "deleteMsg": "\"{label}\" will be removed from your saved addresses.",
+    "deleted": "Deleted",
+    "deletedMsg": "Your address has been removed.",
+    "deleteFailed": "We couldn’t delete this address",
+    "nowDefault": "This is now your default address.",
+    "defaultFailed": "We couldn’t update your default address",
+    "noSaved": "No saved addresses",
+    "noSavedHint": "Add your home, office, or other delivery locations",
+    "default": "Default",
+    "setDefault": "Set Default",
+    "addNew": "+ Add New Address",
+    "editTitle": "Edit Address",
+    "addTitle": "Add New Address",
+    "labelField": "Label (e.g., Home, Office)",
+    "labelPh": "Home",
+    "addressField": "Address",
+    "addressPh": "Street, City, Province",
+    "pin": "Pin",
+    "latField": "Latitude (optional)",
+    "lngField": "Longitude (optional)",
+    "setAsDefault": "Set as default address",
+    "noneForOrder": "No saved delivery address. Add one before placing your order.",
+    "chooseOrUpdate": "Choose a saved address with a map location, or update it in Manage Address.",
+    "needsPin": "This address needs a map pin. Please open Manage Addresses and set it on the map.",
+    "outOfStock": "Some items just ran out of stock. Please check your cart and try again.",
+    "timeGone": "That delivery time is no longer available. Please pick another one.",
+    "orderFailed": "We couldn’t place your order. Please try again."
+  },
+  "status": {
+    "unverified": "Not confirmed",
+    "pending_approval": "Waiting for approval",
+    "pending": "Pending",
+    "unpaid": "Unpaid",
+    "for_pickup": "For pickup",
+    "available": "Available",
+    "reserved": "Reserved",
+    "approved": "Approved",
+    "assigned": "Assigned",
+    "otw": "On the way",
+    "picked_up": "Picked up",
+    "in_transit": "In transit",
+    "out_for_delivery": "Out for delivery",
+    "active": "Active",
+    "delivered": "Delivered",
+    "completed": "Completed",
+    "paid": "Paid",
+    "declined": "Declined",
+    "disabled": "Disabled",
+    "cancelled": "Cancelled",
+    "rejected": "Rejected",
+    "out_of_stock": "Out of stock",
+    "requested": "Requested"
+  },
+  "acct": {
+    "title": "User Management",
+    "refresh": "Refresh",
+    "loading": "Loading accounts",
+    "empty": "There are no accounts in this list.",
+    "filterPending": "Waiting for approval",
+    "filterActive": "Active",
+    "filterDeclined": "Declined",
+    "filterDisabled": "Disabled",
+    "filterUnverified": "Not confirmed",
+    "approve": "Approve",
+    "decline": "Decline",
+    "disable": "Disable",
+    "turnOn": "Turn back on",
+    "approveTitle": "Approve this account?",
+    "declineTitle": "Decline this account?",
+    "disableTitle": "Disable this account?",
+    "turnOnTitle": "Turn this account back on?",
+    "reasonShown": "Reason they will see: {reason}",
+    "reasonFirst": "Please write a short reason first. This user will see it.",
+    "reasonPh": "Reason (this user will see it)",
+    "loadFailed": "We couldn’t load these accounts right now.",
+    "updateFailed": "We couldn’t update this account. Please try again.",
+    "legacy": "Existing account",
+    "emailConfirmed": "Email confirmed",
+    "applied": "Applied: {date}",
+    "unfinishedOne": "This user still has 1 unfinished job. Please reassign it before disabling this account.",
+    "unfinishedMany": "This user still has {n} unfinished jobs. Please reassign them before disabling this account.",
+    "signInAgain": "They will need to sign in again.",
+    "verbApprove": "Approve {name}.",
+    "verbDecline": "Decline {name}.",
+    "verbDisable": "Disable {name}.",
+    "verbTurnOn": "Turn back on {name}."
+  },
+  "ptrack": {
+    "title": "Pickup Tracking",
+    "live": "Live tracking",
+    "statusCard": "Status",
+    "details": "Details",
+    "proof": "Proof of pickup",
+    "requestedTitle": "Pending",
+    "requestedMsg": "Your request is waiting for distributor action.",
+    "assignedTitle": "Rider Assigned",
+    "assignedMsg": "A rider has been assigned to collect your vegetables.",
+    "otwTitle": "Rider On The Way",
+    "otwMsg": "Your rider is heading to your farm to collect the vegetables.",
+    "picked_upTitle": "Picked Up",
+    "picked_upMsg": "Your vegetables have been collected. This pickup is complete.",
+    "completedTitle": "Completed",
+    "completedMsg": "This pickup transaction has been completed.",
+    "updatedMsg": "Pickup status updated.",
+    "noLongerAvailable": "Pickup request is no longer available.",
+    "refreshFailed": "Could not refresh pickup tracking.",
+    "requestedOn": "Requested {date}",
+    "pullRetry": "{error} Pull down to retry.",
+    "waitingRider": "Waiting for rider assignment",
+    "liveWhenAssigned": "Live tracking will appear once a rider is assigned",
+    "vegetables": "Vegetables",
+    "pickupLocation": "Pickup location",
+    "schedule": "Schedule",
+    "rider": "Rider",
+    "contact": "Contact",
+    "farmUnavailable": "Farm location not available",
+    "notAssigned": "Not assigned yet",
+    "etaNote": "ETA will appear when live rider-route data is available.",
+    "recorded": "Recorded {date}",
+    "proofRecorded": "Pickup proof recorded",
+    "location": "Location: {lat}, {lng}",
+    "assignedTo": "Assigned to {name}"
+  },
+  "cmp": {
+    "recentBatchPhoto": "Recent batch photo",
+    "retailersSee": "Retailers will see this photo when they order.",
+    "noPhoto": "No photo yet",
+    "takePhoto": "Take photo",
+    "uploadFailed": "We couldn’t upload the photo. Please try again.",
+    "removePhoto": "Remove photo",
+    "boundaryTitle": "Something went wrong",
+    "boundaryMsg": "Please restart the app and try again.",
+    "restart": "Restart app",
+    "deliveryRoute": "Delivery Route",
+    "mapNavigation": "Map Navigation",
+    "pinTitle": "Pin Your Location",
+    "myLocation": "My Location",
+    "selectedAddress": "Selected Address:",
+    "confirmPin": "Confirm Location Pin",
+    "fetchingAddress": "Fetching address...",
+    "mapLoadFailed": "Could not load the map. Check your internet connection.",
+    "locUnavailBrowser": "Location is unavailable in this browser. Search or place the pin on the map instead.",
+    "locBlocked": "Location access is blocked. Allow location for this site in your browser, then try again.",
+    "locFailed": "Could not get your location. Search or place the pin on the map instead.",
+    "permDenied": "Location permission denied — showing destination only.",
+    "cantFindYou": "We couldn’t find your location. Please turn on location and try again.",
+    "popupYou": "You (courier)",
+    "popupYouGps": "You (courier) — device GPS",
+    "deliveryAddress": "Delivery address",
+    "destination": "Destination: {address}",
+    "destinationTitle": "Destination",
+    "gpsUnavailable": "Device location unavailable. The destination pin is not your location.",
+    "gpsCannot": "Cannot get your GPS. Enable location permission. The destination pin is not your location.",
+    "dotYou": "The green dot is you. The pin is where you are going.",
+    "waitingLoc": "Waiting for your location. The pin is where you are going.",
+    "addrNotFoundYou": "We couldn’t find that address on the map, so we’re showing where you are.",
+    "addrNotFound": "We couldn’t find that address on the map.",
+    "searchPh": "Search place, street, or city...",
+    "searchA11y": "Search for a Philippine location",
+    "clearSearch": "Clear location search",
+    "search": "Search",
+    "searchUnavailable": "Search isn’t available right now. You can still pick the spot on the map.",
+    "searching": "Searching locations…",
+    "noMatch": "No matching locations found.",
+    "poweredBy": "Powered by Geoapify",
+    "retake": "Retake photo",
+    "addProof": "Add proof photo",
+    "confirmDelivery": "Confirm Delivery",
+    "confirmUpload": "Confirm & Upload",
+    "prefTime": "Preferred delivery time",
+    "day": "Day",
+    "time": "Time",
+    "selectDateTime": "Select preferred date & time",
+    "pickDateTime": "Pick a date and time for delivery.",
+    "goBack": "Go back",
+    "loadingMap": "Loading map…",
+    "deliveryRider": "Delivery rider",
+    "retailerDest": "Retailer destination",
+    "demoLabel": "DEMO • not live GPS",
+    "liveGps": "LIVE GPS",
+    "lastKnown": "Last known location",
+    "waitingGps": "Waiting for rider GPS",
+    "acquiring": "Acquiring GPS…",
+    "yourLocation": "Your location: {lat}, {lng}{acc}",
+    "cantGetLoc": "We couldn’t get your location. Please turn on location and try again.",
+    "locNotYet": "Location not available yet",
+    "kmRemaining": "{km} km remaining",
+    "kmRoute": "{km} km route",
+    "routeUnavailable": "Road route unavailable",
+    "liveEta": "LIVE ETA: {eta}",
+    "etaUnavailable": "ETA unavailable",
+    "practiceMode": "Practice mode. Switch back to live to see the real location.",
+    "offRoute": "The rider is off the planned route, so we can’t estimate the arrival time.",
+    "onWayHub": "On the way to the dispatch hub. Arrival time is an estimate.",
+    "onWayShop": "On the way to the shop. Arrival time is an estimate.",
+    "hubNoPin": "Dispatch hub has no saved map pin. Update the distributor warehouse location.",
+    "noDeliveryLoc": "We don’t have a location for this delivery yet. Please contact the distributor.",
+    "acquiringShort": "Acquiring…",
+    "refreshLocation": "Refresh Location",
+    "acquireBrowser": "Acquire Browser GPS",
+    "acquireDevice": "Acquire Device GPS",
+    "returnLive": "Return to live",
+    "simulate": "Simulate Road Movement",
+    "autoRecenter": "Auto-recenter: {state}",
+    "on": "on",
+    "off": "off",
+    "locUpdates": "Location updates every few seconds.",
+    "dispatchHub": "Dispatch hub",
+    "deliveryDestination": "Delivery destination",
+    "orderItems": "Order items",
+    "warehouse": "Distributor warehouse",
+    "noWarehouseAddr": "No warehouse address available",
+    "noAddr": "No address available",
+    "contact": "Contact: {contact}",
+    "pullTry": "{error} Pull down to try again. The last known location is still shown.",
+    "yourPickups": "Your pickup tracking",
+    "pickupNo": "Pickup #{id}",
+    "riderName": "Rider: {name}",
+    "waitingRider": "Waiting for rider assignment",
+    "trackPickup": "Track pickup",
+    "vegetables": "Vegetables",
+    "riderNav": "Rider navigation",
+    "gpsNote": "GPS sharing runs while this screen is active. Keep the app open for live tracking. Directions follow mapped roads and do not include live traffic.",
+    "noConversations": "No conversations found",
+    "searchConvos": "Search conversations",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "addToCartHint": "Tap Add to Cart to include this product in your order.",
+    "pickupCoordsMissing": "Pickup location coordinates are unavailable. Contact the distributor.",
+    "deliveryRouteFallback": "Delivery route",
+    "noRecords": "No records"
+  },
+  "cmpx": {
+    "dateLocale": "en-US"
+  },
+  "cmp2": {
+    "orderN": "Order {label}",
+    "demoPlayback": "Demo playback • return to live for navigation",
+    "waitFreshGps": "Waiting for fresh rider GPS",
+    "offRouteGuidance": "Off route • waiting for updated road guidance",
+    "waitRoute": "Waiting for a road route",
+    "inDistance": "In {d}",
+    "toHub": "To dispatch hub: {addr}",
+    "toRetailer": "To retailer: {addr}",
+    "addrUnavailable": "Address unavailable",
+    "opening": "Opening…",
+    "detailsMark": "Delivery details / mark delivered",
+    "tapRefresh": "{error} Tap to refresh.",
+    "tapRetry": "{error} Tap to retry.",
+    "deliveryLoadFail": "Delivery could not be loaded. Return to your dashboard and refresh.",
+    "generatedOn": "Generated on {date}",
+    "notAvailableYet": "Not available yet",
+    "batchPhotoCantSave": "Batch photos can’t be saved right now. Please try again later.",
+    "photoFirst": "Please add a recent photo first. Tap Edit to upload or take one.",
+    "photoWait": "Please wait for the photo to finish uploading.",
+    "photoBeforeSave": "Please add a recent photo of this batch before saving.",
+    "listedNeedPhoto": "Listed batches need a photo so retailers can see what they are ordering. Remove it from the product list first.",
+    "removeBatchPhotoTitle": "Remove batch photo",
+    "removeBatchPhotoMsg": "This batch will need a new recent photo before it can be listed.",
+    "photoWaitRecent": "Please wait for the recent batch photo to finish uploading.",
+    "editBatch": "Edit Batch",
+    "viewEditProduct": "View / Edit Product",
+    "saveBatch": "Save Batch",
+    "saveChanges": "Save Changes"
+  },
+  "misc": {
+    "offlineShowing": "Offline — showing saved data. ",
+    "changesWaiting": "{n} change(s) waiting to sync.",
+    "syncAuto": "Will sync automatically when online.",
+    "verificationCode": "Verification code",
+    "userMgmt": "User Management",
+    "userMgmtPending": "User Management, {n} awaiting approval",
+    "roleFarmer": "Farmer",
+    "roleDistributor": "Distributor",
+    "roleRetailer": "Retailer",
+    "roleRider": "Delivery Rider",
+    "searchLimit": "Location search limit reached. Try again later or pin on the map.",
+    "searchFail": "Location search is unavailable. Please try again or pin on the map.",
+    "mapUnavailable": "Map unavailable. Check your connection.",
+    "trackingMapTitle": "Live delivery tracking map",
+    "gpsDenied": "Location permission denied. Enable it in your browser settings.",
+    "gpsUnavail": "GPS unavailable. Move to an open area and tap Refresh Location.",
+    "gpsWeak": "Your GPS signal is not accurate enough yet. Move to an open area and tap Refresh Location.",
+    "noDestination": "We don’t have a location for this delivery yet. Please contact the distributor.",
+    "poorAccuracy": "Your location isn’t accurate enough to confirm where you are. Please refresh your location and try again.",
+    "refreshAccuracy": "Your location isn’t accurate enough yet. Move to an open area and tap Refresh Location.",
+    "needGps": "Current GPS coordinates are required. Refresh your location and try again.",
+    "gpsStale": "Your GPS location is out of date. Refresh your location and try again.",
+    "podUpload": "We couldn’t upload the delivery photo. Please try again.",
+    "podCompletion": "The photo was uploaded, but we couldn’t mark the delivery as done. Please try again.",
+    "podPrecheck": "We couldn’t verify this yet, so the photo was not uploaded. Please try again.",
+    "podOffline": "You’re offline right now. Please reconnect and try again.",
+    "podTimeout": "That took too long. Please try again.",
+    "imageUpload": "Unable to upload image. Please try again."
+  },
+  "misc2": {
+    "digitN": "{label} digit {n}"
+  },
+  "track": {
+    "notAvailable": "Tracking is not available yet.",
+    "tryLater": "Live tracking will show up here once it is ready. Please check back in a moment.",
+    "retry": "Try again",
+    "locationLive": "Location is live",
+    "waitingRiderLoc": "Waiting for the rider’s location"
+  },
+  "plural": {
+    "orderItems_one": "Order item",
+    "orderItems_other": "Order items",
+    "pendingOrders_one": "Pending Order",
+    "pendingOrders_other": "Pending Orders",
+    "pickupRequests_one": "Pickup Request",
+    "pickupRequests_other": "Pickup Requests",
+    "activeDeliveries_one": "Active Delivery",
+    "activeDeliveries_other": "Active Deliveries",
+    "pendingPickups_one": "Pending Pickup",
+    "pendingPickups_other": "Pending Pickups",
+    "pendingPickupLabel_one": "Pending pick-up",
+    "pendingPickupLabel_other": "Pending pick-ups",
+    "changesWaiting_one": "{count} change waiting to sync.",
+    "changesWaiting_other": "{count} changes waiting to sync.",
+    "itemsSelected_one": "{count} item selected · {kg} kg",
+    "itemsSelected_other": "{count} items selected · {kg} kg"
+  },
+  "ordx": {
+    "historySub": "Delivered orders older than 5 days"
+  },
+  "ordy": {
+    "activeOrder": "Active Order"
+  },
+  "landx": {
+    "newHere": "New here?",
+    "createLink": "Sign up"
+  },
+  "regx": {
+    "haveAccountText": "Already have an account?",
+    "signIn": "Log in"
+  },
+  "keepx": {
+    "keepSignedIn": "Keep me signed in"
   }
 }

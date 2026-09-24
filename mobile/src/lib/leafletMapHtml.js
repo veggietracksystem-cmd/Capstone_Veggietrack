@@ -1,3 +1,4 @@
+import { MAP_ZOOM_CSS } from './mapZoomStyle';
 // Builds self-contained Leaflet/OpenStreetMap HTML pages for react-native-webview.
 //
 // react-native-maps has no non-Google rendering engine on Android — even with
@@ -27,7 +28,7 @@ function page(bodyScript) {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <link rel="stylesheet" href="${LEAFLET_CSS}" />
-<style>html,body,#map{height:100%;margin:0;padding:0;background:#eef2ec;}</style>
+<style>html,body,#map{height:100%;margin:0;padding:0;background:#eef2ec;}${MAP_ZOOM_CSS}</style>
 </head>
 <body>
 <div id="map"></div>

@@ -1,8 +1,8 @@
 ﻿import { Platform } from 'react-native';
 import { CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from '@env';
+import { tr } from '../i18n/translate';
 
-const UPLOAD_MESSAGE = 'Unable to upload image. Please try again.';
-const uploadError = (code, details = {}) => Object.assign(new Error(UPLOAD_MESSAGE), { code, stage: 'upload', ...details });
+const uploadError = (code, details = {}) => Object.assign(new Error(tr('misc.imageUpload')), { code, stage: 'upload', ...details });
 const MIME_EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif', 'image/avif': 'avif', 'image/gif': 'gif' };
 
 export function prepareNativeImage(asset) {

@@ -32,7 +32,9 @@ export default function LandingScreen({ navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.navigate('Register')} activeOpacity={0.7}>
-          <Text style={styles.link}>{t('landing.createAccount')}</Text>
+          <Text style={styles.link}>
+            {t('landx.newHere')} <Text style={styles.linkAction}>{t('landx.createLink')}</Text>
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -47,5 +49,7 @@ const styles = StyleSheet.create({
   actions: { paddingHorizontal: 30, paddingBottom: 40, gap: 8 },
   primaryBtn: { backgroundColor: colors.leaf700, paddingVertical: 16, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center', minHeight: control.height },
   primaryBtnText: { color: '#fff', fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xl), textAlign: 'center' },
-  link: { textAlign: 'center', marginTop: 16, color: colors.leaf700, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md) },
+  link: { textAlign: 'center', marginTop: 16, color: colors.inkSoft, fontFamily: fonts.body, fontSize: rf(fontSize.md) },
+  // Only the clickable part is underlined; "New here?" stays plain.
+  linkAction: { color: colors.leaf700, fontFamily: fonts.bodySemiBold, textDecorationLine: 'underline' },
 });

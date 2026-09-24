@@ -8,8 +8,12 @@ export function showAlert(title, message, onPress) {
   showAlertModal(title, message, onPress);
 }
 
-export function confirmAction(title, message, onConfirm) {
-  confirmActionModal(title, message, onConfirm);
+// `options.danger`: style the confirm button red instead of green, for
+// destructive actions (e.g. Log Out). `options.hideCloseIcon`: hide the
+// header's X so Cancel/Confirm are the only way out - used for Log Out so
+// there's exactly one way to dismiss without a redundant close control.
+export function confirmAction(title, message, onConfirm, options) {
+  confirmActionModal(title, message, onConfirm, options);
 }
 
 // Peso currency formatter, e.g. ₱1,234.50

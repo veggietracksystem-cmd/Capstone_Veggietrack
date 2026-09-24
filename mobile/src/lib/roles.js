@@ -1,3 +1,4 @@
+import { tr } from '../i18n/translate';
 // One place that answers "what is the signed-in user?".
 //
 // The role always comes from the authenticated profile the backend returns
@@ -22,11 +23,11 @@ export const isRetailer = (user) => roleOf(user) === ROLES.retailer;
 export const isDeliveryPersonnel = (user) => roleOf(user) === ROLES.delivery;
 
 // Human-readable role name for badges and lists ("Delivery Rider", "Farmer").
-const ROLE_LABELS = {
-  farmer: 'Farmer',
-  distributor: 'Distributor',
-  retailer: 'Retailer',
-  delivery_personnel: 'Delivery Rider',
+const ROLE_LABEL_KEYS = {
+  farmer: 'misc.roleFarmer',
+  distributor: 'misc.roleDistributor',
+  retailer: 'misc.roleRetailer',
+  delivery_personnel: 'misc.roleRider',
 };
 
-export const roleLabel = (role) => ROLE_LABELS[role] || (role ? String(role).replace(/_/g, ' ') : '');
+export const roleLabel = (role) => (ROLE_LABEL_KEYS[role] ? tr(ROLE_LABEL_KEYS[role]) : (role ? String(role).replace(/_/g, ' ') : ''));

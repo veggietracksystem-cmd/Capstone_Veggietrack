@@ -16,18 +16,20 @@ import StatusBadge from '../components/ui/StatusBadge';
 import UserAvatar from '../components/UserAvatar';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
+import { statusLabel } from '../i18n/translate';
+import TrackingErrorBoundary from '../components/TrackingErrorBoundary';
 
 export default function CustomerDeliveryTrackingScreen(props) {
-  // Screen skips the bottom safe-area edge, so pad the scroll content instead.
-  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   return isDeliveryPersonnel(user)
     ? <RiderNavigationScreen {...props} />
-    : <CustomerTrackingView {...props} />;
+    : <TrackingErrorBoundary onBack={() => props.navigation?.goBack?.()}><CustomerTrackingView {...props} /></TrackingErrorBoundary>;
 }
 
 function CustomerTrackingView({ route, navigation }) {
-  const { t } = useTranslation();
+  const { t, tc } = useTranslation();
+  // Screen skips the bottom safe-area edge, so pad the scroll content instead.
+  const insets = useSafeAreaInsets();
   const { orderId, deliveryAddress, orderStatus = 'pending' } = route.params || {};
   const { data, loading, error, refresh } = useDeliveryTracking(orderId);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,10 +43,10 @@ function CustomerTrackingView({ route, navigation }) {
       setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); }
     }} />}>
       <View style={styles.status}>
-        <Text style={styles.statusText}>{status.replace(/_/g, ' ')}</Text>
+        <Text style={styles.statusText}>{statusLabel(status)}</Text>
         <StatusBadge status={status} />
       </View>
-      <Text style={styles.note}>Location updates every few seconds.</Text>
+      <Text style={styles.note}>{t('cmp.locUpdates')}</Text>
       {status !== 'cancelled' && <OrderStepIndicator status={status} />}
       {/* Rider row (prototype's rider-info row, shown above the map) —
           name/live fields already come back from the tracking API. */}
@@ -53,17 +55,24 @@ function CustomerTrackingView({ route, navigation }) {
           <UserAvatar user={{ full_name: view.rider.name }} size={40} />
           <View style={{ flex: 1 }}>
             <Text style={styles.value}>{view.rider.name}</Text>
-            <Text style={styles.detail}>{view.rider.live ? 'Location is live' : 'Waiting for the rider’s location'}</Text>
+            <Text style={styles.detail}>{view.rider.live ? t('track.locationLive') : t('track.waitingRiderLoc')}</Text>
           </View>
         </View>
       )}
-      {loading && !data ? <ActivityIndicator style={{ padding: 30 }} color={colors.leaf700} /> : <DeliveryTrackingMap trackingData={data} style={styles.map} />}
-      {!!error && <Text accessibilityLiveRegion="polite" style={styles.error}>{error} Pull down to try again. The last known location is still shown.</Text>}
-      <View style={styles.card}><View style={styles.labelRow}><Ionicons name="business-outline" size={rf(16)} color={colors.leaf700} /><Text style={styles.label}>Dispatch hub</Text></View><Text style={styles.value}>{view?.pickup?.name || 'Distributor warehouse'}</Text><Text style={styles.detail}>{view?.pickup?.address || 'No warehouse address available'}</Text></View>
-      <View style={styles.card}><View style={styles.labelRow}><Ionicons name="storefront-outline" size={rf(16)} color={colors.leaf700} /><Text style={styles.label}>Delivery destination</Text></View><Text style={styles.value}>{view?.delivery?.name || 'Delivery address'}</Text><Text style={styles.detail}>{view?.delivery?.address || deliveryAddress || 'No address available'}</Text>
-        {!!view?.delivery?.contact && <Text selectable style={styles.detail}>Contact: {view.delivery.contact}</Text>}</View>
+      {loading && !data ? <ActivityIndicator style={{ padding: 30 }} color={colors.leaf700} /> : !data ? (
+        <View style={[styles.card, styles.unavailable]} accessibilityRole="alert">
+          <Text style={styles.value}>{t('track.notAvailable')}</Text>
+          <Text style={styles.detail}>{t('track.tryLater')}</Text>
+        </View>
+      ) : (
+        <TrackingErrorBoundary><DeliveryTrackingMap trackingData={data} style={styles.map} /></TrackingErrorBoundary>
+      )}
+      {!!error && !!data && <Text accessibilityLiveRegion="polite" style={styles.error}>{t('cmp.pullTry', { error })}</Text>}
+      <View style={styles.card}><View style={styles.labelRow}><Ionicons name="business-outline" size={rf(16)} color={colors.leaf700} /><Text style={styles.label}>{t('cmp.dispatchHub')}</Text></View><Text style={styles.value}>{view?.pickup?.name || t('cmp.warehouse')}</Text><Text style={styles.detail}>{view?.pickup?.address || t('cmp.noWarehouseAddr')}</Text></View>
+      <View style={styles.card}><View style={styles.labelRow}><Ionicons name="storefront-outline" size={rf(16)} color={colors.leaf700} /><Text style={styles.label}>{t('cmp.deliveryDestination')}</Text></View><Text style={styles.value}>{view?.delivery?.name || t('cmp.deliveryAddress')}</Text><Text style={styles.detail}>{view?.delivery?.address || deliveryAddress || t('cmp.noAddr')}</Text>
+        {!!view?.delivery?.contact && <Text selectable style={styles.detail}>{t('cmp.contact', { contact: view.delivery.contact })}</Text>}</View>
       <View style={styles.card}>
-        <Text style={styles.label}>Order items</Text>
+        <Text style={styles.label}>{tc('plural.orderItems', view?.items?.length || 0)}</Text>
         {view?.items?.map((item, index) => {
           const tile = getVegetableTile(item.vegetable_name);
           return (
@@ -96,4 +105,5 @@ const styles = StyleSheet.create({
   itemTile: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   itemTileIcon: { width: 20, height: 20 },
   error: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.gold700, backgroundColor: colors.gold100, padding: 10, borderRadius: radius.ctrl },
+  unavailable: { alignItems: 'center', padding: 20 },
 });

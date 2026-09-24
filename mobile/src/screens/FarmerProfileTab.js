@@ -30,7 +30,7 @@ export default function FarmerProfileTab({ navigation }) {
   const [langOpen, setLangOpen] = useState(false);
 
   const logout = () => {
-    confirmAction(t('profile.logoutConfirmTitle'), t('profile.logoutConfirmMessage'), () => signOut());
+    confirmAction(t('profile.logoutConfirmTitle'), t('profile.logoutConfirmMessage'), () => signOut(), { danger: true, hideCloseIcon: true });
   };
 
   return (
@@ -88,7 +88,7 @@ export default function FarmerProfileTab({ navigation }) {
           style={styles.menuItem}
           onPress={() => setGuideOpen(true)}
         >
-          <Text style={styles.menuItemText}>{t('profile.userGuide')}</Text>
+          <Text style={styles.menuItemText}>{t('profile.userGuideByRole.farmer')}</Text>
           <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
 
