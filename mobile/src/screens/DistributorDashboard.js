@@ -12,6 +12,7 @@ import {
 import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import ModalCloseButton from '../components/ui/ModalCloseButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
@@ -829,13 +830,7 @@ function ProductListSection({ refreshProducts }) {
             <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeEditModal} />
 
             <View style={styles.modalCard}>
-              <TouchableOpacity
-                style={styles.modalCloseBtn}
-                onPress={closeEditModal}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close" size={rf(22)} color={colors.ink} />
-              </TouchableOpacity>
+              <ModalCloseButton onPress={closeEditModal} style={styles.modalCloseBtn} />
 
               {activeListing ? (
                 <ScrollView
@@ -1384,7 +1379,7 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalCard: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
   modalScroll: { flexGrow: 0, flexShrink: 1 },
-  modalCloseBtn: { position: 'absolute', top: 14, right: 14, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.leaf50, zIndex: 1 },
+  modalCloseBtn: { position: 'absolute', top: 14, right: 14, zIndex: 1 },
   modalCloseText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.inkSoft },
   modalHeader: { alignItems: 'center', marginBottom: 18, marginTop: 4 },
   modalTile: { width: 60, height: 60, borderRadius: 16, marginBottom: 10 },

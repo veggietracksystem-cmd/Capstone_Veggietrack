@@ -10,6 +10,7 @@ import {
 import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import ModalCloseButton from '../components/ui/ModalCloseButton';
 import api from '../api/client';
 import {
   fetchHarvests, queueHarvest, syncPending, getQueue,
@@ -952,10 +953,8 @@ export default function FarmerDashboard({ navigation, route }) {
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeEditModal} />
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
-              <TouchableOpacity onPress={closeEditModal} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="arrow-back" size={rf(20)} color={colors.ink} />
-              </TouchableOpacity>
               <Text style={styles.modalTitle} numberOfLines={2}>{t('dashboards.farmer.editHarvestModalTitle', { name: editVegetableName })}</Text>
+              <ModalCloseButton onPress={closeEditModal} />
             </View>
 
             <Text style={styles.fieldLabel}>{t('dashboards.farmer.quantityFieldLabel')}</Text>
@@ -1315,7 +1314,7 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24, zIndex: 9999, elevation: 9999 },
   modalCard: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
   modalHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 6 },
-  modalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, flexShrink: 1 },
+  modalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, flex: 1 },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   stepperBtn: { width: 44, height: 44, borderRadius: radius.ctrl, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   stepperBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.title), color: colors.leaf700, textAlign: 'center' },

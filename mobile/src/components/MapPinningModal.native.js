@@ -9,6 +9,7 @@ import { rf } from '../lib/responsive';
 import PlaceAutocomplete from './PlaceAutocomplete';
 import { buildPinningMapHtml } from '../lib/leafletMapHtml';
 import { Ionicons } from '@expo/vector-icons';
+import ModalCloseButton from './ui/ModalCloseButton';
 import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = '#1E4E09';
@@ -170,9 +171,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>{t('cmp.pinTitle')}</Text>
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-            <Ionicons name="close" size={rf(18)} color="#555" />
-          </TouchableOpacity>
+          <ModalCloseButton onPress={onClose} />
         </View>
 
         <PlaceAutocomplete visible={visible} onSelect={handleSelectSearchResult} />

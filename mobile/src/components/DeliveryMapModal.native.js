@@ -8,6 +8,7 @@ import * as Location from 'expo-location';
 import { colors, fonts, radius } from '../theme/appTheme';
 import { buildStaticMapHtml } from '../lib/leafletMapHtml';
 import { Ionicons } from '@expo/vector-icons';
+import ModalCloseButton from './ui/ModalCloseButton';
 import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
@@ -88,9 +89,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>{t('cmp.deliveryRoute')}</Text>
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-            <Ionicons name="close" size={rf(18)} color={colors.soil800} />
-          </TouchableOpacity>
+          <ModalCloseButton onPress={onClose} />
         </View>
         {address ? (
           <View style={styles.addrRow}>

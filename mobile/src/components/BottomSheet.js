@@ -3,7 +3,7 @@ import {
   Text, View, TouchableOpacity, ScrollView, Modal, Platform, StyleSheet,
   KeyboardAvoidingView, Animated,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import ModalCloseButton from './ui/ModalCloseButton';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useSharedModalMotion } from '../lib/motion';
 
@@ -29,9 +29,7 @@ export default function BottomSheet({ visible, onClose, title, children, scroll 
           <Animated.View style={[styles.card, cardStyle]}>
             <View style={styles.head}>
               <Text style={styles.title} numberOfLines={1}>{title}</Text>
-              <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
-                <Ionicons name="close" size={rf(16)} color={colors.soil800} />
-              </TouchableOpacity>
+              <ModalCloseButton onPress={onClose} />
             </View>
             <Body
               style={scroll ? styles.scrollBody : undefined}
@@ -74,16 +72,6 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, flex: 1 },
-  closeBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.ctrl,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   scrollBody: { flexGrow: 0 },
   scrollContent: { paddingBottom: 4 },
 });

@@ -6,7 +6,7 @@ import {
 import { colors, control, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { useAuth } from '../context/AuthContext';
-import { Ionicons } from '@expo/vector-icons';
+import ModalCloseButton from './ui/ModalCloseButton';
 import { useSharedModalMotion } from '../lib/motion';
 
 const PRIMARY = colors.leaf700;
@@ -37,9 +37,7 @@ export default function UserGuideModal({ visible, onClose }) {
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>{t(`userGuide.${roleKey}.title`)}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={rf(22)} color={colors.ink} />
-            </TouchableOpacity>
+            <ModalCloseButton onPress={onClose} />
           </View>
 
           {/* Content Body */}

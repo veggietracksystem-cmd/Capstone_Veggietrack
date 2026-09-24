@@ -3,7 +3,7 @@ import {
   Modal, View, Text, TouchableOpacity, StyleSheet, Animated,
   KeyboardAvoidingView, ScrollView, Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import ModalCloseButton from './ui/ModalCloseButton';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { useSharedModalMotion } from '../lib/motion';
@@ -53,6 +53,8 @@ export default function CustomModal({
   const closeWords = [t('common.close'), t('notifications.close')];
   const showCancelButton = !!onCancel && !closeWords.includes(cancelLabel ?? t('common.close'));
   const { backdropStyle, cardStyle } = useSharedModalMotion(visible);
+  // With only one action left, centre it instead of stretching it across the card.
+  const singleAction = showCancelButton !== !!onConfirm;
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={busy ? undefined : onCancel}>
@@ -69,17 +71,7 @@ export default function CustomModal({
               <View style={styles.head}>
                 <Text style={styles.title} numberOfLines={1}>{title}</Text>
                 {(onCancel && !hideCloseIcon) ? (
-                  <TouchableOpacity
-                    style={styles.closeBtn}
-                    onPress={onCancel}
-                    disabled={busy}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('common.close')}
-                  >
-                    <Ionicons name="close" size={rf(18)} color={colors.soil800} />
-                  </TouchableOpacity>
+                  <ModalCloseButton onPress={onCancel} disabled={busy} />
                 ) : null}
               </View>
             ) : null}
@@ -93,10 +85,10 @@ export default function CustomModal({
             </ScrollView>
 
             {(showCancelButton || onConfirm) ? (
-              <View style={[styles.actions, compactActions && styles.actionsCompact]}>
+              <View style={[styles.actions, (compactActions || singleAction) && styles.actionsCompact]}>
                 {showCancelButton ? (
                   <TouchableOpacity
-                    style={[styles.btn, styles.btnOutline, compactActions && styles.btnCompact, busy && styles.btnDisabled]}
+                    style={[styles.btn, styles.btnOutline, singleAction && styles.btnSingle, compactActions && styles.btnCompact, busy && styles.btnDisabled]}
                     onPress={onCancel}
                     disabled={busy}
                     hitSlop={compactActions ? { top: 6, bottom: 6, left: 6, right: 6 } : undefined}
@@ -106,7 +98,7 @@ export default function CustomModal({
                 ) : null}
                 {onConfirm ? (
                   <TouchableOpacity
-                    style={[styles.btn, styles.btnPrimary, danger && styles.btnDanger, compactActions && styles.btnCompact, (busy || confirmDisabled) && styles.btnDisabled]}
+                    style={[styles.btn, styles.btnPrimary, danger && styles.btnDanger, singleAction && styles.btnSingle, compactActions && styles.btnCompact, (busy || confirmDisabled) && styles.btnDisabled]}
                     onPress={onConfirm}
                     disabled={busy || confirmDisabled}
                   >
@@ -129,11 +121,6 @@ const styles = StyleSheet.create({
   card: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 },
   title: { flex: 1, fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
-  // Same small rounded outlined close button every other modal uses.
-  closeBtn: {
-    width: 38, height: 38, borderRadius: radius.ctrl, backgroundColor: colors.card,
-    borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
-  },
   bodyScroll: { flexGrow: 0, flexShrink: 1 },
   body: { marginBottom: 6 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
@@ -145,6 +132,7 @@ const styles = StyleSheet.create({
   btnOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15), textAlign: 'center' },
   btnDisabled: { opacity: 0.5 },
   actionsCompact: { justifyContent: 'center' },
+  btnSingle: { flex: 0, minWidth: 160, paddingHorizontal: 28 },
   btnCompact: { flex: 0, minHeight: 38, paddingVertical: 8, paddingHorizontal: 28 },
   btnTextCompact: { fontSize: rf(14) },
 });

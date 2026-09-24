@@ -4,6 +4,7 @@ import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator, Pla
 import { colors, fonts, radius } from '../theme/appTheme';
 import { coordinate } from '../lib/trackingGeometry';
 import { Ionicons } from '@expo/vector-icons';
+import ModalCloseButton from './ui/ModalCloseButton';
 import { useTranslation } from '../i18n/useTranslation';
 import { MAP_ZOOM_CSS } from '../lib/mapZoomStyle';
 
@@ -145,9 +146,7 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>{t('cmp.mapNavigation')}</Text>
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-            <Ionicons name="close" size={rf(18)} color={colors.soil800} />
-          </TouchableOpacity>
+          <ModalCloseButton onPress={onClose} />
         </View>
         {address ? (
           <View style={styles.addrRow}>
