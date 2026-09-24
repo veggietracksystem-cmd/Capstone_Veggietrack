@@ -15,7 +15,7 @@ function CountBadge({ count }) {
   if (n <= 0) return null;
   return (
     <View style={styles.badge} accessibilityLabel={`${n} new`}>
-      <Text style={styles.badgeText}>{n > 99 ? '99+' : n}</Text>
+      <Text style={styles.badgeText}>{n > 9 ? '9+' : n}</Text>
     </View>
   );
 }
@@ -47,7 +47,7 @@ export function SegmentedTabs({ options, value, onChange, scroll = false, inset 
         accessibilityRole="tab"
         accessibilityState={{ selected, disabled }}
       >
-        <View style={styles.labelRow}>
+        <View style={[styles.labelRow, scroll && Number(option.count) > 0 && styles.labelRowBadge]}>
           <Text
             style={[styles.tabText, selected && styles.tabTextSelected, styles.labelShrink]}
             numberOfLines={scroll ? 1 : 2}
@@ -100,7 +100,7 @@ export function FilterChips({ options, value, onChange, disabled = false, style 
             accessibilityRole="tab"
             accessibilityState={{ selected, disabled }}
           >
-            <View style={styles.labelRow}>
+            <View style={[styles.labelRow, Number(option.count) > 0 && styles.labelRowBadge]}>
               <Text style={[styles.chipText, selected && styles.chipTextSelected]} numberOfLines={1}>
                 {option.label}
               </Text>
@@ -148,12 +148,16 @@ const styles = StyleSheet.create({
   tabTextSelected: { color: '#fff' },
 
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', maxWidth: '100%' },
+  // Content-sized tabs grow by just enough on the right to hold the badge; the label itself does not move.
+  labelRowBadge: { marginRight: 8 },
   labelShrink: { flexShrink: 1 },
+  // Same look as the notification bell's badge: small red circle, white number,
+  // pinned to the label's top-right corner so it never moves or resizes the text.
   badge: {
-    minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4, marginLeft: 6,
+    position: 'absolute', top: -6, left: '100%', marginLeft: 2, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
     backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center',
   },
-  badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: 10, lineHeight: 12, includeFontPadding: false },
+  badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(11), lineHeight: rf(13), includeFontPadding: false },
 
   chipRow: { flexGrow: 0, marginBottom: spacing.md },
   chipRowContent: { gap: spacing.sm, alignItems: 'center', paddingRight: spacing.xs },
