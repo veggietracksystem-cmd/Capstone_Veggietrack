@@ -42,8 +42,7 @@ test('every root state starts on a screen the root stack declares', () => {
 });
 
 test('a session without an allowed role starts on the status screen, not the landing screen', () => {
-  // The branch renders ApplicationStatus alone. Naming 'Landing' here threw
-  // "Couldn't find a screen named 'Landing'" the moment the stack remounted.
+  // This branch renders only ApplicationStatus, so 'Landing' is not a valid route.
   const state = { recoveryMode: false, session, roleScreen: null, initialRoute: 'Landing' };
   assert.equal(rootBranch(state), 'status');
   assert.equal(rootInitialRoute(state), 'ApplicationStatus');

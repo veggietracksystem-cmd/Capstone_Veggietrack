@@ -19,7 +19,7 @@ function destinationFor(order, retailer, addresses = []) {
   const matches = addressKey ? addresses.filter(address => normalized(address.address) === addressKey).map(coordinate).filter(Boolean) : [];
   const unique = [...new Map(matches.map(point => [`${point.latitude},${point.longitude}`, point])).values()];
   const saved = unique.length === 1 ? unique[0] : null;
-  // Ambiguous legacy address pins are unsafe to guess, including a store fallback.
+  // Do not guess a destination when an address matches more than one saved pin.
   const store = unique.length < 2 && addressKey && addressKey === normalized(retailer?.store_location) ? coordinate(retailer) : null;
   const coords = snapshot || saved || store;
   return { ...coords, latitude: coords?.latitude ?? null, longitude: coords?.longitude ?? null,
@@ -28,7 +28,7 @@ function destinationFor(order, retailer, addresses = []) {
     address: order.delivery_address || retailer?.store_location || '', contact: retailer?.phone || '' };
 }
 async function loadDestination(db, order) {
-  // A snapshot is authoritative and does not depend on today's mutable address book.
+  // The order's coordinate snapshot takes precedence over the current address book.
   if (coordinate({ latitude: order.delivery_latitude, longitude: order.delivery_longitude })) return destinationFor(order, null);
   const [retailer, addresses] = await Promise.all([
     db.from('users').select('full_name, phone, store_location, latitude, longitude').eq('id', order.retailer_id).single(),
@@ -61,8 +61,8 @@ function instructionFor(step) {
   if (maneuver.modifier === 'uturn') return `Make a U-turn${road}`;
   return `${maneuver.type === 'continue' || maneuver.type === 'new name' ? 'Continue' : 'Turn'} ${maneuver.modifier || 'straight'}${road}`;
 }
-// One queue per backend process: never exceed one public routing request/second.
-// Production instances can share a self-hosted OSRM endpoint via OSRM_BASE_URL.
+// Requests are queued so at most one public routing request is sent per second.
+// Set OSRM_BASE_URL to use a self-hosted OSRM endpoint.
 function createRouteService({ fetchImpl = global.fetch, env = process.env, now = Date.now, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
   const cache = new Map(), pending = new Map();
   let queue = Promise.resolve(), lastStart = 0;
@@ -70,7 +70,7 @@ function createRouteService({ fetchImpl = global.fetch, env = process.env, now =
     if (points.length < 2 || points.some(p => !coordinate(p))) return null;
     const endpoint = (env.OSRM_BASE_URL || DEFAULT_ROUTER).replace(/\/$/, '');
     if (endpoint === 'disabled') return null;
-    // Target changes, meaningful movement, stale routes and off-route deviations refresh.
+    // Routes are refreshed on target change, significant movement, expiry or deviation.
     const key = `${endpoint}:${identity}:${points.slice(1).map(p => `${p.longitude},${p.latitude}`).join(';')}`;
     const hit = cache.get(key);
     if (hit && now() - hit.time < (hit.value ? ttl : 15000) &&
@@ -136,8 +136,7 @@ function createTrackingHandler({ db, routes = createRouteService(), env = proces
         name: hub?.full_name ? `${hub.full_name} · Dispatch hub` : 'Central Laguna Vegetable Hub',
         address: hub?.warehouse_location || '' };
       const destination = destinationFor(order, retailerResult.data, addressResult.data || []);
-      // Order-level legacy coordinates have no rider identity and may belong to
-      // a previous assignee. Only use GPS saved for the assigned rider.
+      // Use only the GPS saved for the assigned rider, never order-level coordinates.
       const riderCoords = coordinate({ latitude: person?.current_latitude,
         longitude: person?.current_longitude });
       const rider = { ...riderCoords, name: person?.full_name || 'No rider assigned yet',
@@ -146,8 +145,8 @@ function createTrackingHandler({ db, routes = createRouteService(), env = proces
       rider.live = !!riderCoords && Number.isFinite(locationAge) && locationAge <= STALE_LOCATION_SECONDS * 1000 && locationAge >= -30000;
       const isFinal = ['delivered', 'cancelled'].includes(order.status);
       const corridor = originCoords && coordinate(destination) ? await routes.getRoute([originCoords, destination], `corridor:${order.id}:${originCoords.latitude},${originCoords.longitude}`, 300000) : null;
-      // Navigate one leg at a time. Reaching the hub does not imply collection:
-      // the rider must mark picked_up (the status API also advances orders to in_transit).
+      // Navigate one leg at a time; the rider must mark the order picked up
+      // before navigation switches from the hub to the destination.
       const needsPickup = !['picked_up', 'in_transit', 'delivered'].includes(order.status);
       const navigationTarget = needsPickup ? origin : destination;
       const navigationPhase = needsPickup ? 'pickup' : 'delivery';

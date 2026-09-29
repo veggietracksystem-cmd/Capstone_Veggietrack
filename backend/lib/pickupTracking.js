@@ -1,15 +1,7 @@
-// Farmer-facing pickup tracking, deliberately shaped to match the JSON
-// contract GET /api/delivery/tracking/:orderId already returns (see
-// createTrackingHandler in ./deliveryTracking.js) so the existing
-// DeliveryTrackingMap component can render it unmodified — reusing the same
-// map/route/ETA infrastructure instead of building a second implementation.
-//
-// The two "legs" that component understands (pickup=corridor origin,
-// delivery=corridor destination) map onto: pickup = distributor hub,
-// delivery = the farmer's saved farm location. navigation_phase is pinned to
-// 'delivery' so the live rider->farm leg (not the static hub->farm corridor)
-// drives the map's focus/route/ETA, mirroring how a retailer sees the rider's
-// live current-leg route rather than the full warehouse corridor.
+// Farmer pickup tracking. Returns the same response shape as
+// GET /api/delivery/tracking/:orderId so DeliveryTrackingMap can render it:
+// pickup = distributor hub, delivery = the farmer's farm location. The navigation
+// phase is fixed to 'delivery' so the live rider-to-farm route drives the map and ETA.
 const { coordinate, createRouteService } = require('./deliveryTracking');
 const { STALE_LOCATION_SECONDS } = require('./locationPolicy');
 

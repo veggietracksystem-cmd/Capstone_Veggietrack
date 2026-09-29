@@ -1,9 +1,8 @@
 import en from './translations/en.json';
 import tl from './translations/tl.json';
 
-// Non-hook translator for code that runs outside React components (error
-// helpers, alert text built in lib/). LanguageProvider keeps `current` in sync
-// with the selected language; the lookup rules match its `t()` exactly.
+// Non-hook translator for code outside React components. LanguageProvider keeps
+// `current` in sync with the selected language; lookup rules match its `t()`.
 const DICTS = { en, tl };
 let current = 'en';
 

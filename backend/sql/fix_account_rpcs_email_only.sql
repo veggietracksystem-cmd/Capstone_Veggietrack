@@ -1,24 +1,13 @@
 -- ============================================================
--- VeggieTrack — repair the three account RPCs: correct the hardcoded
--- distributor UUID and drop the SMS/phone gate.
+-- VeggieTrack — account RPCs for email-only authentication.
 --
--- auth_email_password_migration.sql was never applied to this database, so
--- vt_admin_transition still carries the pre-migration seed UUID
--- 0a417507-1437-4d71-9e11-185f13a0a262 and compares the acting distributor
--- against it. The real profile is 86d9d317-b099-430c-be21-824d0a3434b6, so
--- every approval failed with "Distributor authorization required" (SQLSTATE
--- 42501) — no account could be approved at all. lib/auth.js already carries
--- the corrected UUID, which is why the request passes the API's own check and
--- only fails once it reaches the database.
+-- Replaces vt_account_context, vt_active_participant and vt_admin_transition
+-- with the versions from auth_email_password_migration.sql: the distributor
+-- profile ID matches TRUSTED_DISTRIBUTOR in lib/auth.js, and phone verification
+-- is no longer required for approval or API access.
 --
--- The same unapplied migration left the phone gate in place: registration is
--- now email-only, so nobody has users.phone_verified_at, and an approved user
--- would have been refused by access_allowed on every API call afterwards.
---
--- These are the three function bodies from auth_email_password_migration.sql,
--- copied verbatim. vt_sync_auth is deliberately EXCLUDED: that file's version
--- predates the email-OTP gate and would send new registrations straight to
--- pending_approval without confirming their email. Do not add it back.
+-- vt_sync_auth is intentionally excluded: the version in that file predates the
+-- email OTP step and would skip email confirmation.
 -- ============================================================
 BEGIN;
 

@@ -2,7 +2,7 @@ import { View, ActivityIndicator, StyleSheet, Platform, Image, Easing } from 're
 import { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { sharedScreenCardInterpolator, SCREEN_TRANSITION_DURATION, SCREEN_TRANSITION_DISTANCE } from './src/lib/motion';
+import { sharedScreenCardInterpolator, SCREEN_TRANSITION_DURATION } from './src/lib/motion';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -67,9 +67,8 @@ const ROLE_SCREENS = {
 function RootNavigator() {
   const { user, session, recoveryMode, loading, initialRoute, statusError } = useAuth();
 
-  // A session whose profile has not arrived yet is not a status decision. Hold
-  // the launch spinner until the profile resolves (or fails outright) so a user
-  // who is simply signing in is never shown the account-status screen.
+  // Keep the spinner until the profile loads, so signing-in users never see the
+  // account-status screen.
   const profilePending = !!session && !user && !recoveryMode && !statusError;
 
   if (loading || profilePending) {
@@ -81,8 +80,7 @@ function RootNavigator() {
   }
 
   const roleScreen = (!recoveryMode && user?.access_allowed && user.role && ROLE_SCREENS[user.role]) ? ROLE_SCREENS[user.role] : null;
-  // One decision drives both the rendered branch and initialRouteName - see
-  // rootRoute.js for why they must not be derived separately.
+  // A single decision drives both the rendered branch and initialRouteName (see rootRoute.js).
   const branch = rootBranch({ recoveryMode, session, roleScreen });
   const initialRouteName = rootInitialRoute({ recoveryMode, session, roleScreen, initialRoute });
 
@@ -116,12 +114,10 @@ function RootNavigator() {
         {branch === 'recovery' ? <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} /> : branch === 'status' ? (<Stack.Screen name="ApplicationStatus" component={ApplicationStatusScreen}/>) : branch === 'role' ? (
           <>
             <Stack.Screen name={roleScreen.name} component={roleScreen.component} />
-            {/* Reachable from a dashboard via navigation.navigate('Profile'/'EditProfile'). */}
             <Stack.Screen name="Profile" component={ProfileScreen} />
             {user.role === 'distributor' && <Stack.Screen name="AccountManagement" component={AccountManagementScreen} />}
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-            {/* Edit Profile -> Change password sends the emailed reset link from
-                here; ResetPassword then handles the link when it reopens the app. */}
+            {/* Change password: ForgotPassword sends the reset email; ResetPassword handles the link. */}
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
             {/* Retailer/Distributor: live delivery tracking on a map. */}
@@ -132,11 +128,9 @@ function RootNavigator() {
             <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} />
             {/* Retailer: full breakdown of a single order. */}
             <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
-            {/* Farmer: full harvest list (edit/delete/request pickup). 
-                Unreachable via navigation - kept for potential later use. */}
+            {/* Farmer: full harvest list (edit/delete/request pickup). */}
             <Stack.Screen name="HarvestList" component={HarvestListScreen} />
-            {/* Distributor: aggregated product list (price edit). 
-                Kept for backward compatibility — Home now embeds this inline. */}
+            {/* Distributor: aggregated product list (price edit). */}
             <Stack.Screen name="ProductList" component={ProductListScreen} />
             {/* Distributor: received batches (FIFO stocks, add to product list). */}
             <Stack.Screen name="Stocks" component={StocksScreen} />
@@ -144,11 +138,11 @@ function RootNavigator() {
             <Stack.Screen name="DistributorInventoryReport" component={DistributorInventoryReportScreen} />
             {/* Delivery personnel: full details for one assigned order. */}
             <Stack.Screen name="DeliveryDetails" component={DeliveryDetailsScreen} />
-            {/* Rider: Grab-style navigation map (rider view). */}
+            {/* Rider: turn-by-turn navigation map. */}
             <Stack.Screen name="RiderNavigation" component={RiderNavigationScreen} />
-            {/* Retailer/Distributor: Shopee-style tracking map (customer view). */}
+            {/* Retailer/Distributor: order tracking map. */}
             <Stack.Screen name="ShopeeTracking" component={ShopeeTrackingScreen} />
-            {/* Manage Addresses - for all users (saved delivery addresses). */}
+            {/* Saved delivery addresses (all roles). */}
             <Stack.Screen name="ManageAddresses" component={ManageAddressesScreen} />
             <Stack.Screen name="FarmerPickupTracking" component={FarmerPickupTrackingScreen} />
             {/* Distributor/Retailer/Delivery: pushed from the header Messages icon.
@@ -159,8 +153,7 @@ function RootNavigator() {
           </>
         ) : (
           <>
-            {/* Landing is first so unauthenticated users see it before Login.
-                Logged-in users render the role stack above and never reach it. */}
+            {/* Landing is the first screen for signed-out users. */}
             <Stack.Screen name="Landing" component={LandingScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />

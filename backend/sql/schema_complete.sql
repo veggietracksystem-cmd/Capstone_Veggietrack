@@ -1,6 +1,6 @@
 -- ============================================================
 -- VeggieTrack – Complete Database Schema
--- Run this in your Supabase SQL Editor (one time)
+-- Run once in the Supabase SQL Editor.
 -- ============================================================
 
 -- 1. Create ENUM types (used by users.role and orders.status)
@@ -156,7 +156,7 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pickup_requests ENABLE ROW LEVEL SECURITY;
 
--- 6. RLS Policies (based on your app's logic)
+-- 6. RLS policies
 -- Users: only own record
 CREATE POLICY "Users can read own record" ON users FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users can update own record" ON users FOR UPDATE USING (auth.uid() = id);

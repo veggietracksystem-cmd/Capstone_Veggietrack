@@ -120,7 +120,7 @@ export default function HarvestListScreen({ navigation }) {
         contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Search Input Bar (Marketplace Style) */}
+        {/* Search bar */}
         <View style={styles.searchRow}>
           <Ionicons name="search-outline" size={rf(19)} color={colors.inkFaint} />
           <TextInput
@@ -148,7 +148,7 @@ export default function HarvestListScreen({ navigation }) {
             message={t('harvestList.emptyMessage')}
           />
         ) : (
-          /* 2-Column Marketplace Grid Layout */
+          /* Two-column grid */
           <View style={styles.marketplaceGrid}>
             {filteredHarvests.map((h) => {
               const tile = getVegetableTile(h.vegetable_name);
@@ -164,22 +164,18 @@ export default function HarvestListScreen({ navigation }) {
                     </View>
                   )}
 
-                  {/* Title */}
                   <Text style={styles.cropTitle} numberOfLines={1}>
                     {h.vegetable_name}
                   </Text>
 
-                  {/* Stock Pill Badge */}
                   <View style={styles.stockBadge}>
                     <Text style={styles.stockBadgeText}>{t('harvestList.kgInStock', { qty: h.quantity_kg })}</Text>
                   </View>
 
-                  {/* Status Pill */}
                   <View style={styles.statusPillWrap}>
                     <StatusBadge status={h.status} label={h.status === 'available' ? t('harvestList.statusAvailable') : undefined} />
                   </View>
 
-                  {/* Action Buttons */}
                   <View style={styles.actionButtonsCol}>
                     <TouchableOpacity
                       style={styles.manageBtn}
@@ -255,7 +251,7 @@ const styles = StyleSheet.create({
   },
   searchClear: { fontSize: rf(16), color: colors.inkFaint, paddingLeft: 8 },
 
-  // 2-Column Marketplace Grid
+  // Two-column grid
   marketplaceGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

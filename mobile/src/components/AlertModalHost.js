@@ -3,9 +3,7 @@ import { Text } from 'react-native';
 import CustomModal from './CustomModal';
 import { useTranslation } from '../i18n/useTranslation';
 
-// Imperative singleton controller so lib/ui.js can trigger the modal from
-// anywhere (event handlers, non-component code) without prop-drilling.
-// Populated by AlertModalHost's effect once it mounts.
+// Module-level controller so lib/ui.js can open the modal from non-component code.
 let controller = null;
 
 export function showAlertModal(title, message, onPress) {
@@ -18,8 +16,7 @@ export function confirmActionModal(title, message, onConfirm, options) {
   controller.show({ mode: 'confirm', title, message, onConfirm, ...options });
 }
 
-// Mount once near the app root (see App.js) so every screen can trigger
-// branded alert/confirm dialogs via showAlertModal/confirmActionModal below.
+// Mount once near the app root (see App.js).
 export default function AlertModalHost() {
   const { t } = useTranslation();
   const [state, setState] = useState(null);

@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Image, Platform } from 'react-native';
 
-// React Native's <Image> can hang forever on remote https photos in our
-// Android builds (never firing onLoad or onError), while ordinary requests
-// work. On native we therefore download each photo into the cache directory
-// ourselves and show the local file; repeat views reuse the cached copy.
-// Local file:// / content:// URIs and web are passed straight through.
+// On some Android builds <Image> never finishes loading remote https photos, so
+// on native each photo is downloaded to the cache directory and shown from there.
+// Local URIs and web are passed through unchanged.
 const pending = new Map();
 
 function cacheName(url) {

@@ -1,12 +1,6 @@
-// Shared vegetable image (+ tile background) lookup, keyed by the same keywords
-// as the validation/category list in ./vegetables.js. English and Tagalog
-// names for the same vegetable always resolve to the same icon so the UI
-// stays consistent regardless of which language a product/harvest was named
-// in.
-//
-// Longest keyword wins when a name matches more than one (e.g. "Talbos ng
-// Kamote" must match before the generic "kamote" substring inside it) —
-// mirrors the sort in ./vegetables.js.
+// Vegetable image and tile background lookup, keyed like ./vegetables.js. English
+// and Tagalog names resolve to the same icon. Longest keyword wins (e.g. "Talbos
+// ng Kamote" before "kamote").
 const VEGETABLE_ICONS = [
   { keyword: 'tomato', source: require('../../assets/vegetables/tomato.png'), bg: '#ffebee' },
   { keyword: 'kamatis', source: require('../../assets/vegetables/tomato.png'), bg: '#ffebee' },

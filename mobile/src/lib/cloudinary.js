@@ -1,4 +1,4 @@
-﻿import { Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from '@env';
 import { tr } from '../i18n/translate';
 
@@ -19,18 +19,12 @@ export function prepareNativeImage(asset) {
   return { uri, type, name: `${stem}.${MIME_EXTENSIONS[type]}` };
 }
 
-// Expo replaces the global fetch with expo/fetch, which rejects React Native's
-// { uri, type, name } FormData parts ("Unsupported FormDataPart implementation")
-// and needs a Blob-like file it can read bytes from. expo-file-system's File is one.
+// Expo's fetch rejects React Native's { uri, type, name } FormData parts, so
+// native uploads send an expo-file-system File instead.
 function nativeUploadPart(asset) {
   const image = prepareNativeImage(asset);
   const { File } = require('expo-file-system');
   return new File(image.uri);
-}
-
-function prepareNativeImageSafe(asset) {
-  try { return Platform.OS === 'web' ? { uri: asset?.uri } : { ...prepareNativeImage(asset), size: asset?.fileSize }; }
-  catch (error) { return { uri: asset?.uri, error: error.code }; }
 }
 
 // Only the public cloud name and unsigned preset belong in the mobile build.
@@ -68,9 +62,7 @@ export async function uploadToCloudinary(asset, { timeoutMs = 30000 } = {}) {
       // fetch supplies multipart Content-Type including the required boundary.
       response = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/image/upload`, { method: 'POST', body: formData, signal: controller.signal });
     } catch (error) {
-      // TEMP rider-dashboard diagnostics — remove once pickup upload is fixed.
-      console.log('[rider-debug] UPLOAD fetch FAILED', error?.name, error?.message, JSON.stringify(prepareNativeImageSafe(asset)));
-      throw uploadError(timedOut ? 'UPLOAD_TIMEOUT' : 'CLOUDINARY_UNREACHABLE', { cause: `${error?.name}: ${error?.message}`, file: prepareNativeImageSafe(asset) });
+      throw uploadError(timedOut ? 'UPLOAD_TIMEOUT' : 'CLOUDINARY_UNREACHABLE', { cause: `${error?.name}: ${error?.message}` });
     }
     let data;
     try { data = JSON.parse(await response.text()); } catch { data = null; }

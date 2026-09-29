@@ -8,11 +8,8 @@ import { colors } from '../theme/appTheme';
 const PRIMARY = colors.leaf700;
 
 /**
- * Password field with a show/hide eye toggle (Issue 4).
- *
- * Drop-in replacement for a `<TextInput secureTextEntry />`. Pass the same
- * `style` you used on the original input — extra right padding is added so the
- * eye button never overlaps the text. Any other TextInput props pass through.
+ * Password field with a show/hide toggle. Accepts the same props as a
+ * `<TextInput secureTextEntry />`; right padding keeps the text clear of the toggle.
  */
 export default function PasswordInput({
   style,
@@ -42,8 +39,7 @@ export default function PasswordInput({
         editable={editable}
         {...rest}
       />
-      {/* The eye only appears once something has been typed. The input keeps its
-          right padding either way, so the text never shifts when it shows up. */}
+      {/* The toggle appears once text is entered; the padding stays so the text never shifts. */}
       {hasText ? (
         <TouchableOpacity
           style={styles.eyeBtn}

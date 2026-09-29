@@ -16,11 +16,8 @@ async function setup() {
   return db;
 }
 const id = '00000000-0000-0000-0000-000000000001';
-// Mirrors how supabase-js's .rpc() actually calls a scalar/composite-returning
-// function: PostgREST serializes the return value through to_jsonb before
-// sending it as the HTTP response, so a NULL composite becomes JSON null (an
-// object property, not raw "SELECT * FROM func()" table expansion, which
-// would instead yield a row of all-NULL columns that looks truthy).
+// Mirrors supabase-js .rpc(): PostgREST serializes the result with to_jsonb, so
+// a NULL composite becomes JSON null.
 const call = (db, fn, args) => db.query(`SELECT to_jsonb(${fn}($1,$2)) AS result`, args).then(r => r.rows[0].result);
 
 test('stock_safety migration is safe to reapply and the CHECK constraint blocks negative stock at the row level', async () => {

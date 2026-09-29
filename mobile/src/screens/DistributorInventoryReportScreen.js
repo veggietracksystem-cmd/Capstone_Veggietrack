@@ -10,15 +10,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
+import ImageViewerModal from '../components/ImageViewerModal';
+import RemoteImage from '../components/RemoteImage';
 import { SegmentedTabs } from '../components/ui/SegmentedTabs';
 import StatusBadge from '../components/ui/StatusBadge';
 import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { exportReportPdf, printReport } from '../lib/reportPdf';
-import { showAlert, peso } from '../lib/ui';
+import { showAlert, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, spacing } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, spacing } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
+import { statusLabel } from '../i18n/translate';
+import { localizeVegetableName } from '../lib/vegetableNames';
 
 const PRIMARY = colors.leaf700;
 
@@ -39,6 +43,9 @@ function formatDate(dateStr) {
 
 const COLUMNS_META = [
   { key: 'product', labelKey: 'inventoryReport.colProduct', width: 100 },
+  { key: 'batch_id', labelKey: 'inventoryReport.colBatch', width: 90 },
+  { key: 'batch_photo', labelKey: 'inventoryReport.colPhoto', width: 64, photo: true },
+  { key: 'batch_status', labelKey: 'inventoryReport.colBatchStatus', width: 100, badge: true },
   { key: 'quantity_received', labelKey: 'inventoryReport.colQtyReceived', width: 90 },
   { key: 'quantity_sold', labelKey: 'inventoryReport.colQtySold', width: 80 },
   { key: 'remaining_quantity', labelKey: 'inventoryReport.colRemaining', width: 90 },
@@ -55,9 +62,28 @@ const COLUMNS_META = [
   { key: 'order_status', labelKey: 'inventoryReport.colOrderStatus', width: 100, badge: true },
 ];
 
-function formatRow(r) {
+// A completed (sold-out / archived) batch is history, not current inventory.
+const isCompletedBatch = (r) => r.batch_status === 'sold_out' || r.batch_status === 'archived';
+
+// Status cells keep their raw code (badge color) next to the translated label
+// (shown on screen and in the PDF). Payment status arrives as "Paid"/"Unpaid".
+const statusCode = (value) => (value ? String(value).toLowerCase() : null);
+
+// Only the values meant to be localized change with the app language: the
+// vegetable name (typed in English or Tagalog) and the status words. Names,
+// ids, quantities, prices and dates are shown exactly as stored.
+function formatRow(r, language) {
+  const codes = {
+    batch_status: statusCode(r.batch_status),
+    payment_status: statusCode(r.payment_status),
+    order_status: statusCode(r.order_status),
+  };
   return {
-    product: r.product,
+    codes,
+    product: localizeVegetableName(r.product, language),
+    batch_id: r.batch_id ? shortId(r.batch_id) : '—',
+    batch_photo: r.batch_photo_url || null,
+    batch_status: codes.batch_status ? statusLabel(codes.batch_status) : '—',
     quantity_received: r.quantity_received != null ? `${r.quantity_received} kg` : '—',
     quantity_sold: r.quantity_sold != null ? `${r.quantity_sold} kg` : '—',
     remaining_quantity: r.remaining_quantity != null ? `${r.remaining_quantity} kg` : '—',
@@ -70,12 +96,21 @@ function formatRow(r) {
     harvest_date: formatDate(r.harvest_date),
     pickup_date: formatDate(r.pickup_date),
     delivery_date: formatDate(r.delivery_date),
-    payment_status: r.payment_status || '—',
-    order_status: r.order_status || '—',
+    payment_status: codes.payment_status ? statusLabel(codes.payment_status) : '—',
+    order_status: codes.order_status ? statusLabel(codes.order_status) : '—',
   };
 }
 
-function ReportTable({ columns, rows, emptyLabel }) {
+function PhotoCell({ uri, label, onOpen }) {
+  if (!uri) return <Text style={styles.reportCell}>—</Text>;
+  return (
+    <TouchableOpacity onPress={() => onOpen(uri)} accessibilityRole="imagebutton" accessibilityLabel={label}>
+      <RemoteImage uri={uri} style={styles.photoThumb} resizeMode="cover" />
+    </TouchableOpacity>
+  );
+}
+
+function ReportTable({ columns, rows, emptyLabel, onOpenPhoto }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
       <View style={styles.reportWrap}>
@@ -91,8 +126,10 @@ function ReportTable({ columns, rows, emptyLabel }) {
             <View key={i} style={styles.reportRow}>
               {columns.map((c) => (
                 <View key={c.key} style={{ width: c.width, paddingRight: 6 }}>
-                  {c.badge && r[c.key] !== '—' ? (
-                    <StatusBadge status={String(r[c.key]).toLowerCase()} label={r[c.key]} />
+                  {c.photo ? (
+                    <PhotoCell uri={r[c.key]} label={c.label} onOpen={onOpenPhoto} />
+                  ) : c.badge && r.codes?.[c.key] ? (
+                    <StatusBadge status={r.codes[c.key]} label={r[c.key]} />
                   ) : (
                     <Text style={styles.reportCell} numberOfLines={1}>{r[c.key]}</Text>
                   )}
@@ -109,7 +146,7 @@ function ReportTable({ columns, rows, emptyLabel }) {
 export default function DistributorInventoryReportScreen({ navigation }) {
   const navSpace = useBottomNavSpace();
   const beginRead = useLatestRequest();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const DISTRIBUTOR_TABS = DISTRIBUTOR_TABS_KEYS.map((tab) => ({ ...tab, label: t(tab.labelKey) }));
   const handleBottomTabPress = (tab) => {
     if (tab.id === 'inventory') return;
@@ -123,6 +160,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [section, setSection] = useState('inventory'); // 'inventory' | 'history'
   const [exporting, setExporting] = useState(false);
+  const [photoUri, setPhotoUri] = useState(null);
 
   const load = useCallback(async () => {
     const isCurrent = beginRead('load');
@@ -152,23 +190,29 @@ export default function DistributorInventoryReportScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  const columns = COLUMNS_META.map((c) => ({ key: c.key, label: t(c.labelKey), width: c.width, badge: c.badge }));
-  const inventoryRows = rows.filter((r) => r.order_status !== 'delivered');
-  const historyRows = rows.filter((r) => r.order_status === 'delivered');
+  const columns = COLUMNS_META.map((c) => ({ key: c.key, label: t(c.labelKey), width: c.width, badge: c.badge, photo: c.photo }));
+  // The PDF is text only, so the photo column is left out of exports.
+  const exportColumns = columns.filter((c) => !c.photo);
+  // History = sales already delivered plus every sold-out / archived batch;
+  // Inventory = batches that still have stock and their in-progress sales.
+  const isHistory = (r) => r.order_status === 'delivered' || isCompletedBatch(r);
+  const inventoryRows = rows.filter((r) => !isHistory(r));
+  const historyRows = rows.filter(isHistory);
   const activeRows = section === 'inventory' ? inventoryRows : historyRows;
   const title = section === 'inventory' ? t('inventoryReport.inventoryTitle') : t('inventoryReport.historyTitle');
 
-  // Compact "Received / Sold" summary tiles (prototype's distributor-inventory-report
-  // screen) — a sum over the same rows already loaded for the table below, no new fetch.
-  const receivedTotal = activeRows.reduce((sum, r) => sum + (Number(r.quantity_received) || 0), 0);
+  // Received/Sold totals from the loaded rows; a batch sold in several orders
+  // counts its received quantity once.
+  const receivedByBatch = new Map(activeRows.map((r, i) => [r.batch_id || i, Number(r.quantity_received) || 0]));
+  const receivedTotal = [...receivedByBatch.values()].reduce((sum, kg) => sum + kg, 0);
   const soldTotal = activeRows.reduce((sum, r) => sum + (Number(r.quantity_sold) || 0), 0);
 
   const handleExport = async (doPrint) => {
     setExporting(true);
     try {
-      const formatted = activeRows.map(formatRow);
-      if (doPrint) await printReport(title, columns, formatted);
-      else await exportReportPdf(title, columns, formatted);
+      const formatted = activeRows.map((r) => formatRow(r, language));
+      if (doPrint) await printReport(title, exportColumns, formatted);
+      else await exportReportPdf(title, exportColumns, formatted);
     } catch (err) {
       showAlert(t('common.error'), friendlyError(err));
     } finally {
@@ -218,7 +262,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
           {activeRows.length === 0 ? (
             <EmptyState iconElement={<Ionicons name="bar-chart-outline" size={rf(44)} color={colors.inkFaint} />} title={t('inventoryReport.emptyTitle')} message={t('inventoryReport.emptyMessage')} />
           ) : (
-            <ReportTable columns={columns} rows={activeRows.map(formatRow)} emptyLabel={t('inventoryReport.emptyTitle')} />
+            <ReportTable columns={columns} rows={activeRows.map((r) => formatRow(r, language))} emptyLabel={t('inventoryReport.emptyTitle')} onOpenPhoto={setPhotoUri} />
           )}
 
           <View style={styles.reportActionsRow}>
@@ -244,6 +288,8 @@ export default function DistributorInventoryReportScreen({ navigation }) {
         </ScrollView>
       )}
 
+      <ImageViewerModal uri={photoUri} visible={!!photoUri} onClose={() => setPhotoUri(null)} />
+
       <BottomNavBar
         tabs={DISTRIBUTOR_TABS}
         activeTab="inventory"
@@ -261,7 +307,7 @@ const styles = StyleSheet.create({
   // provides the gap below.
   tabRow: { marginHorizontal: spacing.lg, marginTop: spacing.lg, marginBottom: 0 },
 
-  // Compact Received/Sold summary tiles (prototype's .tile-grid/.tile)
+  // Received/Sold summary tiles
   summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   statTile: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14 },
   statTileLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft },
@@ -272,6 +318,7 @@ const styles = StyleSheet.create({
   reportHeaderCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3, paddingRight: 6 },
   reportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
   reportCell: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.ink },
+  photoThumb: { width: 40, height: 40, borderRadius: 8, backgroundColor: colors.leaf50 },
   emptySubtitle: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', padding: 16, textAlign: 'center' },
 
   reportActionsRow: { flexDirection: 'row', gap: 10, marginTop: 14 },

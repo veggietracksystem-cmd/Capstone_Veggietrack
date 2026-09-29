@@ -12,7 +12,7 @@ import { useTranslation } from '../i18n/useTranslation';
 import { showAlert } from '../lib/ui';
 import MapPinningModal from '../components/MapPinningModal';
 import ScreenHeader from '../components/ScreenHeader';
-import { colors, control, fontSize, radius, spacing, actionBtn, actionBtnPrimary, actionBtnText, actionBtnOutline } from '../theme/appTheme';
+import { colors, control, fontSize, radius, spacing, actionBtn, actionBtnText, actionBtnOutline } from '../theme/appTheme';
 import PasswordInput from '../components/PasswordInput';
 import { SegmentedTabs } from '../components/ui/SegmentedTabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,8 +21,7 @@ const PRIMARY = colors.leaf700;
 
 export default function RegisterScreen({ navigation, route }) {
   const { t } = useTranslation();
-  const { width, height } = useWindowDimensions();
-  const compactLayout = width < 380;
+  const { height } = useWindowDimensions();
   const tallScreen = height >= 760;
   // Role -> location field key + i18n keys. The backend reads the matching key.
   const ROLES = [
@@ -73,14 +72,11 @@ export default function RegisterScreen({ navigation, route }) {
       if(error)throw error;
       const emailTrimmed=email.trim();
       setPassword('');setConfirmPassword('');
-      // Registration must always be confirmed with the emailed OTP.  A
-      // Supabase project with auto-confirm enabled cannot satisfy this flow.
+      // Registration is always confirmed with the emailed OTP, so any session
+      // created by signUp is discarded.
       if (data.session) await supabase.auth.signOut({ scope: 'local' });
-      // signUp has already sent the confirmation email.  Resending it here ran
-      // into Supabase's per-address send cooldown on every first registration
-      // and surfaced as "Too many attempts", leaving the new account stranded
-      // at 'unverified'.  VerifyEmailScreen's own Resend button covers the
-      // case where the first email never arrives.
+      // signUp already sends the confirmation email; resending immediately would hit
+      // Supabase's per-address cooldown. VerifyEmailScreen offers a Resend button.
       navigation.navigate('VerifyEmail',{email:emailTrimmed, purpose:'signup'});
     } catch(error){showAlert(t('authx.cantCreateTitle'),authError(error));}
     finally{lock.current=false;setLoading(false);}
@@ -168,7 +164,6 @@ export default function RegisterScreen({ navigation, route }) {
 
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>{t('auth.register.roleLabel')}</Text>
-              {/* Same filter-tab component the rest of the app uses (equal widths, wraps long labels). */}
               <SegmentedTabs
                 options={ROLES.map((r) => ({ value: r.value, label: r.label }))}
                 value={role}

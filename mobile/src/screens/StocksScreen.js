@@ -18,14 +18,18 @@ import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { showAlert, confirmAction, peso } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { localizeVegetableName } from '../lib/vegetableNames';
-import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
+import { localizeVegetableName, vegetableKey } from '../lib/vegetableNames';
+import { isVegetable } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
+import BatchDateField from '../components/BatchDateField';
 import { titleCaseWords } from '../lib/textFormat';
+
+// More registered farmers than this and the picker gets a search box.
+const FARMER_SEARCH_THRESHOLD = 6;
 
 const PRIMARY = colors.leaf700;
 
@@ -50,10 +54,9 @@ export default function StocksScreen({ navigation }) {
     else if (tab.id === 'orders') navigation.navigate('DistributorDashboard', { tab: 'orders' });
     else if (tab.id === 'home') navigation.navigate('DistributorDashboard', { tab: 'home' });
   };
-  // Batches = physical stock received from farmers (not yet listed). Products
-  // = already-listed catalog shown to retailers. Same underlying records
-  // (`/api/products`), just filtered by status — matches the prototype's
-  // Batches/Products segmented control without any new fetch.
+  // Batches = received stock not yet listed; Products = listed batches with stock.
+  // Both come from /api/products filtered by status; completed batches appear only
+  // in the inventory report.
   const [seg, setSeg] = useState('batches');
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,16 +73,21 @@ export default function StocksScreen({ navigation }) {
   const [editPriceInput, setEditPriceInput] = useState('');
   const [photoBusy, setPhotoBusy] = useState(false);
 
-  // Add Product — the direct-creation entry point for POST /api/products
-  // (independent of the pickup-intake flow above: this batch is listed
-  // immediately, not received as 'received' first).
+  // Add Product: creates a batch directly (POST /api/products) and lists it
+  // immediately, recording the same farmer, harvest date and pickup date.
   const [addProductVisible, setAddProductVisible] = useState(false);
   const [addVegName, setAddVegName] = useState('');
   const [addPrice, setAddPrice] = useState('');
   const [addStock, setAddStock] = useState('');
+  const [addFarmerId, setAddFarmerId] = useState(null);
+  const [addHarvestDate, setAddHarvestDate] = useState('');
+  const [addPickupDate, setAddPickupDate] = useState('');
   const [addPhotoUrl, setAddPhotoUrl] = useState('');
   const [addPhotoState, setAddPhotoState] = useState('ready');
   const [addBusy, setAddBusy] = useState(false);
+  const [farmers, setFarmers] = useState([]);
+  const [farmersLoading, setFarmersLoading] = useState(false);
+  const [farmerQuery, setFarmerQuery] = useState('');
 
   const loadBatches = useCallback(async () => {
     const isCurrent = beginRead('loadBatches');
@@ -109,9 +117,14 @@ export default function StocksScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  // Anything not already listed/sold_out counts as "received" — covers both
-  // the normal state and legacy batches from before the status column existed.
-  const isListable = (status) => status !== 'listed' && status !== 'sold_out';
+  // Anything not listed or completed counts as received (including rows without a status).
+  const isListable = (status) => status !== 'listed' && status !== 'sold_out' && status !== 'archived';
+  const hasStock = (b) => Number(b.stock_kg) > 0;
+  // A listed batch of the same vegetable (any spelling) that is still on sale:
+  // its price is the one every batch of that vegetable shares.
+  const onSaleSibling = (name) => batches.find(
+    (b) => b.status === 'listed' && hasStock(b) && vegetableKey(b.vegetable_name) === vegetableKey(name)
+  );
   const showBatchPhotoError = (err) => {
     if (err?.status === 404) {
       showAlert(t('cmp2.notAvailableYet'), t('cmp2.batchPhotoCantSave'));
@@ -141,9 +154,7 @@ export default function StocksScreen({ navigation }) {
       showAlert(t('common.error'), t('cmp2.photoFirst'));
       return;
     }
-    const sibling = batches.find(
-      (b) => b.vegetable_name === batch.vegetable_name && !isListable(b.status)
-    );
+    const sibling = onSaleSibling(batch.vegetable_name);
     if (sibling) {
       submitListing(batch, sibling.price_per_kg);
       return;
@@ -216,20 +227,48 @@ export default function StocksScreen({ navigation }) {
     }
   };
 
+  const loadFarmers = async () => {
+    setFarmersLoading(true);
+    try {
+      const data = await api.get('/api/farmers');
+      setFarmers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      showAlert(t('common.error'), friendlyError(err));
+    } finally {
+      setFarmersLoading(false);
+    }
+  };
+
   const openAddProduct = () => {
     setAddVegName(''); setAddPrice(''); setAddStock('');
+    setAddFarmerId(null); setFarmerQuery('');
+    setAddHarvestDate(''); setAddPickupDate('');
     setAddPhotoUrl(''); setAddPhotoState('ready');
     setAddProductVisible(true);
+    loadFarmers();
   };
+
+  const changeHarvestDate = (day) => {
+    setAddHarvestDate(day);
+    // Pickup can't come before the harvest; make the distributor pick again.
+    if (addPickupDate && addPickupDate < day) setAddPickupDate('');
+  };
+
+  // The vegetable typed in Add Product already on sale: its shared price is used.
+  const addSibling = isVegetable(addVegName.trim()) ? onSaleSibling(addVegName.trim()) : null;
 
   const submitAddProduct = async () => {
     const name = addVegName.trim();
-    const price = Number(addPrice);
+    const price = addSibling ? Number(addSibling.price_per_kg) : Number(addPrice);
     const stock = Number(addStock);
     if (!name) { showAlert(t('common.error'), t('stocks.vegetableNameRequired')); return; }
-    if (!isVegetable(name)) { showAlert(t('common.error'), VEGETABLE_VALIDATION_MESSAGE); return; }
+    if (!isVegetable(name)) { showAlert(t('common.error'), t('dashboards.farmer.vegetableOnlyValidation')); return; }
     if (!price || price <= 0 || !Number.isFinite(price)) { showAlert(t('common.error'), t('stocks.priceRequired')); return; }
     if (!stock || stock <= 0 || !Number.isFinite(stock)) { showAlert(t('common.error'), t('stocks.stockRequired')); return; }
+    if (!addFarmerId) { showAlert(t('common.error'), t('stocks.farmerRequired')); return; }
+    if (!addHarvestDate) { showAlert(t('common.error'), t('stocks.harvestDateRequired')); return; }
+    if (!addPickupDate) { showAlert(t('common.error'), t('stocks.pickupDateRequired')); return; }
+    if (addPickupDate < addHarvestDate) { showAlert(t('common.error'), t('stocks.pickupBeforeHarvest')); return; }
     if (!addPhotoUrl || addPhotoState !== 'ready') {
       showAlert(t('common.error'), addPhotoState === 'uploading' ? t('cmp2.photoWaitRecent') : t('stocks.photoRequired'));
       return;
@@ -239,9 +278,11 @@ export default function StocksScreen({ navigation }) {
     try {
       const { product } = await api.post('/api/products', {
         vegetable_name: name, price_per_kg: price, stock_kg: stock, batch_photo_url: addPhotoUrl,
+        farmer_id: addFarmerId, harvest_date: addHarvestDate, pickup_date: addPickupDate,
       });
       beginRead('loadBatches');
-      setBatches((prev) => [product, ...prev]);
+      const farmer = farmers.find((f) => f.id === product.farmer_id);
+      setBatches((prev) => [{ ...product, farmer_name: farmer?.full_name || null }, ...prev]);
       setAddProductVisible(false);
       showAlert(t('common.success'), t('stocks.addProductSuccess'));
     } catch (err) {
@@ -252,10 +293,7 @@ export default function StocksScreen({ navigation }) {
     }
   };
 
-  // Trailing badge matches the prototype's per-segment badge: Batches shows
-  // whether the required batch photo has been captured yet; Products shows
-  // the retailer-facing stock level. Both are derived from fields already
-  // on the record — no new data.
+  // Batches show whether the required photo has been added; Products show the stock level.
   const renderBadge = (b) => {
     if (isListable(b.status)) {
       return <StatusBadge status={b.batch_photo_url ? 'completed' : 'pending'} label={b.batch_photo_url ? t('stocks.photoCaptured') : t('stocks.photoMissing')} />;
@@ -333,7 +371,7 @@ export default function StocksScreen({ navigation }) {
           </TouchableOpacity>
         )}
         <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(b)} disabled={busy}>
-          <Text style={styles.editBtnText}>{isListable(b.status) ? t('common.edit') : 'View / Edit'}</Text>
+          <Text style={styles.editBtnText}>{isListable(b.status) ? t('common.edit') : t('stocks.viewEditBtn')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -372,7 +410,7 @@ export default function StocksScreen({ navigation }) {
         </View>
       ) : (
         <FlatList
-          data={batches.filter((b) => (seg === 'batches' ? isListable(b.status) : !isListable(b.status)))}
+          data={batches.filter((b) => hasStock(b) && (seg === 'batches' ? isListable(b.status) : b.status === 'listed'))}
           keyExtractor={(b) => String(b.id)}
           renderItem={renderItem}
           contentContainerStyle={[styles.content, { paddingBottom: navSpace }]}
@@ -452,13 +490,14 @@ export default function StocksScreen({ navigation }) {
         />
         <Text style={styles.editPriceLabel}>{t('stocks.priceLabel')}</Text>
         <TextInput
-          style={styles.priceInput}
-          value={addPrice}
+          style={[styles.priceInput, addSibling && styles.inputLocked]}
+          value={addSibling ? String(addSibling.price_per_kg) : addPrice}
           onChangeText={setAddPrice}
           placeholder={t('stocks.priceLabel')}
           keyboardType="decimal-pad"
-          editable={!addBusy}
+          editable={!addBusy && !addSibling}
         />
+        {!!addSibling && <Text style={styles.fieldHint}>{t('stocks.priceSharedHint')}</Text>}
         <Text style={styles.editPriceLabel}>{t('stocks.stockLabel')}</Text>
         <TextInput
           style={styles.priceInput}
@@ -468,6 +507,52 @@ export default function StocksScreen({ navigation }) {
           keyboardType="decimal-pad"
           editable={!addBusy}
         />
+
+        <Text style={styles.editPriceLabel}>{t('stocks.farmerName')}</Text>
+        {farmersLoading ? (
+          <ActivityIndicator color={PRIMARY} style={styles.farmerLoading} />
+        ) : farmers.length === 0 ? (
+          <Text style={styles.fieldHint}>{t('stocks.noFarmers')}</Text>
+        ) : (
+          <>
+            {farmers.length > FARMER_SEARCH_THRESHOLD && (
+              <TextInput
+                style={[styles.priceInput, styles.farmerSearch]}
+                value={farmerQuery}
+                onChangeText={setFarmerQuery}
+                placeholder={t('stocks.searchFarmer')} placeholderTextColor={colors.placeholder}
+                autoCapitalize="words"
+                editable={!addBusy}
+              />
+            )}
+            <View style={styles.chipWrap}>
+              {farmers
+                .filter((f) => f.id === addFarmerId || !farmerQuery.trim()
+                  || String(f.full_name || '').toLowerCase().includes(farmerQuery.trim().toLowerCase()))
+                .map((f) => {
+                  const selected = addFarmerId === f.id;
+                  return (
+                    <TouchableOpacity
+                      key={f.id}
+                      style={[styles.chip, selected && styles.chipActive]}
+                      onPress={() => setAddFarmerId(f.id)}
+                      disabled={addBusy}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                    >
+                      <Text style={[styles.chipText, selected && styles.chipTextActive]}>{f.full_name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+            </View>
+          </>
+        )}
+
+        <Text style={styles.editPriceLabel}>{t('stocks.harvestDate')}</Text>
+        <BatchDateField value={addHarvestDate} onChange={changeHarvestDate} disabled={addBusy} />
+        <Text style={styles.editPriceLabel}>{t('stocks.pickupDate')}</Text>
+        <BatchDateField value={addPickupDate} onChange={setAddPickupDate} minDate={addHarvestDate || undefined} disabled={addBusy} />
+
         <BatchPhotoField label={t('stocks.batchPhotoLabel')} value={addPhotoUrl} onChange={setAddPhotoUrl} onStateChange={setAddPhotoState} disabled={addBusy} />
       </CustomModal>
 
@@ -513,6 +598,16 @@ const styles = StyleSheet.create({
   modalHint: { fontSize: rf(fontSize.sm), color: colors.inkFaint, marginBottom: 10 },
   priceInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, fontSize: rf(fontSize.lg) },
   editPriceLabel: { fontFamily: fonts.bodySemiBold, color: colors.ink, marginTop: 14, marginBottom: 7 },
+  inputLocked: { backgroundColor: colors.bgScreen, color: colors.inkSoft },
+  fieldHint: { fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 6 },
+  farmerLoading: { alignSelf: 'flex-start' },
+  farmerSearch: { marginBottom: 10 },
+  // Same chip picker as the distributor's rider assignment.
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgScreen },
+  chipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
+  chipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(fontSize.sm) },
+  chipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
   removePhotoBtn: { alignSelf: 'flex-start', marginTop: 4, paddingVertical: 6, minHeight: control.heightSm },
   removePhotoText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.sm) },
 });

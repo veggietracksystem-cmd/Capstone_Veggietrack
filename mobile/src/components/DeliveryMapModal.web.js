@@ -1,6 +1,6 @@
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, Modal, StyleSheet, ActivityIndicator } from 'react-native';
 import { colors, fonts, radius } from '../theme/appTheme';
 import { coordinate } from '../lib/trackingGeometry';
 import { Ionicons } from '@expo/vector-icons';
@@ -175,7 +175,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
   title: { fontFamily: fonts.heading, fontSize: rf(19), color: colors.ink },
-  // Same small rounded outlined close button every other modal uses.
   closeBtn: {
     width: 38, height: 38, borderRadius: radius.ctrl, backgroundColor: colors.card,
     borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',

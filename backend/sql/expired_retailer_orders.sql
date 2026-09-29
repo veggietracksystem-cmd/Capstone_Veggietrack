@@ -1,19 +1,11 @@
--- Expire schedules that were never started. Do not cancel in_transit/delivered
--- orders: once a rider has begun delivery, the delivery workflow owns that
--- outcome. `preferred_schedule` is stored as timestamptz (already an absolute
--- instant, normalized to UTC at write time from the Philippine wall-clock
--- input — see lib/deliveryProof.js's scheduleInstant), so comparing it
--- against clock_timestamp() is correct regardless of server timezone; no
--- separate date/time-of-day comparison is needed.
+-- Cancels pending orders whose delivery schedule has passed. Orders already in
+-- transit or delivered are not affected. preferred_schedule is a timestamptz, so
+-- comparing it with clock_timestamp() is independent of the server timezone.
 --
--- Depends on public.restore_product_stock from sql/stock_safety.sql — apply
--- that migration first (or together with this one).
+-- Requires public.restore_product_stock (sql/stock_safety.sql).
 --
--- Safe to run repeatedly / concurrently: cancellation is a single guarded
--- UPDATE ... RETURNING, so an order can only ever be picked up by one
--- execution, and once its status is 'cancelled' it no longer matches the
--- WHERE clause on any later run — no duplicate cancellation, no duplicate
--- stock restoration.
+-- Safe to run repeatedly or concurrently: the guarded UPDATE ... RETURNING
+-- cancels each order, and restores its stock, exactly once.
 CREATE OR REPLACE FUNCTION public.cancel_expired_retailer_orders()
 RETURNS integer
 LANGUAGE plpgsql
@@ -31,9 +23,8 @@ BEGIN
      RETURNING id
   LOOP
     affected := affected + 1;
-    -- Restore stock to the exact batch each item was drawn from — the same
-    -- rule PUT /api/orders/:id/cancel applies. Legacy pre-FIFO order_items
-    -- with no product_id have nothing to restore to.
+    -- Restore stock to the exact batch each item was drawn from. Items created
+    -- before batch tracking have no product_id and are skipped.
     PERFORM public.restore_product_stock(oi.product_id, oi.quantity_kg)
       FROM public.order_items oi
      WHERE oi.order_id = r.id AND oi.product_id IS NOT NULL;
@@ -47,33 +38,17 @@ GRANT EXECUTE ON FUNCTION public.cancel_expired_retailer_orders() TO service_rol
 -- ============================================================
 -- Scheduled execution (pg_cron)
 -- ============================================================
--- This is the actual "even when the app is closed" guarantee — without a
--- registered job, the function above only ever runs when a retailer/
--- distributor happens to open an Orders screen (see cancelExpiredRetailerOrders
--- in backend/index.js, which calls it inline as a read/write-time backstop).
---
--- IMPORTANT — this section must be run once, by someone with sufficient
--- privileges on the actual Supabase project, via either:
---   * the Supabase Dashboard SQL Editor (Project > SQL Editor), or
---   * `supabase db push` / `psql` with the project's own connection string.
--- It cannot be applied from a generic backend/CI environment — pg_cron is a
--- Postgres extension that lives on the database server itself, and Supabase
--- requires it to be enabled per-project (Dashboard > Database > Extensions >
--- "pg_cron", or `CREATE EXTENSION IF NOT EXISTS pg_cron;` below if your role
--- already has that permission).
+-- Runs the function every minute so overdue orders are cancelled even when the
+-- app is closed. Apply once as a privileged user in the Supabase SQL Editor (or
+-- with psql); the pg_cron extension must be enabled for the project.
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
--- Idempotent reschedule: drop any previous registration of this exact job
--- name first so reapplying this migration never creates duplicate jobs
--- (cron.unschedule on a name with no matching job is a no-op, not an error).
+-- Remove any existing job with this name so reapplying never creates duplicates.
 DO $$
 BEGIN
   PERFORM cron.unschedule(jobid) FROM cron.job WHERE jobname = 'cancel-expired-retailer-orders';
 END $$;
 
--- Every minute. A single guarded UPDATE plus a handful of stock restores is
--- cheap; this cadence keeps the retailer's cart/stock view accurate without
--- requiring the app to be open.
 SELECT cron.schedule(
   'cancel-expired-retailer-orders',
   '* * * * *',

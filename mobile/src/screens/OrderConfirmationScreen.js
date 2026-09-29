@@ -37,7 +37,7 @@ export default function OrderConfirmationScreen({ navigation, route }) {
   const [address, setAddress] = useState(defaultAddress || user?.store_location || '');
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
-  
+
   const [date, setDate] = useState(manilaDate());
   const [time, setTime] = useState('');
   const [now, setNow] = useState(Date.now());
@@ -132,8 +132,6 @@ export default function OrderConfirmationScreen({ navigation, route }) {
     setSuccess(false);
     navigation.navigate('RetailerDashboard', { tab: 'shop', orderPlaced: true });
   };
-
-  const selectedAddress = savedAddresses.find(a => a.id === selectedAddressId);
 
   return (
     <SafeAreaView style={styles.container}>

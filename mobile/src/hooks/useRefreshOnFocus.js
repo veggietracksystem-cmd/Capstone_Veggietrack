@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useNavigation } from '@react-navigation/native';
 
-// Keep mounted lists and their filters/scroll positions when returning to them.
-// Initial loading remains owned by the screen.
+// Refreshes a mounted list when its screen regains focus, keeping filters and
+// scroll position. Initial loading stays with the screen.
 export default function useRefreshOnFocus(refresh) {
   const navigation = useNavigation();
   const latest = useRef(refresh);

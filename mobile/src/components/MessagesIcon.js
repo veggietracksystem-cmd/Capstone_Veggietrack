@@ -6,14 +6,12 @@ import { colors, control, fonts } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
 import { useTranslation } from '../i18n/useTranslation';
 
-// Custom chat icon (two speech bubbles); a transparent PNG tinted to the
-// header icon colour so it matches NotificationBell.
+// Chat icon (transparent PNG) tinted to match NotificationBell.
 const CHAT_ICON = require('../../assets/chat-icon.png');
 
 const POLL_MS = 30000; // matches NotificationBell's unread-count poll interval
 
-// Header icon placed beside NotificationBell (Distributor/Retailer/Delivery).
-// Farmer instead has an embedded "Messages" bottom tab, so it doesn't use this.
+// Header icon for distributors, retailers and riders; farmers use a Messages tab instead.
 export default function MessagesIcon() {
   const { t } = useTranslation();
   const navigation = useNavigation();
@@ -25,7 +23,7 @@ export default function MessagesIcon() {
       const data = await api.get('/api/messages/unread-count');
       if (mounted.current) setUnread(data?.count || 0);
     } catch {
-      // silent on background poll
+      // Background poll failures are ignored.
     }
   }, []);
 

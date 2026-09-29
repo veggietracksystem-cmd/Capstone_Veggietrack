@@ -15,6 +15,12 @@ function load(file, mocks = {}) {
   const exports = {};
   vm.runInNewContext(source, { exports, console, require: name => {
     if (name in mocks) return mocks[name];
+    // Unmocked app modules (e.g. the translator and its JSON dictionaries) load for real.
+    if (name.startsWith('.')) {
+      const target = path.resolve(path.dirname(filename), name);
+      if (target.endsWith('.json')) return JSON.parse(fs.readFileSync(target, 'utf8'));
+      return load(path.relative(root, `${target}.js`), mocks);
+    }
     throw new Error(`Missing mock: ${name}`);
   } });
   return exports;
@@ -39,8 +45,7 @@ function handler(screen, name, scope) {
   return vm.runInNewContext(`(${source.slice(found.start, found.end)})`, scope);
 }
 function base() {
-  // Screens now pass thrown errors through friendlyError() before showing
-  // them, so every handler under test needs it in scope.
+  // Screen handlers format errors with friendlyError(), so it must be in scope.
   const { friendlyError } = load('lib/errorMessages.js');
   return { requestLock: newLock(), t: key => key, showAlert() {}, beginRead() {}, shortId: id => id, friendlyError };
 }
@@ -107,6 +112,7 @@ test('retailer checkout sends once and preserves cart on server rejection', asyn
 
 test('rider pickup completion submits proof once, refreshes both lists and blocks a duplicate tap while in flight', async () => {
   const pending = deferred(); let writes = 0, refreshes = 0;
+  const loadOrders = async () => refreshes++, loadPickups = async () => refreshes++;
   const submit = handler('DeliveryDashboard', 'confirmPickupCompletion', {
     ...base(), setPickupBusy() {}, setPickups() {}, setPickupProofVisible() {}, setPickupPhoto() {},
     setActivePickup() {}, proofFailureMessage: e => e.message,
@@ -114,12 +120,13 @@ test('rider pickup completion submits proof once, refreshes both lists and block
     pickupActionRef: { current: null }, pickupSubmissionRef: { current: null },
     uploadToCloudinary: async () => 'hosted-url', isOnline: async () => true,
     acquirePickupLocation: async () => ({ latitude: 1, longitude: 2, accuracy: 5, captured_at: new Date().toISOString() }),
-    // The dedup under test is confirmPickupCompletion's own pickupActionRef
-    // guard (same pattern as DeliveryDetailsScreen's actionRef) — this stub
-    // just needs to call through to `complete` once submitted.
+    // Deduplication is handled by confirmPickupCompletion's own guard; this stub
+    // only calls through to complete().
     createProofSubmission: ({ complete }) => ({ submit: async () => complete({}) }),
     api: { post: () => { writes++; return pending.promise; } },
-    loadOrders: async () => refreshes++, loadPickups: async () => refreshes++,
+    loadOrders, loadPickups,
+    // Mirrors the screen's loadAll: a silent refresh of both lists.
+    loadAll: async ({ silent }) => { assert.equal(silent, true); await Promise.all([loadOrders(), loadPickups()]); },
   });
   const first = submit(); await submit(); assert.equal(writes, 1);
   pending.resolve({ message: 'Pickup completed successfully and inventory updated' }); await first;

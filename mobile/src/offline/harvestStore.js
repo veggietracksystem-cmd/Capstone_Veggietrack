@@ -5,7 +5,7 @@ import { kvGet, kvSet } from './db';
 const CACHE_KEY = 'harvests_cache';
 const QUEUE_KEY = 'harvests_queue';
 
-// Serialize local queue writes and replay: focus/reconnect/manual refresh can overlap.
+// Serializes queue writes and replays, which can overlap on focus, reconnect or refresh.
 let queueOperation = Promise.resolve();
 function serializeQueue(operation) {
   const result = queueOperation.then(operation);
@@ -45,11 +45,8 @@ export async function fetchHarvests() {
   try {
     const data = await api.get('/api/harvests');
     const list = Array.isArray(data) ? data : [];
-    // Preserve any still-pending local items so they don't vanish before sync,
-    // but only while their mutation is genuinely still queued. A synced "add"
-    // lives in `list` under the server's uuid while its optimistic copy still
-    // carries the q-… queue id, so the id comparison below can never match the
-    // two and the same harvest would be listed (and counted) twice.
+    // Keep optimistic items only while their mutation is still queued; a synced
+    // "add" already appears in `list` under its server id.
     const queuedIds = new Set((await getQueue()).map((m) => (m.type === 'add' ? m._qid : m.id)));
     const pending = (await getCachedHarvests()).filter((h) => h._pending && queuedIds.has(h.id));
     const merged = [...pending, ...list.filter((s) => !pending.some((p) => p.id === s.id))];
@@ -113,14 +110,9 @@ async function replayPending() {
   for (const m of [...queue]) {
     try {
       if (m.type === 'add') {
-        // The queue id doubles as an idempotency key: if this exact mutation
-        // already reached the server on a previous attempt (the response was
-        // simply lost to a timeout/dropped connection), the backend returns
-        // the existing harvest instead of creating a duplicate.
+        // The queue id is sent as an idempotency key, so a retried add is not duplicated.
         const saved = await api.post('/api/harvests', { ...m.payload, client_request_id: m._qid });
-        // Swap the optimistic entry for the row the server actually stored, so
-        // the cache holds one copy under the real id rather than a q-… ghost
-        // that a later read would merge back in alongside its server twin.
+        // Replace the optimistic entry with the saved row so the cache holds one copy.
         if (saved?.harvest) {
           const cache = await getCachedHarvests();
           await setCachedHarvests(cache.map((h) => (h.id === m._qid ? saved.harvest : h)));
@@ -132,7 +124,7 @@ async function replayPending() {
       await setQueue(queue);
       synced += 1;
     } catch (err) {
-      // Likely offline again or a server/validation error → stop and keep the rest.
+      // Offline or rejected: stop and keep the remaining mutations queued.
       console.warn('[offline] sync stopped on mutation', m, err);
       break;
     }

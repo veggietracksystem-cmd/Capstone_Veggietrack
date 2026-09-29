@@ -4,12 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { PGlite } = require('@electric-sql/pglite');
 
-// pg_cron is a server-side Postgres extension (not available in PGlite's
-// embedded WASM engine), so only the SQL function's own logic is verified
-// here — never claim the scheduled job itself runs from this test. The
-// scheduling half of sql/expired_retailer_orders.sql can only be verified by
-// applying it to the real Supabase project and querying cron.job /
-// cron.job_run_details there.
+// PGlite does not support pg_cron, so only the SQL function is tested here; the
+// scheduled job must be verified on the Supabase project.
 async function setup() {
   const db = new PGlite();
   await db.exec(`

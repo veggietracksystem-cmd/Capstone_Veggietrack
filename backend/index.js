@@ -1,6 +1,6 @@
 const { validateOrderItems } = require('./lib/orderRules');
 const { validateAvatarUrl, validateBatchPhotoUrl } = require('./lib/avatar');
-const { validateSchedule, validateProof, validatePickupProof, proofImageUrl, ensureProofImage } = require('./lib/deliveryProof');
+const { validateSchedule, proofImageUrl, ensureProofImage } = require('./lib/deliveryProof');
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -8,7 +8,11 @@ const { createClient } = require('@supabase/supabase-js');
 const { verifyToken, configureAuth } = require('./lib/auth');
 const { mountAccountRoutes } = require('./lib/accountRoutes');
 const { isVegetable, VEGETABLE_VALIDATION_MESSAGE } = require('./lib/vegetables');
-const { coordinate, destinationFor, loadDestination, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
+const {
+  COMPLETED_STATUSES, roundKg, isActiveBatch, isReceivedBatch, isSellableBatch,
+  compareFifo, sameVegetableAs, planFifoDraw, retailerProducts, distributorListings, batchStatus, batchDate, manilaToday,
+} = require('./lib/batches');
+const { coordinate, destinationFor, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
 const { createPickupTrackingHandler } = require('./lib/pickupTracking');
 const { STALE_LOCATION_SECONDS } = require('./lib/locationPolicy');
 const { deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection } = require('./lib/proofGuards');
@@ -20,19 +24,15 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Allow the Expo web app (localhost:8081 / :19006) to call this API from the
-// browser. Without this, the browser blocks the preflight OPTIONS request and
-// the fetch fails silently — even though curl works fine.
 app.use(cors());
-// The mobile client deliberately owns its offline cache. Dynamic API reads
-// must therefore reach Supabase instead of being replayed by a browser/proxy.
+// Disable HTTP caching for API reads; the mobile app manages its own offline cache.
 app.use('/api', (req, res, next) => {
   if (req.method === 'GET') res.set('Cache-Control', 'no-store, max-age=0');
   next();
 });
 app.use(express.json());
 
-// Admin Supabase client (service_role) – bypasses RLS for authenticated API calls
+// Service-role Supabase client (bypasses RLS).
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
@@ -40,19 +40,12 @@ const supabaseAdmin = createClient(
 configureAuth(supabaseAdmin);
 mountAccountRoutes(app, supabaseAdmin);
 
-// A schedule is a commitment only until delivery begins.  Check it on every
-// order read/write so an expired pending assignment cannot stay actionable
-// while the retailer app is closed.  In-transit and terminal orders are never
-// touched here.
-async function cancelExpiredRetailerOrders(retailerId = null) {
-  let query = supabaseAdmin.from('orders').update({ status: 'cancelled' })
-    .in('status', ['pending', 'approved', 'assigned'])
-    .lt('preferred_schedule', new Date().toISOString());
-  if (retailerId) query = query.eq('retailer_id', retailerId);
-  const { error } = await query;
+// Cancels pending orders whose delivery schedule has passed. Uses the same RPC as
+// the pg_cron job so each order's stock is returned to the batches it came from.
+async function cancelExpiredRetailerOrders() {
+  const { error } = await supabaseAdmin.rpc('cancel_expired_retailer_orders');
   if (error) console.error('Could not expire overdue orders:', error.message);
 }
-
 
 // ========== HELPER: CREATE NOTIFICATION ==========
 async function createNotification(userId, title, message, type = 'info', itemId = null) {
@@ -68,8 +61,7 @@ async function createNotification(userId, title, message, type = 'info', itemId 
   await supabaseAdmin.from('notifications').insert(insertData);
 }
 
-// Authentication is paused until Supabase Auth is connected.
-// Keep every business route protected; never accept legacy application tokens.
+// Legacy auth endpoints are retired; clients authenticate through Supabase Auth.
 app.use('/api/auth', (req, res) => res.status(410).json({ error: 'Use Supabase Auth for authentication.' }));
 
 // ========== FARMER HARVEST ROUTES ==========
@@ -91,9 +83,7 @@ app.post('/api/harvests', verifyToken, async (req, res) => {
     return res.status(400).json({ error: VEGETABLE_VALIDATION_MESSAGE });
   }
 
-  // Idempotency: a queued offline "add" that actually reached the server but
-  // whose response was lost (timeout, dropped connection) must not create a
-  // second harvest when the client retries the same queued mutation.
+  // Idempotency: a retried offline mutation must not create a duplicate harvest.
   if (client_request_id) {
     const { data: existing, error: dupeError } = await supabaseAdmin
       .from('harvests')
@@ -105,8 +95,7 @@ app.post('/api/harvests', verifyToken, async (req, res) => {
     if (existing) return res.status(200).json({ message: 'Harvest recorded', harvest: existing });
   }
 
-  // The harvest date (recorded_at) is set once, here, by the farmer — never
-  // re-entered anywhere downstream (pickup, stocks, listing, order, report).
+  // The harvest date is recorded once here and carried through to all downstream records.
   const insertPayload = {
     farmer_id: farmerId,
     vegetable_name,
@@ -130,8 +119,7 @@ app.post('/api/harvests', verifyToken, async (req, res) => {
     .single();
 
   if (error) {
-    // A concurrent retry of the same queued mutation can race past the check
-    // above; the unique index is the actual guarantee — fall back to it.
+    // A concurrent retry can pass the check above; the unique index is the final guard.
     if (error.code === '23505' && client_request_id) {
       const { data: existing } = await supabaseAdmin.from('harvests').select('*')
         .eq('farmer_id', farmerId).eq('client_request_id', client_request_id).maybeSingle();
@@ -182,9 +170,7 @@ app.get('/api/harvests/weekly-report', verifyToken, async (req, res) => {
     summary[item.vegetable_name].count += 1;
   });
 
-  // Attach each harvest's pickup date/status/rider (if a pickup request
-  // exists for it yet) so the report can show the full harvest -> pickup
-  // timeline, including who collected it and which distributor received it.
+  // Attach pickup details so the report can show the harvest-to-pickup timeline.
   const harvestIds = data.map((h) => h.id);
   let pickupByHarvestId = {};
   if (harvestIds.length) {
@@ -195,7 +181,7 @@ app.get('/api/harvests/weekly-report', verifyToken, async (req, res) => {
     (pickups || []).forEach((p) => { pickupByHarvestId[p.harvest_id] = p; });
   }
 
-  // Batch-resolve rider/distributor names for every pickup attached above.
+  // Resolve rider and distributor names in a single query.
   const peopleIds = [...new Set(
     Object.values(pickupByHarvestId).flatMap((p) => [p.delivery_personnel_id, p.received_by]).filter(Boolean)
   )];
@@ -230,7 +216,6 @@ app.get('/api/harvests/weekly-report', verifyToken, async (req, res) => {
   });
 });
 
-// Update one of the farmer's own harvests (vegetable_name, quantity_kg, status).
 app.put('/api/harvests/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
   const { vegetable_name, quantity_kg, status, image_url } = req.body;
@@ -258,10 +243,7 @@ app.put('/api/harvests/:id', verifyToken, async (req, res) => {
     return res.status(400).json({ error: 'Quantity must be a positive number in kg.' });
   }
 
-  // Once a pickup has been requested for this harvest (status 'for_pickup')
-  // or it has actually been picked up ('picked_up'), its identity (name/qty)
-  // is locked — a distributor is already reviewing or has already received
-  // it. Editing is only allowed while still 'available'/'reserved'.
+  // A harvest's name and quantity are locked once a pickup has been requested.
   if ((vegetable_name !== undefined || quantity_kg !== undefined) && ['for_pickup', 'picked_up'].includes(existing.status)) {
     return res.status(400).json({ error: 'This harvest is pending pickup or has already been picked up and can no longer be edited' });
   }
@@ -287,7 +269,6 @@ app.put('/api/harvests/:id', verifyToken, async (req, res) => {
   res.json({ message: 'Harvest updated', harvest: data });
 });
 
-// Delete one of the farmer's own harvests.
 app.delete('/api/harvests/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
   const farmerId = req.user.userId;
@@ -335,9 +316,7 @@ app.post('/api/pickup-requests', verifyToken, async (req, res) => {
     if (ownedHarvest.status !== 'available') {
       return res.status(409).json({ error: 'A pickup has already been requested for this harvest.' });
     }
-    // Atomically flip available -> for_pickup: the WHERE clause is the guard
-    // against a double-tap or a retried request racing this exact check —
-    // only one concurrent caller can ever win the conditional update.
+    // Conditional update: only one concurrent request can reserve the harvest.
     const { data: locked, error: lockError } = await supabaseAdmin.from('harvests')
       .update({ status: 'for_pickup' })
       .eq('id', harvest_id).eq('status', 'available')
@@ -358,13 +337,11 @@ app.post('/api/pickup-requests', verifyToken, async (req, res) => {
     .single();
 
   if (error) {
-    // The harvest was already flipped to for_pickup above; if the pickup
-    // request itself could not be created, that lock must not be left behind.
+    // Release the harvest reservation if the pickup request could not be created.
     if (harvest_id) await supabaseAdmin.from('harvests').update({ status: 'available' }).eq('id', harvest_id);
     return sendDbError(res, error);
   }
 
-  // Build a label for the notification.
   let label = 'available harvests';
   if (harvest_id) {
     const { data: h } = await supabaseAdmin
@@ -423,7 +400,7 @@ app.get('/api/pickup-requests', verifyToken, async (req, res) => {
     })));
   }
 
-  // Distributor sees ALL requests. Farmer names are attached.
+  // Distributors see all requests, with farmer names attached.
   if (role === 'distributor') {
     const { data, error } = await supabaseAdmin
       .from('pickup_requests')
@@ -449,7 +426,7 @@ app.get('/api/pickup-requests', verifyToken, async (req, res) => {
     return res.json(list);
   }
 
-  // Delivery personnel (rider): only requests assigned to them.
+  // Riders see only the requests assigned to them.
   if (role === 'delivery_personnel') {
     const { data, error } = await supabaseAdmin
       .from('pickup_requests')
@@ -504,10 +481,7 @@ app.put('/api/pickup-requests/:id/assign', verifyToken, async (req, res) => {
     return res.status(400).json({ error: `Pickup request is already ${request.status}` });
   }
 
-  // Atomic guard: a double-tap or retried assignment call can only ever win
-  // this conditional update once — the WHERE clause re-checks 'requested' at
-  // the moment of the write, not just at the read above, so two concurrent
-  // assign calls can never both succeed and create conflicting assignments.
+  // Conditional update: only one concurrent assignment can succeed.
   const { data: updated, error: updErr } = await supabaseAdmin
     .from('pickup_requests')
     .update({
@@ -597,10 +571,8 @@ app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
   if (vegName && qty > 0) {
     const harvestDate = harvest.recorded_at || new Date();
 
-    // This is the ONE place a batch is created. It lands in Stocks as
-    // 'received' — not sellable yet — with the harvest date/id carried over
-    // untouched. Price is intentionally left null until the distributor adds
-    // it to the product list (see PUT /api/products/:id/list).
+    // Create the stock batch as 'received' (not yet sellable). The price stays
+    // null until the distributor lists it (PUT /api/products/:id/list).
     const { error } = await supabaseAdmin.from('products').insert({
       distributor_id: request.received_by,
       vegetable_name: vegName,
@@ -614,10 +586,7 @@ app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
       status: 'received'
     });
     if (error) {
-      // Never fail silently: the pickup itself already succeeded (farmer's
-      // harvest is physically collected), but if this insert errors — e.g.
-      // the FIFO migration hasn't been run yet, so these columns don't exist
-      // — the batch never reaches Stocks with no trace of why. Surface it.
+      // The pickup itself succeeded; log the failure so the missing batch can be traced.
       console.error(`[pickup-complete] failed to create batch for pickup ${id}:`, error.message);
       batchError = error.message;
     }
@@ -648,11 +617,7 @@ app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
   });
 });
 
-// Rider marks "on the way" between being assigned and actually arriving to
-// collect the harvest — the pickup equivalent of delivery's assigned -> picked_up
-// -> in_transit granularity (PUT /api/deliveries/:id/status), so the farmer's
-// tracking screen can show a distinct in-between state instead of jumping
-// straight from "Rider Assigned" to "Picked Up".
+// Rider marks a pickup as on the way before arriving at the farm.
 app.put('/api/pickup-requests/:id/status', verifyToken, async (req, res) => {
   if (req.user.role !== 'delivery_personnel') {
     return res.status(403).json({ error: 'Only riders can update pickup status' });
@@ -686,32 +651,19 @@ app.put('/api/pickup-requests/:id/status', verifyToken, async (req, res) => {
   res.json({ message: 'Pickup marked on the way', request: updated });
 });
 
-// Farmer/distributor/assigned-rider pickup tracking — same map-ready JSON
-// contract as GET /api/delivery/tracking/:orderId (see lib/pickupTracking.js).
+// Pickup tracking; same response shape as GET /api/delivery/tracking/:orderId.
 app.get('/api/pickup-requests/:id/tracking', verifyToken, createPickupTrackingHandler({ db: supabaseAdmin }));
-
-// B5: DISABLED — this debug route let any authenticated user enumerate every
-// user's phone number (a privacy leak). Removed from the API surface. If you
-// ever need an admin-only user list, gate it behind a real admin role check.
-// app.get('/api/users', verifyToken, async (req, res) => {
-//   const { data, error } = await supabasePublic.from('users').select('id, full_name, phone, role');
-//   if (error) return sendDbError(res, error);
-//   res.json(data);
-// });
 
 app.get('/', (req, res) => {
   res.json({ message: 'VeggieTrack API is running!' });
 });
 
 // ========== DISTRIBUTOR INVENTORY ROUTES ==========
-// `products` doubles as the batch/lot table: every row is one pickup's worth
-// of stock (status: received -> listed -> sold_out). This legacy freeform
-// creation route is kept for backward compatibility but is no longer called
-// by the distributor UI — every batch must now originate from a completed
-// pickup (see POST /api/pickup-requests/:id/pickup) so harvest_date/farmer
-// traceability is never lost.
+// Each `products` row is one stock batch (received -> listed -> sold_out/archived;
+// see lib/batches.js). This route adds a batch from the Stocks form and lists it
+// immediately.
 app.post('/api/products', verifyToken, async (req, res) => {
-  const { vegetable_name, price_per_kg, stock_kg, batch_photo_url } = req.body;
+  const { vegetable_name, price_per_kg, stock_kg, batch_photo_url, farmer_id } = req.body;
   const distributorId = req.user.userId;
   const role = req.user.role;
 
@@ -730,20 +682,49 @@ app.post('/api/products', verifyToken, async (req, res) => {
   if (!isPositiveQuantity(stock_kg)) {
     return res.status(400).json({ error: 'Stock must be a positive number in kg.' });
   }
+  if (!farmer_id) {
+    return res.status(400).json({ error: 'Select the farmer who supplied this batch.', field: 'farmer_id' });
+  }
+  const harvest = batchDate(req.body.harvest_date);
+  const pickup = batchDate(req.body.pickup_date);
+  if (!harvest) return res.status(400).json({ error: 'Select a valid harvest date.', field: 'harvest_date' });
+  if (!pickup) return res.status(400).json({ error: 'Select a valid pickup date.', field: 'pickup_date' });
+  if (pickup.day < harvest.day) {
+    return res.status(400).json({ error: 'The pickup date cannot be before the harvest date.', field: 'pickup_date' });
+  }
+  if (pickup.day > manilaToday()) {
+    return res.status(400).json({ error: 'The harvest and pickup dates cannot be in the future.', field: 'pickup_date' });
+  }
   let batchPhotoUrl;
   try { batchPhotoUrl = validateBatchPhotoUrl(batch_photo_url); }
   catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
+
+  const { data: farmer, error: farmerError } = await supabaseAdmin
+    .from('users').select('id, role').eq('id', farmer_id).maybeSingle();
+  if (farmerError) return sendDbError(res, farmerError);
+  if (!farmer || farmer.role !== 'farmer') {
+    return res.status(400).json({ error: 'Select a registered farmer.', field: 'farmer_id' });
+  }
+
+  // All listed batches of a vegetable share one price; a new batch adopts it.
+  const { data: listed, error: listedError } = await supabaseAdmin
+    .from('products').select('*').eq('distributor_id', distributorId).eq('status', 'listed');
+  if (listedError) return sendDbError(res, listedError);
+  const onSale = (listed || []).filter(sameVegetableAs(vegetable_name)).find(isSellableBatch);
 
   const { data, error } = await supabaseAdmin
     .from('products')
     .insert({
       distributor_id: distributorId,
       vegetable_name,
-      price_per_kg,
-      stock_kg,
+      price_per_kg: onSale ? onSale.price_per_kg : Number(price_per_kg),
+      stock_kg: Number(stock_kg),
       batch_photo_url: batchPhotoUrl,
-      quantity_received: stock_kg,
-      status: 'listed'
+      quantity_received: Number(stock_kg),
+      status: 'listed',
+      farmer_id: farmer.id,
+      harvest_date: harvest.iso,
+      pickup_date: pickup.iso,
     })
     .select()
     .single();
@@ -752,21 +733,34 @@ app.post('/api/products', verifyToken, async (req, res) => {
   res.status(201).json({ message: 'Product added', product: data });
 });
 
-// STOCKS: every batch the distributor has received, oldest harvest first.
-// Farmer name + pickup date are attached with separate lookups (not an
-// embedded PostgREST join) — same resilience reasoning as GET /api/orders:
-// a missing/renamed relationship must never blank out the whole list.
+// Farmers for the Stocks "Add New Product" picker.
+app.get('/api/farmers', verifyToken, async (req, res) => {
+  if (req.user.role !== 'distributor') {
+    return res.status(403).json({ error: 'Only distributors can access the farmer list' });
+  }
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .select('id, full_name, farm_location')
+    .eq('role', 'farmer')
+    .eq('account_status', 'active');
+  if (error) return sendDbError(res, error);
+  res.json((data || []).sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''))));
+});
+
+// Stocks: batches still in the warehouse, in FIFO order. Sold-out and archived
+// batches appear only in the inventory report. Related names are fetched
+// separately so a missing relationship cannot empty the list.
 app.get('/api/products', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view their products' });
   }
-  const { data, error } = await supabaseAdmin
+  const { data: rows, error } = await supabaseAdmin
     .from('products')
     .select('*')
-    .eq('distributor_id', req.user.userId)
-    .order('harvest_date', { ascending: true });
+    .eq('distributor_id', req.user.userId);
 
   if (error) return sendDbError(res, error);
+  const data = (rows || []).filter(isActiveBatch).sort(compareFifo);
 
   const farmerIds = [...new Set((data || []).map((p) => p.farmer_id).filter(Boolean))];
   const pickupIds = [...new Set((data || []).map((p) => p.pickup_request_id).filter(Boolean))];
@@ -786,15 +780,14 @@ app.get('/api/products', verifyToken, async (req, res) => {
   const list = (data || []).map((p) => ({
     ...p,
     farmer_name: farmerNameById[p.farmer_id] || null,
-    pickup_date: pickupDateById[p.pickup_request_id] || null,
+    // Pickup batches use the rider's completion time; manual batches use the entered date.
+    pickup_date: pickupDateById[p.pickup_request_id] || p.pickup_date || null,
   }));
   res.json(list);
 });
 
-// "Add to Product List" — the only way a received batch becomes sellable.
-// Batches of the same vegetable share one price: if the vegetable already
-// has other listed/sold_out batches, their price wins over whatever the
-// distributor sent, so the price never diverges batch-to-batch.
+// Lists a received batch for sale. If the vegetable is already on sale, the
+// batch adopts that price so all batches of a vegetable share one price.
 app.put('/api/products/:id/list', verifyToken, async (req, res) => {
   const { id } = req.params;
   const { price_per_kg } = req.body;
@@ -806,7 +799,7 @@ app.put('/api/products/:id/list', verifyToken, async (req, res) => {
 
   const { data: batch, error: fetchError } = await supabaseAdmin
     .from('products')
-    .select('id, vegetable_name, status, batch_photo_url')
+    .select('id, vegetable_name, status, stock_kg, batch_photo_url')
     .eq('id', id)
     .eq('distributor_id', distributorId)
     .single();
@@ -814,23 +807,24 @@ app.put('/api/products/:id/list', verifyToken, async (req, res) => {
   if (fetchError || !batch) {
     return res.status(404).json({ error: 'Batch not found or not owned by you' });
   }
-  // Treat anything not already listed/sold_out as listable — covers both the
-  // normal 'received' state and legacy rows from before batch statuses existed.
-  if (batch.status === 'listed' || batch.status === 'sold_out') {
-    return res.status(400).json({ error: `Batch is already ${batch.status}` });
+  // Only a received batch with remaining stock can be listed.
+  if (batch.status === 'listed') {
+    return res.status(400).json({ error: 'This batch is already on the product list.' });
+  }
+  if (!isReceivedBatch(batch)) {
+    return res.status(400).json({ error: 'This batch is sold out and cannot be added again. Add a new batch instead.' });
   }
   if (!batch.batch_photo_url) {
     return res.status(400).json({ error: 'Upload a recent batch photo in Edit before adding this batch to the product list.' });
   }
 
-  const { data: sibling } = await supabaseAdmin
+  const { data: listed, error: listedError } = await supabaseAdmin
     .from('products')
-    .select('price_per_kg')
+    .select('*')
     .eq('distributor_id', distributorId)
-    .eq('vegetable_name', batch.vegetable_name)
-    .in('status', ['listed', 'sold_out'])
-    .limit(1)
-    .maybeSingle();
+    .eq('status', 'listed');
+  if (listedError) return sendDbError(res, listedError);
+  const sibling = (listed || []).filter(sameVegetableAs(batch.vegetable_name)).find(isSellableBatch);
 
   const resolvedPrice = sibling ? sibling.price_per_kg : Number(price_per_kg);
   if (!sibling && !isPositiveQuantity(price_per_kg)) {
@@ -848,8 +842,7 @@ app.put('/api/products/:id/list', verifyToken, async (req, res) => {
   res.json({ message: 'Added to product list', product: data });
 });
 
-// The received-batch photo belongs to one product row (one FIFO lot).  It is
-// deliberately not cascaded to similarly named batches.
+// A batch photo applies to a single batch only.
 app.put('/api/products/:id/batch-photo', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can update batch photos' });
@@ -869,8 +862,7 @@ app.put('/api/products/:id/batch-photo', verifyToken, async (req, res) => {
   res.json({ message: 'Recent batch photo saved', product: data });
 });
 
-// A received batch may have its staged photo removed and replaced. Listed
-// batches retain one so the retailer menu never loses its actual product photo.
+// Only received batches can have their photo removed; listed batches keep theirs.
 app.delete('/api/products/:id/batch-photo', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can remove batch photos' });
@@ -882,7 +874,7 @@ app.delete('/api/products/:id/batch-photo', verifyToken, async (req, res) => {
     .eq('distributor_id', req.user.userId)
     .single();
   if (fetchError || !batch) return res.status(404).json({ error: 'Batch not found or not owned by you' });
-  if (batch.status === 'listed' || batch.status === 'sold_out') {
+  if (batch.status === 'listed' || COMPLETED_STATUSES.includes(batch.status)) {
     return res.status(400).json({ error: 'Listed batches must retain a recent batch photo. Unlist the product before removing it.' });
   }
   const { data, error } = await supabaseAdmin
@@ -895,9 +887,26 @@ app.delete('/api/products/:id/batch-photo', verifyToken, async (req, res) => {
   res.json({ message: 'Recent batch photo removed', product: data });
 });
 
-// Price edits from the Product List screen. Stock is intentionally not
-// editable here anymore — it only ever changes via pickups, orders, and
-// order cancellations, never a manual override.
+// Returns every batch (in the given statuses) of the same vegetable as batch `id`,
+// matching any name spelling. `missing` is set when `id` is not the distributor's batch.
+async function vegetableBatches(id, distributorId, statuses) {
+  const { data: anchor, error: anchorError } = await supabaseAdmin
+    .from('products')
+    .select('id, vegetable_name')
+    .eq('id', id)
+    .eq('distributor_id', distributorId)
+    .single();
+  if (anchorError || !anchor) return { missing: true };
+  const { data, error } = await supabaseAdmin
+    .from('products')
+    .select('*')
+    .eq('distributor_id', distributorId)
+    .in('status', statuses);
+  if (error) return { error };
+  return { batches: (data || []).filter(sameVegetableAs(anchor.vegetable_name)) };
+}
+
+// Price edits only; stock changes only through pickups, orders and cancellations.
 app.put('/api/products/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
   const { price_per_kg } = req.body;
@@ -908,16 +917,11 @@ app.put('/api/products/:id', verifyToken, async (req, res) => {
     return res.status(403).json({ error: 'Only distributors can update products' });
   }
 
-  const { data: existing, error: fetchError } = await supabaseAdmin
-    .from('products')
-    .select('id, vegetable_name')
-    .eq('id', id)
-    .eq('distributor_id', distributorId)
-    .single();
-
-  if (fetchError || !existing) {
+  const { missing, error: fetchError, batches } = await vegetableBatches(id, distributorId, ['listed', 'sold_out']);
+  if (missing) {
     return res.status(404).json({ error: 'Product not found or not owned by you' });
   }
+  if (fetchError) return sendDbError(res, fetchError);
 
   if (price_per_kg === undefined) {
     return res.status(400).json({ error: 'No fields to update' });
@@ -925,24 +929,21 @@ app.put('/api/products/:id', verifyToken, async (req, res) => {
   if (!isPositiveQuantity(price_per_kg)) {
     return res.status(400).json({ error: 'Price must be a positive number.' });
   }
+  if (batches.length === 0) return res.json({ message: 'Product updated', products: [] });
 
-  // Cascade to every batch of this vegetable so the shared price stays in sync.
+  // Apply the price to every batch of this vegetable.
   const { data, error } = await supabaseAdmin
     .from('products')
     .update({ price_per_kg, updated_at: new Date() })
-    .eq('distributor_id', distributorId)
-    .eq('vegetable_name', existing.vegetable_name)
-    .in('status', ['listed', 'sold_out'])
+    .in('id', batches.map((batch) => batch.id))
     .select();
 
   if (error) return sendDbError(res, error);
   res.json({ message: 'Product updated', products: data });
 });
 
-// "Remove Product" from the distributor's live Product List — a soft
-// delist, not a destructive delete: every listed/sold_out batch of this
-// vegetable reverts to 'received' so FIFO/order history stays intact, and
-// the vegetable simply reappears in Stocks ready to be re-added later.
+// Removes a product from the list without deleting history: batches with stock
+// return to Stocks as 'received'; sold-out batches become 'archived'.
 app.put('/api/products/:id/unlist', verifyToken, async (req, res) => {
   const { id } = req.params;
   const distributorId = req.user.userId;
@@ -951,33 +952,32 @@ app.put('/api/products/:id/unlist', verifyToken, async (req, res) => {
     return res.status(403).json({ error: 'Only distributors can remove products' });
   }
 
-  const { data: existing, error: fetchError } = await supabaseAdmin
-    .from('products')
-    .select('id, vegetable_name')
-    .eq('id', id)
-    .eq('distributor_id', distributorId)
-    .single();
-
-  if (fetchError || !existing) {
+  const { missing, error: fetchError, batches } = await vegetableBatches(id, distributorId, ['listed', 'sold_out']);
+  if (missing) {
     return res.status(404).json({ error: 'Product not found or not owned by you' });
   }
+  if (fetchError) return sendDbError(res, fetchError);
 
-  const { data, error } = await supabaseAdmin
-    .from('products')
-    .update({ status: 'received', updated_at: new Date() })
-    .eq('distributor_id', distributorId)
-    .eq('vegetable_name', existing.vegetable_name)
-    .in('status', ['listed', 'sold_out'])
-    .select();
-
-  if (error) return sendDbError(res, error);
-  res.json({ message: 'Product removed from list', products: data });
+  const updated = [];
+  const moves = [
+    { status: 'archived', ids: batches.filter((batch) => !isSellableBatch(batch)).map((batch) => batch.id) },
+    { status: 'received', ids: batches.filter(isSellableBatch).map((batch) => batch.id) },
+  ];
+  for (const { status, ids } of moves) {
+    if (ids.length === 0) continue;
+    const { data, error } = await supabaseAdmin
+      .from('products')
+      .update({ status, updated_at: new Date() })
+      .in('id', ids)
+      .select();
+    if (error) return sendDbError(res, error);
+    updated.push(...(data || []));
+  }
+  res.json({ message: 'Product removed from list', products: updated });
 });
 
-// "Edit Quantity" from the Product List — corrects the total available kg
-// downward only (spoilage, miscount), never up (new stock only ever comes
-// from a harvest pickup). Deducts oldest-batch-first, mirroring the FIFO
-// draw used at order time (POST /api/orders).
+// Reduces the available quantity (e.g. spoilage), deducting from the oldest
+// batch first with the same FIFO plan as order checkout.
 app.put('/api/products/:id/reduce-quantity', verifyToken, async (req, res) => {
   const { id } = req.params;
   const { new_total_kg } = req.body;
@@ -992,52 +992,30 @@ app.put('/api/products/:id/reduce-quantity', verifyToken, async (req, res) => {
   }
   const newTotal = Number(new_total_kg);
 
-  const { data: existing, error: fetchError } = await supabaseAdmin
-    .from('products')
-    .select('id, vegetable_name')
-    .eq('id', id)
-    .eq('distributor_id', distributorId)
-    .single();
-
-  if (fetchError || !existing) {
+  const { missing, error: batchError, batches } = await vegetableBatches(id, distributorId, ['listed']);
+  if (missing) {
     return res.status(404).json({ error: 'Product not found or not owned by you' });
   }
-
-  const { data: batches, error: batchError } = await supabaseAdmin
-    .from('products')
-    .select('id, stock_kg')
-    .eq('distributor_id', distributorId)
-    .eq('vegetable_name', existing.vegetable_name)
-    .eq('status', 'listed')
-    .gt('stock_kg', 0)
-    .order('harvest_date', { ascending: true });
-
   if (batchError) return sendDbError(res, batchError);
 
-  const currentTotal = (batches || []).reduce((sum, b) => sum + Number(b.stock_kg), 0);
+  const currentTotal = roundKg(batches.filter(isSellableBatch).reduce((sum, b) => sum + Number(b.stock_kg), 0));
   if (newTotal >= currentTotal) {
     return res.status(400).json({ error: 'New quantity must be less than the current available quantity' });
   }
 
-  let remaining = currentTotal - newTotal;
-  for (const batch of batches) {
-    if (remaining <= 0) break;
-    const drawFromBatch = Math.min(remaining, Number(batch.stock_kg));
-    const newStock = Number(batch.stock_kg) - drawFromBatch;
-    const { error: updateError } = await supabaseAdmin
-      .from('products')
-      .update({ stock_kg: newStock, status: newStock <= 0 ? 'sold_out' : 'listed', updated_at: new Date() })
-      .eq('id', batch.id);
+  const { draws } = planFifoDraw(batches, currentTotal - newTotal);
+  for (const { batch, quantity_kg } of draws || []) {
+    const { data: decremented, error: updateError } = await supabaseAdmin
+      .rpc('decrement_product_stock', { p_product_id: batch.id, p_quantity: quantity_kg });
     if (updateError) return sendDbError(res, updateError);
-    remaining -= drawFromBatch;
+    // No row returned: a concurrent order took this stock.
+    if (!decremented) return res.status(409).json({ error: 'The stock changed while saving. Refresh and try again.' });
   }
 
   res.json({ message: 'Quantity updated' });
 });
 
-// Delete a batch that hasn't been listed yet (nothing sold from it, so
-// nothing to protect). Listed/sold_out batches can't be deleted — they're
-// load-bearing for FIFO history and the inventory report.
+// Only unlisted batches can be deleted; listed and completed batches are kept for history.
 app.delete('/api/products/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
   const distributorId = req.user.userId;
@@ -1048,7 +1026,7 @@ app.delete('/api/products/:id', verifyToken, async (req, res) => {
 
   const { data: existing, error: fetchError } = await supabaseAdmin
     .from('products')
-    .select('id, status')
+    .select('id, status, stock_kg')
     .eq('id', id)
     .eq('distributor_id', distributorId)
     .single();
@@ -1056,7 +1034,7 @@ app.delete('/api/products/:id', verifyToken, async (req, res) => {
   if (fetchError || !existing) {
     return res.status(404).json({ error: 'Product not found or not owned by you' });
   }
-  if (existing.status === 'listed' || existing.status === 'sold_out') {
+  if (!isReceivedBatch(existing)) {
     return res.status(400).json({ error: 'Only un-listed batches can be deleted' });
   }
 
@@ -1069,59 +1047,31 @@ app.delete('/api/products/:id', verifyToken, async (req, res) => {
   res.json({ message: 'Product deleted' });
 });
 
-// PRODUCT LIST (distributor view): batches aggregated by vegetable — one row
-// per vegetable, total remaining stock across all its listed/sold_out batches.
+// Distributor product list: one row per vegetable, summing listed batches with stock.
 app.get('/api/products/listings', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view their product list' });
   }
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('id, vegetable_name, price_per_kg, stock_kg, status')
+    .select('*')
     .eq('distributor_id', req.user.userId)
     .in('status', ['listed', 'sold_out']);
 
   if (error) return sendDbError(res, error);
-
-  const byVeg = {};
-  (data || []).forEach((row) => {
-    if (!byVeg[row.vegetable_name]) {
-      // Any batch id of this vegetable works as the price-edit target — the
-      // backend cascades a price change across every batch sharing the name.
-      byVeg[row.vegetable_name] = { id: row.id, vegetable_name: row.vegetable_name, price_per_kg: row.price_per_kg, available_kg: 0 };
-    }
-    byVeg[row.vegetable_name].available_kg += Number(row.stock_kg);
-  });
-  const listings = Object.values(byVeg).map((v) => ({
-    ...v,
-    status: v.available_kg > 0 ? 'Listed' : 'Sold Out'
-  }));
-  res.json(listings);
+  res.json(distributorListings(data || []));
 });
 
-// RETAILER-FACING: aggregated availability only — no batch id, harvest date,
-// or farmer info leaks through here (see requirement: retailers never see
-// internal inventory detail). FIFO batch selection happens server-side at
-// order time (POST /api/orders), not here.
+// Retailer catalogue: one entry per vegetable, without batch or farmer details.
+// FIFO batch selection happens when the order is placed.
 app.get('/api/products/available', async (req, res) => {
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('vegetable_name, price_per_kg, stock_kg, batch_photo_url, harvest_date')
-    .eq('status', 'listed')
-    .gt('stock_kg', 0)
-    .order('harvest_date', { ascending: true });
+    .select('*')
+    .in('status', ['listed', 'sold_out']);
 
   if (error) return sendDbError(res, error);
-
-  const byVeg = {};
-  (data || []).forEach((row) => {
-    if (!byVeg[row.vegetable_name]) {
-      // Rows are ordered below so this is the oldest sellable (FIFO) batch.
-      byVeg[row.vegetable_name] = { vegetable_name: row.vegetable_name, price_per_kg: row.price_per_kg, available_kg: 0, batch_photo_url: row.batch_photo_url };
-    }
-    byVeg[row.vegetable_name].available_kg += Number(row.stock_kg);
-  });
-  res.json(Object.values(byVeg));
+  res.json(retailerProducts(data || []));
 });
 
 // ========== RETAILER ORDER ROUTES ==========
@@ -1144,11 +1094,17 @@ app.post('/api/orders', verifyToken, async (req, res) => {
   }
 
   try {
-    // FIFO: the retailer only names a vegetable + quantity — the server picks
-    // which batches to draw from, oldest harvest_date first, splitting across
-    // batches only when the oldest one alone isn't enough.
+    // FIFO: draw from the oldest harvest first, splitting across batches only
+    // when the oldest batch is insufficient (see compareFifo in lib/batches.js).
     let total_amount = 0;
     const consumptions = []; // { batch, quantity_kg } — one entry per batch drawn from
+
+    const { data: listedBatches, error: batchError } = await supabaseAdmin
+      .from('products')
+      .select('*')
+      .eq('status', 'listed')
+      .gt('stock_kg', 0);
+    if (batchError) throw new Error(batchError.message);
 
     for (const item of items) {
       const { vegetable_name, quantity_kg } = item;
@@ -1156,28 +1112,15 @@ app.post('/api/orders', verifyToken, async (req, res) => {
         throw new Error('Each item must have vegetable_name and positive quantity_kg');
       }
 
-      const { data: batches, error: batchError } = await supabaseAdmin
-        .from('products')
-        .select('id, vegetable_name, price_per_kg, stock_kg, distributor_id, harvest_date')
-        .eq('vegetable_name', vegetable_name)
-        .eq('status', 'listed')
-        .gt('stock_kg', 0)
-        .order('harvest_date', { ascending: true });
-
-      if (batchError) throw new Error(batchError.message);
-
-      const totalAvailable = (batches || []).reduce((sum, b) => sum + Number(b.stock_kg), 0);
-      if (totalAvailable < quantity_kg) {
-        return res.status(409).json({ error: `There is not enough ${vegetable_name} in stock. Available: ${totalAvailable} kg.`, code: 'INSUFFICIENT_STOCK', field: 'items' });
+      const batches = (listedBatches || []).filter(sameVegetableAs(vegetable_name));
+      const { available, draws } = planFifoDraw(batches, quantity_kg);
+      if (!draws) {
+        return res.status(409).json({ error: `There is not enough ${vegetable_name} in stock. Available: ${available} kg.`, code: 'INSUFFICIENT_STOCK', field: 'items' });
       }
 
-      let remaining = Number(quantity_kg);
-      for (const batch of batches) {
-        if (remaining <= 0) break;
-        const drawFromBatch = Math.min(remaining, Number(batch.stock_kg));
-        total_amount += Number(batch.price_per_kg) * drawFromBatch;
-        consumptions.push({ batch, quantity_kg: drawFromBatch });
-        remaining -= drawFromBatch;
+      for (const draw of draws) {
+        total_amount += Number(draw.batch.price_per_kg) * draw.quantity_kg;
+        consumptions.push(draw);
       }
     }
 
@@ -1188,8 +1131,7 @@ app.post('/api/orders', verifyToken, async (req, res) => {
     if (!deliveryCoords) return res.status(422).json({ error: 'Your saved delivery address needs a map location. Update it in Manage Address before placing your order.', code: 'ADDRESS_LOCATION_REQUIRED', field: 'delivery_address' });
     try { preferred_schedule = validateSchedule(preferred_schedule); }
     catch (err) { return res.status(422).json({ error: err.message, field: 'preferred_schedule' }); }
-    // Save the destination in the existing address book before creating the order.
-    // A failed address write must not produce a successful checkout with a lost address.
+    // Save the delivery address before creating the order so it is never lost.
     const { data: savedAddresses, error: addressReadError } = await supabaseAdmin.from('delivery_addresses')
       .select('id, address, latitude, longitude').eq('user_id', retailerId);
     if (addressReadError) throw new Error('Could not save delivery address. Please retry.');
@@ -1215,9 +1157,7 @@ app.post('/api/orders', verifyToken, async (req, res) => {
     if (orderError?.code === '22023') return res.status(422).json({ error: orderError.message, field: 'preferred_schedule' });
     if (orderError || !order) throw new Error('Failed to create order');
 
-    // Step 2: one order_item per batch consumed — carries product_id so
-    // cancellation and the inventory report can trace back to the exact
-    // batch (and therefore the exact farmer/harvest date) later.
+    // Step 2: one order item per batch, so cancellations and reports can trace each batch.
     const orderItemsToInsert = consumptions.map(({ batch, quantity_kg }) => ({
       order_id: order.id,
       product_id: batch.id,
@@ -1235,11 +1175,8 @@ app.post('/api/orders', verifyToken, async (req, res) => {
       throw new Error('Failed to insert order items');
     }
 
-    // Step 3: decrement stock LAST, atomically per batch, with best-effort
-    // rollback. Each decrement is a single guarded UPDATE (see
-    // sql/stock_safety.sql) so a concurrent order racing for the same batch
-    // can never both succeed — one of them will see insufficient stock here
-    // and this whole order rolls back, rather than silently overselling.
+    // Step 3: decrement stock last, atomically per batch (sql/stock_safety.sql).
+    // If any batch has insufficient stock, the whole order is rolled back.
     const decremented = [];
     for (const { batch, quantity_kg } of consumptions) {
       const { data: decrementedBatch, error: updateError } = await supabaseAdmin
@@ -1252,7 +1189,7 @@ app.post('/api/orders', verifyToken, async (req, res) => {
         await supabaseAdmin.from('order_items').delete().eq('order_id', order.id);
         await supabaseAdmin.from('orders').delete().eq('id', order.id);
         if (updateError) throw new Error(`Failed to update stock for ${batch.vegetable_name}`);
-        // No error but no row: another order consumed this batch's stock first.
+        // No row returned: another order consumed this batch first.
         return res.status(409).json({ error: `There is not enough ${batch.vegetable_name} in stock. Please review your cart and try again.`, code: 'INSUFFICIENT_STOCK', field: 'items' });
       }
       decremented.push({ batch, quantity_kg });
@@ -1280,13 +1217,9 @@ app.get('/api/orders', verifyToken, async (req, res) => {
   if (req.user.role !== 'retailer') {
     return res.status(403).json({ error: 'Only retailers can view their orders' });
   }
-  await cancelExpiredRetailerOrders(req.user.userId);
+  await cancelExpiredRetailerOrders();
 
-  // Issue 6: fetch the orders on their own first. A previous version embedded
-  // order_items + deliveries in one select; if PostgREST can't resolve one of
-  // those relationships the WHOLE query errors and the client (read-through
-  // cache) silently shows an empty list. Fetching separately and merging is
-  // resilient — the order list always renders even if a join is unavailable.
+  // Related rows are fetched separately so one failed join cannot empty the list.
   const { data: orders, error } = await supabaseAdmin
     .from('orders')
     .select('id, status, total_amount, delivery_address, preferred_schedule, created_at')
@@ -1334,9 +1267,7 @@ app.get('/api/orders/pending', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view pending orders' });
   }
-  // Expire overdue schedules here too, not only when the retailer's own app is
-  // open — otherwise a distributor can approve/assign an order whose delivery
-  // window has already passed simply because the retailer never reopened the app.
+  // Expire overdue schedules first so they cannot be approved.
   await cancelExpiredRetailerOrders();
   const { data, error } = await supabaseAdmin
     .from('orders')
@@ -1348,13 +1279,13 @@ app.get('/api/orders/pending', verifyToken, async (req, res) => {
     .order('created_at', { ascending: true });
 
   if (error) return sendDbError(res, error);
-  
-  // Keep pending orders + approved orders that do not have a rider assigned yet
+
+  // Pending orders and approved orders without a rider.
   const list = (data || []).filter(o => o.status === 'pending' || !o.delivery_personnel_id);
   res.json(list);
 });
 
-// UNPAID ORDERS (specific, before /:id)
+// Unpaid orders (registered before /api/orders/:id).
 app.get('/api/orders/unpaid', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view unpaid orders' });
@@ -1385,9 +1316,7 @@ app.get('/api/orders/unpaid', verifyToken, async (req, res) => {
   res.json(unpaidOrders);
 });
 
-// ACTIVE ORDERS (Issue 9): orders that have been approved and are now in the
-// delivery pipeline. Without this the distributor loses sight of an order the
-// moment it leaves the "pending" list after assignment. Must stay BEFORE /:id.
+// Active orders in the delivery pipeline (registered before /api/orders/:id).
 app.get('/api/orders/active', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view active orders' });
@@ -1406,7 +1335,7 @@ app.get('/api/orders/active', verifyToken, async (req, res) => {
 
   if (error) return sendDbError(res, error);
 
-  // Attach the assigned personnel's name without an embed relationship.
+  // Attach rider names with a separate lookup.
   const ids = [...new Set((orders || []).map((o) => o.delivery_personnel_id).filter(Boolean))];
   let nameById = {};
   if (ids.length) {
@@ -1475,7 +1404,6 @@ app.put('/api/orders/:id/cancel', verifyToken, async (req, res) => {
       return res.status(400).json({ error: 'A cancellation reason is required' });
     }
 
-    // Can only cancel pending orders
     if (order.status !== 'pending') {
       return res.status(400).json({ error: `Cannot cancel order with status '${order.status}'` });
     }
@@ -1489,9 +1417,7 @@ app.put('/api/orders/:id/cancel', verifyToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to retrieve order items' });
     }
 
-    // Atomic guard: re-checks status = 'pending' at write time so a
-    // concurrent duplicate cancel call cannot pass this check twice and
-    // restore stock to the same batches twice.
+    // Conditional update prevents a duplicate cancel from restoring stock twice.
     const { data: updatedOrder, error: updateErr } = await supabaseAdmin
       .from('orders')
       .update({ status: 'cancelled', cancellation_reason: reason || null })
@@ -1507,10 +1433,7 @@ app.put('/api/orders/:id/cancel', verifyToken, async (req, res) => {
       return res.status(409).json({ error: 'This order was already updated. Refresh and try again.' });
     }
 
-    // Restore stock to the EXACT batch each item was drawn from (order_items
-    // now carries product_id — no more guessing by vegetable_name match).
-    // Each restore is the same atomic RPC used to decrement at order time, so
-    // a cancellation racing another write to the same batch can't lose an update.
+    // Restore stock to the exact batch each item was drawn from, using the same atomic RPC.
     if (items && items.length > 0) {
       for (const item of items) {
         if (!item.product_id) continue; // legacy pre-FIFO order_item, nothing to restore to
@@ -1518,7 +1441,6 @@ app.put('/api/orders/:id/cancel', verifyToken, async (req, res) => {
       }
     }
 
-    // Notify the counterpart
     if (role === 'retailer') {
       await createNotification(
         order.distributor_id,
@@ -1543,8 +1465,6 @@ app.put('/api/orders/:id/cancel', verifyToken, async (req, res) => {
   }
 });
 
-
-// Approve order
 app.put('/api/orders/:id/approve', verifyToken, async (req, res) => {
   const { id } = req.params;
   const distributorId = req.user.userId;
@@ -1638,17 +1558,14 @@ app.put('/api/orders/:id/assign', verifyToken, async (req, res) => {
     return res.status(400).json({ error: 'Order must be approved before assigning delivery' });
   }
   if (order.delivery_personnel_id) {
-    // Idempotent retry of the exact same assignment (double-tap, network
-    // retry) is a safe no-op; assigning a *different* rider on top of an
-    // existing one is rejected rather than silently overwriting it.
+    // Re-assigning the same rider is a no-op; replacing an assigned rider is rejected.
     if (order.delivery_personnel_id === delivery_personnel_id) {
       return res.json({ message: 'Delivery personnel assigned successfully' });
     }
     return res.status(409).json({ error: 'This order has already been assigned to a rider.' });
   }
 
-  // Atomic guard: the WHERE clause re-checks delivery_personnel_id IS NULL at
-  // write time, so two concurrent assign calls can never both succeed.
+  // Conditional update: only one concurrent assignment can succeed.
   const { data: claimed, error: updateOrderError } = await supabaseAdmin
     .from('orders')
     .update({ delivery_personnel_id, assigned_at: new Date().toISOString() })
@@ -1859,7 +1776,7 @@ app.put('/api/notifications/read-all', verifyToken, async (req, res) => {
 });
 
 // ========== IN-APP MESSAGING ==========
-// Specific routes BEFORE the dynamic /:userId route so they aren't captured.
+// Specific routes must be registered before /:userId.
 app.get('/api/messages/contacts', verifyToken, async (req, res) => {
   try {
     // Messaging permission matrix:
@@ -1973,10 +1890,8 @@ app.post('/api/messages', verifyToken, async (req, res) => {
   res.status(201).json({ message: 'Sent', data });
 });
 
-// ========== DELIVERY PROGRESS (Issue 10) ==========
-// Delivery personnel advance an order: picked_up → in_transit. The status is
-// mirrored onto the parent order so the retailer/distributor trackers move in
-// near-real-time (they poll, Issue 11).
+// ========== DELIVERY PROGRESS ==========
+// Riders advance a delivery (picked_up -> in_transit); the status is mirrored onto the order.
 app.put('/api/deliveries/:id/status', verifyToken, async (req, res) => {
   if (req.user.role !== 'delivery_personnel') {
     return res.status(403).json({ error: 'Only delivery personnel can update delivery status' });
@@ -2001,10 +1916,6 @@ app.put('/api/deliveries/:id/status', verifyToken, async (req, res) => {
   if (!(delivery.status === status || (delivery.status === 'assigned' && status === 'picked_up') || (delivery.status === 'picked_up' && status === 'in_transit'))) return res.status(409).json({ error: 'Invalid delivery status transition. Refresh and retry.' });
   const { error: progressError } = await supabaseAdmin.rpc('advance_delivery_status', { p_delivery_id: id, p_rider_id: req.user.userId, p_status: status });
   if (progressError) return res.status(progressError.code === '22023' ? 409 : 500).json({ error: 'Unable to update delivery status. Refresh and retry.' });
-  // Once the rider picks up the order it is, from the retailer/distributor's
-  // point of view, already on its way — so the parent order jumps straight to
-  // "in_transit" instead of surfacing the rider-only "picked_up" step.
-
   const { data: order } = await supabaseAdmin
     .from('orders').select('retailer_id').eq('id', delivery.order_id).single();
   if (order) {
@@ -2020,10 +1931,8 @@ app.put('/api/deliveries/:id/status', verifyToken, async (req, res) => {
   res.json({ message: `Delivery marked ${status}` });
 });
 
-// Reject an assigned delivery before starting it (only while still
-// 'assigned' — once picked_up/in_transit it can no longer be declined).
-// Clears the assignment on both the delivery and its parent order so it
-// reappears in the distributor's pending list, ready for reassignment.
+// Riders may decline a delivery only while it is still 'assigned'; the order
+// then returns to the distributor's pending list for reassignment.
 app.put('/api/deliveries/:id/reject', verifyToken, async (req, res) => {
   if (req.user.role !== 'delivery_personnel') {
     return res.status(403).json({ error: 'Only delivery personnel can reject deliveries' });
@@ -2056,15 +1965,12 @@ app.put('/api/deliveries/:id/reject', verifyToken, async (req, res) => {
       rejected_at: new Date().toISOString(),
     })
     .eq('id', id);
-  // The audit columns come from sql/delivery_reject.sql. Where that migration
-  // has not been applied yet the rider must still be able to hand the delivery
-  // back, so retry without them rather than stranding the assignment.
+  // Retry without the audit columns if sql/delivery_reject.sql has not been applied.
   if (missingColumn(rejectError, ['rejection_reason', 'rejected_at'])) {
     console.warn('deliveries.rejection_reason/rejected_at missing — apply sql/delivery_reject.sql to record reject reasons.');
     ({ error: rejectError } = await supabaseAdmin.from('deliveries').update(handBack).eq('id', id));
   }
-  // Never unassign the order while the delivery still points at this rider:
-  // that would leave the order unassigned but the delivery stuck on 'assigned'.
+  // Stop if the delivery was not released so the order is never unassigned on its own.
   if (rejectError) return sendDbError(res, rejectError, 'The delivery could not be rejected. Please try again.');
 
   const { error: orderError } = await supabaseAdmin
@@ -2096,8 +2002,7 @@ app.post('/api/deliveries/:id/complete/check', verifyToken, async (req, res) => 
   const guard = await deliveryCompletionGuard(supabaseAdmin, req.params.id, req.user.userId, req.body || {});
   if (guard.reject) return res.status(guard.reject.status).json(guard.reject.body);
   if (guard.done) return res.json({ ok: true, completed: true });
-  // location_status is reported, never enforced — see validateProof for why
-  // distance-to-destination does not block a delivery.
+  // Location status is informational; distance does not block completion (see validateProof).
   res.json({ ok: true, completed: false, location_status: guard.pod.location_status });
 });
 
@@ -2141,7 +2046,6 @@ app.get('/api/distributor/weekly-report', verifyToken, async (req, res) => {
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-  // Orders in last 7 days
   const { data: orders, error: ordersError } = await supabaseAdmin
     .from('orders')
     .select('total_amount, status, created_at')
@@ -2153,7 +2057,6 @@ app.get('/api/distributor/weekly-report', verifyToken, async (req, res) => {
   const totalRevenue = orders.reduce((sum, o) => sum + o.total_amount, 0);
   const completedOrders = orders.filter(o => o.status === 'delivered').length;
 
-  // Products (current inventory)
   const { data: products, error: productsError } = await supabaseAdmin
     .from('products')
     .select('vegetable_name, stock_kg')
@@ -2170,22 +2073,20 @@ app.get('/api/distributor/weekly-report', verifyToken, async (req, res) => {
   });
 });
 
-// Full farm-to-delivery traceability, one row per (batch x consuming order),
-// so nothing sold is ever lost — batches with no orders yet still appear,
-// with the retailer/delivery columns left blank.
+// Traceability report: one row per batch and consuming order; unsold batches are included.
 app.get('/api/distributor/inventory-report', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can access this report' });
   }
   const distributorId = req.user.userId;
 
-  const { data: batches, error: batchesError } = await supabaseAdmin
+  const { data: batchRows, error: batchesError } = await supabaseAdmin
     .from('products')
-    .select('id, vegetable_name, farmer_id, harvest_date, pickup_request_id, quantity_received, stock_kg, status, price_per_kg')
-    .eq('distributor_id', distributorId)
-    .order('harvest_date', { ascending: true });
+    .select('*')
+    .eq('distributor_id', distributorId);
 
   if (batchesError) return sendDbError(res, batchesError);
+  const batches = (batchRows || []).sort(compareFifo);
 
   const batchIds = (batches || []).map((b) => b.id);
   const farmerIds = [...new Set((batches || []).map((b) => b.farmer_id).filter(Boolean))];
@@ -2194,16 +2095,14 @@ app.get('/api/distributor/inventory-report', verifyToken, async (req, res) => {
   const [{ data: farmers }, { data: pickups }, { data: orderItems }] = await Promise.all([
     farmerIds.length ? supabaseAdmin.from('users').select('id, full_name').in('id', farmerIds) : Promise.resolve({ data: [] }),
     pickupIds.length ? supabaseAdmin.from('pickup_requests').select('id, received_at, delivery_personnel_id').in('id', pickupIds) : Promise.resolve({ data: [] }),
-    batchIds.length ? supabaseAdmin.from('order_items').select('product_id, order_id, quantity_kg').in('product_id', batchIds) : Promise.resolve({ data: [] }),
+    batchIds.length ? supabaseAdmin.from('order_items').select('product_id, order_id, quantity_kg, price_at_order').in('product_id', batchIds) : Promise.resolve({ data: [] }),
   ]);
 
   const farmerNameById = Object.fromEntries((farmers || []).map((f) => [f.id, f.full_name]));
   const pickupDateById = Object.fromEntries((pickups || []).map((p) => [p.id, p.received_at]));
   const pickupRiderIdById = Object.fromEntries((pickups || []).map((p) => [p.id, p.delivery_personnel_id]));
 
-  // Pickup-side rider names (who collected the harvest from the farmer) —
-  // resolved separately since it's needed regardless of whether the batch
-  // has been sold yet.
+  // Riders who collected each harvest from the farmer.
   const pickupRiderIds = [...new Set((pickups || []).map((p) => p.delivery_personnel_id).filter(Boolean))];
   let pickupRiderNameById = {};
   if (pickupRiderIds.length) {
@@ -2252,10 +2151,14 @@ app.get('/api/distributor/inventory-report', verifyToken, async (req, res) => {
     const consumptions = itemsByBatch[batch.id] || [];
     const riderId = pickupRiderIdById[batch.pickup_request_id];
     const base = {
+      batch_id: batch.id,
       product: batch.vegetable_name,
+      // received | listed | sold_out | archived
+      batch_status: batchStatus(batch),
+      batch_photo_url: batch.batch_photo_url || null,
       farmer_name: farmerNameById[batch.farmer_id] || null,
       harvest_date: batch.harvest_date,
-      pickup_date: pickupDateById[batch.pickup_request_id] || null,
+      pickup_date: pickupDateById[batch.pickup_request_id] || batch.pickup_date || null,
       pickup_rider_name: riderId ? (pickupRiderNameById[riderId] || null) : null,
       quantity_received: batch.quantity_received,
       remaining_quantity: batch.stock_kg,
@@ -2273,7 +2176,8 @@ app.get('/api/distributor/inventory-report', verifyToken, async (req, res) => {
       rows.push({
         ...base,
         quantity_sold: item.quantity_kg,
-        total_amount: Number(item.quantity_kg) * Number(batch.price_per_kg || 0),
+        // Use the price charged at order time, not the current price.
+        total_amount: Number(item.quantity_kg) * Number(item.price_at_order ?? batch.price_per_kg ?? 0),
         retailer_name: order ? peopleNameById[order.retailer_id] || null : null,
         delivery_personnel: order?.delivery_personnel_id ? peopleNameById[order.delivery_personnel_id] || null : null,
         delivery_date: deliveryByOrderId[item.order_id] || null,
@@ -2335,8 +2239,7 @@ app.delete('/api/users/:id', verifyToken, async (req, res) => {
     return res.status(403).json({ error: 'You can only delete your own account' });
   }
 
-  // Historical relationships use cascading foreign keys. Ordinary account closure
-  // is handled by distributor disabling, never by deleting the profile.
+  // Accounts are disabled by the distributor rather than deleted, to preserve history.
   res.status(409).json({ error: 'Contact the distributor to disable your account and preserve your transaction history.' });
 });
 
@@ -2356,7 +2259,7 @@ app.post('/api/delivery/update-location', verifyToken, async (req, res) => {
       return res.status(400).json({ error: 'GPS accuracy must be a non-negative number' });
     }
     const precision = accuracy ?? null;
-    // Existing clients without a capture time retain receipt-time compatibility.
+    // Fall back to the server receipt time when the client sends no capture time.
     const captured = captured_at != null ? (typeof captured_at === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(captured_at) ? Date.parse(captured_at) : NaN) :
       deviceTimestamp != null ? (typeof deviceTimestamp === 'number' ? deviceTimestamp : NaN) : Date.now();
     if (!Number.isFinite(captured) || Date.now() - captured > STALE_LOCATION_SECONDS * 1000 || captured - Date.now() > 30000) {
@@ -2383,199 +2286,173 @@ app.post('/api/delivery/update-location', verifyToken, async (req, res) => {
   } catch (error) { console.error('Location update failed:', error.message); return res.status(500).json({ error: 'Location update failed' }); }
 });
 // ============================================
-// START SERVER
+// DELIVERY TRACKING
 // ============================================
-// ============================================
-// // ============================================
-// GET TRACKING DATA (FIXED FOR YOUR TABLE)
-// ============================================
-
 app.get('/api/delivery/tracking/:orderId', verifyToken, createTrackingHandler({ db: supabaseAdmin }));
-
-// Helper: Format ETA time
-function formatETATime(seconds) {
-    if (!seconds) return 'Calculating...';
-    if (seconds < 60) return `${Math.round(seconds)} sec`;
-    if (seconds < 3600) {
-        const mins = Math.floor(seconds / 60);
-        return `${mins} min${mins > 1 ? 's' : ''}`;
-    }
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    return `${hrs}h ${mins}m`;
-}
-
-// ============================================
 // DELIVERY ADDRESSES CRUD
 // ============================================
 
-// GET /api/addresses - Get all addresses for the logged-in user
 app.get('/api/addresses', verifyToken, async (req, res) => {
-    try {
-        const userId = req.user.userId;
+  try {
+    const userId = req.user.userId;
 
-        const { data, error } = await supabaseAdmin
-            .from('delivery_addresses')
-            .select('*')
-            .eq('user_id', userId)
-            .order('is_default', { ascending: false })
-            .order('created_at', { ascending: true });
+    const { data, error } = await supabaseAdmin
+      .from('delivery_addresses')
+      .select('*')
+      .eq('user_id', userId)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: true });
 
-        if (error) {
-            return sendDbError(res, error);
-        }
-
-        res.json(data || []);
-    } catch (err) {
-        console.error('GET /api/addresses error:', err);
-        res.status(500).json({ error: 'Failed to fetch addresses' });
+    if (error) {
+      return sendDbError(res, error);
     }
+
+    res.json(data || []);
+  } catch (err) {
+    console.error('GET /api/addresses error:', err);
+    res.status(500).json({ error: 'Failed to fetch addresses' });
+  }
 });
 
-// POST /api/addresses - Create a new address
 app.post('/api/addresses', verifyToken, async (req, res) => {
-    try {
-        const userId = req.user.userId;
-        const { label, address, latitude, longitude, is_default } = req.body;
+  try {
+    const userId = req.user.userId;
+    const { label, address, latitude, longitude, is_default } = req.body;
 
-        if (!label || !address) {
-            return res.status(400).json({ error: 'Label and address are required' });
-        }
-
-        // If this address is set as default, unset any existing default
-        if (is_default) {
-            await supabaseAdmin
-                .from('delivery_addresses')
-                .update({ is_default: false })
-                .eq('user_id', userId);
-        }
-
-        const { data, error } = await supabaseAdmin
-            .from('delivery_addresses')
-            .insert({
-                user_id: userId,
-                label,
-                address,
-                latitude: latitude || null,
-                longitude: longitude || null,
-                is_default: is_default || false,
-            })
-            .select()
-            .single();
-
-        if (error) {
-            return sendDbError(res, error);
-        }
-
-        res.status(201).json(data);
-    } catch (err) {
-        console.error('POST /api/addresses error:', err);
-        res.status(500).json({ error: 'Failed to create address' });
+    if (!label || !address) {
+      return res.status(400).json({ error: 'Label and address are required' });
     }
+
+    // If this address is set as default, unset any existing default
+    if (is_default) {
+      await supabaseAdmin
+        .from('delivery_addresses')
+        .update({ is_default: false })
+        .eq('user_id', userId);
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('delivery_addresses')
+      .insert({
+        user_id: userId,
+        label,
+        address,
+        latitude: latitude || null,
+        longitude: longitude || null,
+        is_default: is_default || false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return sendDbError(res, error);
+    }
+
+    res.status(201).json(data);
+  } catch (err) {
+    console.error('POST /api/addresses error:', err);
+    res.status(500).json({ error: 'Failed to create address' });
+  }
 });
 
-// PUT /api/addresses/:id - Update an address
 app.put('/api/addresses/:id', verifyToken, async (req, res) => {
-    try {
-        const userId = req.user.userId;
-        const { id } = req.params;
-        const { label, address, latitude, longitude, is_default } = req.body;
+  try {
+    const userId = req.user.userId;
+    const { id } = req.params;
+    const { label, address, latitude, longitude, is_default } = req.body;
 
-        const { data: existing, error: checkError } = await supabaseAdmin
-            .from('delivery_addresses')
-            .select('id')
-            .eq('id', id)
-            .eq('user_id', userId)
-            .single();
+    const { data: existing, error: checkError } = await supabaseAdmin
+      .from('delivery_addresses')
+      .select('id')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
 
-        if (checkError || !existing) {
-            return res.status(404).json({ error: 'Address not found' });
-        }
-
-        if (is_default) {
-            await supabaseAdmin
-                .from('delivery_addresses')
-                .update({ is_default: false })
-                .eq('user_id', userId)
-                .neq('id', id);
-        }
-
-        const updates = {};
-        if (label !== undefined) updates.label = label;
-        if (address !== undefined) updates.address = address;
-        if (latitude !== undefined) updates.latitude = latitude;
-        if (longitude !== undefined) updates.longitude = longitude;
-        if (is_default !== undefined) updates.is_default = is_default;
-        updates.updated_at = new Date().toISOString();
-
-        const { data, error } = await supabaseAdmin
-            .from('delivery_addresses')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-
-        if (error) {
-            return sendDbError(res, error);
-        }
-
-        res.json(data);
-    } catch (err) {
-        console.error('PUT /api/addresses/:id error:', err);
-        res.status(500).json({ error: 'Failed to update address' });
+    if (checkError || !existing) {
+      return res.status(404).json({ error: 'Address not found' });
     }
+
+    if (is_default) {
+      await supabaseAdmin
+        .from('delivery_addresses')
+        .update({ is_default: false })
+        .eq('user_id', userId)
+        .neq('id', id);
+    }
+
+    const updates = {};
+    if (label !== undefined) updates.label = label;
+    if (address !== undefined) updates.address = address;
+    if (latitude !== undefined) updates.latitude = latitude;
+    if (longitude !== undefined) updates.longitude = longitude;
+    if (is_default !== undefined) updates.is_default = is_default;
+    updates.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabaseAdmin
+      .from('delivery_addresses')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      return sendDbError(res, error);
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error('PUT /api/addresses/:id error:', err);
+    res.status(500).json({ error: 'Failed to update address' });
+  }
 });
 
-// DELETE /api/addresses/:id - Delete an address
 app.delete('/api/addresses/:id', verifyToken, async (req, res) => {
-    try {
-        const userId = req.user.userId;
-        const { id } = req.params;
+  try {
+    const userId = req.user.userId;
+    const { id } = req.params;
 
-        const { data: existing, error: checkError } = await supabaseAdmin
-            .from('delivery_addresses')
-            .select('id, is_default')
-            .eq('id', id)
-            .eq('user_id', userId)
-            .single();
+    const { data: existing, error: checkError } = await supabaseAdmin
+      .from('delivery_addresses')
+      .select('id, is_default')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
 
-        if (checkError || !existing) {
-            return res.status(404).json({ error: 'Address not found' });
-        }
-
-        const { error } = await supabaseAdmin
-            .from('delivery_addresses')
-            .delete()
-            .eq('id', id);
-
-        if (error) {
-            return sendDbError(res, error);
-        }
-
-        if (existing.is_default) {
-            const { data: remaining } = await supabaseAdmin
-                .from('delivery_addresses')
-                .select('id')
-                .eq('user_id', userId)
-                .limit(1);
-
-            if (remaining && remaining.length > 0) {
-                await supabaseAdmin
-                    .from('delivery_addresses')
-                    .update({ is_default: true })
-                    .eq('id', remaining[0].id);
-            }
-        }
-
-        res.json({ message: 'Address deleted successfully' });
-    } catch (err) {
-        console.error('DELETE /api/addresses/:id error:', err);
-        res.status(500).json({ error: 'Failed to delete address' });
+    if (checkError || !existing) {
+      return res.status(404).json({ error: 'Address not found' });
     }
+
+    const { error } = await supabaseAdmin
+      .from('delivery_addresses')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      return sendDbError(res, error);
+    }
+
+    if (existing.is_default) {
+      const { data: remaining } = await supabaseAdmin
+        .from('delivery_addresses')
+        .select('id')
+        .eq('user_id', userId)
+        .limit(1);
+
+      if (remaining && remaining.length > 0) {
+        await supabaseAdmin
+          .from('delivery_addresses')
+          .update({ is_default: true })
+          .eq('id', remaining[0].id);
+      }
+    }
+
+    res.json({ message: 'Address deleted successfully' });
+  } catch (err) {
+    console.error('DELETE /api/addresses/:id error:', err);
+    res.status(500).json({ error: 'Failed to delete address' });
+  }
 });
-// The mobile client parses every response as JSON. Express' built-in 404 and
-// error pages are HTML, so an unknown path or an unexpected throw reached the
-// app as a bare "Request failed (500)" with no usable message.
+// Return JSON rather than Express's default HTML for unknown routes and errors.
 app.use('/api', (req, res) => res.status(404).json({ error: 'That endpoint does not exist.' }));
 // eslint-disable-next-line no-unused-vars -- Express needs all four params to treat this as an error handler.
 app.use((err, req, res, next) => {
@@ -2584,8 +2461,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong. Please try again.' });
 });
 
-// Node exits the process on an unhandled rejection. A single stray promise must
-// not take the API down for every user; log it and keep serving instead.
+// Log unhandled promise rejections instead of letting them stop the server.
 process.on('unhandledRejection', (reason) => {
   console.error('[unhandled rejection]', reason?.stack || reason);
 });

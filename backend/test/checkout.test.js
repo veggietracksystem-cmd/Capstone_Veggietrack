@@ -42,7 +42,7 @@ function orderEndpoint(db) {
  vm.runInNewContext(source.slice(source.indexOf("app.post('/api/orders'"),source.indexOf("app.get('/api/orders'")),{
  app:{post:(path,auth,cb)=>{callback=cb;}},verifyToken(){},validateOrderItems,
  validateSchedule:require('../lib/deliveryProof').validateSchedule,
- coordinate:require('../lib/deliveryTracking').coordinate,supabaseAdmin:db,Date,console
+ coordinate:require('../lib/deliveryTracking').coordinate,...require('../lib/batches'),supabaseAdmin:db,Date,console
  });
  return callback;
 }
@@ -56,7 +56,7 @@ test('checkout saves address with pin, reuses matching address and blocks on add
  for(const mode of ['new','existing','failure']) {
   const writes=[];
   const db={from(table){let action='select'; const q={select(){return q;},eq(){return q;},gt(){return q;},order(){return q;},insert(value){action='insert';writes.push({table,value});return q;},update(){return q;},single(){return q;},then(resolve){
-   if(table==='products') return Promise.resolve({data:[{id:'batch',vegetable_name:'vegetable0',stock_kg:10,price_per_kg:20,distributor_id:'d'}]}).then(resolve);
+   if(table==='products') return Promise.resolve({data:[{id:'batch',vegetable_name:'vegetable0',stock_kg:10,price_per_kg:20,distributor_id:'d',status:'listed'}]}).then(resolve);
    if(table==='delivery_addresses') return Promise.resolve(mode==='failure'?{error:{message:'offline'}}:{data:mode==='existing'?[{address:'Store',latitude:7.1,longitude:125.6}]:[]}).then(resolve);
    return Promise.resolve({data:table==='orders'?{id:'order',status:'pending'}:[]}).then(resolve);
   }};return q;},

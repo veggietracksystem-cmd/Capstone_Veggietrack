@@ -5,11 +5,8 @@ import api from '../api/client';
 import { friendlyError } from '../lib/errorMessages';
 import { useAuth } from '../context/AuthContext';
 
-// Mirrors useDeliveryTracking.js exactly (focus/AppState-aware polling, one
-// timer, request de-duplication/abort) against the pickup-request tracking
-// endpoint instead of the order one — kept as a separate small hook rather
-// than parameterizing the delivery hook so the live retailer tracking screen
-// is never at risk from a pickup-specific change.
+// Pickup-request counterpart of useDeliveryTracking (focus/AppState-aware polling
+// with request de-duplication), kept separate from the delivery hook.
 export default function usePickupTracking(pickupId) {
   const focused = useIsFocused();
   const { user } = useAuth();

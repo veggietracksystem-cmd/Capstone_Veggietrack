@@ -13,7 +13,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
-import LogoutButton from '../components/LogoutButton';
 import ScreenHeader from '../components/ScreenHeader';
 import HomeHeaderActions from '../components/HomeHeaderActions';
 import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
@@ -27,19 +26,16 @@ import { getVegetableTile, getVegetableIcon } from '../lib/vegetableIcons';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
+import { colors, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { useAutoSync } from '../sync/SyncProvider';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import RemoteImage from '../components/RemoteImage';
-import { statusLabel } from '../i18n/translate';
 
 const PRIMARY = colors.leaf700;
 
-// Maps the internal content-tab id (used by `tab` state / route params) to
-// the bottom nav's tab id, so the highlighted icon always matches what's
-// actually on screen (e.g. after OrderConfirmationScreen navigates back with
-// `tab: 'shop'`).
+// Maps the content tab to the bottom-nav tab so the highlighted icon matches the
+// visible content.
 const BOTTOM_TAB_FOR = { shop: 'home', cart: 'cart', orders: 'orders' };
 
 export function statusColor(status) {
@@ -81,8 +77,7 @@ export default function RetailerDashboard({ navigation, route }) {
   const { t, language } = useTranslation();
 
   const [tab, setTab] = useState('shop'); // 'shop' (Home/browse) | 'cart' | 'orders'
-  // Derived from the content on screen so the highlight can't be left on
-  // Profile after navigating back to the dashboard.
+  // Derived from the visible content so the highlight always matches.
   const activeBottomTab = BOTTOM_TAB_FOR[tab] || 'home';
 
   const handleBottomTabPress = (tab) => {
@@ -104,9 +99,7 @@ export default function RetailerDashboard({ navigation, route }) {
     // Params object is new on every navigate, so a repeated tab still applies.
   }, [route.params]);
 
-  // Checkout now happens on a separate OrderConfirmation screen. When it
-  // finishes placing an order, it navigates back here with `orderPlaced: true`
-  // instead of passing a callback through navigation params.
+  // OrderConfirmationScreen navigates back with `orderPlaced: true` after placing an order.
   useEffect(() => {
     if (route.params?.orderPlaced) {
       setCart([]);
@@ -149,9 +142,7 @@ export default function RetailerDashboard({ navigation, route }) {
     }
   };
 
-  // Issue 10: pre-fill the delivery address with the retailer's store_location
-  // from registration. Runs once when it becomes available; the field stays
-  // editable so the user can override it for a one-off delivery.
+  // Pre-fill the delivery address with the retailer's store location (still editable).
   useEffect(() => {
     if (user?.store_location && !address) {
       setAddress(user.store_location);
@@ -291,9 +282,8 @@ export default function RetailerDashboard({ navigation, route }) {
   const totalAmount = cart.reduce((s, c) => s + c.price * c.quantity, 0);
 
   // ---------- Checkout ----------
-  // The Cart tab no longer collects address/schedule or submits the order
-  // directly — it hands the cart snapshot off to OrderConfirmationScreen,
-  // which owns those fields and the actual /api/orders submission.
+  // The cart is handed to OrderConfirmationScreen, which collects the address and
+  // schedule and submits the order.
   const goToCheckout = () => {
     if (cart.length === 0) {
       showAlert(t('dashboards.retailer.emptyCartTitle'), t('dashboards.retailer.emptyCartMessage'));
@@ -334,7 +324,6 @@ export default function RetailerDashboard({ navigation, route }) {
     );
   };
 
-
   const RETAILER_TABS = [
     { id: 'home', iconName: 'home-outline', label: t('dashboards.retailer.tabHome') },
     { id: 'cart', iconName: 'cart-outline', label: t('dashboards.retailer.tabCart'), badge: totalItems },
@@ -344,7 +333,6 @@ export default function RetailerDashboard({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Same centred header every screen in the app uses. */}
       <ScreenHeader
         title={tab === 'cart' ? t('dashboards.retailer.tabCart') : tab === 'orders' ? t('dashboards.retailer.tabOrders') : t('dashboards.retailer.tabHome')}
         // Messages and notifications only appear on Home (the shop tab).
@@ -356,8 +344,7 @@ export default function RetailerDashboard({ navigation, route }) {
           contentContainerStyle={[styles.content, { paddingBottom: navSpace }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          {/* Only flag offline when the device is actually disconnected AND we're
-              falling back to cached data — not merely because a request was slow. */}
+          {/* Show offline only when the device is disconnected and cached data is shown. */}
           <OfflineBanner offline={syncState === 'offline' && (tab === 'shop' ? shopOffline : tab === 'orders' ? ordersOffline : false)} />
 
         {tab === 'shop' && (
@@ -406,13 +393,61 @@ export default function RetailerDashboard({ navigation, route }) {
       <AddToCartFlyOverlay flights={flights} target={cartIconTarget} onDone={removeFlight} />
       <CustomModal visible={!!selectedProduct} title={selectedProduct ? localizeVegetableName(selectedProduct.vegetable_name, language) : ''}
         cancelLabel={t('common.close')} onCancel={() => setSelectedProduct(null)}
-        confirmLabel={t('dashboards.retailer.addToCart')} onConfirm={() => { addToCart(selectedProduct); setSelectedProduct(null); }}>
-        {selectedProduct?.batch_photo_url ? <RemoteImage uri={selectedProduct.batch_photo_url} style={styles.productModalPhoto} resizeMode="cover" /> : <View style={[styles.productModalFallback, { backgroundColor: getVegetableTile(selectedProduct?.vegetable_name).bg }]}><Text style={styles.productModalIcon}>{getVegetableTile(selectedProduct?.vegetable_name).icon}</Text></View>}
+        confirmLabel={t('dashboards.retailer.addToCart')} onConfirm={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
+        confirmDisabled={!(selectedProduct?.available_kg > 0)}>
+        <ProductPhotos key={selectedProduct?.vegetable_name} product={selectedProduct} />
         <Text style={styles.productModalPrice}>{peso(selectedProduct?.price_per_kg)} / kg</Text>
-        <Text style={styles.productModalMeta}>{t('dashboards.retailer.kgAvailable', { qty: selectedProduct?.available_kg || 0 })}</Text>
+        <Text style={styles.productModalMeta}>
+          {selectedProduct?.available_kg > 0
+            ? t('dashboards.retailer.kgAvailable', { qty: selectedProduct.available_kg })
+            : t('dashboards.retailer.outOfStockTitle')}
+        </Text>
         <Text style={styles.productModalHint}>{t('cmp.addToCartHint')}</Text>
       </CustomModal>
     </SafeAreaView>
+  );
+}
+
+// Product details photos. One vegetable can be on sale from several batches,
+// each with its own photo: swipe through them, oldest batch (sold first)
+// first. Older cached responses only carry batch_photo_url.
+function ProductPhotos({ product }) {
+  const [width, setWidth] = useState(0);
+  const [page, setPage] = useState(0);
+  const photos = product?.batch_photos?.length
+    ? product.batch_photos
+    : (product?.batch_photo_url ? [product.batch_photo_url] : []);
+
+  if (photos.length === 0) {
+    const tile = getVegetableTile(product?.vegetable_name);
+    return (
+      <View style={[styles.productModalFallback, { backgroundColor: tile.bg }]}>
+        <Text style={styles.productModalIcon}>{tile.icon}</Text>
+      </View>
+    );
+  }
+
+  const onScroll = (e) => {
+    if (width > 0) setPage(Math.round(e.nativeEvent.contentOffset.x / width));
+  };
+  return (
+    <View>
+      <View style={styles.productModalPager} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+        {width > 0 && (
+          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}
+            scrollEnabled={photos.length > 1} onScroll={onScroll} scrollEventThrottle={32}>
+            {photos.map((uri) => (
+              <RemoteImage key={uri} uri={uri} style={[styles.productModalPhoto, { width }]} resizeMode="cover" />
+            ))}
+          </ScrollView>
+        )}
+      </View>
+      {photos.length > 1 && (
+        <View style={styles.photoDots} accessibilityLabel={`${page + 1} / ${photos.length}`}>
+          {photos.map((uri, i) => <View key={uri} style={[styles.photoDot, i === page && styles.photoDotActive]} />)}
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -422,14 +457,14 @@ function HomeTab({ loading, products, orders, cart, searchQuery, setSearchQuery,
 
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
-  // Local, case-insensitive filter by vegetable name.
+  // Local, case-insensitive filter by vegetable name, in English or Tagalog.
   const query = searchQuery.trim().toLowerCase();
   const filteredProducts = products.filter(
-    (p) => !query || p.vegetable_name?.toLowerCase().includes(query)
+    (p) => !query || [p.vegetable_name, localizeVegetableName(p.vegetable_name, 'en'), localizeVegetableName(p.vegetable_name, 'tl')]
+      .some((name) => String(name || '').toLowerCase().includes(query))
   );
 
-  // Active-order preview banner (prototype's retailer-home banner) — reuses
-  // the orders list already loaded for the Orders tab, no new fetch.
+  // Active-order preview, using the orders already loaded for the Orders tab.
   const activeOrder = (orders || []).find((o) => o.status !== 'delivered' && o.status !== 'cancelled');
 
   return (
@@ -465,10 +500,7 @@ function HomeTab({ loading, products, orders, cart, searchQuery, setSearchQuery,
           {t('dashboards.retailer.noMatchQuery', { query: searchQuery.trim() })}
         </Text>
       ) : (
-        // Card shell reordered to match the prototype's prod-card: full-width
-        // photo tile, name, stock line, then a bottom row pairing price with
-        // a compact quick-add control (shows the cart qty, same onAdd handler
-        // — not a separate full-width "Add to Cart" button below).
+        // Product card: photo tile, name, stock, then price with a quick-add control.
         <View style={styles.kpiGrid}>
           {filteredProducts.map((p) => {
             const tile = getVegetableTile(p.vegetable_name);
@@ -521,7 +553,7 @@ function HomeTab({ loading, products, orders, cart, searchQuery, setSearchQuery,
   );
 }
 
-// ================= Cart tab (review only — checkout moved to OrderConfirmationScreen) =================
+// ================= Cart tab (review only; checkout is on OrderConfirmationScreen) =================
 function CartTab({ cart, totalItems, totalAmount, onChangeQty, onRemove, onCheckout }) {
   const { t, language } = useTranslation();
 
@@ -622,9 +654,7 @@ function OrdersTab({ loading, cancelling, orders, onCancel, onViewDetails, onVie
           </View>
           <Text style={styles.orderTotal}>{peso(o.total_amount)}</Text>
 
-          {/* Cancel Order - only for pending status. Everything else (address,
-              schedule, progress, items, proof, tracking) lives in View Details
-              now, so this list stays a simple summary card. */}
+          {/* Cancel Order is available only while pending; details are in View Details. */}
           {o.status === 'pending' && (
             <TouchableOpacity
               style={[styles.trackBtn, styles.cancelBtn]}
@@ -681,7 +711,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 10 },
   emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
-  // Home tab: active-order preview banner (prototype's .banner)
+  // Home tab: active-order preview
   activeOrderSection: { marginTop: 20 },
   activeOrderCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, borderWidth: 1, borderColor: colors.border, gap: 6, ...shadowCard },
   activeOrderHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
@@ -700,8 +730,7 @@ const styles = StyleSheet.create({
   rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
-  // Home tab: product grid (2 columns), shell matches prototype's .prod-grid/.prod-card:
-  // full-width photo tile, left-aligned name/stock, price+quick-add bottom row.
+  // Home tab: two-column product grid
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   kpiCard: {
     width: '47%', backgroundColor: colors.surface, borderRadius: radius.card, padding: 10,
@@ -717,6 +746,10 @@ const styles = StyleSheet.create({
   kpiAddCircleDisabled: { backgroundColor: colors.soil300 },
   kpiAddCircleText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(fontSize.md) },
   productModalPhoto: { width: '100%', height: 210, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 },
+  productModalPager: { height: 210, borderRadius: radius.ctrl, overflow: 'hidden', backgroundColor: colors.leaf50 },
+  photoDots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 8 },
+  photoDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.soil300 },
+  photoDotActive: { backgroundColor: PRIMARY },
   productModalFallback: { height: 160, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   productModalIcon: { fontSize: rf(72) },
   productModalPrice: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: PRIMARY, marginTop: 12 },
@@ -757,9 +790,7 @@ const styles = StyleSheet.create({
   trackBtnText: { ...actionBtnText, color: PRIMARY },
   cancelBtn: { ...actionBtnDanger },
   cancelBtnText: { ...actionBtnText, color: colors.danger },
-  // Reuses the app's dark green primary color (same as other primary
-  // action buttons) instead of a new shade, with clear white contrast text.
-  // Primary action on the order card: a touch taller than the secondary View History pill.
+  // Primary action on the order card, slightly taller than the View History button.
   detailsBtn: { ...actionBtnOutline, minHeight: 44, paddingVertical: 10 },
   detailsBtnText: { ...actionBtnText, fontSize: 14, color: PRIMARY },
 

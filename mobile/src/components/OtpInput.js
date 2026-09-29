@@ -4,9 +4,8 @@ import { rf } from '../lib/responsive';
 import { colors, fonts, fontSize, radius } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
-// Visual-only boxed code entry (matches the redesign prototype's OTP boxes).
-// Still just a single string value under the hood — `value`/`onChangeText`
-// behave exactly like a plain TextInput for the email verification screens.
+// Boxed code entry. The value is a single string, so `value` and `onChangeText`
+// behave like a plain TextInput.
 export default function OtpInput({ value = '', onChangeText, length = 6, editable = true, accessibilityLabel }) {
   const { t } = useTranslation();
   const label = accessibilityLabel ?? t('misc.verificationCode');
@@ -15,7 +14,7 @@ export default function OtpInput({ value = '', onChangeText, length = 6, editabl
   const [focusedIndex, setFocusedIndex] = useState(-1);
 
   const setDigit = (index, text) => {
-    // Handles paste (multiple chars land in one box) as well as single keystrokes.
+    // Handles pasted codes as well as single keystrokes.
     const clean = text.replace(/[^0-9]/g, '');
     if (!clean) {
       onChangeText?.(value.slice(0, index) + value.slice(index + 1));

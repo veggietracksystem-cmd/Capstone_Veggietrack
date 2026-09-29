@@ -17,11 +17,8 @@ import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 
-// Profile is a bottom-tab destination (pushed from the dashboard's "profile"
-// tab) for every role except Farmer, whose profile is an embedded dashboard
-// tab instead. Each role's tab set/icons mirror its dashboard exactly so the
-// bar doesn't visibly change shape when navigating here, matching the same
-// pattern StocksScreen/DistributorInventoryReportScreen already use.
+// Bottom-tab sets per role (all roles except Farmer, whose profile is a dashboard
+// tab). They mirror each dashboard so the bar does not change when opening Profile.
 const TABS_BY_ROLE = {
   distributor: [
     { id: 'home', iconName: 'home-outline', labelKey: 'dashboards.distributor.tabHome' },
@@ -80,12 +77,11 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Distributors and delivery personnel reach Profile from the bottom nav, so no back arrow. */}
+      {/* Roles that reach Profile from the bottom nav have no back arrow. */}
       <ScreenHeader title={t('profile.title')} onBack={isDistributor(user) || isRetailer(user) || isDeliveryPersonnel(user) ? undefined : () => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={[styles.content, bottomTabs && { paddingBottom: navSpace }]} keyboardShouldPersistTaps="handled">
-        {/* Profile header: avatar + name + role + Edit Profile shortcut
-            (prototype's profile-header block). */}
+        {/* Profile header: avatar, name, role and Edit Profile shortcut */}
         <View style={styles.profileCard}>
           <UserAvatar user={user} style={styles.avatarCircle} textStyle={styles.avatarText} />
           <Text style={styles.userName}>{fullName || user?.email || 'User'}</Text>
@@ -97,8 +93,7 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Account: read-only info list, matching the prototype's separate
-            Account list under the profile header. */}
+        {/* Account details */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('profile.account')}</Text>
           <View style={[styles.infoRow, styles.menuItemLast]}>
@@ -110,9 +105,7 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Preferences: Language, Manage Addresses (retailer only), Help &
-            Support — matching the prototype's single combined Preferences
-            list section. Change password now lives on Edit Profile. */}
+        {/* Preferences: language, saved addresses (retailer only) and help & support */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
 
@@ -153,10 +146,7 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Log Out: final list section (prototype renders this as a row, not
-            a standalone button). No "Deactivate account" row — a user never
-            disables their own account; the distributor does that from User
-            Management. */}
+        {/* Log Out (accounts are disabled by the distributor, not by the user). */}
         <View style={styles.sectionCard}>
           <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={logout}>
             <View style={styles.menuItemContent}>
@@ -255,7 +245,7 @@ export const styles = StyleSheet.create({
   },
   roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.leaf700, letterSpacing: 0.5 },
 
-  // Account list rows (icon + label + value) — prototype's read-only Account section.
+  // Account detail rows (icon, label, value)
   infoRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12,
     borderBottomWidth: 1, borderBottomColor: colors.border,

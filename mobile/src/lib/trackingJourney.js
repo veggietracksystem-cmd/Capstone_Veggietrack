@@ -10,8 +10,8 @@ function activeJourney(trackingData, mode = 'tracking') {
   const phase = (navigation ? nav.navigation_phase : tracking.navigation_phase) || navigationPhase(trackingData?.status);
   const pickup = view.pickup || nav.pickup_location || {}, delivery = view.delivery || nav.delivery_location || {};
   const target = (navigation ? nav.navigation_target : tracking.navigation_target) || (phase === 'pickup' ? pickup : delivery);
-  // Older retailer payloads used tracking.route and eta_seconds for the static
-  // warehouse corridor. Explicit leg metadata is required to call that live.
+  // Legacy payloads carry only the static warehouse route; a live route requires
+  // explicit leg metadata.
   const isActiveRoute = navigation || !!tracking.navigation_phase;
   return { phase, target, pickup, delivery,
     route: isActiveRoute ? (navigation ? nav.full_route : tracking.route) : null,

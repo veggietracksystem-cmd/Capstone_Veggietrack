@@ -73,8 +73,7 @@ export default function VerifyEmailScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  // Centered, width-capped, and roomier line-height so the multi-sentence
-  // instruction reads as one balanced block instead of spanning edge-to-edge.
+  // Centred and width-capped so the instructions read as one block.
   note: { textAlign: 'center', alignSelf: 'center', maxWidth: 320, lineHeight: 21, marginBottom: 20 },
   // Even rhythm: instruction 20 -> code boxes 20 -> Verify 12 -> Resend Code.
   otpWrap: { marginBottom: 20 },

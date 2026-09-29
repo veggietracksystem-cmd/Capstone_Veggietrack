@@ -21,7 +21,7 @@ import VegetableImage from '../components/VegetableImage';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ModalCloseButton from '../components/ui/ModalCloseButton';
 
 const PRIMARY = colors.leaf700;
@@ -137,9 +137,8 @@ export default function ProductListScreen({ navigation }) {
 
   const removeProduct = () => {
     if (!activeListing) return;
-    // Capture the target and close the edit modal *before* showing the confirm
-    // dialog — stacking two native Modals (this one on top of the edit modal)
-    // is unreliable on Android/iOS and can silently eat the Confirm tap.
+    // Close the edit modal before showing the confirmation; stacked native modals
+    // are unreliable on Android/iOS and can swallow the Confirm tap.
     const target = activeListing;
     const label = localizeVegetableName(target.vegetable_name, language);
     setActiveVeg(null);
@@ -318,15 +317,13 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
 
-
   rowCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: radius.card, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   productTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   productTileIcon: { width: 34, height: 34 },
   rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
-  // Matches the Distributor module's Edit action button exactly (compact
-  // outlined green pill) so Edit looks the same everywhere it appears.
+  // Same compact outlined Edit button as the Distributor module.
   smallBtn: { ...actionBtn, ...actionBtnOutline },
   smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm), textAlign: 'center' },
   btnDisabled: { opacity: 0.5 },

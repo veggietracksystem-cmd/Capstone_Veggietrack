@@ -1,13 +1,7 @@
 import { MAP_ZOOM_CSS } from './mapZoomStyle';
 // Builds self-contained Leaflet/OpenStreetMap HTML pages for react-native-webview.
-//
-// react-native-maps has no non-Google rendering engine on Android — even with
-// an OSM UrlTile overlay, the underlying native MapView is still the Google
-// Maps Android SDK and requires a Google Maps API key in AndroidManifest.xml.
-// Without one configured (this project intentionally has none), mounting a
-// MapView crashes the app immediately on a real device. Rendering the same
-// OSM/Leaflet map used by the .web.js screens inside a WebView avoids the
-// native Google Maps dependency entirely while keeping the map OSM-based.
+// react-native-maps on Android always uses the Google Maps SDK, which requires an
+// API key; rendering Leaflet in a WebView keeps native maps on OpenStreetMap.
 const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
 const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
 const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';

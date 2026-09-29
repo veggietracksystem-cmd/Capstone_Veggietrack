@@ -1,5 +1,4 @@
-// The active hosted distributor profile. The former seed UUID does not match
-// the migrated profile, causing valid administrator sessions to be rejected.
+// Profile ID of the only distributor account allowed to use distributor routes.
 const TRUSTED_DISTRIBUTOR = '86d9d317-b099-430c-be21-824d0a3434b6';
 let admin;
 function configureAuth(client) { admin = client; }
@@ -11,7 +10,7 @@ function createVerifier(client, statusOnly = false) {
       const { data, error } = await client.auth.getUser(token);
       if (error && (error.name === 'AuthRetryableFetchError' || error.status >= 500)) return res.status(503).json({ error: 'Authentication is temporarily unavailable.' });
       if (error || !data?.user) return res.status(401).json({ error: 'Please sign in again.' });
-      // Decode only AFTER Supabase validated this exact token.
+      // Decode the claims only after Supabase has validated the token.
       const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
       if (claims.sub !== data.user.id || !claims.session_id) return res.status(401).json({ error: 'Please sign in again.' });
       const result = await client.rpc('vt_account_context', { p_auth_id: data.user.id, p_session_id: claims.session_id });

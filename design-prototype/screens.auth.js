@@ -1,14 +1,7 @@
 /* ==========================================================================
    ONBOARDING (Landing / Login / Register / OTP / Pending Approval)
-   PROTOTYPE ONLY — Proposed visual redesign.
-
-   IMPORTANT — proposed vs existing:
-   These screens exist today (LandingScreen.js, PhoneOtpScreen.js /
-   RegisterScreen.js / ApplicationStatusScreen.js). The flow, fields, and
-   validation shown here match the real implementation. What's PROPOSED is
-   the visual restyle — applying the app's own `appTheme.js` design tokens
-   (already defined in the codebase but currently unused by these screens)
-   and adding a "Confirm Password" field, which does not exist today.
+   PROTOTYPE ONLY — proposed visual redesign of the existing onboarding
+   screens, using the design tokens from appTheme.js.
    ========================================================================== */
 
 const REGISTER_ROLES = [

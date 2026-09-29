@@ -1,6 +1,4 @@
-// Shared numeric validation for quantity/price fields accepted from clients.
-// Never trust the frontend: a direct API request must be rejected server-side
-// for non-numeric, zero/negative, NaN, Infinity and unreasonably large values.
+// Server-side validation for client-supplied quantities and prices.
 
 function toFiniteNumber(value) {
   if (typeof value === 'number') return value;
@@ -14,8 +12,7 @@ function isPositiveQuantity(value, max = 1_000_000) {
   return Number.isFinite(n) && n > 0 && n <= max;
 }
 
-// Edits that may legitimately reduce a quantity to exactly zero (e.g. "reduce
-// stock to 0"), but never negative/NaN/Infinity.
+// Allows exactly zero (e.g. reducing stock to 0), but not negative or non-finite values.
 function isNonNegativeQuantity(value, max = 1_000_000) {
   const n = toFiniteNumber(value);
   return Number.isFinite(n) && n >= 0 && n <= max;

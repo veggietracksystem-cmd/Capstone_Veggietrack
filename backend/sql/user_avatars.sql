@@ -1,5 +1,4 @@
--- Chunk 1: existing-account avatars. Apply after auth_supabase_migration.sql.
--- New-user signup requirements belong to Chunk 4; legacy avatars stay nullable.
+-- Profile avatars. Apply after auth_supabase_migration.sql. Avatars are optional.
 BEGIN;
 
 DO $$ BEGIN

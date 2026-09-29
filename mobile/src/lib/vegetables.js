@@ -1,7 +1,5 @@
-// Centralized vegetable catalog: shared by the category filter (Browse/Product
-// List) and the "only vegetables allowed" validation on product/harvest forms.
-// Keep this in sync with backend/lib/vegetables.js (same keywords/categories —
-// duplicated across the frontend/backend runtime boundary, not across screens).
+// Vegetable catalogue used by the category filter and the vegetable-only
+// validation on product and harvest forms. Keep in sync with backend/lib/vegetables.js.
 
 export const CATEGORIES = [
   'All',
@@ -76,9 +74,8 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Whole-word match (with an optional plural suffix), not raw substring —
-// "basilica" must not match "basil", "upon" must not match "upo". Keep this
-// matching rule identical to backend/lib/vegetables.js.
+// Whole-word match with an optional plural suffix; keep identical to
+// backend/lib/vegetables.js.
 function matchesKeyword(key, keyword) {
   return new RegExp(`\\b${escapeRegExp(keyword)}(?:es|s)?\\b`).test(key);
 }

@@ -601,7 +601,7 @@
     "editQtyBtn": "Edit Qty",
     "removeBtn": "Remove",
     "removeConfirmTitle": "Remove Product",
-    "removeConfirmMessage": "Remove {name} from your Product List? It will move back to Stocks and can be re-added later.",
+    "removeConfirmMessage": "Remove {name} from your Product List? Any remaining stock moves back to Stocks and can be re-added later. Sold-out batches stay in Inventory History.",
     "removeFailed": "We couldn’t remove this product. Please try again.",
     "editQtyModalTitle": "Edit Quantity — {name}",
     "editQtyHint": "Currently {qty} kg available. Enter a lower amount to correct it (e.g. spoilage or a miscount).",
@@ -649,7 +649,15 @@
     "vegetableNameRequired": "Enter a vegetable name.",
     "photoRequired": "A recent batch photo is required.",
     "batchPhotoLabel": "Recent batch photo",
-    "addProductSuccess": "Product added to your product list."
+    "addProductSuccess": "Product added to your product list.",
+    "viewEditBtn": "View / Edit",
+    "priceSharedHint": "This vegetable is already on sale at this price. You can change it in Product List.",
+    "searchFarmer": "Search farmer",
+    "noFarmers": "No approved farmers yet. A farmer's account must be approved before you can add their stock.",
+    "farmerRequired": "Select the farmer who supplied this batch.",
+    "harvestDateRequired": "Select the harvest date.",
+    "pickupDateRequired": "Select the pickup date.",
+    "pickupBeforeHarvest": "The pickup date cannot be before the harvest date."
   },
   "orderHistory": {
     "title": "Order History",
@@ -689,7 +697,10 @@
     "colPickupDate": "Pickup Date",
     "colDeliveryDate": "Delivery Date",
     "colPayment": "Payment",
-    "colOrderStatus": "Order Status"
+    "colOrderStatus": "Order Status",
+    "colBatch": "Batch",
+    "colPhoto": "Photo",
+    "colBatchStatus": "Batch Status"
   },
   "deliveryDetails": {
     "title": "Delivery Details",
@@ -1273,7 +1284,11 @@
     "cancelled": "Cancelled",
     "rejected": "Rejected",
     "out_of_stock": "Out of stock",
-    "requested": "Requested"
+    "requested": "Requested",
+    "received": "Received",
+    "listed": "Listed",
+    "sold_out": "Sold out",
+    "archived": "Archived"
   },
   "acct": {
     "title": "User Management",

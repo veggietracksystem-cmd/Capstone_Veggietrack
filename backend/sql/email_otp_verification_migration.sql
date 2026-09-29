@@ -1,16 +1,10 @@
--- Adds an email-OTP verification gate before new signups enter the
--- distributor approval queue. auth_email_password_migration.sql made every
--- new registration 'pending_approval' immediately, with no confirmation
--- step at all. This migration restores a gate: new accounts now start
--- 'unverified' and only move to 'pending_approval' once Supabase Auth
--- confirms the user's email (mobile prompts for the OTP code emailed by
--- Supabase and calls supabase.auth.verifyOtp({type:'signup'})).
+-- Adds an email OTP verification step before new signups enter the distributor
+-- approval queue. New accounts start as 'unverified' and move to
+-- 'pending_approval' once Supabase Auth confirms the email
+-- (supabase.auth.verifyOtp({ type: 'signup' }) in the mobile app).
 --
--- Existing rows are untouched: legacy/grandfathered accounts (legacy_access)
--- and any account already sitting in pending_approval/active/declined/
--- disabled keep their current status regardless of whether they ever
--- confirmed an email or phone. This only changes behavior for signups
--- created after this migration runs.
+-- Existing accounts keep their current status; only signups created after this
+-- migration are affected.
 BEGIN;
 
 CREATE OR REPLACE FUNCTION public.vt_sync_auth() RETURNS trigger
@@ -44,10 +38,7 @@ BEGIN
        OR nullif(NEW.phone_change_token,'') IS NOT NULL THEN RAISE EXCEPTION 'Verified phone change is not allowed'; END IF;
      UPDATE public.users SET phone=public.vt_phone(NEW.phone),phone_verified_at=NEW.phone_confirmed_at WHERE id=u.id;
    ELSIF NEW.email_confirmed_at IS NOT NULL AND OLD.email_confirmed_at IS NULL AND NOT u.legacy_access THEN
-     -- Email OTP just confirmed: release the account into the distributor's
-     -- approval queue. Only fires from 'unverified' - accounts already
-     -- pending/active/declined/disabled (including pre-migration testing
-     -- accounts that never verified) are left exactly as they are.
+     -- Email confirmed: move the account from 'unverified' into the approval queue.
      UPDATE public.users SET account_status='pending_approval' WHERE id=u.id AND account_status='unverified';
    END IF;
  END IF;

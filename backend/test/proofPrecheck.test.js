@@ -6,11 +6,8 @@ const vm = require('node:vm');
 const { createRequire } = require('node:module');
 const { PICKUP_PROXIMITY_LIMIT_METERS } = require('../lib/locationPolicy');
 
-// The proof pre-flight endpoints exist for one reason: an image uploaded to
-// Cloudinary for a completion the server then rejects is orphaned there with
-// nothing referencing it. These tests pin the two properties that make the
-// pre-flight worth having — it reaches the same verdict as the real
-// completion, and it never writes anything on the way.
+// The pre-flight endpoints must reach the same verdict as the real completion
+// and must never write anything.
 function harness(data) {
   const calls = { rpc: 0 };
   const db = {
@@ -159,7 +156,6 @@ for (const [name, data, id, body, status, code] of [
 
 test('the advisory pickup proximity limit still matches the authoritative SQL rule', () => {
   const sql = fs.readFileSync(path.join(__dirname, '../sql/pickup_tracking_proof.sql'), 'utf8');
-  // complete_pickup_with_proof is the authority; the Node copy exists only so
-  // the phone can be told "move closer" before it spends an upload.
+  // complete_pickup_with_proof is authoritative; the Node copy is used only by the pre-check.
   assert.match(sql, new RegExp(String.raw`distance \+ accuracy > ${PICKUP_PROXIMITY_LIMIT_METERS}\b`));
 });

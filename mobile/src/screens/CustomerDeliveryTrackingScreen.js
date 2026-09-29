@@ -50,8 +50,7 @@ function CustomerTrackingView({ route, navigation }) {
       <Text style={styles.note}>{t('cmp.locUpdates')}</Text>
       {status !== 'cancelled' && <OrderStepIndicator status={status} />}
       <RiderEtaCard data={data} status={status} />
-      {/* Rider row (prototype's rider-info row, shown above the map) —
-          name/live fields already come back from the tracking API. */}
+      {/* Rider row shown above the map. */}
       {!!view?.rider && (
         <View style={[styles.card, styles.riderCard]}>
           <UserAvatar user={{ full_name: view.rider.name }} size={40} />

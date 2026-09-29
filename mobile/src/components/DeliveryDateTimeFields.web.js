@@ -5,9 +5,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts, radius } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
 
-// Web: native browser date + time pickers. On react-native-web a raw <input>
-// is valid because the tree renders through react-dom. `date` defaults to
-// today (set by the caller); `time` has no default and is required.
+// Web: native browser date and time pickers. `date` defaults to today (set by
+// the caller); `time` is required.
 export default function DeliveryDateTimeFields({ date, onDateChange, time, onTimeChange, disabled }) {
   const { t } = useTranslation();
   return (

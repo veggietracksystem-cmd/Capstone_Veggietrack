@@ -28,9 +28,8 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
   const [webviewError, setWebviewError] = useState(null);
   const pendingFlyToRef = useRef(null);
 
-  // Sends a fly-to command into the WebView's Leaflet instance. Queued until
-  // the page reports 'ready' if the WebView hasn't finished loading yet (e.g.
-  // geolocation resolves faster than the CDN-hosted Leaflet page can load).
+  // Sends a fly-to command to the WebView's Leaflet map, queued until the page
+  // reports 'ready'.
   const flyToMap = (lat, lng, zoom = 16) => {
     if (mapReady && webviewRef.current) {
       webviewRef.current.injectJavaScript(`window.flyTo && window.flyTo(${lat}, ${lng}, ${zoom}); true;`);
@@ -59,9 +58,8 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     }
   };
 
-  // 0. Each time the modal opens: reset the map (forces a fresh WebView load
-  // via `openId`) and re-seed from the caller's existing pin (e.g. Edit
-  // Profile), so re-opening after a cancel doesn't lose the saved location.
+  // On each open, reload the map (via `openId`) and start from the caller's
+  // existing pin so a cancelled edit does not lose the saved location.
   useEffect(() => {
     if (!visible) return;
     setMapReady(false);
@@ -73,9 +71,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     }
   }, [visible]);
 
-  // 1. Auto-detect user current location on mount/visible — skipped when an
-  // existing pin was passed in, so editing a saved location doesn't silently
-  // jump to the device's current GPS position.
+  // Detect the current location, unless an existing pin was passed in.
   useEffect(() => {
     if (!visible || initialCoords) return;
     handleDetectLocation();
@@ -101,7 +97,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     }
   };
 
-  // 2. Reverse geocode when coordinates change
+  // Reverse geocode when the coordinates change.
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
@@ -157,8 +153,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     });
   };
 
-  // Fresh HTML/WebView per modal-open (keyed by openId) so the map always
-  // starts centered on the caller's existing pin, not a stale closure value.
+  // A fresh WebView document per open, centred on the caller's existing pin.
   const html = useMemo(() => {
     const seed = initialCoords || pinnedCoords;
     return buildPinningMapHtml({ centerLat: seed.latitude, centerLng: seed.longitude, zoom: 15 });
@@ -176,7 +171,6 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
 
         <PlaceAutocomplete visible={visible} onSelect={handleSelectSearchResult} />
 
-        {/* Map Container & Floating Buttons */}
         <View style={styles.mapContainer}>
           <WebView
             ref={webviewRef}
@@ -189,7 +183,6 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
           />
           {webviewError ? <Text style={styles.mapErrorNote}>{webviewError}</Text> : null}
 
-          {/* Floating Locate Me Button */}
           <TouchableOpacity
             style={styles.locateBtn}
             onPress={handleDetectLocation}
@@ -229,7 +222,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
   title: { fontSize: rf(20), fontWeight: '700', color: PRIMARY },
-  // Same small rounded outlined close button every other modal uses.
   closeBtn: {
     width: 38, height: 38, borderRadius: 10, backgroundColor: '#fff',
     borderWidth: 1, borderColor: '#ddd', alignItems: 'center', justifyContent: 'center',

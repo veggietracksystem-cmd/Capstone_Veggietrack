@@ -40,7 +40,7 @@ export default function usePlaceAutocomplete(visible) {
     const abortController = new AbortController();
     controller.current = abortController;
     const isCurrent = () => active.current && requestVersion === version.current;
-    // Bound a stalled provider request without changing any map/pin state.
+    // Abort a stalled provider request after 10 seconds.
     const timeout = setTimeout(() => abortController.abort(), 10000);
     try {
       const response = await fetch(
@@ -57,7 +57,7 @@ export default function usePlaceAutocomplete(visible) {
       const data = await response.json();
       if (!isCurrent()) return;
       if (!Array.isArray(data.results)) throw new Error('Invalid search response');
-      // Adapt only search results to the existing picker selection contract.
+      // Map search results to the picker's selection format.
       setResults(data.results.filter(item => (
         Number.isFinite(item.lat) && Number.isFinite(item.lon)
         && Math.abs(item.lat) <= 90 && Math.abs(item.lon) <= 180

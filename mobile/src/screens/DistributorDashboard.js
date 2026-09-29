@@ -17,7 +17,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
 import { useAuth } from '../context/AuthContext';
-import LogoutButton from '../components/LogoutButton';
 import ScreenHeader from '../components/ScreenHeader';
 import HomeHeaderActions from '../components/HomeHeaderActions';
 import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
@@ -29,7 +28,7 @@ import CustomModal from '../components/CustomModal';
 import ImageViewerModal from '../components/ImageViewerModal';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
@@ -70,18 +69,14 @@ export default function DistributorDashboard({ navigation, route }) {
     { id: 'profile', iconName: 'person-outline', label: t('dashboards.distributor.tabProfile') },
   ];
   const [tab, setTab] = useState('home'); // 'home' | 'orders' | 'pickups' | 'payments'
-  // The highlighted bottom tab is derived from the content on screen, so it
-  // can never drift (e.g. stay on Stocks after coming back to Orders).
-  // Pickup Requests and Payment are opened from Home.
+  // The highlighted bottom tab is derived from the visible content. Pickup Requests
+  // and Payment are opened from Home.
   const activeBottomTab = tab === 'orders' ? 'orders' : 'home';
 
   const handleBottomTabPress = (tab) => {
     if (tab.id === 'stocks') {
       navigation.navigate('Stocks');
     } else if (tab.id === 'inventory') {
-      // Repurposed: this now opens the Inventory + Weekly Report screen
-      // (table layout, History section, PDF export) instead of the old
-      // Product List screen — Product List lives inline on Home now.
       navigation.navigate('DistributorInventoryReport');
     } else if (tab.id === 'profile') {
       navigation.navigate('Profile');
@@ -92,9 +87,8 @@ export default function DistributorDashboard({ navigation, route }) {
     }
   };
 
-  // Pickup Requests and Payment open as full screens (own header with a back
-  // arrow, no bottom nav), so the Android back button returns to Home like
-  // the header arrow does.
+  // Pickup Requests and Payment open as full screens without the bottom nav, so
+  // the Android back button returns to Home.
   const FULL_SCREEN_TITLES = {
     pickups: 'dashboards.distributor.pickupRequests',
     payments: 'dashboards.distributor.paymentAction',
@@ -109,8 +103,7 @@ export default function DistributorDashboard({ navigation, route }) {
     return () => sub.remove();
   }, [isFullScreen]);
 
-  // Keyed on the params object (new on every navigate), so returning with the
-  // same tab as last time - e.g. Orders from Stocks twice - still applies.
+  // Keyed on the params object (new on every navigate) so a repeated tab param still applies.
   useEffect(() => {
     if (route.params?.tab) {
       setTab(route.params.tab);
@@ -126,8 +119,7 @@ export default function DistributorDashboard({ navigation, route }) {
 
   // ----- Orders state -----
   const [orders, setOrders] = useState([]);
-  // Issue 9: orders that are approved / in delivery. Without this list, an order
-  // vanishes from the dashboard the moment a rider is assigned.
+  // Orders that are approved or in delivery.
   const [activeOrders, setActiveOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [personnel, setPersonnel] = useState([]);
@@ -161,8 +153,7 @@ export default function DistributorDashboard({ navigation, route }) {
     setOrdersOffline(source === 'cache');
   }, []);
 
-  // Active (approved / picked_up / in_transit) orders — so assigned orders stay
-  // visible on the dashboard (Issue 9).
+  // Approved, picked-up and in-transit orders, so assigned orders stay visible.
   const loadActiveOrders = useCallback(async () => {
     const isCurrent = beginRead('loadActiveOrders');
     const { list } = await readThrough('orders_active_cache', () =>
@@ -324,8 +315,8 @@ export default function DistributorDashboard({ navigation, route }) {
     setBusyOrderId(order.id);
     try {
       await api.put(`/api/orders/${order.id}/assign`, { delivery_personnel_id: personnelId });
-      // Remove from the pending/approved list and refresh the active list so the
-      // order reappears there as "assigned" instead of disappearing (Issue 9).
+      // Remove the order from the pending list and refresh the active list, where
+      // it reappears as "assigned".
       beginRead('loadOrders');
       setOrders((prev) => prev.filter((o) => o.id !== order.id));
       await loadActiveOrders();
@@ -337,7 +328,6 @@ export default function DistributorDashboard({ navigation, route }) {
       setBusyOrderId(null);
     }
   };
-
 
   // ---------- Pickup request actions ----------
   // Open the price-entry / approval modal for a request.
@@ -385,7 +375,6 @@ export default function DistributorDashboard({ navigation, route }) {
   // ---------- Render ----------
   return (
     <SafeAreaView style={styles.container}>
-      {/* Same centred header every screen in the app uses. */}
       {isFullScreen ? (
         <ScreenHeader
           key="full-screen-header"
@@ -598,9 +587,7 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
 }
 
 // ================= Home tab =================
-// At-a-glance counts (each a shortcut into the relevant tab/screen), plus the
-// Product List (price editing) embedded inline — it used to be a separate
-// screen reached via a "Product List →" button; it now lives directly here.
+// Summary counts, quick actions and the embedded Product List.
 function HomeTab({
   refreshProducts,
   pendingOrderCount, pendingPickupCount, unpaidCount,
@@ -627,10 +614,7 @@ function HomeTab({
         </View>
       </View>
 
-      {/* Quick Actions — prototype's icon-grid shortcuts. Only using
-          destinations that already exist (no "Update Pricing" shortcut since
-          pricing is already edited inline in the Product List below, not on
-          its own screen). */}
+      {/* Quick Actions (pricing is edited in the Product List below). */}
       <Text style={styles.sectionTitle}>{t('dashboards.distributor.quickActions')}</Text>
       <View style={styles.quickActionGrid}>
         <QuickAction icon="checkmark-circle-outline" label={t('dashboards.distributor.pickupRequests')} onPress={onViewPickups} />
@@ -644,9 +628,8 @@ function HomeTab({
   );
 }
 
-// Aggregated product listings, ported from ProductListScreen.js so it can
-// live directly on the Distributor Home tab. Each card shows a single Edit
-// button that opens a centered modal for quantity/price edits and removal.
+// Aggregated product listings on the Home tab. Each card's Edit button opens a
+// modal for quantity and price edits and removal.
 function ProductListSection({ refreshProducts }) {
   const { t, language } = useTranslation();
   const requestLock = useRequestLock();
@@ -748,9 +731,8 @@ function ProductListSection({ refreshProducts }) {
 
   const removeProduct = () => {
     if (!activeListing) return;
-    // Capture the target and close the edit modal *before* showing the confirm
-    // dialog — stacking two native Modals (this one on top of the edit modal)
-    // is unreliable on Android/iOS and can silently eat the Confirm tap.
+    // Close the edit modal before showing the confirmation; stacked native modals
+    // are unreliable on Android/iOS and can swallow the Confirm tap.
     const target = activeListing;
     const label = localizeVegetableName(target.vegetable_name, language);
     setActiveVeg(null);
@@ -916,8 +898,7 @@ function getProofUrl(order) {
   return getDelivery(order)?.proof_photo_url || null;
 }
 
-// One Quick Action card: same size/padding/radius for all three, a green-tinted
-// border and a small chevron so it reads as tappable, and a pressed state.
+// Quick Action card with a chevron and pressed state.
 function QuickAction({ icon, label, onPress }) {
   return (
     <Pressable
@@ -949,10 +930,7 @@ function OrdersTab({
 
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
-  // A freshly-assigned order has delivery.status === 'assigned' (not yet
-  // picked_up), which effectiveStatus surfaces ahead of the order's own
-  // 'approved' status — include it here too, or the order vanishes from
-  // every tab the instant a rider is assigned instead of moving to Approved.
+  // A newly assigned order reports delivery.status 'assigned', so include it in Approved.
   const approved = activeOrders.filter(
     (o) => ['approved', 'assigned', 'picked_up', 'in_transit'].includes(effectiveStatus(o)) && o.delivery_personnel_id
   );
@@ -970,8 +948,7 @@ function OrdersTab({
 
   return (
     <View>
-      {/* Four labels don't fit evenly across a phone, so this row scrolls
-          sideways rather than squeezing the text. */}
+      {/* Scrolls sideways because four labels do not fit evenly on a phone. */}
       <SegmentedTabs
         scroll
         inset={spacing.lg}
@@ -995,8 +972,7 @@ function OrdersTab({
 
           return (
             <View key={order.id} style={styles.orderCard}>
-              {/* Header: id + status badge (prototype's order-detail header
-                  row); total moved into its own row below, next to Items. */}
+              {/* Header: order id and status badge */}
               <View style={styles.orderHeader}>
                 <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
                 <StatusBadge status={order.status} />
@@ -1196,8 +1172,7 @@ function PaymentsTab({
   const { t } = useTranslation();
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
-  // Simple aggregates over already-loaded data (prototype's This Week /
-  // Pending summary tiles) — no new fetch, just a sum of what's on screen.
+  // Summary totals computed from the loaded payments.
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const thisWeekTotal = payments
     .filter((p) => p.recorded_at && new Date(p.recorded_at).getTime() >= weekAgo)
@@ -1314,8 +1289,7 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
   subtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
-
-  // Payments tab: tile-grid summary (prototype's .tile-grid/.tile)
+  // Payments tab: summary tiles
   summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   statTile: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14 },
   statTileLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft },
@@ -1337,7 +1311,7 @@ const styles = StyleSheet.create({
   homeStatValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: PRIMARY },
   homeStatLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginTop: 4, textAlign: 'center' },
 
-  // Home tab: Quick Actions icon grid (prototype's quick-action-grid)
+  // Home tab: Quick Actions grid
   quickActionGrid: { flexDirection: 'row', gap: 10, marginBottom: 20 },
   quickAction: {
     flex: 1, minHeight: 104, alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -1350,13 +1324,10 @@ const styles = StyleSheet.create({
   quickActionChevron: { position: 'absolute', top: 8, right: 8 },
   quickActionLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.ink, textAlign: 'center' },
 
-  // Harvest Receiving card
-
   primaryBtn: { backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 14, alignItems: 'center', marginBottom: 14, justifyContent: 'center', minHeight: control.height },
   primaryBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg), textAlign: 'center' },
 
-  // Single bordered list container with divided rows (prototype's .list/.row
-  // pattern) — reused for the Product List, and for Order Items/Payments below.
+  // Bordered list container with divided rows (Product List, order items, payments).
   list: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
   listRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,

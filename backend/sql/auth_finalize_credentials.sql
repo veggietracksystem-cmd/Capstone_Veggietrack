@@ -1,4 +1,5 @@
--- MANUAL FINAL STEP ONLY: after all 12 imports and staging login validation.
+-- Manual final step: run only after every legacy account has been imported and
+-- login has been validated on staging.
 -- Removes obsolete credential columns, not accounts or business data.
 BEGIN;
 LOCK TABLE public.users IN ACCESS EXCLUSIVE MODE;

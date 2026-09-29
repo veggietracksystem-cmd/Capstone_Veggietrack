@@ -1,13 +1,6 @@
-// Turns whatever a failed request threw into one short, plain sentence a
-// normal user can act on.
-//
-// The API client and the backend both attach technical detail to their errors
-// ("Request failed (500)", "Server cannot be reached.", raw database or
-// validation wording). Screens used to pass `err.message` straight into an
-// alert, so users saw developer text. Every screen now routes errors through
-// here instead: a clear backend message about *their* data still gets shown,
-// because that is the part they can fix, while anything technical is replaced
-// by a simple sentence.
+// Converts a thrown error into a short, plain sentence the user can act on.
+// Clear backend messages about the user's own data are kept; technical wording
+// is replaced with a generic sentence.
 
 import { tr } from '../i18n/translate';
 

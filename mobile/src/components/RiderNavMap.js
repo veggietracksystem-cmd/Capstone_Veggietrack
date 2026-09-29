@@ -9,9 +9,8 @@ import { colors, fonts, fontSize, shadowCard } from '../theme/appTheme';
 
 const FOLLOW_ZOOM = 17;
 
-// Full-height map for the rider's navigation screen. It reuses the app's one
-// Leaflet/OpenStreetMap map document and follows the rider's live position;
-// dragging the map pauses following until the rider taps Recenter.
+// Full-height map for rider navigation. Follows the rider's live position;
+// dragging the map pauses following until Recenter is tapped.
 export default function RiderNavMap({ tracking, position, route, completed, toWarehouse, recenterBottom = 24 }) {
   const { t } = useTranslation();
   const [follow, setFollow] = useState(true), [fitToken, setFitToken] = useState(0);

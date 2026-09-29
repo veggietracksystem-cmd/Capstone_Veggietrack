@@ -6,7 +6,7 @@ import { useTranslation } from '../i18n/useTranslation';
 import { colors, fonts } from '../theme/appTheme';
 import UserAvatar from './UserAvatar';
 
-// Selection/upload is staged here; only the parent's Save persists the URL.
+// Selection and upload are staged here; the parent's Save persists the URL.
 export default function ProfilePhotoField({ user, value, disabled, onChange, onStateChange }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
@@ -21,7 +21,7 @@ export default function ProfilePhotoField({ user, value, disabled, onChange, onS
     // Keep a previous failure pending if the user cancels a retry.
     let nextState = error ? 'error' : 'ready';
     try {
-      // Must launch directly from the tap on web (no preceding permission await).
+      // On web the picker must open directly from the tap, without awaiting permissions first.
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
       if (!result.canceled) {
         const url = await uploadToCloudinary(result.assets?.[0]);
@@ -37,8 +37,7 @@ export default function ProfilePhotoField({ user, value, disabled, onChange, onS
     }
   };
 
-  // Staged like a new picture: the avatar falls back to initials right away and
-  // the removal is saved with the parent's Save button.
+  // Removal is staged like a new picture and saved with the parent's Save button.
   const remove = () => {
     if (disabled || busy || !value) return;
     setError(''); onChange(null);

@@ -3,8 +3,7 @@ import MessagesIcon from './MessagesIcon';
 import NotificationBell from './NotificationBell';
 import { colors } from '../theme/appTheme';
 
-// Right-hand actions for each module's Home header: Messages and
-// Notifications, separated by a thin, low-opacity divider.
+// Messages and Notifications actions for each module's Home header.
 export default function HomeHeaderActions() {
   return (
     <View style={styles.row}>

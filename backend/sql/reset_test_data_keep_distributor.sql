@@ -9,24 +9,16 @@
 --          pickups, payments, messages, notifications, saved addresses,
 --          tracking pings and the account audit trail).
 --
--- Why not sql/reset_data.sql: that one TRUNCATEs users entirely, which
--- would remove the distributor too. backend/lib/auth.js hardcodes that
--- UUID as TRUSTED_DISTRIBUTOR, so deleting it breaks every distributor
--- route until the constant is updated. It also predates the
--- delivery_addresses, delivery_tracking and account_audit tables.
---
--- This does NOT delete uploaded media in Cloudinary (harvest photos,
--- batch photos, delivery proof). Clear those in the Cloudinary dashboard
--- separately if you want a fully fresh start.
+-- Unlike sql/reset_data.sql, this keeps the distributor profile, whose ID is
+-- TRUSTED_DISTRIBUTOR in backend/lib/auth.js. Uploaded Cloudinary media is not
+-- deleted.
 --
 -- THIS IS IRREVERSIBLE. Take a database backup first:
 -- Supabase Dashboard > Database > Backups.
 -- ============================================================
 
--- The profile that survives is 86d9d317-b099-430c-be21-824d0a3434b6,
--- written out in full at each step below. It must match TRUSTED_DISTRIBUTOR
--- in backend/lib/auth.js — if you ever change one, change both.
-
+-- The kept profile is 86d9d317-b099-430c-be21-824d0a3434b6; it must match
+-- TRUSTED_DISTRIBUTOR in backend/lib/auth.js.
 
 -- ------------------------------------------------------------
 -- STEP 1 — PRE-FLIGHT. Run this on its own and read the output
@@ -51,14 +43,13 @@ UNION ALL SELECT 'messages',           COUNT(*) FROM public.messages
 UNION ALL SELECT 'notifications',      COUNT(*) FROM public.notifications
 UNION ALL SELECT 'account_audit',      COUNT(*) FROM public.account_audit;
 
-
 -- ------------------------------------------------------------
 -- STEP 2 — THE WIPE. Only run this once STEP 1 shows exactly one
 -- KEEP row and it is your distributor.
 -- ------------------------------------------------------------
 BEGIN;
 
--- Abort rather than wipe if the distributor is not where we expect it.
+-- Abort if the distributor profile does not exist.
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -70,10 +61,8 @@ BEGIN
 END $$;
 
 -- Business data, children first. delivery_addresses, delivery_tracking and
--- account_audit were created outside the repo's SQL, so their ON DELETE
--- behaviour is unknown — clear them explicitly instead of trusting a cascade.
--- account_audit in particular references users with NO ACTION, which would
--- otherwise block the user delete below.
+-- account_audit are cleared explicitly because their ON DELETE behaviour is not
+-- defined in these scripts (account_audit would otherwise block the user delete).
 DELETE FROM public.delivery_tracking;
 DELETE FROM public.order_items;
 DELETE FROM public.deliveries;
@@ -99,7 +88,6 @@ WHERE id <> '86d9d317-b099-430c-be21-824d0a3434b6'
   AND id NOT IN (SELECT auth_user_id FROM public.users WHERE auth_user_id IS NOT NULL);
 
 COMMIT;
-
 
 -- ------------------------------------------------------------
 -- STEP 3 — VERIFY. Expect one user, one auth user, zeros everywhere else.

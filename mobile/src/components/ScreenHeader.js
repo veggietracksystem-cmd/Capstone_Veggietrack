@@ -4,18 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, control, fonts, fontSize, spacing } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
-// One header for every screen in the app - pushed screens and dashboards
-// alike - so height/background/title size/padding/border are identical
-// everywhere instead of each screen hand-rolling its own row.
+// Shared header for every screen. The title is left-aligned after the back arrow
+// and takes the space the right-hand actions do not need.
 //
-// The title is left-aligned: it sits right after the back arrow (or at the
-// screen's 16px gutter when there is none) and takes all the space the
-// right-hand actions don't need, so long titles get the most room possible.
-//
-// Rendered as the first child inside a screen's existing SafeAreaView (every
-// screen already has one), which is what supplies the top notch/status-bar
-// inset - set `topInset` only for the rare screen that renders its header
-// outside any SafeAreaView.
+// Render it inside the screen's SafeAreaView, which supplies the top inset; set
+// `topInset` only when the header is rendered outside a SafeAreaView.
 export default function ScreenHeader({ title, onBack, left, right, topInset = false }) {
   const { t } = useTranslation();
   const leftContent = onBack ? (
@@ -59,12 +52,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     paddingLeft: spacing.lg,
-    // Right-hand icon buttons carry ~6px of inner padding, so this puts the
-    // icons themselves on the same 16px gutter as the content.
+    // Offsets the icon buttons' inner padding so icons align with the 16px gutter.
     paddingRight: 10,
   },
-  // The back button's 44px hit area is centred on its icon, so pull the row
-  // in a little to keep the arrow itself on the 16px content gutter.
+  // Keeps the back arrow on the 16px content gutter despite its 44px hit area.
   withLeft: {
     paddingLeft: spacing.xs,
   },

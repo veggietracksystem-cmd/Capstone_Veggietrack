@@ -39,8 +39,7 @@ test('PostgreSQL migration, scheduling triggers, atomic progression/POD, permiss
     await db.exec(policyMigration);
     assert.equal((await db.query("SELECT data_type FROM information_schema.columns WHERE table_name='users' AND column_name='current_location_accuracy'")).rows[0].data_type, 'double precision');
     await db.exec(policyMigration); // The combined rollout is safe for already-migrated installations.
-    // Applied on top, same as against the hosted project — relaxes the
-    // distance-from-destination check from a hard block to a recorded status.
+    // Applied on top, as on the hosted project.
     await db.exec(fs.readFileSync(path.join(__dirname, '../sql/delivery_proof_relax_radius_migration.sql'), 'utf8'));
     await db.query("UPDATE orders SET status = 'approved' WHERE id = $1", [order]); // Old schedule does not prevent unrelated updates.
     await assert.rejects(db.query("UPDATE orders SET preferred_schedule = '1999-01-01' WHERE id = $1", [order]), /past/);
@@ -49,9 +48,7 @@ test('PostgreSQL migration, scheduling triggers, atomic progression/POD, permiss
     const advance = status => db.query('SELECT advance_delivery_status($1,$2,$3)', [delivery,rider,status]);
     await assert.rejects(advance('in_transit'), /transition/);
     await advance('picked_up');
-    // The order must actually pass through 'picked_up' (a distinct order_status
-    // value, shown as its own step in the retailer/distributor UI) rather than
-    // jumping straight to 'in_transit'.
+    // The order passes through 'picked_up' before 'in_transit'.
     assert.equal((await db.query('SELECT status FROM orders')).rows[0].status, 'picked_up');
     await advance('picked_up'); // Retry safe.
     await advance('in_transit');
@@ -131,7 +128,7 @@ test('delivery far from destination still completes — GPS is recorded, not a g
     await db.exec(fs.readFileSync(path.join(__dirname, '../sql/delivery_proof.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../sql/delivery_location_policy.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../sql/delivery_proof_relax_radius_migration.sql'), 'utf8'));
-    // ~11km away — nowhere near the old 100-150m radius — but photo/GPS/time are valid, so it still completes.
+    // ~11 km away, but photo, GPS and time are valid, so it still completes.
     const pod = { latitude: 7.2, longitude: 125.6, accuracy: 10, captured_at: new Date().toISOString(), submitted_at: new Date().toISOString() };
     await db.query('SELECT complete_delivery_with_proof($1,$2,$3,$4)',
       [delivery, rider, 'https://res.cloudinary.com/demo/image/upload/proof.jpg', JSON.stringify(pod)]);

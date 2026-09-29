@@ -11,25 +11,20 @@ import { useSharedModalMotion } from '../lib/motion';
 const PRIMARY = colors.leaf700;
 
 /**
- * Reusable themed modal (Issue 1): dimmed backdrop, centered rounded card, green
- * theme, and a subtle scale/fade-in animation. Replaces ad-hoc modals so dialogs
- * look consistent across the app.
+ * Themed modal: dimmed backdrop, centred card and a scale/fade-in animation.
  *
  * Props:
  *  - visible:      show/hide
- *  - title:        bold green heading
+ *  - title:        heading
  *  - children:     body content
- *  - confirmLabel / onConfirm:  primary green button (omit to hide)
- *  - cancelLabel  / onCancel:   outline footer button for a real second choice
- *                  (e.g. "Cancel" beside "Save"); dismiss-only callers should
- *                  just pass onCancel and skip cancelLabel - the header's X
- *                  already closes the modal, so a plain "Close" footer button
- *                  would be redundant and is left off.
- *  - busy:         disables buttons + shows the confirm button as disabled
- *  - confirmDisabled: independently disable the confirm button
+ *  - confirmLabel / onConfirm:  primary button (omit to hide)
+ *  - cancelLabel  / onCancel:   secondary button; omit cancelLabel for
+ *                  dismiss-only dialogs, since the header X already closes it
+ *  - busy:         disables the buttons
+ *  - confirmDisabled: disables the confirm button
  *  - compactActions: smaller, centred buttons (read-only detail views)
- *  - danger:       red confirm button, for destructive actions (e.g. Log Out)
- *  - hideCloseIcon: hide the header's X (Cancel/Confirm are the only way out)
+ *  - danger:       red confirm button for destructive actions
+ *  - hideCloseIcon: hides the header X
  */
 export default function CustomModal({
   visible,
@@ -46,10 +41,7 @@ export default function CustomModal({
   hideCloseIcon = false,
 }) {
   const { t } = useTranslation();
-  // A cancelLabel that just says "close" (explicitly or by omission) means
-  // there's no real second choice - the header X covers that, so no
-  // redundant footer button. An explicit different label (e.g. "Cancel")
-  // is a genuine second choice and keeps its footer button.
+  // A cancel label that only means "close" is omitted; the header X covers it.
   const closeWords = [t('common.close'), t('notifications.close')];
   const showCancelButton = !!onCancel && !closeWords.includes(cancelLabel ?? t('common.close'));
   const { backdropStyle, cardStyle } = useSharedModalMotion(visible);

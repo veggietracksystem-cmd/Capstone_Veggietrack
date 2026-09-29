@@ -1,7 +1,7 @@
 import ProofDetails from './ProofDetails';
 import { useTranslation } from '../i18n/useTranslation';
 import { rf } from '../lib/responsive';
-import { Modal, View, Text, Image, TouchableOpacity, ActivityIndicator, Animated, StyleSheet } from 'react-native';
+import { Modal, Text, Image, TouchableOpacity, ActivityIndicator, Animated, StyleSheet } from 'react-native';
 import { colors, control, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useSharedModalMotion } from '../lib/motion';
 
@@ -10,8 +10,8 @@ const PRIMARY = colors.leaf700;
 /**
  * Confirm-delivery modal with proof-of-delivery preview.
  *
- * The photo is only uploaded when the driver taps "Confirm & Upload" — picking a
- * photo stages it with current GPS for preview. Both are required.
+ * Picking a photo stages it with the current GPS for preview; it is uploaded
+ * only when the rider confirms. Both are required.
  *
  * Props:
  *  - visible:    show/hide

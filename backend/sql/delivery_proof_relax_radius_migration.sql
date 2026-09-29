@@ -1,13 +1,7 @@
--- Relaxes complete_delivery_with_proof() so distance-from-destination is
--- recorded (for ETA/routing context) but no longer blocks delivery
--- completion. GPS coordinates, accuracy and timestamp are still required and
--- validated (real, fresh, reasonably accurate fix) — only the "must be
--- standing within the radius" gate is removed. Mirrors the same relaxation
--- already applied to backend/lib/deliveryProof.js (validateProof).
---
--- Run this against the hosted Supabase project's SQL editor (no local
--- migration tooling is wired up for this project — see the other files in
--- this directory for the same pattern).
+-- Updates complete_delivery_with_proof() so the distance from the destination is
+-- recorded but no longer blocks completion. GPS coordinates, accuracy and
+-- timestamp are still required and validated. Matches validateProof in
+-- backend/lib/deliveryProof.js. Run in the Supabase SQL editor.
 
 BEGIN;
 CREATE OR REPLACE FUNCTION public.complete_delivery_with_proof(
@@ -70,8 +64,7 @@ BEGIN
     power(sin(radians(destination_lat - lat)/2),2) +
     cos(radians(lat))*cos(radians(destination_lat))*power(sin(radians(destination_lng-lng)/2),2))));
   effective_radius := 100 + least(accuracy,50);
-  -- Distance is recorded below (for ETA/routing context) but no longer
-  -- raises — a photo + fresh, reasonably accurate GPS fix is the proof.
+  -- Distance is recorded below but does not block completion.
   IF p_photo_url IS NULL OR p_photo_url NOT LIKE 'https://res.cloudinary.com/%/image/upload/%' THEN
     RAISE EXCEPTION 'A valid uploaded proof photo is required.' USING ERRCODE = '22023';
   END IF;

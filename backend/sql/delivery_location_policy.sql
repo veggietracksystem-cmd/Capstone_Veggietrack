@@ -1,6 +1,5 @@
--- Read-only schema inspection MUST be reviewed before applying the transaction.
--- This combined rollout handles the missing columns/functions found by the hosted
--- read-only inspection. No hosted migration has been applied by this task.
+-- Review the read-only schema inspection below before applying the transaction.
+-- Adds the columns and functions required by the delivery location policy.
 SELECT table_name, column_name, data_type FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name IN ('orders','deliveries','users','delivery_addresses')
 ORDER BY table_name, ordinal_position;
@@ -42,8 +41,7 @@ ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_latitude double prec
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_longitude double precision;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS current_location_accuracy double precision;
 ALTER TABLE public.deliveries ADD COLUMN IF NOT EXISTS pod jsonb;
--- Timeline timestamps read by the retailer tracking view (deliveryTracking.js).
--- Without these the tracking timeline always showed null for these two stages.
+-- Timeline timestamps read by the tracking view (deliveryTracking.js).
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS assigned_at timestamp with time zone;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS in_transit_at timestamp with time zone;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivered_at timestamp with time zone;

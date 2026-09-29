@@ -1,4 +1,4 @@
-﻿import { acquireDevicePosition } from './deviceLocation';
+import { acquireDevicePosition } from './deviceLocation';
 
 // On web launch the picker directly from the tap; permissions/GPS await afterwards.
 // onSelected stages the image before GPS refinement so a GPS failure cannot lose it.

@@ -16,6 +16,7 @@ function component(file, mocks = {}) {
       return [values[index], next => { values[index] = typeof next === 'function' ? next(values[index]) : next; }]; },
     useRef(initial) { const index = cursor++; if (!(index in values)) values[index] = { current: initial }; return values[index]; },
     useEffect(effect) { const index = cursor++; if (!(index in values)) { values[index] = true; cleanups.push(effect()); } },
+    forwardRef: render => props => render(props, null),
   };
   const filename = path.join(__dirname, '../../mobile/src/components', file);
   function loadLocal(filename) {
@@ -30,6 +31,7 @@ function component(file, mocks = {}) {
     if (name === '../theme/appTheme') return { colors: {}, fonts: {}, radius: {}, fontSize: {}, spacing: {}, control: {} };
     if (name === '../i18n/useTranslation') return { useTranslation: () => ({ t: key => key }) };
     if (name === './UserAvatar') return () => null;
+    if (name.endsWith('.json')) return JSON.parse(fs.readFileSync(path.resolve(path.dirname(filename), name), 'utf8'));
     if (name.startsWith('.')) return loadLocal(path.resolve(path.dirname(filename), name + '.js'));
     return mobileRequire(name);
   } });

@@ -20,9 +20,7 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
     const rows = data[table] ||= []; const filters = []; let mode = 'read', values, singular = false;
     const query = {
       select() { return query; }, eq(k, v) { filters.push(row => row[k] === v); return query; },
-      // A never-set column and an explicit SQL NULL are the same thing in
-      // real Postgres; this in-memory mock must treat an absent key the same
-      // way `.is(col, null)` would against a real column default of NULL.
+      // Treat an absent key as NULL, matching a Postgres column default of NULL.
       is(k, v) { filters.push(row => (row[k] ?? null) === v); return query; },
       in(k, values) { filters.push(row => values.includes(row[k])); return query; },
       gt(k, v) { filters.push(row => row[k] > v); return query; }, order() { return query; }, limit() { return query; },
@@ -37,9 +35,8 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
       },
     }; return query;
   },
-  // Minimal reimplementation of sql/stock_safety.sql and
-  // sql/pickup_tracking_proof.sql's RPCs against the same in-memory rows, so
-  // this smoke test exercises the real Node call sites end-to-end.
+  // In-memory versions of the sql/stock_safety.sql and sql/pickup_tracking_proof.sql
+  // RPCs, so the real route handlers run end to end.
   async rpc(name, args) {
     if (name === 'decrement_product_stock') {
       const row = (data.products || []).find(p => p.id === args.p_product_id);

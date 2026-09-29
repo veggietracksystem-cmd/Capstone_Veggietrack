@@ -1,10 +1,6 @@
-// Shared design tokens for the whole app. These are the implementation-safe
-// parts of the approved redesign: the same palette can be used by every role
-// without changing any authentication, inventory, delivery, or offline flow.
+// Shared design tokens.
 export const colors = {
-  // Main screen background is pure white; cards, list groups and grouped
-  // sections sit on `surface`, a very light off-white, so they separate
-  // from the page without heavy shadows. Inputs and controls stay `card` white.
+  // Screens use a white background; cards and grouped sections use `surface`.
   bgScreen: '#FFFFFF',
   surface: '#FAFAF7',
   leaf900: '#123005',
@@ -20,12 +16,10 @@ export const colors = {
   soil300: '#E8E2D2',
   ink: '#24301C',
   inkSoft: '#6E7566',
-  // Form field labels: darker than inkSoft so they read clearly, lighter than ink so they stay below titles.
+  // Form field labels.
   labelInk: '#3D4834',
   inkFaint: '#9AA290',
-  // One light-grey placeholder colour for every text input in the app, so a
-  // hint never reads as if the user already typed something. Referenced by
-  // AuthInput/PasswordInput and every screen-level TextInput.
+  // Placeholder colour shared by every text input.
   placeholder: '#9AA290',
   card: '#FFFFFF',
   border: '#E8E2D2',
@@ -37,9 +31,7 @@ export const colors = {
   purpleSoft: '#EEE7FB',
 };
 
-// One spacing scale for screen padding, gaps between cards, and the space
-// between a section title and its content. Screens should use these instead of
-// ad hoc numbers so margins stay even from screen to screen.
+// Spacing scale for screen padding and gaps between cards and sections.
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -48,9 +40,8 @@ export const spacing = {
   xl: 24,
 };
 
-// Shared control metrics. `minTouch` is the smallest comfortable tap target;
-// `height` is the standard height for buttons, chips and filter tabs so
-// adjacent controls line up and a tab never changes size when selected.
+// Control metrics: `minTouch` is the minimum tap target; `height` is the standard
+// height for buttons, chips and filter tabs.
 export const control = {
   minTouch: 44,
   height: 44,
@@ -65,9 +56,7 @@ export const radius = {
   sheet: 22,
 };
 
-// Single font-size scale for the whole app. Every screen should reference
-// these tokens (via rf(fontSize.x)) instead of ad hoc numeric sizes, so
-// headers/body/labels/buttons read consistently across every role.
+// Font-size scale; screens reference these via rf(fontSize.x).
 export const fontSize = {
   xs: 11,
   sm: 12.5,
@@ -89,16 +78,12 @@ export const fonts = {
 };
 
 export const shadowCard = {
-  // Supported by current Expo/RN targets and maps to the redesign's soft,
-  // green-tinted card shadow on native and web.
+  // Soft green-tinted card shadow (native and web).
   boxShadow: '0 6px 20px rgba(30, 78, 9, 0.12)',
 };
 
-// One compact action-button design for card/row actions (Edit, View Details,
-// Set Default, Delete, Track Order, ...). Same height, padding, radius, border
-// and type everywhere; width stays flexible (set by the label / layout).
-// Variants only change colors: primary (solid dark green), outline (secondary,
-// outlined green) and danger (outlined red, for destructive actions).
+// Compact action button for card and row actions. Variants only change colours:
+// primary (solid), outline and danger.
 export const actionBtn = {
   minHeight: 32,
   paddingVertical: 6,

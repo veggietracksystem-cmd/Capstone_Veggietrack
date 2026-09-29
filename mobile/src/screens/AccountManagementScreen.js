@@ -14,9 +14,8 @@ import { friendlyError } from '../lib/errorMessages';
 import { roleLabel } from '../lib/roles';
 import { useTranslation } from '../i18n/useTranslation';
 
-// The distributor's User Management screen: approve, decline, disable and
-// reactivate other people's accounts. This is the only place an account is
-// disabled - a user never disables their own from their profile.
+// Distributor User Management: approve, decline, disable and reactivate accounts.
+// Accounts are disabled only here, never by the account owner.
 const FILTERS = [
   { value: 'pending_approval', labelKey: 'acct.filterPending' },
   { value: 'active', labelKey: 'acct.filterActive' },
@@ -25,15 +24,13 @@ const FILTERS = [
   { value: 'unverified', labelKey: 'acct.filterUnverified' },
 ];
 
-// What each action is called where the distributor can see it, so the confirm
-// box reads like a sentence instead of a status code.
+// Readable action names for the confirmation dialog.
 const ACTION_WORDING = {
   APPROVED: { verbKey: 'acct.verbApprove', titleKey: 'acct.approveTitle' },
   DECLINED: { verbKey: 'acct.verbDecline', titleKey: 'acct.declineTitle' },
   DISABLED: { verbKey: 'acct.verbDisable', titleKey: 'acct.disableTitle' },
   REACTIVATED: { verbKey: 'acct.verbTurnOn', titleKey: 'acct.turnOnTitle' },
 };
-
 
 export default function AccountManagementScreen({ navigation }) {
   const { t } = useTranslation();
@@ -110,9 +107,7 @@ export default function AccountManagementScreen({ navigation }) {
         )}
       />
       <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
-        {/* No second "Accounts" title here - the header already says what
-            this screen is. The chips scroll sideways so the longer labels
-            stay readable instead of being squeezed together. */}
+        {/* Filter chips scroll sideways so longer labels stay readable. */}
         <FilterChips options={FILTERS.map((f) => ({ value: f.value, label: t(f.labelKey), count: f.value === 'pending_approval' ? pendingCount : 0 }))} value={status} onChange={setStatus} disabled={busy} />
 
         {!!error && <Text style={[s.error, styles.errorText]} accessibilityRole="alert">{error}</Text>}
@@ -200,8 +195,7 @@ const styles = StyleSheet.create({
   },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   actionRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
-  // Each button fills its own half of the row, so Approve/Decline are the
-  // same width instead of hugging their own labels.
+  // Approve and Decline share the row equally.
   actionSlot: { flex: 1 },
   name: { flex: 1, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
   role: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.leaf700, marginTop: 2 },

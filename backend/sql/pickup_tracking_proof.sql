@@ -2,18 +2,12 @@
 ALTER TABLE pickup_requests ADD COLUMN IF NOT EXISTS proof_photo_url TEXT;
 ALTER TABLE pickup_requests ADD COLUMN IF NOT EXISTS pod JSONB;
 
--- Rider pickup completion, mirroring complete_delivery_with_proof
--- (sql/delivery_proof.sql): one service-role-only atomic transaction that
--- validates GPS + photo + timestamp and persists them together with the
--- status transition, so a photo URL can never be stored without a verified
--- transaction, and a lost response can be safely retried without duplicating
--- or overwriting an already-completed pickup.
+-- Rider pickup completion, mirroring complete_delivery_with_proof: validates GPS,
+-- photo and timestamp and saves them with the status change in one service-role
+-- transaction, so a lost response can be retried safely.
 --
--- Unlike delivery (where the retailer's delivery pin is required at order
--- time), a farmer's farm location pin is optional. When it exists, the
--- rider's proof must be within the same radius policy as delivery; when it
--- doesn't, the proximity check is skipped but GPS/photo/timestamp capture is
--- still mandatory — never silently accept a bare photo URL either way.
+-- The farm location pin is optional. When present, the rider must be within the
+-- proximity limit; GPS, photo and timestamp are always required.
 CREATE OR REPLACE FUNCTION public.complete_pickup_with_proof(
   p_pickup_id uuid, p_rider_id uuid, p_photo_url text, p_pod jsonb
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -25,8 +19,7 @@ BEGIN
     RAISE EXCEPTION 'Pickup request not assigned to you' USING ERRCODE = '22023';
   END IF;
   IF p.status = 'picked_up' THEN RETURN p.pod; END IF;
-  -- Completion is allowed directly from 'assigned' as well as after the rider
-  -- has marked 'otw' (on the way) — see PUT /api/pickup-requests/:id/status.
+  -- Completion is allowed from 'assigned' or 'otw' (on the way).
   IF p.status NOT IN ('assigned', 'otw') THEN
     RAISE EXCEPTION 'Pickup request cannot be picked up' USING ERRCODE = '22023';
   END IF;

@@ -4,8 +4,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import NotificationBell from '../components/NotificationBell';
 import { useTranslation } from '../i18n/useTranslation';
 
-// Dedicated Notifications screen (pushed from the header bell, like Messages).
-// It is a stack screen, so the dashboards' bottom nav is not rendered here.
+// Notifications screen, pushed from the header bell.
 export default function NotificationsScreen({ navigation }) {
   const { t } = useTranslation();
 

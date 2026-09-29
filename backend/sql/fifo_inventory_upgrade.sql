@@ -1,12 +1,10 @@
 -- ============================================================
 -- VeggieTrack – FIFO batch-tracked inventory upgrade
--- Run this ONCE in the Supabase SQL editor, after schema_complete.sql
--- and veggietrack_fixes.sql have already been applied.
+-- Run once in the Supabase SQL editor, after schema_complete.sql and
+-- veggietrack_fixes.sql.
 --
--- Turns the existing `products` table into a proper batch/lot table:
--- each row already represents one pickup's worth of stock (it just
--- lacked the provenance + lifecycle columns needed for FIFO, Stocks,
--- and traceable reporting). No new table is introduced.
+-- Adds batch provenance and lifecycle columns to `products`, where each row is
+-- one batch of stock. No new table is introduced.
 -- ============================================================
 
 -- ---- products (batch/lot table) -----------------------------------------
@@ -20,10 +18,8 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS batch_photo_url TEXT; -- distribut
 -- Price is unknown until a batch is added to the product list.
 ALTER TABLE products ALTER COLUMN price_per_kg DROP NOT NULL;
 
--- Backfill: rows that already existed before this migration were already
--- sellable (they were reachable from /api/products/available), so treat
--- them as already 'listed'. Their provenance columns stay NULL — legacy
--- batches simply show blank Farmer/Pickup Date in Stocks & the report.
+-- Existing rows were already sellable, so they are marked 'listed'. Their
+-- provenance columns stay NULL.
 UPDATE products
 SET status = 'listed',
     quantity_received = COALESCE(quantity_received, stock_kg)

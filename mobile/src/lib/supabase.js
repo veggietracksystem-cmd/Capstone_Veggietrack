@@ -8,11 +8,9 @@ const rawStorage = {
   removeItem: key => Platform.OS === 'web' ? Promise.resolve(globalThis.localStorage?.removeItem(key)) : SecureStore.deleteItemAsync(key),
 };
 
-// "Keep me signed in": when on (the default for existing sessions) the session is
-// stored on the device and survives app restarts until the user logs out. When
-// off, the session is kept only for the current run (memory; on web the browser
-// tab's sessionStorage) and is never written to persistent storage. Only the
-// session token is ever stored - never the password.
+// "Keep me signed in": when on, the session persists across restarts until logout;
+// when off, it is kept only in memory (sessionStorage on web). Only the session
+// token is stored, never the password.
 const KEEP_KEY = 'veggietrack.keepSignedIn';
 let keepSignedIn = true;
 const keepReady = rawStorage.getItem(KEEP_KEY).then(v => { keepSignedIn = v !== '0'; }).catch(() => {});

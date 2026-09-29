@@ -97,10 +97,8 @@ const DIST_INVENTORY_LOG = [
   { veg: 'Lettuce', change: '-4 kg', reason: 'Spoilage adjustment', date: 'Sep 14, 4:10 PM' },
 ];
 
-/* This matches the columns of the REAL DistributorInventoryReportScreen
-   (a horizontally-scrollable ReportTable with Inventory/History segments).
-   `delivered` decides which segment a row appears in. This structure is
-   kept as-is per review feedback — only the visual chrome was restyled. */
+/* Same columns as DistributorInventoryReportScreen (Inventory/History segments).
+   `delivered` decides which segment a row appears in. */
 const DIST_INVENTORY_TABLE = [
   { product: 'Tomato', qtyReceived: 25, qtySold: 10, remaining: 15, pricePerKg: 95, totalAmount: 950, farmer: 'Mang Tomas', retailer: "Nena's Turo-Turo", pickupRider: 'Juan D.', deliveryRider: 'Juan D.', harvestDate: 'Sep 17', pickupDate: 'Sep 18', deliveryDate: 'Sep 18', paymentStatus: 'Paid', orderStatus: 'Out for Delivery', delivered: false },
   { product: 'Eggplant', qtyReceived: 15, qtySold: 5, remaining: 10, pricePerKg: 68, totalAmount: 340, farmer: 'Mang Tomas', retailer: "Nena's Turo-Turo", pickupRider: 'Juan D.', deliveryRider: 'Juan D.', harvestDate: 'Sep 16', pickupDate: 'Sep 16', deliveryDate: 'Sep 18', paymentStatus: 'Paid', orderStatus: 'Out for Delivery', delivered: false },

@@ -11,7 +11,7 @@ import EmptyState from '../components/EmptyState';
 import ImageViewerModal from '../components/ImageViewerModal';
 import { showAlert, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
+import { colors, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { getProofUrl, getDelivery, isOldCompleted } from './RetailerDashboard';

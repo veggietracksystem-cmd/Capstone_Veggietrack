@@ -9,8 +9,7 @@ import { colors, fonts, fontSize, radius } from '../theme/appTheme';
 import RemoteImage from './RemoteImage';
 import { useTranslation } from '../i18n/useTranslation';
 
-// This stages a URL for the existing product/batch record; the parent owns
-// persistence so selecting a photo can never modify a different batch.
+// Stages a photo URL only; the parent saves it to the correct batch.
 export default function BatchPhotoField({ value, disabled, onChange, onStateChange, label }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
@@ -46,8 +45,7 @@ export default function BatchPhotoField({ value, disabled, onChange, onStateChan
       <RemoteImage uri={value} style={{ width: '100%', height: 150, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 }} resizeMode="cover"
 />
     ) : (
-      // Matches the prototype's photoMissing placeholder — a dashed box with
-      // a camera icon, instead of leaving blank space before a photo exists.
+      // Placeholder shown until a photo is attached.
       <View style={{ width: '100%', height: 150, borderRadius: radius.ctrl, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.border, backgroundColor: colors.leaf50, alignItems: 'center', justifyContent: 'center', gap: 6 }}>
         <Ionicons name="camera-outline" size={28} color={colors.inkFaint} />
         <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkFaint }}>{t('cmp.noPhoto')}</Text>

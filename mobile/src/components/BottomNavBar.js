@@ -5,18 +5,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts } from '../theme/appTheme';
 
-// Base padding/height for the bar's own content (icons + labels) on a
-// device with no bottom system inset. The device's actual bottom inset
-// (home indicator / gesture or button nav area) is added on top of this,
-// so the bar always clears the system navigation area instead of sitting
-// under it or leaving a fixed, device-mismatched gap above it.
+// Bar padding without a system inset; the device's bottom inset is added on top.
 const BASE_PADDING_BOTTOM = 10;
 const BASE_HEIGHT = 74;
 
-// The bar floats over the screen, and its real height depends on the phone's
-// bottom inset. Screens use these so their last card/button is never hidden
-// behind it (a fixed paddingBottom of ~90 was too short on phones with a
-// home indicator).
+// Height of the floating bar including the bottom inset, so screens can keep
+// their last item clear of it.
 export function useBottomNavHeight() {
   return BASE_HEIGHT + useSafeAreaInsets().bottom;
 }
@@ -25,9 +19,7 @@ export function useBottomNavSpace() {
   return useBottomNavHeight() + 16;
 }
 
-// Small count badge shown on a tab's icon (e.g. cart item count). Bumps with
-// a quick pop animation whenever the count goes up, so adding an item feels
-// immediately reflected here.
+// Count badge on a tab icon, with a pop animation when the count increases.
 function TabBadge({ count }) {
   const scale = useRef(new Animated.Value(1)).current;
   const prevCount = useRef(count);
@@ -71,9 +63,7 @@ export default function BottomNavBar({ tabs, activeTab, onTabPress, onTabMeasure
     >
       {tabs.map((tab) => {
         if (tab.render) {
-          // Custom tab content (e.g. NotificationBell) manages its own
-          // press handling/state, so it's rendered as-is, not wrapped in
-          // another TouchableOpacity.
+          // Custom tab content (e.g. NotificationBell) handles its own presses.
           return (
             <View key={tab.id} style={styles.tabItem}>
               {tab.render(onTabPress, activeTab)}

@@ -1,12 +1,6 @@
-// Localizes a stored vegetable name (freeform text, entered in either
-// English or Tagalog — see ./vegetables.js) to the user's currently selected
-// display language. Pairs mirror the English/Tagalog keyword pairs already
-// validated as equivalent in ./vegetables.js, so a name typed in one
-// language always reads back in whichever language the app is set to.
-//
-// Longest keyword wins when a name matches more than one (e.g. "Talbos ng
-// Kamote" must match before the generic "Kamote" substring inside it) —
-// same sort rule as ./vegetables.js and ./vegetableIcons.js.
+// Displays a stored vegetable name in the selected language, using the same
+// English/Tagalog pairs as ./vegetables.js. Longest keyword wins (e.g. "Talbos ng
+// Kamote" before "Kamote").
 const VEGETABLE_NAMES = [
   { keywords: ['tomato', 'kamatis'], en: 'Tomato', tl: 'Kamatis' },
   { keywords: ['eggplant', 'talong'], en: 'Eggplant', tl: 'Talong' },
@@ -36,7 +30,7 @@ const VEGETABLE_NAMES = [
   { keywords: ['celery'], en: 'Celery', tl: 'Celery' },
   { keywords: ['mustard greens', 'mustasa'], en: 'Mustard Greens', tl: 'Mustasa' },
   { keywords: ['malunggay'], en: 'Malunggay', tl: 'Malunggay' },
-  { keywords: ['talbos ng kamote'], en: 'Sweet Potato Leaves', tl: 'Talbos ng Kamote' },
+  { keywords: ['talbos ng kamote', 'sweet potato leaves'], en: 'Sweet Potato Leaves', tl: 'Talbos ng Kamote' },
   { keywords: ['basil'], en: 'Basil', tl: 'Basil' },
   { keywords: ['oregano'], en: 'Oregano', tl: 'Oregano' },
   { keywords: ['cilantro', 'wansoy'], en: 'Cilantro', tl: 'Wansoy' },
@@ -50,9 +44,7 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Whole-word match, matching the same rule as ./vegetables.js so a name that
-// validates as a vegetable also localizes consistently (and "basilica" is
-// never mistaken for "basil").
+// Whole-word match, the same rule as ./vegetables.js.
 function matchesKeyword(key, keyword) {
   return new RegExp(`\\b${escapeRegExp(keyword)}(?:es|s)?\\b`).test(key);
 }
@@ -65,4 +57,10 @@ export function localizeVegetableName(name, language) {
   const match = VEGETABLE_NAMES.find((v) => matchesKeyword(key, v.keyword));
   if (!match) return name;
   return language === 'tl' ? match.tl : match.en;
+}
+
+// Same-vegetable key: "Kamatis", "tomato" and "Tomatoes" are one product.
+// Matches vegetableKey() in backend/lib/vegetables.js.
+export function vegetableKey(name) {
+  return String(localizeVegetableName(name, 'en') || '').toLowerCase().trim().replace(/\s+/g, ' ');
 }

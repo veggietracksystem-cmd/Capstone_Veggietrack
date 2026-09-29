@@ -1,13 +1,9 @@
-// One-off cleanup script: deletes every uploaded image from the app's
-// Cloudinary account (harvest photos + delivery proof photos), so the app
-// starts fresh alongside the database wipe in backend/sql/reset_data.sql.
-//
-// This does NOT touch any Cloudinary account settings, upload presets, or
-// the app's upload code — only the uploaded media files themselves.
+// Deletes every uploaded image (harvest and delivery proof photos) from the app's
+// Cloudinary account. Intended to be run together with sql/reset_data.sql.
 //
 // Usage:
-//   node backend/scripts/clear_cloudinary.js         (dry run — lists what would be deleted)
-//   node backend/scripts/clear_cloudinary.js --confirm (actually deletes)
+//   node backend/scripts/clear_cloudinary.js            dry run (lists the images)
+//   node backend/scripts/clear_cloudinary.js --confirm  deletes the images
 
 const https = require('https');
 require('dotenv').config();

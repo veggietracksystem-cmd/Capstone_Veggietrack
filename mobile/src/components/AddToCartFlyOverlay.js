@@ -3,13 +3,9 @@ import { View, Animated, Easing, StyleSheet, Dimensions, Platform } from 'react-
 import { rf } from '../lib/responsive';
 import VegetableImage from './VegetableImage';
 
-// Renders a short-lived flying vegetable image for each active add-to-cart tap,
-// animating from the tapped card to the Cart tab in the bottom nav bar as a
-// visual confirmation. `target` is the Cart tab icon's real on-screen center,
-// measured by BottomNavBar via measureInWindow and passed down from
-// RetailerDashboard, so the flight lands exactly on the icon. The fallback
-// below (an evenly-spaced-tab approximation) only covers the brief window
-// before that first measurement arrives.
+// Animates a vegetable image from the tapped card to the Cart tab. `target` is the
+// Cart icon's measured centre (from BottomNavBar); the fallback estimate below is
+// used only until that measurement arrives.
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const NAV_BAR_HEIGHT = Platform.OS === 'ios' ? 84 : 74;
 const CART_TAB_INDEX = 1;
@@ -45,9 +41,7 @@ function Flight({ flight, target, onDone }) {
       Animated.timing(opacity, { toValue: 0, duration: 300, delay: 350, useNativeDriver }),
     ]).start(finish);
 
-    // Safety net: if the animation's own completion callback never fires
-    // (e.g. the tab is backgrounded and rAF is throttled), don't leave the
-    // flight stuck on screen forever.
+    // Fallback in case the animation callback never fires (e.g. throttled in the background).
     const timeoutId = setTimeout(finish, 1200);
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps

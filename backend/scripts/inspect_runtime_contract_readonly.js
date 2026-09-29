@@ -1,5 +1,5 @@
-// GET only: confirm every table and RPC the API calls at runtime exists in the
-// hosted schema. Never writes, never selects row data (limit=0).
+// Read-only check that every table and RPC used by the API exists in the hosted
+// schema. Performs no writes and selects no row data (limit=0).
 const fs = require('node:fs');
 const path = require('node:path');
 const env = require('dotenv').parse(fs.readFileSync(path.join(__dirname, '../.env')));

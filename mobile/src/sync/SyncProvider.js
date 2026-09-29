@@ -4,9 +4,8 @@ import NetInfo from '@react-native-community/netinfo';
 import { syncPending } from '../offline/harvestStore';
 import { useAuth } from '../context/AuthContext';
 
-// One coordinator owns the app-wide freshness lifecycle.  Screens only
-// register their role-specific readers; they do not create network listeners
-// or polling timers of their own.
+// Central coordinator for app-wide data refresh. Screens register readers instead
+// of creating their own listeners or polling timers.
 const SyncContext = createContext({ register: () => () => {}, refresh: async () => {} });
 const REVALIDATE_MS = 30_000;
 
@@ -34,8 +33,7 @@ export function SyncProvider({ children }) {
         await Promise.allSettled([...readers.current.values()].map((read) => read()));
         setSyncState('synced');
       } catch {
-        // Readers use their existing cache fallback. Keep this coordinator
-        // non-disruptive when a connection disappears mid-refresh.
+        // Readers fall back to their caches; only the sync state is marked offline.
         setSyncState('offline');
       } finally {
         running.current = null;
@@ -79,8 +77,7 @@ export function SyncProvider({ children }) {
   return <SyncContext.Provider value={{ register, refresh, syncState }}>{children}</SyncContext.Provider>;
 }
 
-// `reader` is deliberately held in a ref so registering never re-runs because
-// a screen callback was recreated after state updates.
+// `reader` is kept in a ref so a re-created callback does not re-register.
 export function useAutoSync(key, reader) {
   const { register, refresh, syncState } = useContext(SyncContext);
   const latest = useRef(reader);

@@ -5,10 +5,8 @@ import { tr } from '../i18n/translate';
 
 const PRIMARY = '#1E4E09';
 
-// Class component because only class components can be error boundaries
-// (componentDidCatch / getDerivedStateFromError have no hooks equivalent).
-// Catches render-time errors in the tree below it and shows a fallback UI
-// instead of a blank/white crash screen.
+// Catches render errors below it and shows a fallback screen instead of a blank
+// crash. Error boundaries must be class components.
 export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -20,14 +18,11 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // Surfaces in the Metro/console log for debugging.
     console.error('[ErrorBoundary] Caught render error:', error, info);
   }
 
   handleRestart = () => {
-    // On web we can do a true reload. On native there's no built-in
-    // "restart app" without expo-updates, so we reset the boundary state
-    // which re-mounts the children (a fresh render attempt).
+    // Web can reload the page; on native, resetting the state re-mounts the children.
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.location.reload();
       return;
@@ -43,8 +38,7 @@ export default class ErrorBoundary extends Component {
           <Text style={styles.message}>
             {tr('cmp.boundaryMsg')}
           </Text>
-          {/* The raw error stays in the console for developers; showing it
-              here only puts developer text in front of a user. */}
+          {/* The raw error is logged to the console rather than shown to the user. */}
           <TouchableOpacity style={styles.button} onPress={this.handleRestart} activeOpacity={0.7}>
             <Text style={styles.buttonText}>{tr('cmp.restart')}</Text>
           </TouchableOpacity>

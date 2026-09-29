@@ -11,8 +11,8 @@ export { acquireDevicePosition } from '../lib/deviceLocation';
 
 const numberOrNull = value => value != null && Number.isFinite(Number(value)) ? Number(value) : null;
 
-// A display component: only an explicit onAcquirePosition callback can publish real GPS.
-// Simulation never calls that callback and never makes an API mutation.
+// Display component: only the explicit onAcquirePosition callback publishes GPS.
+// The route simulation never calls it and never sends API requests.
 export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcquirePosition, onMetrics, mode = 'tracking', style }) {
   const { t } = useTranslation();
   const view = trackingData?.retailer_view || {};
@@ -59,8 +59,7 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
   const offRoute = !!journey.route && !demo && progress.offRoute != null && progress.offRoute > 150;
   const remainingKm = (journey.route || demo) && points.length > 1 && shownRider && !offRoute ? progress.remaining / 1000 : null;
   const etaSeconds = liveEtaSeconds(journey, { live, ended, offRoute, demo });
-  // Without a live GPS fix the map used to say "ETA unavailable". Fall back to the
-  // planned route time (customer view only) or say what we're waiting for.
+  // Without a live GPS fix, fall back to the planned route time (customer view only).
   const plannedSeconds = mode === 'tracking' && phase === 'delivery' && !ended && !offRoute && !demo ? formatEta(journey.estimatedRouteSeconds) : null;
   const etaText = etaSeconds != null ? t('cmp.liveEta', { eta: formatEta(etaSeconds) })
     : plannedSeconds ? t('cmp.etaEstimated', { eta: plannedSeconds })
@@ -73,8 +72,7 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
   const data = {
     origin, destination, rider: { ...shownRider, name: rider.name || t('cmp.deliveryRider'), live: live || demo, label, accuracy },
     viewer, viewerToken, route: points, completed: offRoute ? [] : progress.completed,
-    // Once the rider has picked up the order, the retailer's map is a
-    // destination view: rider -> retailer, never the earlier warehouse leg.
+    // After pickup, the customer map shows only the rider-to-destination leg.
     focusPoints: mode === 'navigation' ? [shownRider, navigationTarget] : phase === 'delivery' ? [shownRider, destination] : undefined,
     autoRecenter, fitToken, tileConfig: trackingData?.map_config,
   };
@@ -126,7 +124,7 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
       <TouchableOpacity accessibilityRole="button" disabled={gpsBusy} style={styles.button} onPress={acquire}>
         <Text style={styles.buttonText}>{gpsBusy ? t('cmp.acquiringShort') : onAcquirePosition ? t('cmp.refreshLocation') : Platform.OS === 'web' ? t('cmp.acquireBrowser') : t('cmp.acquireDevice')}</Text>
       </TouchableOpacity>
-      {/* Practice playback is a development aid only; real riders and customers never see it. */}
+      {/* Route playback for development builds only. */}
       {__DEV__ && <TouchableOpacity accessibilityRole="button" disabled={points.length < 2} style={[styles.button, points.length < 2 && styles.disabled]} onPress={() => { setDemo(v => !v); setDemoMetres(0); setAutoRecenter(true); }}>
         <Text style={styles.buttonText}>{demo ? t('cmp.returnLive') : t('cmp.simulate')}</Text>
       </TouchableOpacity>}

@@ -1,13 +1,7 @@
--- Never allow stock to go negative, even under concurrent writes.
---
--- A CHECK constraint is the final backstop; the two RPCs below are the
--- actual concurrency-safe path. Previously, order creation read stock_kg in
--- one round trip and wrote a computed new value in a second — two near-
--- simultaneous orders drawing from the same batch could both read the same
--- starting stock and each write their own (wrong) result, silently
--- overselling. A single atomic UPDATE with the check baked into its WHERE
--- clause closes that race: Postgres serializes concurrent writers to the
--- same row, so only one of two racing decrements can ever see enough stock.
+-- Prevents stock from going negative, including under concurrent writes.
+-- The CHECK constraint is a final safeguard; the RPCs below perform each stock
+-- change as a single atomic UPDATE with the check in its WHERE clause, so only
+-- one of two concurrent orders can draw the same stock.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'products_stock_kg_non_negative') THEN
     ALTER TABLE public.products ADD CONSTRAINT products_stock_kg_non_negative CHECK (stock_kg >= 0) NOT VALID;
@@ -15,11 +9,9 @@ DO $$ BEGIN
 END $$;
 ALTER TABLE public.products VALIDATE CONSTRAINT products_stock_kg_non_negative;
 
--- Order creation's FIFO draw: atomically checks and decrements in one
--- statement. Returns NULL (no row) if another concurrent order already
--- consumed the stock this call expected to find — the caller must treat a
--- NULL result as "insufficient stock, abort and roll back this order",
--- never assume success just because no error was raised.
+-- FIFO draw for order creation: checks and decrements in one statement.
+-- Returns NULL when the stock is no longer available; the caller must then abort
+-- and roll back the order.
 CREATE OR REPLACE FUNCTION public.decrement_product_stock(p_product_id uuid, p_quantity numeric)
 RETURNS public.products LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE result public.products;
@@ -30,20 +22,16 @@ BEGIN
     updated_at = clock_timestamp()
   WHERE id = p_product_id AND stock_kg >= p_quantity
   RETURNING * INTO result;
-  -- A row target that receives zero rows from RETURNING INTO has every field
-  -- set to NULL, which is NOT the same as the composite itself being NULL
-  -- (it serializes as an all-null row, not JSON null). Callers only check
-  -- for NULL, so this must be explicit.
+  -- RETURNING INTO with no rows yields an all-NULL row rather than NULL, so
+  -- return NULL explicitly.
   IF NOT FOUND THEN RETURN NULL; END IF;
   RETURN result;
 END; $$;
 REVOKE ALL ON FUNCTION public.decrement_product_stock(uuid, numeric) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.decrement_product_stock(uuid, numeric) TO service_role;
 
--- Order cancellation / rollback restore. Never guards against going negative
--- (restoring always increases stock) and preserves the existing "only a
--- sold_out batch comes back to listed" rule — a batch a distributor has
--- since unlisted back to 'received' stays 'received'.
+-- Restores stock on order cancellation or rollback. Only a sold_out batch
+-- returns to 'listed'; a batch moved back to 'received' stays 'received'.
 CREATE OR REPLACE FUNCTION public.restore_product_stock(p_product_id uuid, p_quantity numeric)
 RETURNS public.products LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE result public.products;

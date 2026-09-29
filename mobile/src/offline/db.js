@@ -1,11 +1,7 @@
 import { Platform } from 'react-native';
 
-// Cross-platform persistent key/value store.
-// - Native: real SQLite (expo-sqlite) — a `kv(key, value)` table holding JSON.
-// - Web:    AsyncStorage (localStorage) — expo-sqlite isn't reliable in browsers.
-//
-// The Farmer offline layer (offline/harvestStore.js) is built on top of this,
-// storing the harvest cache and the pending-mutation queue as JSON blobs.
+// Persistent key/value store: SQLite (expo-sqlite) on native, AsyncStorage on web.
+// Used by the offline layer (offline/harvestStore.js) for caches and queues.
 
 let nativeDbPromise = null;
 
@@ -59,9 +55,7 @@ export async function kvSet(key, value) {
   }
 }
 
-// Wipes all offline cache + queues (called on logout so the next user can't see
-// the previous account's cached data). Does NOT touch the auth token/user, which
-// live in SecureStore/localStorage, not here.
+// Clears all offline caches and queues on logout. Auth data is stored separately.
 export async function clearAll() {
   try {
     if (Platform.OS === 'web') {

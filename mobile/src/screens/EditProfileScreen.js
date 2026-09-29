@@ -17,7 +17,7 @@ import { showAlert } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import MapPinningModal from '../components/MapPinningModal';
 import ScreenHeader from '../components/ScreenHeader';
-import { colors, control, fonts, fontSize, radius, shadowCard, spacing, actionBtn, actionBtnPrimary, actionBtnText, actionBtnOutline } from '../theme/appTheme';
+import { colors, control, fonts, fontSize, radius, shadowCard, spacing, actionBtn, actionBtnText, actionBtnOutline } from '../theme/appTheme';
 import { titleCaseWords } from '../lib/textFormat';
 
 export default function EditProfileScreen({ navigation }) {
@@ -59,7 +59,6 @@ export default function EditProfileScreen({ navigation }) {
       return;
     }
 
-
     const updates = { full_name: name };
     // Keep the contact profile update separate from Supabase Auth credentials.
     // Avoid sending an empty email that could overwrite an existing value.
@@ -79,8 +78,7 @@ export default function EditProfileScreen({ navigation }) {
       await updateUser({ ...data.user, name: data.user.full_name });
       setAvatarChanged(false);
       showAlert(t('common.saved'), t('editProfile.saved'));
-      // Every role uses this shared editor. Return only after both the API
-      // update and the shared profile refresh have succeeded.
+      // Return only after the API update and the shared profile refresh have both succeeded.
       navigation.goBack();
     } catch (err) {
       showAlert(t('common.error'), friendlyError(err, 'We couldn’t save your changes. Please try again.'));
@@ -167,10 +165,7 @@ export default function EditProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Change password: same emailed reset flow as "Forgot password", just
-            reachable from inside the profile editor instead of Login.
-            ResetPassword itself only renders a form once the emailed recovery
-            link has opened the app, so it must not be the entry point here. */}
+        {/* Change password uses the emailed reset flow; ResetPassword opens only from that link. */}
         <View style={styles.sectionCard}>
           <TouchableOpacity
             style={[styles.menuItem, styles.menuItemLast]}
@@ -181,11 +176,6 @@ export default function EditProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* No "Disable account" action here. This editor is shared by every
-            role, so the button it used to show told a signed-in distributor to
-            "contact the distributor" about their own account. Disabling an
-            account is a distributor decision made from User Management, not
-            something a user does to themselves from their own profile. */}
       </ScrollView>
 
       <MapPinningModal
@@ -228,10 +218,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.4,
     borderColor: colors.border,
   },
-  // alignItems: 'stretch' (not 'center') so the pin button is forced to the
-  // exact same height as the TextInput next to it, rather than eyeballing a
-  // matching paddingVertical that drifts once fonts/line-heights change.
-  // Wide field, compact Pin Map button on the right (same layout as Create Account).
+  // Wide field with a compact Pin Map button on the right.
   locationInputRow: { flexDirection: 'row', gap: 10, alignItems: 'center', minWidth: 0 },
   locationInput: { flex: 1, minWidth: 0, marginBottom: 0 },
   pinBtn: { ...actionBtn, ...actionBtnOutline, flexDirection: 'row', gap: 6, alignSelf: 'center', flexShrink: 0 },

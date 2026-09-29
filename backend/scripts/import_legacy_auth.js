@@ -1,4 +1,4 @@
-// Dry-run by default. --apply is a manual deployment operation, never a test.
+// Dry run by default; pass --apply to perform the import.
 const { createClient } = require('@supabase/supabase-js');
 const path = require('node:path');
 const { TRUSTED_DISTRIBUTOR } = require('../lib/auth');
@@ -20,7 +20,7 @@ async function importLegacy(db, apply = false) {
       results.push({id:u.id,result:'updated existing Auth identity; same profile ID'});continue;
     }
     if(!apply){results.push({id:u.id,result:'would import same ID and password as email Auth; no SMS'});continue;}
-    // Hash stays in memory between two trusted server APIs; never print it.
+    // The password hash is passed between server APIs only and is never logged.
     const hash=await db.from('users').select('password_hash').eq('id',u.id).single();
     if(hash.error || !/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(hash.data?.password_hash || '')) throw new Error('Unsupported legacy credential; import stopped.');
     const {data,error:createdError}=await db.auth.admin.createUser({id:u.id,email,email_confirm:true,password_hash:hash.data.password_hash,

@@ -4,8 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from '../i18n/useTranslation';
 import { colors, control, fontSize, fonts, radius } from '../theme/appTheme';
 
-// First screen for unauthenticated users (Issue 13). Logged-in users never reach
-// this because App.js renders the role dashboard stack instead of the auth stack.
+// First screen for signed-out users.
 export default function LandingScreen({ navigation }) {
   const { t } = useTranslation();
   const { width } = useWindowDimensions();

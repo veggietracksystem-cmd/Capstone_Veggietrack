@@ -1,7 +1,7 @@
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, Modal, TouchableOpacity, ActivityIndicator, StyleSheet,
+  View, Text, Modal, ActivityIndicator, StyleSheet,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
@@ -12,7 +12,7 @@ import ModalCloseButton from './ui/ModalCloseButton';
 import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
-// Default center (Metro Manila) used until we have the courier's position.
+// Default center (Metro Manila) used until the courier's position is known.
 const FALLBACK = { latitude: 14.5995, longitude: 120.9842 };
 
 export default function DeliveryMapModal({ visible, address, coords, onClose }) {
@@ -127,7 +127,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
   title: { fontFamily: fonts.heading, fontSize: rf(19), color: colors.ink },
-  // Same small rounded outlined close button every other modal uses.
   closeBtn: {
     width: 38, height: 38, borderRadius: radius.ctrl, backgroundColor: colors.card,
     borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',

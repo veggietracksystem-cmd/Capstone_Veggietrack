@@ -1,12 +1,6 @@
 import { tr } from '../i18n/translate';
-// One place that answers "what is the signed-in user?".
-//
-// The role always comes from the authenticated profile the backend returns
-// from /api/auth/me (`vt_account_context`), which is what AuthContext stores
-// as `user`. Screens must ask these helpers instead of comparing role strings
-// by hand, so a screen can never assume a role the signed-in user does not
-// actually have - that mismatch is what made the shared Edit Profile screen
-// tell a signed-in distributor to "contact the distributor".
+// Role helpers. The role always comes from the authenticated profile
+// (/api/auth/me); screens use these helpers instead of comparing role strings.
 
 export const ROLES = {
   farmer: 'farmer',

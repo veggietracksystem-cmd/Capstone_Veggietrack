@@ -1,6 +1,6 @@
 import DeliveryTimeScroller from './DeliveryTimeScroller';
 import { useTranslation } from '../i18n/useTranslation';
-import { manilaDate, scheduleInstant } from '../lib/deliverySchedule';
+import { manilaDate } from '../lib/deliverySchedule';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { colors, fonts } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
@@ -21,10 +21,8 @@ function nextDays(count = 7) {
   return out;
 }
 
-// Always-inline date + time chip pickers (no modal) so both fields are
-// visible and editable directly on the Order Confirmation screen. `date`
-// defaults to today (set by the caller); `time` has no default and is
-// required before checkout can proceed.
+// Inline date and time chip pickers. `date` defaults to today (set by the
+// caller); `time` is required before checkout.
 export default function DeliveryDateTimeFields({ date, onDateChange, time, onTimeChange, disabled }) {
   const { t } = useTranslation();
   const days = nextDays();

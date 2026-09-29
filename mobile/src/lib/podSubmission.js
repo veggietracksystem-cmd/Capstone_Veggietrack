@@ -3,8 +3,7 @@ import { tr } from '../i18n/translate';
 export const POD_MESSAGES = {
   get upload() { return tr('misc.podUpload'); },
   get completion() { return tr('misc.podCompletion'); },
-  // The pre-flight runs before anything is uploaded, so this must never imply
-  // a photo was sent — nothing was.
+  // The pre-check runs before any upload, so this message must not imply a photo was sent.
   get precheck() { return tr('misc.podPrecheck'); },
   get unreachable() { return tr('errors.connection'); },
   get offline() { return tr('misc.podOffline'); },
@@ -29,10 +28,9 @@ export function proofFailureMessage(error) {
 const isDeliveryConfirmed = (result) =>
   !!result && (result.status === 'delivered' || ['Delivery marked as completed', 'Delivery already completed'].includes(result.message));
 
-// One controller belongs to one delivery/pickup completion screen. The same
-// photo reuses its successful upload after a rejected/timed-out completion;
-// replacing it resets it. `isConfirmed` lets pickup completion (different
-// success message shape) reuse this same controller instead of duplicating it.
+// One controller per completion screen. A successful upload is reused when the
+// completion is retried; picking a new photo resets it. `isConfirmed` adapts the
+// success check for pickups.
 export function createProofSubmission({ upload, complete, isOnline, precheck, isConfirmed = isDeliveryConfirmed }) {
   let inFlight = null;
   let uploadedPhoto = null;
@@ -48,13 +46,12 @@ export function createProofSubmission({ upload, complete, isOnline, precheck, is
         // Fresh verification on every attempt, without discarding the image.
         const preflight = await getLocation();
         if (precheck && (uploadedPhoto !== photo || !uploadedUrl)) {
-          // Ask the server whether this completion would be accepted before a single
-          // byte reaches Cloudinary: a rejection here strands no image. Skipped once
-          // a photo is already hosted — that cost is spent and complete() re-checks.
+          // Ask the server whether the completion would be accepted before uploading,
+          // so a rejection leaves no orphaned image. Skipped once the photo is uploaded.
           try { await precheck(preflight); }
           catch (error) {
-            // A backend without this route answers with the generic JSON 404, which
-            // carries no code. Never block a completion the real endpoint would accept.
+            // Backends without this route return a generic 404 with no code; do not
+            // block the completion in that case.
             if (error.status !== 404 || error.code) {
               error.stage = 'precheck';
               if (error.status === 0 && !(await isOnline())) error.code = 'OFFLINE';

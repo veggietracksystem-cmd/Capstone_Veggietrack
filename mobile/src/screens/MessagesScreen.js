@@ -91,7 +91,7 @@ export default function MessagesScreen({ navigation, embedded }) {
         const data = await api.get(`/api/messages/${active.id}`);
         if (threadMounted && version === threadVersion.current && activeId.current === active.id) setThread(Array.isArray(data) ? data : []);
       } catch (err) {
-        // silent on background poll
+        // Background poll failures are ignored.
       }
     };
     const intervalId = setInterval(fetchThread, 3000);
@@ -119,14 +119,9 @@ export default function MessagesScreen({ navigation, embedded }) {
     }
   };
 
-  // Messaging is intentionally online-only — unlike harvests (fire-and-forget
-  // records with no real-time expectation), a chat message implies the
-  // recipient sees it promptly; silently queuing it for delivery minutes or
-  // hours later when connectivity returns would be surprising, not helpful,
-  // and would need thread-merge/ordering logic this feature doesn't warrant.
-  // What IS preserved on failure: the typed draft is never cleared unless
-  // the send actually succeeds (see the try/catch below), so a failed send
-  // never loses the user's text — they see the error and can retry.
+  // Messages are sent online only, since a chat message implies prompt delivery.
+  // The typed draft is cleared only after a successful send, so a failure never
+  // loses the text.
   const send = async () => {
     const body = input.trim();
     if (!body || !active) return;
@@ -312,8 +307,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.inkSoft, marginBottom: 4 },
   emptySubtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, textAlign: 'center' },
 
-  // Each conversation is its own card with a gap between - not one
-  // continuous bordered block with divider lines between rows.
+  // Each conversation is a separate card.
   list: { gap: 10 },
   contactRow: {
     flexDirection: 'row',

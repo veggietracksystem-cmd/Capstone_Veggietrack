@@ -10,7 +10,9 @@ function load(file, mocks = {}, globals = {}) {
     plugins: [require.resolve('../../mobile/node_modules/@babel/plugin-transform-modules-commonjs')] }).code;
   const module = { exports: {} };
   vm.runInNewContext(code, { module, exports: module.exports, Date, console, setTimeout, clearTimeout, AbortController,
-    require: name => Object.hasOwn(mocks, name) ? mocks[name] : load(path.relative(path.resolve(__dirname, '../../mobile/src'), path.resolve(path.dirname(absolute), name + '.js')), mocks, globals), ...globals });
+    require: name => Object.hasOwn(mocks, name) ? mocks[name]
+      : name.endsWith('.json') ? JSON.parse(fs.readFileSync(path.resolve(path.dirname(absolute), name), 'utf8'))
+      : load(path.relative(path.resolve(__dirname, '../../mobile/src'), path.resolve(path.dirname(absolute), name + '.js')), mocks, globals), ...globals });
   return module.exports;
 }
 const { createProofSubmission, proofFailureMessage, POD_MESSAGES } = load('lib/podSubmission.js');
@@ -60,10 +62,8 @@ test('a malformed successful response never fabricates delivery completion', asy
   await assert.rejects(controller.submit({ photo, getLocation: location }), { code: 'COMPLETION_UNCONFIRMED' });
 });
 
-// A photo uploaded for a completion the server then rejects is orphaned in
-// Cloudinary forever. The pre-flight runs the server's own checks first so the
-// common rejections - wrong status, stale or inaccurate GPS, standing too far
-// from the farm - cost nothing.
+// A photo uploaded for a rejected completion would be orphaned in Cloudinary, so
+// the pre-flight runs the server's checks before any upload.
 test('a rejected pre-flight completes nothing and, crucially, uploads nothing', async () => {
   let uploads = 0, completions = 0, prechecks = 0;
   const controller = createProofSubmission({ isOnline: async () => true,
@@ -100,7 +100,7 @@ test('a real pre-flight 404 still stops the attempt, and a retry after a rejecte
     complete: async () => { if (++attempts === 1) throw Object.assign(Error('rejected'), { status: 503 }); return { status: 'delivered' }; } });
   await assert.rejects(controller.submit({ photo, getLocation: location }), { stage: 'complete' });
   await controller.submit({ photo, getLocation: location });
-  // The upload is already paid for on the retry, so re-checking buys nothing.
+  // The retry reuses the uploaded photo and skips the pre-check.
   assert.equal(prechecks, 1); assert.equal(uploads, 1); assert.equal(attempts, 2);
 });
 function uploadModule(fetch, env = { CLOUDINARY_CLOUD_NAME: 'test-cloud', CLOUDINARY_UPLOAD_PRESET: 'unsigned-test' }) {

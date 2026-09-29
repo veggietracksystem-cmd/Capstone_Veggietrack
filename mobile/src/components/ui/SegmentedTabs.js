@@ -2,14 +2,10 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { rf } from '../../lib/responsive';
 import { colors, control, fonts, fontSize, spacing } from '../../theme/appTheme';
 
-// The app's two filter-row patterns, in one place so every screen's tabs are
-// the same height, use the same padding and radius, and centre their labels.
-//
-// Selected and unselected tabs are deliberately identical in size - only the
-// background and text colour change - so tapping a tab never nudges the row.
+// Shared filter-row components. Selected and unselected tabs are the same size;
+// only the colours change, so selecting a tab never shifts the row.
 
-// Small alert-coloured count pill shared by every filter tab/chip, so size,
-// colour and spacing are identical everywhere. Hidden when the count is 0.
+// Count pill shared by every filter tab and chip. Hidden when the count is 0.
 function CountBadge({ count }) {
   const n = Number(count) || 0;
   if (n <= 0) return null;
@@ -123,8 +119,7 @@ const styles = StyleSheet.create({
   },
   trackScroll: { flexGrow: 0 },
   trackScrollContent: { alignItems: 'center', gap: spacing.sm, paddingRight: spacing.xs },
-  // minHeight (not height) so a longer translation can wrap onto a second line
-  // instead of being cut off; every tab in the row still matches in height.
+  // minHeight lets longer translations wrap while tabs in a row keep equal height.
   tab: {
     minHeight: control.heightSm,
     paddingVertical: 4,
@@ -148,11 +143,10 @@ const styles = StyleSheet.create({
   tabTextSelected: { color: '#fff' },
 
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', maxWidth: '100%' },
-  // Content-sized tabs grow by just enough on the right to hold the badge; the label itself does not move.
+  // Content-sized tabs grow to fit the badge without moving the label.
   labelRowBadge: { marginRight: 8 },
   labelShrink: { flexShrink: 1 },
-  // Same look as the notification bell's badge: small red circle, white number,
-  // pinned to the label's top-right corner so it never moves or resizes the text.
+  // Small red circle pinned to the label's top-right corner.
   badge: {
     position: 'absolute', top: -6, left: '100%', marginLeft: 2, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
     backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center',

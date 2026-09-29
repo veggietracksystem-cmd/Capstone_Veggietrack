@@ -175,15 +175,18 @@ test('embedded addresses cannot break out of the WebView script', () => {
 });
 
 test('Leaflet bridge updates existing markers, preserves text, and handles missing GPS', async () => {
-  const source = require('node:fs').readFileSync(require('node:path').join(__dirname, '../../mobile/src/lib/deliveryTrackingHtml.js'), 'utf8');
-  const { buildDeliveryTrackingHtml } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+  const read = file => require('node:fs').readFileSync(require('node:path').join(__dirname, '../../mobile/src/lib', file), 'utf8');
+  const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+  // A data: URL module cannot resolve relative imports, so the zoom style is inlined as its own data: URL.
+  const source = read('deliveryTrackingHtml.js').replace("'./mapZoomStyle'", JSON.stringify(dataUrl(read('mapZoomStyle.js'))));
+  const { buildDeliveryTrackingHtml } = await import(dataUrl(source));
   const vm = require('node:vm');
   const layers = [], messages = [], frames = new Map(); let frameId = 0;
   const layer = (point, options) => ({ point, options,
     addTo() { layers.push(this); return this; }, on() { return this; },
     setLatLng(p) { this.point = p; return this; }, getLatLng() { return { lat: this.point[0], lng: this.point[1] }; },
     setIcon(icon) { this.icon = icon; return this; }, bindPopup(text) { this.popup = text; return this; },
-    setLatLngs(points) { this.points = points; return this; },
+    setLatLngs(points) { this.points = points; return this; }, setStyle(style) { this.style = style; return this; },
   });
   const map = { setView() { return this; }, removeLayer(item) { layers.splice(layers.indexOf(item), 1); },
     fitBounds() {}, panTo() {}, on() {}, invalidateSize() {}, attributionControl: { addAttribution() {} } };

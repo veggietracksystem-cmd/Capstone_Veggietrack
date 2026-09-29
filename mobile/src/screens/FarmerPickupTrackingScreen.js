@@ -17,9 +17,7 @@ import { tr } from '../i18n/translate';
 const STATUS_KEYS = ['requested', 'assigned', 'otw', 'picked_up', 'completed'];
 // [title, detail] for a known pickup status, translated at call time.
 const statusText = (key) => [tr(`ptrack.${key}Title`), tr(`ptrack.${key}Msg`)];
-// A live map is only meaningful once a rider is assigned and has not yet
-// arrived — before that there is nothing to track, and after pickup the
-// journey is over (the Proof of pickup card below takes over).
+// A live map is shown only while a rider is assigned or on the way.
 const TRACKABLE_STATUSES = ['assigned', 'otw'];
 const FINAL_STATUSES = ['picked_up', 'completed'];
 const date = value => value ? new Date(value).toLocaleString() : '—';
@@ -52,8 +50,7 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
     <ScreenHeader title={t('ptrack.title')} onBack={() => navigation.goBack()} />
     <ScrollView contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false); }} />}>
       {loading && !pickup ? <ActivityIndicator color={colors.leaf700} style={{ padding: 32 }} /> : <>
-        {/* Header card: id/veg summary + status badge on one row (prototype's
-            farmer-pickup-tracking header row), status label/detail below. */}
+        {/* Header card: pickup summary and status badge, with the status detail below. */}
         <Card>
           <View style={s.headerRow}>
             <View style={{ flex: 1 }}>
@@ -99,9 +96,7 @@ export default function FarmerPickupTrackingScreen({ navigation, route }) {
 function Card({ title, children }) { return <View style={s.card}>{title && <Text style={s.cardTitle}>{title}</Text>}{children}</View>; }
 function Row({ label, value }) { return <View style={s.row}><Text style={s.muted}>{label}</Text><Text style={s.value}>{value}</Text></View>; }
 
-// Same 5 real statuses the STATUS map above already understands — this only
-// changes how they're *drawn* (connected dots instead of a flat list), it
-// does not add, remove, or reorder any pickup state.
+// Pickup statuses in timeline order.
 const STATUS_ORDER = ['requested', 'assigned', 'otw', 'picked_up', 'completed'];
 function Timeline({ status, pickup }) {
   const currentIndex = FINAL_STATUSES.includes(status) ? STATUS_ORDER.length : Math.max(0, STATUS_ORDER.indexOf(status || 'requested'));

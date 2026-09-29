@@ -22,8 +22,7 @@ const ROLE_GUIDE_KEY = {
 export default function UserGuideModal({ visible, onClose }) {
   const { t, tRaw } = useTranslation();
   const { user } = useAuth();
-  // Only the logged-in user's own role guide is shown - no tabs to switch
-  // between, since there's nothing else to show.
+  // Only the signed-in user's role guide is shown.
   const roleKey = ROLE_GUIDE_KEY[user?.role] || 'farmer';
   const { backdropStyle, cardStyle } = useSharedModalMotion(visible);
 
@@ -34,13 +33,11 @@ export default function UserGuideModal({ visible, onClose }) {
       <Animated.View style={[styles.backdrop, backdropStyle]}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
         <Animated.View style={[styles.card, cardStyle]}>
-          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>{t(`userGuide.${roleKey}.title`)}</Text>
             <ModalCloseButton onPress={onClose} />
           </View>
 
-          {/* Content Body */}
           <ScrollView contentContainerStyle={styles.content}>
             <View style={styles.sectionList}>
               {roleSections.map((section, s) => (
@@ -87,8 +84,7 @@ const styles = StyleSheet.create({
   stepContainer: { gap: 10 },
   stepCard: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.card, padding: 14, borderWidth: 1, borderColor: colors.border, alignItems: 'flex-start' },
   stepNum: { width: 26, height: 26, borderRadius: 13, backgroundColor: PRIMARY, color: '#fff', textAlign: 'center', lineHeight: 26, fontWeight: 'bold', fontSize: rf(13), marginRight: 12 },
-  // Plain reference items (screens, statuses, reminders) get a small dot
-  // instead of a number, so only real how-to steps read as "step 1, 2, 3…".
+  // Reference items get a dot instead of a step number.
   stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY, marginRight: 12, marginTop: 8 },
   stepInfo: { flex: 1 },
   stepTitle: { fontFamily: fonts.bodyBold, fontSize: rf(14.5), color: colors.ink, marginBottom: 2 },

@@ -21,8 +21,8 @@ function resolve(dict, path) {
 
 export function LanguageProvider({ children }) {
   const [language, setLanguageState] = useState('en');
-  // Keep the non-hook translator (lib/ helpers) on the same language; done during
-  // render so it is already correct when children build alert/error text.
+  // Keep the non-hook translator (lib/ helpers) on the same language; set during
+  // render so it is current when children build alert text.
   setCurrentLanguage(language);
 
   // Restore the saved language on app start (defaults to English if unset/invalid).
@@ -45,9 +45,8 @@ export function LanguageProvider({ children }) {
     });
   }, []);
 
-  // t('a.b.c', { name: 'Juan' }) → active language string, falling back to
-  // English, then the raw key itself so a missing translation never crashes
-  // the UI. `vars` fills in {placeholder} tokens in the resolved string.
+  // t('a.b.c', { name }) returns the active-language string, falling back to
+  // English and then to the key itself. `vars` fills {placeholder} tokens.
   const t = useCallback((key, vars) => {
     const value = resolve(TRANSLATIONS[language], key);
     const fallback = resolve(TRANSLATIONS.en, key);
@@ -58,9 +57,7 @@ export function LanguageProvider({ children }) {
     ));
   }, [language]);
 
-  // tRaw('a.b.c') → the resolved value as-is (array/object/string), falling
-  // back to English. Used for list content (e.g. FAQ entries) instead of
-  // single translated strings.
+  // tRaw('a.b.c') returns the resolved value as-is (e.g. arrays for FAQ lists).
   const tRaw = useCallback((key) => {
     const value = resolve(TRANSLATIONS[language], key);
     return value !== undefined ? value : resolve(TRANSLATIONS.en, key);

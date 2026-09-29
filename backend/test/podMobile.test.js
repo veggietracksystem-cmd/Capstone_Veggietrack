@@ -21,7 +21,14 @@ function loadModule(file, mocks = {}, globals = {}) {
     }, globals);
   }
   const module = { exports: {} };
-  vm.runInNewContext(code, { exports: module.exports, module, require: name => moduleMocks[name], Date, setTimeout, clearTimeout, ...globals });
+  const requireModule = name => {
+    if (Object.hasOwn(moduleMocks, name) || !name.startsWith('.')) return moduleMocks[name];
+    // Unmocked app modules (e.g. the translator and its JSON dictionaries) load for real.
+    const target = path.resolve(path.dirname(path.join(__dirname, '../../mobile/src', file)), name);
+    if (target.endsWith('.json')) return JSON.parse(fs.readFileSync(target, 'utf8'));
+    return loadModule(path.relative(path.join(__dirname, '../../mobile/src'), `${target}.js`), {}, globals);
+  };
+  vm.runInNewContext(code, { exports: module.exports, module, require: requireModule, Date, setTimeout, clearTimeout, ...globals });
   return module.exports;
 }
 const t = key => key;

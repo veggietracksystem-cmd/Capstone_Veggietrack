@@ -1,8 +1,5 @@
-// Turn-by-turn guidance from the road route the backend already returns
-// (OSRM steps + route geometry). Pure and framework-free so it can be tested
-// with plain node. Nothing here invents directions: every instruction comes
-// from a real route step, and distances come from the rider's position
-// projected onto the route line.
+// Turn-by-turn guidance from the backend's OSRM route steps and geometry. Pure and
+// framework-free; every instruction comes from a real route step.
 const { coordinate, routeProgress } = require('./trackingGeometry');
 
 const PASSED_METERS = 12;      // a turn this close behind the rider counts as done

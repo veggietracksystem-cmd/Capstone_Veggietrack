@@ -21,23 +21,17 @@ export async function acquireDevicePosition(options = {}) {
     if (!(permission.granted || permission.status === 'granted')) throw locationError('LOCATION_PERMISSION_DENIED', 'Location access is turned off. Please allow it in your phone’s settings.');
     if (!await Location.hasServicesEnabledAsync()) throw locationError('LOCATION_SERVICES_DISABLED', 'Location is turned off on your phone. Please turn it on in your phone’s settings.');
   }, timeoutMs);
-  // refineLocation needs two distinct fixes. On Android each Highest-accuracy
-  // getCurrentPositionAsync can take several seconds, so asking for fixes one
-  // at a time often yields only one before the deadline (GPS_UNCONFIRMED). The
-  // first fix still comes from getCurrentPositionAsync; later fixes come from a
-  // watch, which streams a fresh reading roughly every second.
+  // refineLocation needs two distinct fixes. The first comes from
+  // getCurrentPositionAsync; later fixes come from a position watch, which is
+  // much faster than repeated single requests on Android.
   const watch = startPositionStream();
   let reads = 0;
   try {
     return await refineLocation(async remainingMs => {
       try {
-        const started = Date.now(), n = reads;
         const fromWatch = reads++ > 0 && await watch.ready;
         const position = fromWatch ? await watch.next()
           : await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest, maximumAge: 0, timeout: remainingMs });
-        // TEMP rider-dashboard diagnostics — remove once pickup GPS is fixed.
-        console.log('[rider-debug] GPS read', n, fromWatch ? 'watch' : 'current', `${Date.now() - started}ms`,
-          'acc', position?.coords?.accuracy, 'age', `${Date.now() - position?.timestamp}ms`, 'mocked', position?.mocked, 'ts', position?.timestamp);
         return position;
       }
       catch (error) {
@@ -60,7 +54,6 @@ function startPositionStream() {
     : Location.watchPositionAsync({ accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 0 }, position => {
       if (waiter) { const resolve = waiter; waiter = null; resolve(position); } else queue.push(position);
     }).then(sub => {
-      console.log('[rider-debug] GPS watch started', !stopped);
       if (stopped) { sub.remove(); return false; }
       subscription = sub;
       return true;

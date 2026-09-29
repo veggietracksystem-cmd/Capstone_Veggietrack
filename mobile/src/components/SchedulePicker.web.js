@@ -3,8 +3,6 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts, radius } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
-const PRIMARY = colors.leaf700;
-
 // Local datetime string "YYYY-MM-DDTHH:mm" for the input's min (no past times).
 function nowLocal() {
   const d = new Date();
@@ -12,8 +10,7 @@ function nowLocal() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// Web: a native browser datetime-local picker. On react-native-web a raw <input>
-// is valid because the tree renders through react-dom. Value is "YYYY-MM-DDTHH:mm".
+// Web: native browser datetime-local picker. Value is "YYYY-MM-DDTHH:mm".
 export default function SchedulePicker({ value, onChange, disabled }) {
   const { t } = useTranslation();
   return (

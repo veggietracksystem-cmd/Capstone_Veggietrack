@@ -68,9 +68,9 @@ export default function PlaceAutocomplete({ visible, onSelect }) {
 }
 
 const styles = StyleSheet.create({
-  // 16px side margins; the search row, attribution and results stack with even gaps before the map.
+  // 16px side margins with even gaps before the map.
   container: { paddingHorizontal: 16, paddingTop: 12, marginBottom: 12 },
-  // One row: wide field (with the clear x inside it) + compact Search button, 10px apart, vertically centered.
+  // Search field (with its clear button) and a compact Search button.
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   field: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', minHeight: 44, backgroundColor: colors.card, borderWidth: 1.4, borderColor: colors.border, borderRadius: radius.ctrl, paddingLeft: 12, paddingRight: 4 },
   input: { flex: 1, minWidth: 0, paddingVertical: 10, fontSize: rf(14), color: colors.ink, textAlignVertical: 'center' },
@@ -84,6 +84,5 @@ const styles = StyleSheet.create({
   result: { minHeight: 44, padding: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   resultText: { fontSize: rf(13), color: colors.ink },
   note: { padding: 10, fontSize: rf(12), color: colors.inkSoft },
-  // Small and subtle, left-aligned right under the search row.
   attribution: { alignSelf: 'flex-start', fontSize: 10, color: colors.inkFaint, marginTop: 6, textDecorationLine: 'underline' },
 });

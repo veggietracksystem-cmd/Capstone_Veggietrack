@@ -601,7 +601,7 @@
     "editQtyBtn": "I-edit ang Dami",
     "removeBtn": "Alisin",
     "removeConfirmTitle": "Alisin ang Produkto",
-    "removeConfirmMessage": "Alisin ang {name} sa iyong Listahan ng Produkto? Babalik ito sa Stocks at maaaring idagdag muli sa ibang pagkakataon.",
+    "removeConfirmMessage": "Alisin ang {name} sa iyong Listahan ng Produkto? Babalik sa Stocks ang natitirang stock at maaaring idagdag muli sa ibang pagkakataon. Mananatili sa Kasaysayan ng Imbentaryo ang mga ubos nang batch.",
     "removeFailed": "Nabigong alisin ang produkto",
     "editQtyModalTitle": "I-edit ang Dami — {name}",
     "editQtyHint": "Kasalukuyang {qty} kg ang available. Maglagay ng mas mababang halaga para itama ito (hal. sira o maling bilang).",
@@ -649,7 +649,15 @@
     "vegetableNameRequired": "Ilagay ang pangalan ng gulay.",
     "photoRequired": "Kailangan ng kamakailang larawan ng batch.",
     "batchPhotoLabel": "Kamakailang larawan ng batch",
-    "addProductSuccess": "Naidagdag ang produkto sa iyong listahan ng produkto."
+    "addProductSuccess": "Naidagdag ang produkto sa iyong listahan ng produkto.",
+    "viewEditBtn": "Tingnan / I-edit",
+    "priceSharedHint": "Nakabenta na ang gulay na ito sa presyong ito. Mapapalitan mo ito sa Listahan ng Produkto.",
+    "searchFarmer": "Maghanap ng magsasaka",
+    "noFarmers": "Wala pang naaprubahang magsasaka. Kailangang maaprubahan muna ang account ng magsasaka bago maidagdag ang kanilang stock.",
+    "farmerRequired": "Piliin ang magsasakang pinagmulan ng batch na ito.",
+    "harvestDateRequired": "Piliin ang petsa ng ani.",
+    "pickupDateRequired": "Piliin ang petsa ng pagkuha.",
+    "pickupBeforeHarvest": "Hindi maaaring mas maaga ang petsa ng pagkuha kaysa sa petsa ng ani."
   },
   "orderHistory": {
     "title": "Kasaysayan ng Order",
@@ -689,7 +697,10 @@
     "colPickupDate": "Petsa ng Pagkuha",
     "colDeliveryDate": "Petsa ng Paghahatid",
     "colPayment": "Bayad",
-    "colOrderStatus": "Katayuan ng Order"
+    "colOrderStatus": "Katayuan ng Order",
+    "colBatch": "Batch",
+    "colPhoto": "Larawan",
+    "colBatchStatus": "Katayuan ng Batch"
   },
   "deliveryDetails": {
     "title": "Detalye ng Delivery",
@@ -1273,7 +1284,11 @@
     "cancelled": "Kinansela",
     "rejected": "Tinanggihan",
     "out_of_stock": "Ubos na ang stock",
-    "requested": "Hiniling"
+    "requested": "Hiniling",
+    "received": "Natanggap",
+    "listed": "Nakalista",
+    "sold_out": "Ubos na",
+    "archived": "Naka-archive"
   },
   "acct": {
     "title": "Pamamahala ng User",

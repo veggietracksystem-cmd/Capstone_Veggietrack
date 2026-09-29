@@ -51,14 +51,12 @@ export default function ContactUsModal({ visible, onClose }) {
         <Animated.View style={[styles.backdrop, backdropStyle]}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
           <Animated.View style={[styles.card, cardStyle]}>
-          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>{t('contactUs.title')}</Text>
             <ModalCloseButton onPress={onClose} />
           </View>
 
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            {/* Contact card: phone numbers and email only */}
             <View style={styles.infoCard}>
               <View style={styles.infoRow}>
                 <Ionicons name="call-outline" size={rf(20)} color={PRIMARY} style={styles.icon} />
@@ -71,7 +69,6 @@ export default function ContactUsModal({ visible, onClose }) {
               </View>
             </View>
 
-            {/* Support Form */}
             <Text style={styles.formTitle}>{t('contactUs.sendInquiry')}</Text>
 
             <Text style={styles.label}>{t('contactUs.subjectLabel')}</Text>

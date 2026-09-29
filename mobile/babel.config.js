@@ -1,10 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-// react-native-dotenv inlines these values at transform time, but .env is not an
-// input Babel or Metro tracks: with api.cache(true) an edited .env kept serving
-// the previously inlined value (an empty BACKEND_URL fell back to localhost).
-// Keying the config cache on the file's contents invalidates those transforms.
+// react-native-dotenv inlines .env values at transform time, but Babel and Metro
+// do not track .env. Keying the cache on its contents rebuilds after an edit.
 const ENV_FILE = path.join(__dirname, '.env');
 const readEnvFile = () => { try { return fs.readFileSync(ENV_FILE, 'utf8'); } catch { return ''; } };
 

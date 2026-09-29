@@ -1,9 +1,6 @@
-// Which branch of the root stack renders, and which screen it starts on.
-//
-// React Navigation resolves initialRouteName once, when the Navigator mounts,
-// and throws if that name is not among the screens the branch renders. App.js
-// unmounts the Navigator while a profile is still loading, so the two answers
-// have to come from one place instead of being written out twice.
+// Decides which root stack branch renders and its initial screen. Both come from
+// one place because React Navigation reads initialRouteName only when the
+// navigator mounts and throws if the route is not in the rendered branch.
 
 export const ROOT_BRANCH_ENTRY = {
   recovery: 'ResetPassword',

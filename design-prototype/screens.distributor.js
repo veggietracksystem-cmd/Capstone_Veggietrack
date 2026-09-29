@@ -3,10 +3,8 @@
    Note: Distributor role has NO disable/deactivate account action (by design).
    ========================================================================== */
 
-/* The real DistributorInventoryReportScreen renders a horizontally-scrollable
-   table with these exact columns, split into Inventory/History segments and
-   backed by Export PDF / Print actions. That structure is preserved here —
-   only the surrounding chrome (status bar, colors, spacing) was restyled. */
+/* Same columns as DistributorInventoryReportScreen (Inventory/History segments,
+   Export PDF / Print). */
 const INVENTORY_COLUMNS = [
   { key: 'product', label: 'Product' },
   { key: 'qtyReceived', label: 'Qty Received', fmt: v => v + ' kg' },
@@ -295,7 +293,7 @@ const DistributorScreens = {
     }
   },
 
-  /* ---- Inventory (kept as the real report table + Inventory/History segments) ---- */
+  /* ---- Inventory ---- */
   'distributor-inventory': {
     tab: 'inventory', back: false,
     render(params) {

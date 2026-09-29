@@ -13,10 +13,8 @@ import api from '../api/client';
 import { readThrough } from '../offline/cache';
 import { kvGet, kvSet } from '../offline/db';
 import { useAuth } from '../context/AuthContext';
-import LogoutButton from '../components/LogoutButton';
 import ScreenHeader from '../components/ScreenHeader';
 import HomeHeaderActions from '../components/HomeHeaderActions';
-import ProfileButton from '../components/ProfileButton';
 import OfflineBanner from '../components/OfflineBanner';
 import DeliveryMapModal from '../components/DeliveryMapModal';
 import ProofPreviewModal from '../components/ProofPreviewModal';
@@ -27,7 +25,7 @@ import StatusBadge from '../components/ui/StatusBadge';
 import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import { showAlert, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
+import { colors, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { useAutoSync } from '../sync/SyncProvider';
@@ -45,9 +43,6 @@ const PRIMARY = colors.leaf700;
 // back after restarting the app can be reattached to it.
 const PENDING_PICKUP_PHOTO_KEY = 'pending_pickup_proof_photo';
 const PENDING_PICKUP_PHOTO_MAX_AGE_MS = 15 * 60 * 1000;
-
-// TEMP rider-dashboard diagnostics — remove once the glitch is found.
-const dbg = (...args) => console.log('[rider-debug]', ...args);
 
 export function statusColor(status) {
   switch (status) {
@@ -84,8 +79,8 @@ export function effectiveStatus(order) {
   return d?.status || order.status || 'pending';
 }
 
-// Delivery progression ranking, used to enable/disable the progress buttons
-// (Issue 10): assigned → picked_up → in_transit → delivered.
+// Delivery progression ranking used to enable the progress buttons:
+// assigned → picked_up → in_transit → delivered.
 export const STATUS_RANK = { pending: 0, approved: 0, assigned: 0, picked_up: 1, in_transit: 2, delivered: 3 };
 
 function matchesFilter(order, filter) {
@@ -97,8 +92,7 @@ function matchesFilter(order, filter) {
   return s !== 'delivered' && s !== 'cancelled';
 }
 
-// Route params from ProfileScreen / NotificationBell still pass a legacy
-// `filter` value ('all' | 'active' | 'completed') — map it onto a bottom tab.
+// Maps the `filter` route param ('all' | 'active' | 'completed') onto a bottom tab.
 function tabForLegacyFilter(filter) {
   if (filter === 'active') return 'tasks';
   if (filter === 'completed') return 'history';
@@ -121,17 +115,11 @@ export default function DeliveryDashboard({ navigation, route }) {
 
   const [orders, setOrders] = useState([]);
   const [pickups, setPickups] = useState([]);
-  // Pickup tracking's rider marker and ETA both read the rider's published
-  // position, but the pickup flow lives on this screen and never visits
-  // RiderNavigationScreen, which is where the location publisher otherwise
-  // mounts (and is scoped to a delivery order). Publish from here too while a
-  // pickup is outstanding. No delivery_id is passed: the position belongs to a
-  // pickup rather than an order, and POST /api/delivery/update-location records
-  // it on the rider either way — sending a pickup id there would be rejected as
-  // an unassigned delivery.
+  // Publish the rider's position while a pickup is outstanding, since pickups are
+  // handled on this screen rather than RiderNavigationScreen. No delivery_id is
+  // sent because the position belongs to a pickup, not an order.
   const hasOutstandingPickup = pickups.some((p) => p.status === 'assigned' || p.status === 'otw');
   const riderLocation = useRiderLocation(null, hasOutstandingPickup);
-  useEffect(() => { if (riderLocation.error) dbg('location error', riderLocation.error); }, [riderLocation.error]);
   // 'deliveries' | 'pickups' — only relevant on the Tasks & History tabs.
   const [mode, setMode] = useState('deliveries');
   const [loading, setLoading] = useState(true);
@@ -139,9 +127,7 @@ export default function DeliveryDashboard({ navigation, route }) {
   const [busyId, setBusyId] = useState(null);
   const [mapAddress, setMapAddress] = useState(null); // address shown in the map modal (Farmer Pickups mode)
   const [mapCoords, setMapCoords] = useState(null); // coordinates shown in the map modal (Farmer Pickups mode)
-  // Which bottom-nav tab's content is showing. This is the single source of
-  // truth for what's on screen — Home, Tasks and History each render their
-  // own distinct content below instead of sharing one filtered list.
+  // Bottom-nav tab currently shown; Home, Tasks and History each render their own content.
   const [activeBottomTab, setActiveBottomTab] = useState('home');
   // History: pickup whose full details are open in the modal.
   const [historyPickup, setHistoryPickup] = useState(null);
@@ -154,37 +140,27 @@ export default function DeliveryDashboard({ navigation, route }) {
     // Params object is new on every navigate, so a repeated filter still applies.
   }, [route.params]);
 
-  // Throws on failure so each caller decides whether the rider should see it:
-  // background refreshes stay silent instead of popping an alert every 30s.
+  // Throws on failure so the caller decides whether to show an error; background
+  // refreshes stay silent.
   const loadPickups = useCallback(async () => {
     const isCurrent = beginRead('loadPickups');
-    const started = Date.now();
-    let data;
-    try { data = await api.get('/api/pickup-requests'); }
-    catch (err) { dbg('pickups FAILED', Date.now() - started, 'ms', err?.status, err?.message); throw err; }
-    dbg('pickups ok', Date.now() - started, 'ms', Array.isArray(data) ? data.map((p) => `${String(p.id).slice(0, 8)}:${p.status}`).join(',') : typeof data, 'current', isCurrent());
+    const data = await api.get('/api/pickup-requests');
     if (!isCurrent()) return;
     setPickups(Array.isArray(data) ? data : []);
   }, []);
 
   const loadOrders = useCallback(async () => {
     const isCurrent = beginRead('loadOrders');
-    const started = Date.now();
-    const { list, source, error } = await readThrough('delivery_orders_cache', () =>
+    const { list } = await readThrough('delivery_orders_cache', () =>
       api.get('/api/delivery/orders')
     );
-    dbg('orders', source, Date.now() - started, 'ms', list.length, error ? `ERR ${error?.status} ${error?.message}` : '', 'current', isCurrent());
     if (!isCurrent()) return;
     setOrders(list);
-    // A cache fallback can be a server error; it is not proof of no internet.
   }, []);
 
-  // Only the first load shows the spinner. Later refreshes (the 30s sync, a
-  // reconnect, returning to this screen) update the lists in place, so the
-  // cards no longer flash away to a spinner and back on every refresh.
+  // Only the first load shows the spinner; later refreshes update the lists in place.
   const hasLoaded = useRef(false);
   const loadAll = useCallback(async ({ silent = hasLoaded.current } = {}) => {
-    dbg('loadAll start', { silent });
     if (!silent) setLoading(true);
     try { await Promise.all([loadOrders(), loadPickups()]); }
     catch (err) { if (!silent) showAlert(t('common.error'), friendlyError(err)); }
@@ -194,19 +170,15 @@ export default function DeliveryDashboard({ navigation, route }) {
     }
   }, [loadOrders, loadPickups]);
 
-  // This fixes the rider's stale-assignment path: the same central lifecycle
-  // that refreshes every role now revalidates both pickup and delivery feeds.
+  // Refresh both the pickup and delivery lists through the shared sync lifecycle.
   const { syncState } = useAutoSync('delivery-dashboard', () => loadAll({ silent: true }));
 
   useEffect(() => {
     loadAll();
   }, [loadAll]);
 
-  // Refresh whenever this screen regains focus (e.g. returning from
-  // DeliveryDetails after a status change or a reject), so a delivery that
-  // was rejected or just marked delivered disappears immediately instead of
-  // waiting for a manual pull-to-refresh. Keep the selected tab and task mode.
-  // The first focus event arrives with the mount, which loadAll already covers.
+  // Refresh when the screen regains focus (e.g. after a status change in
+  // DeliveryDetails), keeping the selected tab. The first focus is covered by loadAll.
   useEffect(() => {
     if (!navigation?.addListener) return undefined;
     return navigation.addListener('focus', () => {
@@ -227,9 +199,7 @@ export default function DeliveryDashboard({ navigation, route }) {
     }
   };
 
-  // Proof-of-pickup: same photo + GPS capture flow as delivery completion,
-  // reusing the shared podCapture/podSubmission/cloudinary helpers so the
-  // rider cannot mark a pickup complete without a verified photo + location.
+  // Proof of pickup uses the same photo and GPS capture flow as delivery completion.
   const [pickupProofVisible, setPickupProofVisible] = useState(false);
   const [pickupPhoto, setPickupPhoto] = useState(null);
   const [activePickup, setActivePickup] = useState(null);
@@ -239,16 +209,12 @@ export default function DeliveryDashboard({ navigation, route }) {
 
   const acquirePickupLocation = async () => currentProofLocation(t);
 
-  // "On the way" is informational for the farmer (see PUT
-  // /api/pickup-requests/:id/status) — the rider can still complete the
-  // pickup directly from 'assigned' without visiting this step.
+  // "On the way" is optional; a pickup can be completed directly from 'assigned'.
   const handleStartPickup = async (pickupId) => {
-    dbg('START pickup tapped', pickupId, 'busyId', busyId, 'lockFree', requestLock.acquire('dbgProbe') && (requestLock.release('dbgProbe'), true));
     if (!requestLock.acquire('BusyId') || busyId != null) return;
     setBusyId(pickupId);
     try {
       await api.put(`/api/pickup-requests/${pickupId}/status`, { status: 'otw' });
-      dbg('START pickup ok');
       beginRead('loadPickups');
       setPickups(prev => prev.map(p => p.id === pickupId ? { ...p, status: 'otw' } : p));
       await loadAll({ silent: true });
@@ -261,18 +227,15 @@ export default function DeliveryDashboard({ navigation, route }) {
   };
 
   const openPickupProof = async (pickup) => {
-    dbg('MARK picked up tapped', pickup.id, 'action', pickupActionRef.current, 'busyId', busyId);
     if (pickupActionRef.current || busyId != null) return;
     pickupActionRef.current = 'location'; setBusyId(pickup.id);
     try {
-      const loc = await acquirePickupLocation();
-      dbg('MARK location ok', loc);
+      await acquirePickupLocation();
       setActivePickup(pickup);
       setPickupPhoto(null);
       pickupSubmissionRef.current = null;
       setPickupProofVisible(true);
     } catch (err) {
-      dbg('MARK location FAILED', err?.code, err?.message);
       showAlert(t('common.error'), friendlyError(err));
     } finally {
       pickupActionRef.current = null; setBusyId(null);
@@ -283,14 +246,10 @@ export default function DeliveryDashboard({ navigation, route }) {
     if (pickupActionRef.current) return;
     pickupActionRef.current = 'photo'; setPickupBusy(true);
     try {
-      dbg('PHOTO tapped');
       if (activePickup) await kvSet(PENDING_PICKUP_PHOTO_KEY, { pickup: activePickup, at: Date.now() });
-      dbg('PHOTO pending saved', activePickup?.id, JSON.stringify(await kvGet(PENDING_PICKUP_PHOTO_KEY))?.slice(0, 80));
       const selected = await captureProofPhoto(t, ImagePicker, Platform.OS, setPickupPhoto);
-      dbg('PHOTO result', selected ? 'ok' : 'cancelled', selected?.pod);
       if (selected) setPickupPhoto(selected);
     } catch (err) {
-      dbg('PHOTO FAILED', err?.code, err?.message);
       if (err.selectedPhoto) setPickupPhoto(err.selectedPhoto);
       showAlert(t('common.error'), friendlyError(err, t('dashboards.delivery.cameraErrorFallback')));
     } finally {
@@ -299,20 +258,15 @@ export default function DeliveryDashboard({ navigation, route }) {
     }
   };
 
-  // If Android killed the app while the camera was open, reopen the proof
-  // screen for the same pickup with the photo that was taken. The pickup comes
-  // from the note saved before the camera opened, or, failing that, the one
-  // pickup that is on the way.
+  // If Android restarted the app while the camera was open, reopen the proof screen
+  // for the same pickup with the captured photo.
   const [recoveredPhoto, setRecoveredPhoto] = useState(null);
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const pending = await kvGet(PENDING_PICKUP_PHOTO_KEY);
-      dbg('PHOTO recovery check', pending ? `note for ${pending.pickup?.id} age ${Date.now() - pending.at}ms` : 'no note');
       let asset = null;
-      try { asset = await recoverPendingProofPhoto(ImagePicker, Platform.OS); }
-      catch (err) { dbg('PHOTO recovery FAILED', err?.message); }
-      dbg('PHOTO recovery result', asset ? 'photo recovered' : 'no pending photo');
+    try { asset = await recoverPendingProofPhoto(ImagePicker, Platform.OS); } catch { /* No recoverable photo. */ }
       await kvSet(PENDING_PICKUP_PHOTO_KEY, null);
       if (!asset || cancelled) return;
       const noteIsFresh = pending?.pickup && Date.now() - pending.at <= PENDING_PICKUP_PHOTO_MAX_AGE_MS;
@@ -327,7 +281,6 @@ export default function DeliveryDashboard({ navigation, route }) {
     const pickup = recoveredPhoto.pickup || (onTheWay.length === 1 ? onTheWay[0] : null);
     const { asset } = recoveredPhoto;
     setRecoveredPhoto(null);
-    dbg('PHOTO recovery reopening', pickup?.id || 'no matching pickup');
     if (!pickup) return;
     pickupSubmissionRef.current = null;
     setActivePickup(pickup);
@@ -336,11 +289,10 @@ export default function DeliveryDashboard({ navigation, route }) {
     currentProofLocation(t)
       .then((pod) => setPickupPhoto((current) => (current === asset ? { ...asset, pod } : current)))
       // Confirm takes a fresh location anyway; the preview just lacks it.
-      .catch((err) => dbg('PHOTO recovery location FAILED', err?.code, err?.message));
+      .catch(() => {});
   }, [recoveredPhoto, loading, pickups]);
 
   const confirmPickupCompletion = async () => {
-    dbg('CONFIRM tapped', activePickup?.id, 'action', pickupActionRef.current, 'hasPhoto', !!pickupPhoto?.uri);
     if (pickupActionRef.current || !activePickup) return;
     pickupActionRef.current = 'complete'; setPickupBusy(true);
     const pickupId = activePickup.id;
@@ -355,8 +307,7 @@ export default function DeliveryDashboard({ navigation, route }) {
             ['Pickup completed successfully and inventory updated', 'Pickup marked complete, but the batch could not be added to Stocks — contact support', 'Pickup already completed'].includes(result.message)),
         }) };
       }
-      const result = await pickupSubmissionRef.current.controller.submit({ photo: pickupPhoto, getLocation: acquirePickupLocation });
-      dbg('CONFIRM ok', JSON.stringify(result).slice(0, 300));
+      await pickupSubmissionRef.current.controller.submit({ photo: pickupPhoto, getLocation: acquirePickupLocation });
       beginRead('loadPickups');
       setPickups(prev => prev.map(p => p.id === pickupId ? { ...p, status: 'picked_up' } : p));
       setPickupProofVisible(false);
@@ -365,15 +316,7 @@ export default function DeliveryDashboard({ navigation, route }) {
       await loadAll({ silent: true });
       showAlert(t('common.success'), t('dashboards.delivery.pickedUpSuccessMessage'));
     } catch (err) {
-      dbg('CONFIRM FAILED', err?.stage, err?.status, err?.code, err?.message, JSON.stringify(err?.data || null).slice(0, 300));
-      // TEMP diagnostics: the Metro log link drops once the camera opens, so show
-      // the underlying failure on screen in development builds.
-      const detail = __DEV__ ? `
-
-[debug] stage=${err?.stage} code=${err?.code} status=${err?.status}
-${err?.cause || err?.message}
-${JSON.stringify(err?.file || '')}` : '';
-      showAlert(t('common.error'), proofFailureMessage(err) + detail);
+      showAlert(t('common.error'), proofFailureMessage(err));
     } finally {
       pickupActionRef.current = null; setPickupBusy(false);
     }
@@ -412,7 +355,7 @@ ${JSON.stringify(err?.file || '')}` : '';
   const renderOrderCard = (order) => {
   const status = effectiveStatus(order);
   const canNavigate = status === 'assigned' || status === 'in_transit' || status === 'picked_up';
-  
+
   return (
     <View key={order.id} style={styles.orderCard}>
       <View style={styles.orderHeader}>
@@ -445,9 +388,8 @@ ${JSON.stringify(err?.file || '')}` : '';
   );
 };
 
-  // History list: compact card with just the number, status and View
-  // Details. Orders open the existing Delivery Details screen; pickups open
-  // the details modal below.
+  // History card: number, status and View Details. Orders open DeliveryDetails;
+  // pickups open the details modal.
   const renderHistoryCard = (item) => {
     const isOrder = item.kind === 'order';
     const r = item.record;
@@ -500,10 +442,6 @@ ${JSON.stringify(err?.file || '')}` : '';
     );
   };
 
-  const renderCount = useRef(0);
-  renderCount.current += 1;
-  if (renderCount.current % 10 === 1) dbg('render #', renderCount.current, { tab: activeBottomTab, mode, loading, orders: orders.length, pickups: pickups.length, gpsOn: hasOutstandingPickup });
-
   const modeToggle = (
     <SegmentedTabs
       value={mode}
@@ -517,7 +455,6 @@ ${JSON.stringify(err?.file || '')}` : '';
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Same centred header every screen in the app uses. */}
       <ScreenHeader
         // Title follows the open tab (Home / Tasks / History).
         title={activeBottomTab === 'tasks' ? t('dashboards.delivery.tabTasks')
@@ -616,9 +553,7 @@ ${JSON.stringify(err?.file || '')}` : '';
 
         {activeBottomTab === 'history' && (
           <View>
-            {/* One combined list: finished deliveries and past pickups,
-                newest first. Each card's own title (Order # / Pickup #)
-                tells them apart, so no filter tabs are needed. */}
+            {/* Finished deliveries and past pickups, newest first. */}
             {loading ? (
               <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
             ) : combinedHistory.length === 0 ? (

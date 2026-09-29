@@ -10,10 +10,8 @@ import { useTranslation } from '../i18n/useTranslation';
 
 const POLL_MS = 30000; // matches NotificationBell/MessagesIcon
 
-// Distributor header icon for User Management. The badge counts accounts
-// waiting on a decision, so a new registration is visible from the dashboard
-// without opening the screen. /api/accounts is distributor-only and returns
-// the rows themselves; the screen needs them anyway, and the count is small.
+// Distributor header icon for User Management, with a badge counting accounts
+// awaiting a decision.
 export default function PendingAccountsIcon() {
   const { t } = useTranslation();
   const navigation = useNavigation();
@@ -25,7 +23,7 @@ export default function PendingAccountsIcon() {
       const rows = await api.get('/api/accounts?status=pending_approval');
       if (mounted.current) setPending(Array.isArray(rows) ? rows.length : 0);
     } catch {
-      // silent on background poll
+      // Background poll failures are ignored.
     }
   }, []);
 
@@ -39,8 +37,7 @@ export default function PendingAccountsIcon() {
     };
   }, [load]);
 
-  // An approval made on the management screen should clear the badge as soon
-  // as the dashboard comes back, rather than waiting out the poll.
+  // Refresh on focus so an approval clears the badge immediately.
   useRefreshOnFocus(load);
 
   return (

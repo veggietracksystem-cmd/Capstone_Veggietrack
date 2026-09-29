@@ -3,10 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors, fonts, fontSize, radius } from '../theme/appTheme';
 import { tr } from '../i18n/translate';
 
-// Keeps a tracking failure inside the tracking screen. If anything below throws
-// while rendering (a malformed tracking payload, the map, ...), the user sees a
-// short message and a retry button here instead of the app-wide "Restart app"
-// screen. Same idea as ErrorBoundary, but local and recoverable.
+// Contains rendering errors within the tracking screen, showing a message and a
+// retry button instead of the app-wide error screen.
 export default class TrackingErrorBoundary extends Component {
   constructor(props) {
     super(props);

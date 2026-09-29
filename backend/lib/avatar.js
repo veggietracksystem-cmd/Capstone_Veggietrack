@@ -1,5 +1,5 @@
-// Accept original uploads only; credentials, transformations and arbitrary hosts
-// never become profile image URLs. No network fetch of client-provided URLs.
+// Accepts only original uploads from the configured Cloudinary cloud.
+// Client-provided URLs are never fetched.
 function validateCloudinaryImageUrl(value, cloud = process.env.CLOUDINARY_CLOUD_NAME, label = 'photo') {
   if (value === null) return null; // Existing accounts may retain initials.
   if (!cloud || !/^[A-Za-z0-9_-]+$/.test(cloud)) {

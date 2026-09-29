@@ -43,32 +43,31 @@ export default function OrderStepIndicator({ status }) {
 
   return (
     <View style={styles.wrap}>
-     {/* Line lives in its own layer behind the step columns (each column is its own
-         stacking context on web, so a per-column line would cover the previous circle). */}
-     <View style={styles.track} pointerEvents="none">
-       <View style={[styles.trackFill, { width: `${Math.max(0, current) / (STEP_KEYS.length - 1) * 100}%` }]} />
-     </View>
-     <View style={styles.row}>
-      {STEP_KEYS.map((step, i) => {
-        const done = current >= 0 && i <= current;
-        const isCurrent = i === current;
-        return (
-          <View key={step.key} style={styles.stepCol}>
-            <View style={[styles.circle, done && styles.circleDone, isCurrent && styles.circleCurrent]}>
-              {done ? (
-                <Ionicons name="checkmark" size={CHECK_SIZE} color="#fff" style={styles.check} />
-              ) : (
-                <Text style={styles.circleText}>{i + 1}</Text>
-              )}
-            </View>
+      {/* The track sits in its own layer behind the step columns so it never covers a circle. */}
+      <View style={styles.track} pointerEvents="none">
+        <View style={[styles.trackFill, { width: `${Math.max(0, current) / (STEP_KEYS.length - 1) * 100}%` }]} />
+      </View>
+      <View style={styles.row}>
+        {STEP_KEYS.map((step, i) => {
+          const done = current >= 0 && i <= current;
+          const isCurrent = i === current;
+          return (
+            <View key={step.key} style={styles.stepCol}>
+              <View style={[styles.circle, done && styles.circleDone, isCurrent && styles.circleCurrent]}>
+                {done ? (
+                  <Ionicons name="checkmark" size={CHECK_SIZE} color="#fff" style={styles.check} />
+                ) : (
+                  <Text style={styles.circleText}>{i + 1}</Text>
+                )}
+              </View>
 
-            <Text style={[styles.label, done && styles.labelDone]} numberOfLines={2}>
-              {t(step.labelKey)}
-            </Text>
-          </View>
-        );
-      })}
-     </View>
+              <Text style={[styles.label, done && styles.labelDone]} numberOfLines={2}>
+                {t(step.labelKey)}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
     </View>
   );
 }

@@ -25,23 +25,16 @@ function validateProof(body = {}, destination, now = Date.now()) {
   if (!Number.isFinite(captured) || now - captured > STALE_LOCATION_SECONDS * 1000 || captured - now > 30000) throw proofError('GPS_STALE', 'Your GPS location has expired. Refresh your location and try again.');
   const distance = distanceMeters(point, destination);
   const radius = effectiveRadius(body.accuracy);
-  if (process.env.DEBUG_DELIVERY_LOCATION === 'true') console.debug('Delivery location verification', {
-    rider: point, destination: coordinate(destination), accuracy: body.accuracy, distance_meters: distance,
-    effective_radius_meters: radius, coordinate_source: destination.coordinate_source || 'order_snapshot',
-  });
-  // Distance-to-destination is recorded for ETA/routing context, not used to
-  // block completion — GPS drifts by building/signal and requiring the rider
-  // to stand exactly on the pin rejected legitimate deliveries. The photo,
-  // timestamp and coordinates captured here are the actual proof of record.
+  // Distance is recorded but does not block completion, since GPS drift would
+  // reject legitimate deliveries. The photo, timestamp and coordinates are the proof.
   return { latitude: point.latitude, longitude: point.longitude, accuracy: body.accuracy,
     captured_at: new Date(captured).toISOString(), submitted_at: new Date(now).toISOString(),
     location_status: distance <= radius ? 'verified' : 'unverified', distance_meters: distance, effective_radius_meters: radius,
     coordinate_source: destination.coordinate_source || 'order_snapshot', address: null };
 }
-// GPS/photo/timestamp capture is mandatory for pickup exactly as it is for
-// delivery; only the destination-proximity requirement differs (a farmer's
-// farm location pin is optional, so the caller checks distance separately —
-// see complete_pickup_with_proof in sql/pickup_tracking_proof.sql).
+// Pickup proof requires the same GPS, photo and timestamp as delivery. Proximity
+// to the farm is checked separately (complete_pickup_with_proof) because the farm
+// pin is optional.
 function validatePickupProof(body = {}, now = Date.now()) {
   const point = coordinate(body);
   if (!point || typeof body.latitude !== 'number' || typeof body.longitude !== 'number') throw proofError('GPS_REQUIRED', 'Current GPS coordinates are required.');

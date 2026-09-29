@@ -1,16 +1,10 @@
 -- ============================================================
--- VeggieTrack – Wipe all data, keep schema/features intact
--- Run this in the Supabase SQL Editor.
+-- VeggieTrack – Delete all application data (schema unchanged)
+-- Run in the Supabase SQL Editor.
 --
--- This TRUNCATEs every application table (deletes all rows) but does
--- NOT touch table definitions, columns, enum types, indexes, RLS
--- policies, or any Supabase Auth users — the app's functionality is
--- unaffected, it just starts with zero data.
---
--- NOTE: This does NOT delete uploaded media in Cloudinary (harvest
--- photos, delivery proof photos). Those are stored externally and
--- referenced by URL — clear them separately in the Cloudinary
--- dashboard if you want a fully fresh start there too.
+-- Truncates every application table. Table definitions, indexes, RLS policies
+-- and Supabase Auth users are not affected. Uploaded Cloudinary media is not
+-- deleted (see scripts/clear_cloudinary.js).
 -- ============================================================
 
 TRUNCATE TABLE

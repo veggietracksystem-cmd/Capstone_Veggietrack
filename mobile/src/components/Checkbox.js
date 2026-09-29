@@ -1,10 +1,9 @@
 import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius } from '../theme/appTheme';
+import { colors } from '../theme/appTheme';
 
-// The app's one checkbox box. Selected state shows a white check mark (✓) on a
-// dark-green fill, so selection never relies on color alone. Purely visual:
-// the parent row owns the tap handling and the checked value.
+// Shared checkbox. The checked state shows a check mark rather than relying on
+// colour alone; the parent row handles taps.
 export const CHECKBOX_SIZE = 20;
 
 export default function Checkbox({ checked, style }) {

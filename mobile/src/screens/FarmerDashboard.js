@@ -25,7 +25,7 @@ import StatusBadge from '../components/ui/StatusBadge';
 import FarmerProfileTab from './FarmerProfileTab';
 import { showAlert, confirmAction } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
@@ -35,16 +35,14 @@ import { exportReportPdf, printReport } from '../lib/reportPdf';
 import { useAutoSync } from '../sync/SyncProvider';
 import { titleCaseWords } from '../lib/textFormat';
 
-// Manually selectable only — 'for_pickup'/'picked_up' are system-driven states
-// set automatically by the pickup request/completion workflow, not by the farmer.
+// Farmer-selectable statuses; 'for_pickup' and 'picked_up' are set by the pickup workflow.
 const STATUS_OPTIONS = ['available', 'reserved'];
 
 const getVegTile = getVegetableTile;
 
 function getStatusPillStyle(status, t) {
   switch (status) {
-    // Distinct from for_pickup (gold) and picked_up (green) below so all four
-    // harvest states read as visually different at a glance in the same list.
+    // Distinct from the pickup states so all four statuses are easy to tell apart.
     case 'available': return { label: t('dashboards.farmer.statusAvailable'), bg: colors.infoSoft, color: colors.info };
     case 'reserved': return { label: t('dashboards.farmer.statusReserved'), bg: colors.purpleSoft, color: colors.purple };
     case 'for_pickup': return { label: t('dashboards.farmer.statusForPickup'), bg: colors.gold100, color: colors.gold700 };
@@ -53,9 +51,8 @@ function getStatusPillStyle(status, t) {
   }
 }
 
-// Once a pickup has been requested ('for_pickup') or completed ('picked_up'),
-// the harvest is locked — no more edits/deletes, to preserve inventory
-// integrity (mirrors the server-side guard in PUT/DELETE /api/harvests/:id).
+// A harvest is locked once a pickup is requested or completed (mirrors the
+// server-side guard in PUT/DELETE /api/harvests/:id).
 function isHarvestLocked(status) {
   return status === 'for_pickup' || status === 'picked_up';
 }
@@ -138,9 +135,7 @@ function weekRangeLabel(mondayKey) {
   const opts = { month: 'short', day: 'numeric' };
   return `${monday.toLocaleDateString(undefined, opts)}–${sunday.toLocaleDateString(undefined, { day: 'numeric' })}`;
 }
-// Groups already-fetched report rows (from GET /api/harvests/weekly-report)
-// by week, keeping the full row objects — used by the History sheet so each
-// past week can render as a real table, not just a per-vegetable kg total.
+// Groups report rows by week for the History sheet.
 function buildWeeklyRowBuckets(rows) {
   const weeks = {};
   rows.forEach((r) => {
@@ -244,10 +239,9 @@ export default function FarmerDashboard({ navigation, route }) {
 
   const loadHarvests = useCallback(async () => {
     const isCurrent = beginRead('loadHarvests');
-    const { list, source } = await fetchHarvests();
+    const { list } = await fetchHarvests();
     if (!isCurrent()) return;
     setHarvests(list);
-    // A cache fallback can be a server error; it is not proof of no internet.
     await refreshPendingCount();
   }, [refreshPendingCount]);
 
@@ -280,8 +274,7 @@ export default function FarmerDashboard({ navigation, route }) {
     }
   }, []);
 
-  // There's only one distributor in the system; used to label the Weekly
-  // report table's "Distributor" column without a dedicated backend join.
+  // There is only one distributor, so its name labels the report's Distributor column.
   const loadDistributorName = useCallback(async () => {
     const isCurrent = beginRead('loadDistributorName');
     try {
@@ -302,9 +295,8 @@ export default function FarmerDashboard({ navigation, route }) {
     return result;
   }, [loadHarvests, refreshPendingCount]);
 
-  // Global coordinator handles reconnect, foreground and periodic refreshes.
-  // Keep this reader comprehensive so cross-role pickup changes reach every
-  // farmer tab without a manual pull-to-refresh.
+  // The shared sync coordinator handles reconnect, foreground and periodic
+  // refreshes; this reader reloads every farmer tab.
   const { syncState } = useAutoSync('farmer-dashboard', useCallback(async () => {
     await Promise.all([loadHarvests(), loadPickupRequests(), loadMessagesUnreadCount(), loadNotifUnreadCount()]);
   }, [loadHarvests, loadPickupRequests, loadMessagesUnreadCount, loadNotifUnreadCount]));
@@ -382,8 +374,7 @@ export default function FarmerDashboard({ navigation, route }) {
     ...availableHarvests.filter((h) => cart[h.id]),
     ...availableHarvests.filter((h) => !cart[h.id]),
   ], [availableHarvests, cart]);
-  // Home tab "Active Pickup" preview — the single most relevant in-progress
-  // pickup request, same data already loaded for the Pick-up tab's tracking list.
+  // Home tab "Active Pickup" preview: the most relevant in-progress pickup request.
   const activePickup = useMemo(
     () => pickupRequests.find((p) => p.status !== 'picked_up' && p.status !== 'completed'),
     [pickupRequests]
@@ -455,8 +446,7 @@ export default function FarmerDashboard({ navigation, route }) {
     setSubmitting(true);
     try {
       const payload = { vegetable_name: name, quantity_kg: qty, status };
-      // No harvest_date sent — the backend stamps recorded_at automatically
-      // at the moment of submission; it's never farmer-editable.
+      // The backend sets recorded_at on submission; the harvest date is not editable.
       const optimistic = await queueHarvest({ type: 'add', payload });
       setHarvests(optimistic);
       await refreshPendingCount();
@@ -565,8 +555,7 @@ export default function FarmerDashboard({ navigation, route }) {
     setSubmittingPickup(true);
     try {
       for (const h of cartHarvests) {
-        // This is what actually makes the request visible to the distributor
-        // (GET /api/pickup-requests) — must be online, can't be offline-queued.
+        // Must be online: the request is what makes the pickup visible to the distributor.
         // eslint-disable-next-line no-await-in-loop
         await api.post('/api/pickup-requests', { harvest_id: h.id });
         removeFromCart(h.id);
@@ -600,17 +589,14 @@ export default function FarmerDashboard({ navigation, route }) {
     );
   }
 
-  // One centred header for the whole dashboard, so the farmer's screens sit
-  // at the same height and use the same title style as every other role.
+  // Header titles per tab.
   const HEADER_TITLES = {
     home: t('dashboards.farmer.tabHome'),
     harvest: t('dashboards.farmer.tabHarvestNew'),
     pickup: t('dashboards.farmer.tabPickupNew'),
     profile: t('profile.title'),
   };
-  // Home header actions: same shared Messages+Notifications pair (icon,
-  // sizing, spacing, divider, and notification modal design) every other
-  // module uses.
+  // Home header actions (Messages and Notifications).
   const headerRight = activeTab === 'home' ? (
     <HomeHeaderActions />
   ) : activeTab === 'harvest' ? (
@@ -703,9 +689,7 @@ export default function FarmerDashboard({ navigation, route }) {
               </>
             ) : activeTab === 'harvest' ? (
               <>
-                {/* Matches prototype's farmer-harvest-list: a single divided
-                    list of harvest rows (photo, title, status badge). The "+"
-                    add action lives in the screen header. */}
+                {/* Harvest list; the "+" add action is in the screen header. */}
                 <TouchableOpacity style={styles.btnOutlineBlock} onPress={openWeeklyReport} activeOpacity={0.8}>
                   <Ionicons name="calendar-outline" size={rf(16)} color={colors.leaf700} />
                   <Text style={styles.btnOutlineText}>{t('dashboards.farmer.weeklyReportDash', { range: weekRangeLabel(thisWeekKey) })}</Text>
@@ -726,16 +710,13 @@ export default function FarmerDashboard({ navigation, route }) {
                           <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
                           <Text style={styles.vegMeta}>{t('dashboards.farmer.harvestedMeta', { qty: h.quantity_kg, date: formatDate(h.recorded_at) })}</Text>
                         </View>
-                        {/* Badge sits top-right, above the Edit action, so
-                            every row's top-right corner looks the same. */}
+                        {/* Badge sits top-right, above the Edit action. */}
                         <View style={styles.harvestActionCol}>
                           <View style={styles.harvestBadgeWrap}>
                             <StatusBadge status={h.status} label={getStatusPillStyle(h.status, t).label} compact />
                           </View>
                           {isHarvestLocked(h.status) ? (
-                            // Reserves the same footprint the Edit button would
-                            // take, so the badge lines up the same whether or
-                            // not this row has an Edit action.
+                            // Keeps the badge aligned on rows without an Edit action.
                             <View style={styles.editIconBtnPlaceholder} />
                           ) : (
                             <TouchableOpacity
@@ -755,9 +736,6 @@ export default function FarmerDashboard({ navigation, route }) {
               </>
             ) : (
               <>
-                {/* HOME — shell order matches prototype's farmer-dashboard: bare
-                    top bar (bell only) -> sync banner -> stats -> add CTA ->
-                    list section. */}
                 {(syncState === 'offline' || pendingCount > 0) && (
                   <View style={styles.syncBanner}>
                     <Ionicons name={syncState === 'offline' ? 'cloud-offline-outline' : 'sync-outline'} size={rf(15)} color={colors.gold700} />
@@ -1011,8 +989,7 @@ export default function FarmerDashboard({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Weekly report sheet — doubles as the farmer's inventory record: Harvest
-          Date, Pickup Date, Vegetable, Quantity, Pickup Status, Rider, Distributor */}
+      {/* Weekly report sheet (the farmer's inventory record) */}
       <BottomSheet visible={showWeeklySheet} onClose={() => setShowWeeklySheet(false)} title={t('dashboards.farmer.weeklyReportSheetTitle')}>
         <Text style={styles.sheetHint}>{t('dashboards.farmer.autoGenerated', { range: weekRangeLabel(thisWeekKey) })}</Text>
         {loadingWeeklyReport ? (
@@ -1184,7 +1161,7 @@ const styles = StyleSheet.create({
   syncBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.gold100, borderRadius: 12, padding: 10, marginBottom: 14 },
   syncBannerText: { flex: 1, fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.gold700 },
 
-  // Generic bordered card — Active Pickup preview (prototype's `.card` block).
+  // Bordered card (Active Pickup preview).
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, marginBottom: 14, ...shadowCard },
   cardHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 },
   cardHeadText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink },
@@ -1222,9 +1199,7 @@ const styles = StyleSheet.create({
   pickupCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
   pickupCardId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink },
   pickupCardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, alignSelf: 'flex-start' },
-  // Single bordered list container with divided rows (prototype's .list/.row
-  // pattern) — used where the Home tab shows a flat list of items, instead of
-  // separate floating cards per row.
+  // Bordered list container with divided rows.
   list: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
   listRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
@@ -1240,11 +1215,9 @@ const styles = StyleSheet.create({
   vegName: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
   vegMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
   harvestActionCol: { alignItems: 'flex-end', gap: 14 },
-  // Nudges the badge flush with the top of the vegetable name/emoji, the
-  // same amount whether or not this row also shows an Edit button below.
+  // Aligns the badge with the top of the vegetable name.
   harvestBadgeWrap: { marginTop: -3 },
-  // Matches the Distributor module's Edit action button exactly (compact
-  // outlined green pill) so Edit looks the same everywhere it appears.
+  // Same compact outlined Edit button as the Distributor module.
   editIconBtn: { ...actionBtn, ...actionBtnOutline, width: 56 },
   editIconBtnText: { ...actionBtnText, color: colors.leaf700 },
   // Same footprint as editIconBtn (no border/text) so locked rows keep the
@@ -1285,8 +1258,7 @@ const styles = StyleSheet.create({
     padding: 11, fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink,
   },
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  // Add Harvest sheet's status row: centered, with both chips the same
-  // height/width so Available and Reserved sit evenly balanced.
+  // Add Harvest status chips: centred and equal in size.
   statusRowCenter: { justifyContent: 'center', gap: 12 },
   chipEven: { minWidth: 108, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },

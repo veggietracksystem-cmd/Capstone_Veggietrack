@@ -25,17 +25,15 @@ import { useAutoSync } from '../sync/SyncProvider';
 
 const PRIMARY = colors.leaf700;
 
-// The rider-facing progression: assigned -> picked_up -> in_transit -> (Mark Delivered).
-// Steps already reached render as a completed indicator; the very next step
-// renders as the single actionable button — everything else stays hidden.
+// Rider progression: assigned -> picked_up -> in_transit -> (Mark Delivered).
+// Completed steps show as indicators; only the next step is an action button.
 const PROGRESS_STEPS = [
   { key: 'picked_up', rank: 1 },
   { key: 'in_transit', rank: 2 },
 ];
 
-// Attaches the real verified/unverified result (computed against the order's
-// destination) to a staged photo's pod, so the proof preview reflects actual
-// proximity instead of always claiming "could not be verified".
+// Adds the verified/unverified result (against the order's destination) to a
+// staged photo's proof data.
 function withLocationStatus(photo, order) {
   if (!photo?.pod) return photo;
   const destination = orderDestination(order);
@@ -46,8 +44,7 @@ function withLocationStatus(photo, order) {
   } catch { return photo; }
 }
 
-// Formats the retailer's preferred delivery schedule as separate date/time
-// lines for display — never the raw ISO timestamp the backend stores it as.
+// Splits the preferred delivery schedule into display date and time lines.
 function formatScheduleParts(preferredSchedule) {
   if (!preferredSchedule) return null;
   const d = new Date(preferredSchedule);
@@ -243,7 +240,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
 
       <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         <View style={styles.card}>
-          {/* 1. Order Summary — status shown exactly once, as the badge */}
+          {/* 1. Order summary */}
           <View style={styles.orderHeader}>
             <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
             <StatusBadge status={status} label={formatStatus(status)} />
@@ -255,13 +252,13 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
 
           <View style={styles.divider} />
 
-          {/* 2. Pickup From — name only, no button here (single Route button lives below) */}
+          {/* 2. Pickup from */}
           <Text style={styles.sectionTitle}>{t('deliveryDetails.pickupFromTitle')}</Text>
           <Text style={styles.entityName}>{order.distributor_name}</Text>
 
           <View style={styles.divider} />
 
-          {/* 3. Deliver To — retailer, address, and preferred delivery as distinct labeled blocks */}
+          {/* 3. Deliver to */}
           <Text style={styles.sectionTitle}>{t('deliveryDetails.retailerTitle')}</Text>
           <Text style={styles.subLabel}>{t('deliveryDetails.retailerLabel')}</Text>
           <Text style={styles.entityName}>{order.retailer_name}</Text>
@@ -277,7 +274,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
 
           <View style={styles.divider} />
 
-          {/* 4. Ordered Vegetables */}
+          {/* 4. Ordered vegetables */}
           <Text style={styles.sectionTitle}>{t('deliveryDetails.itemsTitle')}</Text>
           {items.length === 0 ? (
             <Text style={styles.rowMeta}>{t('dashboards.delivery.noItemDetails')}</Text>
@@ -295,7 +292,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
             <>
               <View style={styles.divider} />
 
-              {/* 6. Delivery Progress */}
+              {/* 5. Delivery progress */}
               <Text style={styles.sectionTitle}>{t('deliveryDetails.progressTitle')}</Text>
               {locationDetails && <>
                 <Text style={styles.rowMeta}>Distance from the delivery address: {Math.round(locationDetails.distanceMeters)} m</Text>
@@ -336,7 +333,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
                 <Text style={styles.buttonPrimaryText}>{t('dashboards.delivery.markDelivered')}</Text>
               </TouchableOpacity>
 
-              {/* Reject Delivery — only before the rider has started (still just 'assigned'). */}
+              {/* Reject is available only while the delivery is still 'assigned'. */}
               {status === 'assigned' && (
                 <TouchableOpacity
                   style={[styles.rejectBtn, busy && styles.buttonDisabled]}

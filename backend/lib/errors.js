@@ -1,12 +1,5 @@
-// Centralized handling for unexpected database/infra failures on generic
-// CRUD routes: the real Postgres/PostgREST error is always logged server-side
-// for debugging, but the client only ever receives a safe, generic message —
-// never a raw constraint name, column name, or query fragment.
-//
-// Routes that raise their own intentional, already-safe messages (RPC
-// ERRCODE 22023, request validation in lib/orderRules.js, lib/deliveryProof.js,
-// lib/avatar.js, etc.) are untouched by this helper and keep returning their
-// authored text directly.
+// Logs unexpected database errors server-side and returns a generic message, so
+// constraint names, columns and query fragments never reach the client.
 function friendlyMessage(error) {
   switch (error?.code) {
     case '23505': return 'This record already exists.';

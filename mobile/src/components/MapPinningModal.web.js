@@ -22,15 +22,15 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
   const mapRef = useRef(null);
   const markerRef = useRef(null);
 
-  // 0. Re-seed from the caller's existing pin (e.g. Edit Profile) each time the
-  // modal opens, so re-opening after a cancel doesn't lose the saved location.
+  // On each open, start from the caller's existing pin so a cancelled edit does
+  // not lose the saved location.
   useEffect(() => {
     if (!visible || !initialCoords) return;
     setPinnedCoords(initialCoords);
     setAddressName(initialAddress || t('cmp.fetchingAddress'));
   }, [visible]);
 
-  // 1. Load Leaflet CDN script dynamically
+  // Load the Leaflet script from the CDN.
   useEffect(() => {
     if (!visible) return;
     if (window.L) {
@@ -55,9 +55,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     document.head.appendChild(script);
   }, [visible]);
 
-  // 2. Auto-detect user current location on modal open — skipped when an
-  // existing pin was passed in, so editing a saved location doesn't silently
-  // jump to the device's current GPS position.
+  // Detect the current location, unless an existing pin was passed in.
   useEffect(() => {
     if (!visible || initialCoords) return;
     handleDetectLocation();
@@ -92,7 +90,7 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     );
   };
 
-  // 3. Reverse geocode when coordinates change
+  // Reverse geocode when the coordinates change.
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
@@ -126,16 +124,13 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     };
   }, [visible, pinnedCoords]);
 
-  // 4. Initialize Map
   useEffect(() => {
     if (!visible || !leafletLoaded) return;
 
     const container = document.getElementById('pinning-map-leaflet');
     if (!container) return;
 
-    // Seed from the caller's existing pin (not the possibly-stale `pinnedCoords`
-    // closure) so the map is torn down/recreated fresh each open and always
-    // starts centered on the saved location rather than a leftover unconfirmed one.
+    // Start from the caller's pin rather than a possibly stale unconfirmed one.
     const seed = initialCoords || pinnedCoords;
 
     const map = window.L.map('pinning-map-leaflet').setView(
@@ -154,14 +149,12 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
     }).addTo(map);
     markerRef.current = marker;
 
-    // Map click handler
     map.on('click', (e) => {
       const { lat, lng } = e.latlng;
       setPinnedCoords({ latitude: lat, longitude: lng });
       marker.setLatLng([lat, lng]);
     });
 
-    // Marker drag handler
     marker.on('dragend', () => {
       const { lat, lng } = marker.getLatLng();
       setPinnedCoords({ latitude: lat, longitude: lng });
@@ -207,11 +200,9 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
 
         <PlaceAutocomplete visible={visible} onSelect={handleSelectSearchResult} />
 
-        {/* Map Container & Floating Buttons */}
         <View style={styles.mapContainer}>
           <div id="pinning-map-leaflet" style={{ width: '100%', height: '100%', borderRadius: '12px' }} />
 
-          {/* Floating Locate Me Button */}
           <TouchableOpacity
             style={styles.locateBtn}
             onPress={handleDetectLocation}
@@ -250,7 +241,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 48 },
   title: { fontSize: rf(20), fontWeight: '700', color: PRIMARY },
-  // Same small rounded outlined close button every other modal uses.
   closeBtn: {
     width: 38, height: 38, borderRadius: 10, backgroundColor: '#fff',
     borderWidth: 1, borderColor: '#ddd', alignItems: 'center', justifyContent: 'center',

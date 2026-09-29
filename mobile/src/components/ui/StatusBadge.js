@@ -3,8 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts, fontSize, radius } from '../../theme/appTheme';
 import { useTranslation } from '../../i18n/useTranslation';
 
-// One status color system for the whole app (display-only - callers keep their
-// own business logic and just pass the status string through):
+// Status colour system (display only; callers pass the status string):
 //   done     solid dark green, white text     - completed / active / paid
 //   progress solid medium green, white text   - approved, assigned, on the way
 //   pending  light green, dark green text     - waiting / not yet started
@@ -18,10 +17,7 @@ const TONES = {
   neutral: { bg: colors.soil300, fg: colors.soil800 },
 };
 
-// Common status strings used across accounts/orders/pickups/deliveries in
-// this app. Anything not listed falls back to a neutral tone with the raw
-// status text - never breaks on values that go through this that we didn't
-// enumerate.
+// Known status strings; anything else falls back to the neutral tone.
 const STATUS_TONE = {
   unverified: 'neutral',
   pending_approval: 'pending',
@@ -45,10 +41,14 @@ const STATUS_TONE = {
   cancelled: 'danger',
   rejected: 'danger',
   out_of_stock: 'danger',
+  // Inventory batch lifecycle (backend/lib/batches.js)
+  received: 'pending',
+  listed: 'done',
+  sold_out: 'danger',
+  archived: 'neutral',
 };
 
-// One badge size everywhere. `compact` is accepted for existing callers but no
-// longer changes the size, so badges look identical across every screen.
+// Single badge size used on every screen.
 export default function StatusBadge({ status, label }) {
   const { t } = useTranslation();
   const tone = TONES[STATUS_TONE[status]] || TONES.neutral;

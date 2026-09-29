@@ -14,11 +14,8 @@ import { rf } from '../lib/responsive';
 import { useBottomNavSpace } from '../components/BottomNavBar';
 import { styles as profileStyles } from './ProfileScreen';
 
-// Farmer-only Profile tab, restyled to match the shared ProfileScreen design
-// (used by Retailer/Distributor/Delivery Personnel) so all four roles look
-// and feel consistent — same profile card, section cards, and outlined
-// logout button. Still embedded inline inside FarmerDashboard's "profile"
-// tab (not a pushed screen), and still shows farm-specific info (location).
+// Farmer Profile tab, embedded in FarmerDashboard. Uses the same design as
+// ProfileScreen and also shows the farm location.
 export default function FarmerProfileTab({ navigation }) {
   const navSpace = useBottomNavSpace();
   const { user, signOut } = useAuth();
@@ -35,8 +32,7 @@ export default function FarmerProfileTab({ navigation }) {
 
   return (
     <ScrollView style={styles.scrollArea} contentContainerStyle={[styles.content, { paddingBottom: navSpace }]} showsVerticalScrollIndicator={false}>
-      {/* Profile header: avatar + name + role + Edit Profile shortcut
-          (prototype's profile-header block, matches farmer-profile). */}
+      {/* Profile header: avatar, name, role and Edit Profile shortcut */}
       <View style={styles.profileCard}>
         <UserAvatar user={user} style={styles.avatarCircle} textStyle={styles.avatarText} />
         <Text style={styles.userName}>{fullName || user?.email || 'Farmer'}</Text>
@@ -48,8 +44,7 @@ export default function FarmerProfileTab({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Account: read-only info list (icon + label + value rows), matching
-          the prototype's separate "Account" list under the profile header. */}
+      {/* Account details */}
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>{t('profile.account')}</Text>
 
@@ -71,8 +66,7 @@ export default function FarmerProfileTab({ navigation }) {
         )}
       </View>
 
-      {/* Preferences: Language + Help & Support links, matching the
-          prototype's single combined "Preferences" list section. */}
+      {/* Preferences: language and help & support */}
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
 
@@ -101,11 +95,7 @@ export default function FarmerProfileTab({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Log Out: final list section (prototype renders this as a row, not a
-          standalone button). No "Deactivate account" row — a user never
-          disables their own account; the distributor does that from User
-          Management. Matches the shared ProfileScreen used by every other
-          role. */}
+      {/* Log Out (accounts are disabled by the distributor, not by the user). */}
       <View style={styles.sectionCard}>
         <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={logout}>
           <View style={styles.menuItemContent}>

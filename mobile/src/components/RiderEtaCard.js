@@ -13,8 +13,8 @@ function arrivalClock(etaSeconds) {
   } catch { return null; }
 }
 
-// Always-visible "when will the rider arrive" summary for an order. `data` is the
-// /api/delivery/tracking payload; without it (or a rider) the card explains why.
+// Rider arrival summary for an order. `data` is the /api/delivery/tracking
+// payload; without it (or a rider) the card explains why.
 export default function RiderEtaCard({ data, status, style }) {
   const { t } = useTranslation();
   const current = data?.status || status;

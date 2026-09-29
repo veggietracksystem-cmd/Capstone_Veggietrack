@@ -3,14 +3,12 @@ import { useState } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet,
 } from 'react-native';
-import { colors, control, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fonts, radius } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
 
-// Common delivery time slots (24h). Building a full clock picker would need a
-// native datetime library, which isn't installed — these slots cover the
-// realistic delivery windows without adding a dependency.
+// Common delivery time slots (24h).
 const TIME_SLOTS = ['08:00', '10:00', '12:00', '13:00', '15:00', '17:00'];
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -31,7 +29,7 @@ function nextDays(count = 7) {
   return out;
 }
 
-// Pretty-print a stored "YYYY-MM-DDTHH:mm" value for the trigger button.
+// Formats a stored "YYYY-MM-DDTHH:mm" value for the trigger button.
 function prettyValue(value, t) {
   if (!value) return t('cmp.selectDateTime');
   const d = new Date(value);

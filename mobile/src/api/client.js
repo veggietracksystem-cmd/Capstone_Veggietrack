@@ -23,8 +23,7 @@ function failure(response, data) {
 async function request(path, { method = 'GET', body, headers = {}, signal, timeoutMs = 30000 } = {}) {
   if (tokenProvider) setAuthToken(await tokenProvider());
   const requestGeneration = generation;
-  // Dynamic feeds must not be served from a browser/proxy cache. Offline
-  // reads are handled explicitly by readThrough(), not by HTTP caching.
+  // Disable HTTP caching; offline reads are handled by readThrough().
   const finalHeaders = { 'Content-Type': 'application/json', ...(method === 'GET' ? { 'Cache-Control': 'no-cache' } : {}), ...headers };
   if (authToken && !finalHeaders.Authorization) finalHeaders.Authorization = `Bearer ${authToken}`;
   const controller = new AbortController();

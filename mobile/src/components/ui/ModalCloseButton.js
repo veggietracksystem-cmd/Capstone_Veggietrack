@@ -4,10 +4,8 @@ import { rf } from '../../lib/responsive';
 import { colors, radius } from '../../theme/appTheme';
 import { useTranslation } from '../../i18n/useTranslation';
 
-// The one close button every modal uses: a compact rounded outlined square with
-// an X, at the modal's top-right. Use it instead of a "Close" text button.
-// `tone="light"` is the same shape for modals that sit on a dark backdrop.
-// Pass `style` only to position it (e.g. absolute top/right).
+// Shared close button for modals (rounded outlined X at the top-right).
+// `tone="light"` is for modals on a dark backdrop; `style` is for positioning only.
 export default function ModalCloseButton({ onPress, disabled = false, tone = 'default', style }) {
   const { t } = useTranslation();
   const light = tone === 'light';
