@@ -170,8 +170,8 @@ test('retailer and distributor read endpoints include persisted POD metadata', a
           return Promise.resolve({ data: table === 'orders' ? [{ id: 'o', deliveries: [delivery] }] : table === 'deliveries' ? [delivery] : [] }).then(resolve);
         } }; return q;
     } };
-    const cb = role === 'retailer' ? handler("get('/api/orders'", '// ========== ORDER APPROVAL', { supabaseAdmin: db }) :
-      handler("get('/api/orders/active'", '// DYNAMIC order details', { supabaseAdmin: db });
+    const cb = role === 'retailer' ? handler("get('/api/orders'", "app.get('/api/orders/pending'", { supabaseAdmin: db }) :
+      handler("get('/api/orders/active'", "app.get('/api/orders/:id'", { supabaseAdmin: db });
     const res = response(); await cb({ user: { role, userId: 'user' } }, res);
     assert.equal(res.statusCode, 200); assert.equal(res.body[0].deliveries[0].pod.latitude, 7.1);
     assert.ok(selections.some(value => /pod/.test(value)));
@@ -191,7 +191,7 @@ test('GPS publishes use an atomic timestamp filter and do not append ignored old
       } };
     return q;
   } };
-  const cb = handler("post('/api/delivery/update-location'", '// ============================================', { supabaseAdmin: db });
+  const cb = handler("post('/api/delivery/update-location'", "app.get('/api/delivery/tracking/:orderId'", { supabaseAdmin: db });
   const newer = new Date(Date.now() - 1000).toISOString(), older = new Date(Date.now() - 5000).toISOString();
   for (const captured_at of [newer, older]) {
     const res = response(); await cb({ user: { role: 'delivery_personnel', userId: 'rider' }, body: { ...destination, accuracy: 5, captured_at } }, res);

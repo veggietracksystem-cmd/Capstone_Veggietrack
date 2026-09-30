@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { buildDeliveryTrackingHtml } from '../lib/deliveryTrackingHtml';

@@ -12,6 +12,7 @@ import StatusBadge from '../components/ui/StatusBadge';
 import { Ionicons } from '@expo/vector-icons';
 import RemoteImage from '../components/RemoteImage';
 import { useTranslation } from '../i18n/useTranslation';
+import { friendlyError } from '../lib/errorMessages';
 import { tr } from '../i18n/translate';
 
 const STATUS_KEYS = ['requested', 'assigned', 'otw', 'picked_up', 'completed'];

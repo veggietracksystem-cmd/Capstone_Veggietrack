@@ -21,7 +21,6 @@ const PRIMARY = colors.leaf700;
 const INACTIVE = colors.inkFaint;
 const POLL_MS = 30000; // refresh unread count every 30s
 
-// Lightweight relative-time formatter (no date lib needed).
 function timeAgo(iso, t) {
   if (!iso) return '';
   const then = new Date(iso).getTime();
@@ -65,7 +64,6 @@ export default function NotificationBell({ asTabItem = false, active = false, on
   // Refresh the badge when returning from the Notifications screen.
   useEffect(() => navigation.addListener('focus', load), [navigation, load]);
 
-  // Initial fetch and polling for the unread badge.
   useEffect(() => {
     mounted.current = true;
     (async () => {
@@ -221,19 +219,15 @@ export default function NotificationBell({ asTabItem = false, active = false, on
 }
 
 const styles = StyleSheet.create({
-  // Same size as MessagesIcon's button; the right margin keeps it off the edge.
   bellBtn: { width: 40, height: control.minTouch, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
 
-  // Full-screen variant (Notifications screen)
   screenContainer: { flex: 1, minHeight: 0, backgroundColor: '#FFFFFF', width: '100%', maxWidth: 640, alignSelf: 'center' },
-  // Centered under the header, low-key: small text, no fill, with room above the first card.
   screenActions: { alignItems: 'center', paddingTop: 12, paddingBottom: 6 },
   markAllBtn: { ...actionBtn, ...actionBtnOutline },
   markAllText: { ...actionBtnText, color: PRIMARY },
   screenList: { flex: 1, minHeight: 0 },
   screenListContent: { padding: 16, paddingBottom: 24 },
 
-  // Bottom-nav tab variant (matches BottomNavBar's tab styling)
   tabItemBtn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabIconBadge: {
     width: 40, height: 28, borderRadius: 14,
@@ -253,7 +247,6 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(11) },
 
-  // Each notification is its own card (same look as the Messages list).
   item: { flexDirection: 'row', alignItems: 'flex-start', padding: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, marginBottom: 10 },
   itemUnread: { backgroundColor: colors.leaf50, borderColor: colors.leaf100 },
   itemTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

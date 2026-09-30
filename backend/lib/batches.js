@@ -12,13 +12,15 @@ const { vegetableKey, canonicalVegetableName } = require('./vegetables');
 
 const COMPLETED_STATUSES = ['sold_out', 'archived'];
 
-// Round to the gram to avoid floating-point residue after repeated splits.
-const roundKg = (value) => Math.round(Number(value) * 1000) / 1000;
+// Stock columns store hundredths of a kilogram.
+const roundKg = (value) => Math.round(Number(value) * 100) / 100;
+const hasStockPrecision = (value) => Number.isFinite(Number(value))
+  && Math.abs(Number(value) * 100 - Math.round(Number(value) * 100)) < 1e-7;
 const stockOf = (batch) => (Number.isFinite(Number(batch?.stock_kg)) ? Number(batch.stock_kg) : 0);
 
-// In the warehouse; rows without a status count as received.
+// A missing status is a legacy received batch; unknown statuses stay inactive.
 function isActiveBatch(batch) {
-  return stockOf(batch) > 0 && !COMPLETED_STATUSES.includes(batch.status);
+  return stockOf(batch) > 0 && (batch.status == null || ['received', 'listed'].includes(batch.status));
 }
 function isReceivedBatch(batch) {
   return isActiveBatch(batch) && batch.status !== 'listed';
@@ -107,13 +109,12 @@ function distributorListings(batches) {
 }
 
 function batchStatus(batch) {
-  if (COMPLETED_STATUSES.includes(batch.status)) return batch.status;
+  if (batch.status != null && !['received', 'listed'].includes(batch.status)) return batch.status;
   if (stockOf(batch) <= 0) return 'sold_out';
   return batch.status === 'listed' ? 'listed' : 'received';
 }
 
-// A 'YYYY-MM-DD' date is a Philippine calendar day, stored at noon Manila time so
-// it never shifts across time zones. Returns null for an invalid date.
+// Store a Philippine calendar day at noon Manila time.
 function batchDate(value) {
   const match = /^\d{4}-\d{2}-\d{2}$/.exec(typeof value === 'string' ? value.trim() : '');
   if (!match) return null;
@@ -124,7 +125,7 @@ function batchDate(value) {
 const manilaToday = (now = Date.now()) => new Date(now + 8 * 3600000).toISOString().slice(0, 10);
 
 module.exports = {
-  COMPLETED_STATUSES, roundKg, isActiveBatch, isReceivedBatch, isSellableBatch, isOnProductList,
+  COMPLETED_STATUSES, roundKg, hasStockPrecision, isActiveBatch, isReceivedBatch, isSellableBatch, isOnProductList,
   compareFifo, sameVegetableAs, planFifoDraw, retailerProducts, distributorListings, batchStatus,
   batchDate, manilaToday,
 };

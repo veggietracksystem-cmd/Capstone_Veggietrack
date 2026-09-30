@@ -1,3 +1,4 @@
+const { inventoryRpcStub } = require('./inventoryRpcStub');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -48,6 +49,8 @@ function createApi() {
     }; return query;
   },
   async rpc(name, args) {
+    const inventoryResult = inventoryRpcStub(data, name, args, () => `order-${++sequence}`);
+    if (inventoryResult) return inventoryResult;
     const row = (data.products || []).find(p => p.id === args.p_product_id);
     if (name === 'decrement_product_stock') {
       if (!row || row.status !== 'listed' || Number(args.p_quantity) <= 0 || Number(row.stock_kg) < Number(args.p_quantity)) return { data: null, error: null };
@@ -217,6 +220,8 @@ test('Scenario F: farmer, harvest date and pickup date entered on Add New Produc
   const [row] = (await api.report()).filter(r => r.batch_id === carrot.id);
   assert.deepEqual([row.product, row.farmer_name, row.harvest_date, row.pickup_date],
     ['Carrot', 'Farmer Juan', stock.harvest_date, stock.pickup_date]);
+  assert.deepEqual([row.batch_id, row.quantity_received, row.remaining_quantity, row.batch_photo_url, row.batch_status],
+    [carrot.id, 12, 12, photo('batch'), 'listed']);
   // A second Carrot batch keeps its own details; the first is untouched.
   await api.addBatch('Carrot', 4, { harvestDaysAgo: 1 });
   assert.equal(api.batch(carrot.id).harvest_date, stock.harvest_date);
@@ -241,12 +246,61 @@ test('cancelling an order returns its kg to the exact batches, and a removed pro
   assert.equal(api.batch(a.id).status, 'sold_out');
   await api.call('put /api/orders/:id/cancel', 'retailer', {}, order.id);
   assert.deepEqual([api.batch(a.id).stock_kg, api.batch(a.id).status], [10, 'listed']);
+  const cancelledRows = (await api.report()).filter(row => row.batch_id === a.id);
+  assert.ok(cancelledRows.every(row => row.quantity_sold === 0 && row.total_amount === 0));
 
   // Remove Product with stock left: the batch goes back to Stocks to be re-added.
   const listing = (await api.call('get /api/products/listings', 'hub'))[0];
   await api.call('put /api/products/:id/unlist', 'hub', {}, listing.id);
   assert.equal(api.batch(a.id).status, 'received');
   assert.deepEqual((await api.stocks()).map(s => s.id), [a.id]);
+});
+
+test('cancellation restores archived batch quantity without returning it to Stocks', async () => {
+  const api = createApi();
+  const batch = await api.addBatch('Pechay', 10);
+  const order = (await api.buy('Pechay', 10)).body.order;
+  assert.equal(api.batch(batch.id).status, 'sold_out');
+  await api.call('put /api/products/:id/unlist', 'hub', {}, batch.id);
+  assert.equal(api.batch(batch.id).status, 'archived');
+
+  await api.call('put /api/orders/:id/cancel', 'retailer', {}, order.id);
+  assert.deepEqual([api.batch(batch.id).stock_kg, api.batch(batch.id).status], [10, 'archived']);
+  assert.equal((await api.stocks()).length, 0);
+  assert.equal((await api.shop()).length, 0);
+  assert.equal((await api.report()).find(row => row.batch_id === batch.id).batch_status, 'archived');
+});
+
+test('inactive/rejected batches never return to approval; removing received stock preserves history', async () => {
+  const api = createApi();
+  const batch = await api.addBatch('Tomato', 10);
+  for (const status of ['inactive', 'rejected', 'unknown']) {
+    api.batch(batch.id).status = status;
+    assert.equal((await api.stocks()).length, 0);
+    assert.equal((await api.raw('put /api/products/:id/list', 'hub', { price_per_kg: 50 }, batch.id)).statusCode, 400);
+    assert.equal((await api.report())[0].batch_status, status);
+  }
+  api.batch(batch.id).status = 'received';
+  await api.call('delete /api/products/:id', 'hub', {}, batch.id);
+  assert.equal(api.batch(batch.id).status, 'archived');
+  assert.equal((await api.report())[0].remaining_quantity, 10);
+  assert.equal((await api.stocks()).length, 0);
+});
+
+test('harvest workflow states cannot be reset; ordinary available-harvest edits remain allowed', async () => {
+  const api = createApi();
+  const harvest = (await api.call('post /api/harvests', 'juan', { vegetable_name: 'Carrot', quantity_kg: 8 })).harvest;
+  await api.call('put /api/harvests/:id', 'juan', { quantity_kg: 9 }, harvest.id);
+  assert.equal(api.data.harvests[0].quantity_kg, 9);
+  api.data.harvests[0].status = 'picked_up';
+  const reset = await api.raw('put /api/harvests/:id', 'juan', { status: 'available' }, harvest.id);
+  assert.equal(reset.statusCode, 400);
+  assert.equal(api.data.harvests[0].status, 'picked_up');
+  assert.equal((await api.raw('put /api/harvests/:id', 'juan', { quantity_kg: 20 }, harvest.id)).statusCode, 400);
+  await api.call('put /api/harvests/:id', 'juan', { image_url: photo('harvest') }, harvest.id);
+  assert.equal(api.data.harvests[0].image_url, photo('harvest'));
+  assert.equal((await api.raw('post /api/harvests', 'juan', { vegetable_name: 'Carrot', quantity_kg: 8, status: 'picked_up' })).statusCode, 400);
+  assert.equal((await api.raw('post /api/harvests', 'juan', { vegetable_name: 'Carrot', quantity_kg: 0.001 })).statusCode, 400);
 });
 
 test('Edit Quantity deducts oldest-first and marks an emptied batch sold out', async () => {
@@ -295,7 +349,6 @@ test('batch_lifecycle.sql repairs zero-stock batches, enforces the lifecycle and
 
     const call = (fn, id, qty) => db.query(`SELECT to_jsonb(${fn}($1,$2)) AS r`, [id, qty]).then(r => r.rows[0].r);
     assert.equal((await call('restore_product_stock', soldOut, 3)).status, 'listed');
-    assert.equal((await call('restore_product_stock', '00000000-0000-0000-0000-000000000002', 2)).status, 'received');
     assert.equal(await call('decrement_product_stock', '00000000-0000-0000-0000-000000000004', 3), null, 'a received batch is never sold from');
     assert.deepEqual((await db.query("SELECT status, stock_kg FROM products WHERE id = '00000000-0000-0000-0000-000000000004'")).rows.map(r => [r.status, Number(r.stock_kg)]), [['received', 8]]);
     const drained = await call('decrement_product_stock', '00000000-0000-0000-0000-000000000003', 500);

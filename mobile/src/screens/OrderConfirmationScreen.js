@@ -9,7 +9,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
-import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert, peso } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
@@ -27,14 +26,11 @@ const PRIMARY = colors.leaf700;
 
 export default function OrderConfirmationScreen({ navigation, route }) {
   const requestLock = useRequestLock();
-  const { user } = useAuth();
   const { t, language } = useTranslation();
-  const { cart = [], totalItems = 0, totalAmount = 0, defaultAddress = '' } = route.params || {};
-  // Address state
+  const { cart = [], totalItems = 0, totalAmount = 0 } = route.params || {};
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [loadingAddresses, setLoadingAddresses] = useState(true);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
-  const [address, setAddress] = useState(defaultAddress || user?.store_location || '');
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
 
@@ -46,7 +42,6 @@ export default function OrderConfirmationScreen({ navigation, route }) {
   const [confirming, setConfirming] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // Load saved addresses
   useEffect(() => {
     loadAddresses();
     return navigation.addListener('focus', loadAddresses);
@@ -59,7 +54,6 @@ export default function OrderConfirmationScreen({ navigation, route }) {
       const preferredAddress = data?.find(a => a.is_default) || data?.[0];
       if (preferredAddress) {
         setSelectedAddressId(preferredAddress.id);
-        setAddress(preferredAddress.address);
         setLatitude(preferredAddress.latitude ?? null);
         setLongitude(preferredAddress.longitude ?? null);
       }
@@ -72,7 +66,6 @@ export default function OrderConfirmationScreen({ navigation, route }) {
 
   const handleSelectAddress = (addr) => {
     setSelectedAddressId(addr.id);
-    setAddress(addr.address);
     setLatitude(addr.latitude ?? null);
     setLongitude(addr.longitude ?? null);
   };
@@ -138,7 +131,6 @@ export default function OrderConfirmationScreen({ navigation, route }) {
       <ScreenHeader title={t('dashboards.retailer.checkoutTitle')} onBack={() => { if (!confirming) navigation.goBack(); }} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {/* Order Summary */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('dashboards.retailer.orderSummary')}</Text>
           {cart.map((c) => {
@@ -163,7 +155,6 @@ export default function OrderConfirmationScreen({ navigation, route }) {
           </View>
         </View>
 
-        {/* Delivery Address Selection */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('dashboards.retailer.deliveryAddressLabel')}</Text>
 
@@ -202,7 +193,6 @@ export default function OrderConfirmationScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
 
-        {/* Preferred Schedule */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('dashboards.retailer.preferredTimeLabel')}</Text>
           <DeliveryDateTimeFields date={date} onDateChange={setDate} time={time} onTimeChange={setTime} disabled={confirming} />
@@ -211,7 +201,6 @@ export default function OrderConfirmationScreen({ navigation, route }) {
         </View>
 
         {!weightValid && <Text style={{ color: colors.danger }}>{t('checkout.minimumWeight')}</Text>}
-        {/* Confirm Button */}
         <TouchableOpacity
           style={[styles.button, styles.buttonPrimary, (confirming || !canConfirm) && styles.buttonDisabled]}
           onPress={confirmOrder}
@@ -261,7 +250,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 12 },
 
-  // Address selection styles
   addressOption: {
     flexDirection: 'row',
     alignItems: 'center',

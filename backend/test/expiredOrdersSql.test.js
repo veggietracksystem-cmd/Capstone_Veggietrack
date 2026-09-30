@@ -18,7 +18,7 @@ async function setup() {
   await db.exec(fs.readFileSync(path.join(__dirname, '../sql/stock_safety.sql'), 'utf8'));
   // Strip the pg_cron scheduling section (PGlite doesn't have the extension)
   // and apply only the function definition + grants.
-  const full = fs.readFileSync(path.join(__dirname, '../sql/expired_retailer_orders.sql'), 'utf8');
+  const full = fs.readFileSync(path.join(__dirname, '../sql/expired_retailer_orders.sql'), 'utf8').replace(/\r\n/g, '\n');
   const functionOnly = full.slice(0, full.indexOf('-- ============================================================\n-- Scheduled execution'));
   await db.exec(functionOnly);
   return db;

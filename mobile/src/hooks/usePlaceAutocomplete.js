@@ -57,7 +57,6 @@ export default function usePlaceAutocomplete(visible) {
       const data = await response.json();
       if (!isCurrent()) return;
       if (!Array.isArray(data.results)) throw new Error('Invalid search response');
-      // Map search results to the picker's selection format.
       setResults(data.results.filter(item => (
         Number.isFinite(item.lat) && Number.isFinite(item.lon)
         && Math.abs(item.lat) <= 90 && Math.abs(item.lon) <= 180

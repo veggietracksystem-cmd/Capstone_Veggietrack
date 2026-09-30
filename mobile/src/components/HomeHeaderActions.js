@@ -3,7 +3,6 @@ import MessagesIcon from './MessagesIcon';
 import NotificationBell from './NotificationBell';
 import { colors } from '../theme/appTheme';
 
-// Messages and Notifications actions for each module's Home header.
 export default function HomeHeaderActions() {
   return (
     <View style={styles.row}>

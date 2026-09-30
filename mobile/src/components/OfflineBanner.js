@@ -4,7 +4,6 @@ import { colors, fonts, radius } from '../theme/appTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '../i18n/useTranslation';
 
-// Shows an offline / pending-sync banner. Renders nothing when fully synced & online.
 export default function OfflineBanner({ offline, pendingCount = 0 }) {
   const { t, tc } = useTranslation();
   if (!offline && pendingCount === 0) return null;

@@ -7,7 +7,6 @@ import ModalCloseButton from './ui/ModalCloseButton';
 import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useSharedModalMotion } from '../lib/motion';
 
-// Centred card dialog with the same layout as CustomModal.
 export default function BottomSheet({ visible, onClose, title, children, scroll = true }) {
   const Body = scroll ? ScrollView : View;
   const { backdropStyle, cardStyle } = useSharedModalMotion(visible);

@@ -12,7 +12,8 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS harvest_id UUID REFERENCES harvest
 ALTER TABLE products ADD COLUMN IF NOT EXISTS pickup_request_id UUID REFERENCES pickup_requests(id) ON DELETE SET NULL;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS farmer_id UUID REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS quantity_received NUMERIC;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'received'; -- received | listed | sold_out
+-- A NULL default distinguishes pre-upgrade stock from later received batches.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS status TEXT;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS batch_photo_url TEXT; -- distributor's actual received-batch photo
 
 -- Price is unknown until a batch is added to the product list.
@@ -21,9 +22,10 @@ ALTER TABLE products ALTER COLUMN price_per_kg DROP NOT NULL;
 -- Existing rows were already sellable, so they are marked 'listed'. Their
 -- provenance columns stay NULL.
 UPDATE products
-SET status = 'listed',
+SET status = CASE WHEN status IS NULL THEN CASE WHEN stock_kg > 0 THEN 'listed' ELSE 'sold_out' END ELSE status END,
     quantity_received = COALESCE(quantity_received, stock_kg)
 WHERE status IS NULL OR quantity_received IS NULL;
+ALTER TABLE products ALTER COLUMN status SET DEFAULT 'received';
 
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_products_harvest_id ON products(harvest_id);

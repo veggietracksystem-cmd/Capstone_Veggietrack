@@ -4,7 +4,6 @@ import ScreenHeader from '../components/ScreenHeader';
 import NotificationBell from '../components/NotificationBell';
 import { useTranslation } from '../i18n/useTranslation';
 
-// Notifications screen, pushed from the header bell.
 export default function NotificationsScreen({ navigation }) {
   const { t } = useTranslation();
 

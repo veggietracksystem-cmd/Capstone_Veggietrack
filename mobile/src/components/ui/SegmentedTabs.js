@@ -16,20 +16,7 @@ function CountBadge({ count }) {
   );
 }
 
-/**
- * Segmented filter: equal-width pill tabs in the same style as FilterChips
- * (outlined when inactive, solid green with white text when active).
- * Use for a small, fixed set of views (Batches/Products, Unpaid/Paid).
- *
- * @param options  [{ value, label, count? }] - `count` > 0 shows a small alert
- *                 badge after the label (new/pending items in that tab)
- * @param value    the selected option's value
- * @param onChange called with the new value
- * @param scroll   true when the labels are long enough to need scrolling
- *                 instead of being squeezed into equal columns
- * @param inset    scroll only: side padding inside the scrolling row, for a
- *                 row that bleeds to the screen edges
- */
+// Options use { value, label, count? }; scroll lets long labels retain their width.
 export function SegmentedTabs({ options, value, onChange, scroll = false, inset = 0, style, disabled = false }) {
   const tabs = options.map((option) => {
     const selected = option.value === value;
@@ -71,10 +58,6 @@ export function SegmentedTabs({ options, value, onChange, scroll = false, inset 
   return <View style={[styles.track, style]}>{tabs}</View>;
 }
 
-/**
- * Pill chips: a scrolling row of rounded filters (product categories, account
- * statuses). Scrolls sideways rather than squeezing long labels together.
- */
 export function FilterChips({ options, value, onChange, disabled = false, style }) {
   return (
     <ScrollView

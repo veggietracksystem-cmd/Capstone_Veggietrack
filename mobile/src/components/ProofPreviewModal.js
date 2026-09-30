@@ -7,21 +7,7 @@ import { useSharedModalMotion } from '../lib/motion';
 
 const PRIMARY = colors.leaf700;
 
-/**
- * Confirm-delivery modal with proof-of-delivery preview.
- *
- * Picking a photo stages it with the current GPS for preview; it is uploaded
- * only when the rider confirms. Both are required.
- *
- * Props:
- *  - visible:    show/hide
- *  - orderLabel: short text shown in the title (e.g. "#a1b2c3d4")
- *  - photo:      picked asset ({ uri }) or null
- *  - busy:       true while uploading/completing (disables buttons, shows spinner)
- *  - onPickPhoto: open the camera/library to attach or replace the photo
- *  - onConfirm:  upload required photo/GPS + mark delivered
- *  - onCancel:   dismiss without changes
- */
+// Photo and GPS stay staged until the rider confirms the upload.
 export default function ProofPreviewModal({
   visible, orderLabel, photo, busy, onPickPhoto, onConfirm, onCancel,
   title, confirmIdleLabel,

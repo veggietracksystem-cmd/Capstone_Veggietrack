@@ -11,13 +11,23 @@ test('minimum total order weight rejects below 5 kg and accepts combined/exact 5
 test('duplicate vegetables are combined before FIFO stock allocation', () => {
   assert.deepEqual(validateOrderItems([{vegetable_name:'Carrot',quantity_kg:3},{vegetable_name:'Carrot',quantity_kg:4}]), [{vegetable_name:'Carrot',quantity_kg:7}]);
 });
+
+test('checkout rejects quantities beyond stored precision and sums decimal aliases exactly', () => {
+  assert.throws(() => validateOrderItems(items(5.001)), /two decimal/);
+  assert.deepEqual(validateOrderItems([
+    { vegetable_name: 'Tomato', quantity_kg: 2.35 }, { vegetable_name: 'Kamatis', quantity_kg: 2.75 },
+  ]), [{ vegetable_name: 'Tomato', quantity_kg: 5.1 }]);
+});
 const fs = require('node:fs');
 const vm = require('node:vm');
 const babel = require('../../mobile/node_modules/@babel/core');
 function cartModule(storage) {
   const code = babel.transformSync(fs.readFileSync(require('node:path').join(__dirname, '../../mobile/src/lib/cartStore.js'), 'utf8'), {configFile:false,babelrc:false,plugins:[require.resolve('../../mobile/node_modules/@babel/plugin-transform-modules-commonjs')]}).code;
+  const namesCode = babel.transformSync(fs.readFileSync(require('node:path').join(__dirname, '../../mobile/src/lib/vegetableNames.js'), 'utf8'), {configFile:false,babelrc:false,plugins:[require.resolve('../../mobile/node_modules/@babel/plugin-transform-modules-commonjs')]}).code;
+  const names = {};
+  vm.runInNewContext(namesCode, { exports: names });
   const exports = {};
-  vm.runInNewContext(code,{exports,require:()=>({__esModule:true,default:storage})});
+  vm.runInNewContext(code,{exports,require:name=>name === './vegetableNames' ? names : ({__esModule:true,default:storage})});
   return exports;
 }
 test('cart persists after module restart, isolates users and clears immediately after checkout', async () => {

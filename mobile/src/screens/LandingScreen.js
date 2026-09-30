@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from '../i18n/useTranslation';
 import { colors, control, fontSize, fonts, radius } from '../theme/appTheme';
 
-// First screen for signed-out users.
 export default function LandingScreen({ navigation }) {
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
@@ -49,6 +48,5 @@ const styles = StyleSheet.create({
   primaryBtn: { backgroundColor: colors.leaf700, paddingVertical: 16, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center', minHeight: control.height },
   primaryBtnText: { color: '#fff', fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xl), textAlign: 'center' },
   link: { textAlign: 'center', marginTop: 16, color: colors.inkSoft, fontFamily: fonts.body, fontSize: rf(fontSize.md) },
-  // Only the clickable part is underlined; "New here?" stays plain.
   linkAction: { color: colors.leaf700, fontFamily: fonts.bodySemiBold, textDecorationLine: 'underline' },
 });

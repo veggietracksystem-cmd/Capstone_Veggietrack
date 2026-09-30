@@ -5,7 +5,6 @@ import { Modal, View, TouchableOpacity, StyleSheet } from 'react-native';
 import ModalCloseButton from './ui/ModalCloseButton';
 import RemoteImage from './RemoteImage';
 
-// Full-screen image viewer. Pass a uri to show; onClose dismisses it.
 export default function ImageViewerModal({ uri, visible, onClose, proof }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>

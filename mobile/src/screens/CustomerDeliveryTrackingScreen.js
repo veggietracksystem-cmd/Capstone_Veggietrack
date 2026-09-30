@@ -1,5 +1,5 @@
 import { rf } from '../lib/responsive';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, RefreshControl, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import DeliveryTrackingMap from '../components/DeliveryTrackingMap';
@@ -50,7 +50,6 @@ function CustomerTrackingView({ route, navigation }) {
       <Text style={styles.note}>{t('cmp.locUpdates')}</Text>
       {status !== 'cancelled' && <OrderStepIndicator status={status} />}
       <RiderEtaCard data={data} status={status} />
-      {/* Rider row shown above the map. */}
       {!!view?.rider && (
         <View style={[styles.card, styles.riderCard]}>
           <UserAvatar user={{ full_name: view.rider.name }} size={40} />

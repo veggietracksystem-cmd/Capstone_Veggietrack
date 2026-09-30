@@ -4,28 +4,12 @@ import {
   KeyboardAvoidingView, ScrollView, Platform,
 } from 'react-native';
 import ModalCloseButton from './ui/ModalCloseButton';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, radius, shadowCard, dangerButton, dangerButtonText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { useSharedModalMotion } from '../lib/motion';
 
 const PRIMARY = colors.leaf700;
 
-/**
- * Themed modal: dimmed backdrop, centred card and a scale/fade-in animation.
- *
- * Props:
- *  - visible:      show/hide
- *  - title:        heading
- *  - children:     body content
- *  - confirmLabel / onConfirm:  primary button (omit to hide)
- *  - cancelLabel  / onCancel:   secondary button; omit cancelLabel for
- *                  dismiss-only dialogs, since the header X already closes it
- *  - busy:         disables the buttons
- *  - confirmDisabled: disables the confirm button
- *  - compactActions: smaller, centred buttons (read-only detail views)
- *  - danger:       red confirm button for destructive actions
- *  - hideCloseIcon: hides the header X
- */
 export default function CustomModal({
   visible,
   title,
@@ -45,7 +29,6 @@ export default function CustomModal({
   const closeWords = [t('common.close'), t('notifications.close')];
   const showCancelButton = !!onCancel && !closeWords.includes(cancelLabel ?? t('common.close'));
   const { backdropStyle, cardStyle } = useSharedModalMotion(visible);
-  // With only one action left, centre it instead of stretching it across the card.
   const singleAction = showCancelButton !== !!onConfirm;
 
   return (
@@ -55,7 +38,6 @@ export default function CustomModal({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <Animated.View style={[styles.backdrop, backdropStyle]}>
-          {/* Tapping the backdrop dismisses (unless busy). */}
           <TouchableOpacity style={[StyleSheet.absoluteFill, styles.backdropDismiss]} activeOpacity={1} onPress={busy ? undefined : onCancel} />
 
           <Animated.View style={[styles.card, cardStyle]}>
@@ -94,7 +76,7 @@ export default function CustomModal({
                     onPress={onConfirm}
                     disabled={busy || confirmDisabled}
                   >
-                    <Text style={styles.btnPrimaryText}>{confirmLabel || t('common.confirm')}</Text>
+                    <Text style={[styles.btnPrimaryText, danger && styles.btnDangerText]}>{confirmLabel || t('common.confirm')}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -118,7 +100,8 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   btn: { flex: 1, minWidth: 0, minHeight: 48, paddingHorizontal: 8, paddingVertical: 13, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   btnPrimary: { backgroundColor: PRIMARY },
-  btnDanger: { backgroundColor: colors.danger },
+  btnDanger: { ...dangerButton },
+  btnDangerText: { ...dangerButtonText, fontSize: rf(dangerButtonText.fontSize) },
   btnPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15), textAlign: 'center' },
   btnOutline: { borderWidth: 1.5, borderColor: PRIMARY },
   btnOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15), textAlign: 'center' },

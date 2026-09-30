@@ -1,10 +1,10 @@
-Last reviewed: 2026-09-22
+Last reviewed: 2026-09-30
 
 # VeggieTrack
 
 VeggieTrack connects farmers, a distributor, retailers and riders through an Expo/React Native app, Express API, Supabase Postgres/Auth, Cloudinary, and Leaflet/OSRM maps. The main app is `mobile/`; `VeggieTrack-Clean/` is a separate starter project excluded from EAS uploads.
 
-The hosted database is migrated for every table and RPC the API calls, and the hosted API is live. Physical-device acceptance remains pending. See [STATUS_REPORT.md](STATUS_REPORT.md) for verification results and release prerequisites.
+See [the current verification report](docs/VERIFICATION_RESULT.md) for inventory deployment requirements, validation results and the manual acceptance steps. Physical-device acceptance remains pending. Earlier reports describe their dated snapshots rather than the current deployment.
 
 ## Repository layout
 
@@ -102,7 +102,7 @@ The September 19 read-only hosted inspection found the destination snapshot colu
 
 [fix_account_rpcs_email_only.sql](backend/sql/fix_account_rpcs_email_only.sql) was applied on September 20 and is the correction to the note above: `auth_email_password_migration.sql` had never been applied, so `vt_admin_transition`, `vt_account_context` and `vt_active_participant` were still the SMS-era versions. `vt_admin_transition` compared the acting distributor against the pre-migration seed UUID `0a417507-1437-4d71-9e11-185f13a0a262` instead of the live `86d9d317-b099-430c-be21-824d0a3434b6`, so **every** account approval failed with "Distributor authorization required", and the surviving phone gate would have refused an approved email-only user on every API call. Do not apply `auth_email_password_migration.sql` itself — its `vt_sync_auth` predates the email-OTP gate and would let registrations skip email confirmation.
 
-**Outstanding:** [batch_lifecycle.sql](backend/sql/batch_lifecycle.sql) must be applied before deploying the current backend. The September 28 read-only inspection found `products.pickup_date` and `products.created_at` both **missing**; without them the Stocks "Add New Product" form cannot save its pickup date. The script is safe to re-run.
+The September 29 read-only hosted inspection confirmed that `products.pickup_date`, `products.created_at` and the existing batch provenance/photo columns are present. Current stock transaction deployment requirements are listed in [the verification report](docs/VERIFICATION_RESULT.md); column presence alone does not verify database function bodies or constraints.
 
 Re-verify the hosted contract at any time with the read-only scripts in `backend/scripts/` — they issue GETs against the Supabase REST introspection endpoint and never write or read row data.
 
@@ -122,7 +122,7 @@ cd mobile
 npx.cmd --no-install expo export --platform web --output-dir .expo/delivery-verification/web
 ```
 
-Temporary `[rider-debug]` console diagnostics are currently in `DeliveryDashboard.js`, `deviceLocation.js` and `cloudinary.js` while a pickup-proof issue on Android is investigated; they break the two rider pickup tests in `ajaxMobile.test.js` (`dbg`/`useRef` are undefined in the test harness) and must be removed before release.
+Application debug logging and source bindings are included in the current verification. Operational CLI output and production error handling are retained.
 
 The test suite includes Auth/security, avatars, checkout, cross-role inventory handoff, POD/upload retry, GPS/radius, ETA and local PostgreSQL/PGlite migration checks. PGlite tests run serially to remain within Node's memory limit. Main mobile has no configured lint/typecheck script. A successful web export does not validate a native release or real GPS/camera/provider setup. See [delivery verification report](DELIVERY_RELIABILITY_REPORT.md) for results, remaining deployment work and a rider-phone test script.
 

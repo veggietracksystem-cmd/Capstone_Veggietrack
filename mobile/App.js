@@ -55,7 +55,6 @@ const REQUIRED_FONT_FAMILIES = [
 ];
 const PUBLIC_LOGO_ASSET = require('./assets/new_logo.png');
 
-// Maps backend role strings to their dashboard component + route name.
 const ROLE_SCREENS = {
   farmer: { name: 'FarmerDashboard', component: FarmerDashboard },
   distributor: { name: 'DistributorDashboard', component: DistributorDashboard },
@@ -63,7 +62,6 @@ const ROLE_SCREENS = {
   delivery_personnel: { name: 'DeliveryDashboard', component: DeliveryDashboard },
 };
 
-// Reads auth state from context and renders the right stack.
 function RootNavigator() {
   const { user, session, recoveryMode, loading, initialRoute, statusError } = useAuth();
 
@@ -117,43 +115,28 @@ function RootNavigator() {
             <Stack.Screen name="Profile" component={ProfileScreen} />
             {user.role === 'distributor' && <Stack.Screen name="AccountManagement" component={AccountManagementScreen} />}
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-            {/* Change password: ForgotPassword sends the reset email; ResetPassword handles the link. */}
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
-            {/* Retailer/Distributor: live delivery tracking on a map. */}
             <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
-            {/* Retailer: review delivery address/schedule + confirm before submitting an order. */}
             <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
-            {/* Retailer: orders delivered more than 5 days ago. */}
             <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} />
-            {/* Retailer: full breakdown of a single order. */}
             <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
-            {/* Farmer: full harvest list (edit/delete/request pickup). */}
             <Stack.Screen name="HarvestList" component={HarvestListScreen} />
-            {/* Distributor: aggregated product list (price edit). */}
             <Stack.Screen name="ProductList" component={ProductListScreen} />
-            {/* Distributor: received batches (FIFO stocks, add to product list). */}
             <Stack.Screen name="Stocks" component={StocksScreen} />
-            {/* Distributor: inventory + weekly report, with History + PDF export. */}
             <Stack.Screen name="DistributorInventoryReport" component={DistributorInventoryReportScreen} />
-            {/* Delivery personnel: full details for one assigned order. */}
             <Stack.Screen name="DeliveryDetails" component={DeliveryDetailsScreen} />
-            {/* Rider: turn-by-turn navigation map. */}
             <Stack.Screen name="RiderNavigation" component={RiderNavigationScreen} />
-            {/* Retailer/Distributor: order tracking map. */}
             <Stack.Screen name="ShopeeTracking" component={ShopeeTrackingScreen} />
-            {/* Saved delivery addresses (all roles). */}
             <Stack.Screen name="ManageAddresses" component={ManageAddressesScreen} />
             <Stack.Screen name="FarmerPickupTracking" component={FarmerPickupTrackingScreen} />
             {/* Distributor/Retailer/Delivery: pushed from the header Messages icon.
                 Farmer instead embeds MessagesScreen as a bottom tab. */}
             <Stack.Screen name="Messages" component={MessagesScreen} />
-            {/* All roles: pushed from the header bell (no bottom nav). */}
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </>
         ) : (
           <>
-            {/* Landing is the first screen for signed-out users. */}
             <Stack.Screen name="Landing" component={LandingScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />

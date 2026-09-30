@@ -32,7 +32,6 @@ export default function FarmerProfileTab({ navigation }) {
 
   return (
     <ScrollView style={styles.scrollArea} contentContainerStyle={[styles.content, { paddingBottom: navSpace }]} showsVerticalScrollIndicator={false}>
-      {/* Profile header: avatar, name, role and Edit Profile shortcut */}
       <View style={styles.profileCard}>
         <UserAvatar user={user} style={styles.avatarCircle} textStyle={styles.avatarText} />
         <Text style={styles.userName}>{fullName || user?.email || 'Farmer'}</Text>
@@ -44,7 +43,6 @@ export default function FarmerProfileTab({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Account details */}
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>{t('profile.account')}</Text>
 
@@ -66,7 +64,6 @@ export default function FarmerProfileTab({ navigation }) {
         )}
       </View>
 
-      {/* Preferences: language and help & support */}
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
 

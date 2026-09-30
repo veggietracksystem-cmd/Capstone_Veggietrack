@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { vegetableKey } from './vegetableNames';
 
 const queues = new Map();
 const listeners = new Map();
@@ -25,9 +26,24 @@ export async function clearCheckedOutCart(id) {
   await saveCart(id, []);
 }
 export function reconcileCart(cart, products) {
-  return cart.flatMap(item => {
-    const product = products.find(p => p.vegetable_name === item.vegetable_name);
-    if (!product || !(Number(product.available_kg) > 0)) return [];
-    return [{ ...item, price: Number(product.price_per_kg), stock: Number(product.available_kg), quantity: Math.min(item.quantity, Number(product.available_kg)) }];
-  });
+  const available = new Map(products.map(product => [vegetableKey(product.vegetable_name), product]));
+  const merged = new Map();
+  for (const item of cart) {
+    const name = vegetableKey(item.vegetable_name || item.name);
+    const product = available.get(name);
+    const stock = Number(product?.available_kg);
+    const quantity = Number(item.quantity);
+    const price = Number(product?.price_per_kg);
+    if (!Number.isFinite(stock) || stock <= 0 || !Number.isFinite(quantity) || quantity <= 0
+      || !Number.isFinite(price) || price <= 0) continue;
+    merged.set(name, {
+      ...item,
+      vegetable_name: product.vegetable_name,
+      name: product.vegetable_name,
+      price,
+      stock,
+      quantity: Math.min((merged.get(name)?.quantity || 0) + quantity, stock),
+    });
+  }
+  return [...merged.values()];
 }

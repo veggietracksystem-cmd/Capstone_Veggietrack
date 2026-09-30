@@ -1,6 +1,4 @@
-// Shared design tokens.
 export const colors = {
-  // Screens use a white background; cards and grouped sections use `surface`.
   bgScreen: '#FFFFFF',
   surface: '#FAFAF7',
   leaf900: '#123005',
@@ -16,10 +14,8 @@ export const colors = {
   soil300: '#E8E2D2',
   ink: '#24301C',
   inkSoft: '#6E7566',
-  // Form field labels.
   labelInk: '#3D4834',
   inkFaint: '#9AA290',
-  // Placeholder colour shared by every text input.
   placeholder: '#9AA290',
   card: '#FFFFFF',
   border: '#E8E2D2',
@@ -31,7 +27,6 @@ export const colors = {
   purpleSoft: '#EEE7FB',
 };
 
-// Spacing scale for screen padding and gaps between cards and sections.
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -40,8 +35,6 @@ export const spacing = {
   xl: 24,
 };
 
-// Control metrics: `minTouch` is the minimum tap target; `height` is the standard
-// height for buttons, chips and filter tabs.
 export const control = {
   minTouch: 44,
   height: 44,
@@ -56,7 +49,6 @@ export const radius = {
   sheet: 22,
 };
 
-// Font-size scale; screens reference these via rf(fontSize.x).
 export const fontSize = {
   xs: 11,
   sm: 12.5,
@@ -78,12 +70,9 @@ export const fonts = {
 };
 
 export const shadowCard = {
-  // Soft green-tinted card shadow (native and web).
   boxShadow: '0 6px 20px rgba(30, 78, 9, 0.12)',
 };
 
-// Compact action button for card and row actions. Variants only change colours:
-// primary (solid), outline and danger.
 export const actionBtn = {
   minHeight: 32,
   paddingVertical: 6,
@@ -97,3 +86,14 @@ export const actionBtnOutline = { backgroundColor: colors.card, borderColor: col
 export const actionBtnPrimary = { backgroundColor: colors.leaf700, borderColor: colors.leaf700 };
 export const actionBtnDanger = { backgroundColor: colors.card, borderColor: colors.danger };
 export const actionBtnText = { fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, textAlign: 'center' };
+
+export const dangerButton = {
+  backgroundColor: colors.danger,
+  minHeight: 48,
+  paddingHorizontal: 28,
+  paddingVertical: 13,
+  borderRadius: radius.ctrl,
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+export const dangerButtonText = { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15, textAlign: 'center' };

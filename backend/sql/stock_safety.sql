@@ -16,11 +16,11 @@ CREATE OR REPLACE FUNCTION public.decrement_product_stock(p_product_id uuid, p_q
 RETURNS public.products LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE result public.products;
 BEGIN
-  IF p_quantity IS NULL OR p_quantity <= 0 THEN RETURN NULL; END IF;
-  UPDATE products SET stock_kg = stock_kg - p_quantity,
+  IF p_quantity IS NULL OR p_quantity <= 0 OR p_quantity::text IN ('NaN', 'Infinity', '-Infinity') THEN RETURN NULL; END IF;
+  UPDATE public.products SET stock_kg = stock_kg - p_quantity,
     status = CASE WHEN stock_kg - p_quantity <= 0 THEN 'sold_out' ELSE 'listed' END,
     updated_at = clock_timestamp()
-  WHERE id = p_product_id AND stock_kg >= p_quantity
+  WHERE id = p_product_id AND status = 'listed' AND stock_kg >= p_quantity
   RETURNING * INTO result;
   -- RETURNING INTO with no rows yields an all-NULL row rather than NULL, so
   -- return NULL explicitly.
@@ -30,15 +30,14 @@ END; $$;
 REVOKE ALL ON FUNCTION public.decrement_product_stock(uuid, numeric) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.decrement_product_stock(uuid, numeric) TO service_role;
 
--- Restores stock on order cancellation or rollback. Only a sold_out batch
--- returns to 'listed'; a batch moved back to 'received' stays 'received'.
+-- Restores canceled stock to its original batch; archived batches stay archived.
 CREATE OR REPLACE FUNCTION public.restore_product_stock(p_product_id uuid, p_quantity numeric)
 RETURNS public.products LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE result public.products;
 BEGIN
-  IF p_quantity IS NULL OR p_quantity <= 0 THEN RETURN NULL; END IF;
-  UPDATE products SET stock_kg = stock_kg + p_quantity,
-    status = CASE WHEN status = 'sold_out' THEN 'listed' ELSE status END,
+  IF p_quantity IS NULL OR p_quantity <= 0 OR p_quantity::text IN ('NaN', 'Infinity', '-Infinity') THEN RETURN NULL; END IF;
+  UPDATE public.products SET stock_kg = stock_kg + p_quantity,
+    status = CASE status WHEN 'sold_out' THEN 'listed' ELSE status END,
     updated_at = clock_timestamp()
   WHERE id = p_product_id
   RETURNING * INTO result;

@@ -1,6 +1,4 @@
-// Displays a stored vegetable name in the selected language, using the same
-// English/Tagalog pairs as ./vegetables.js. Longest keyword wins (e.g. "Talbos ng
-// Kamote" before "Kamote").
+// Match longer names first so "Talbos ng Kamote" remains distinct from "Kamote".
 const VEGETABLE_NAMES = [
   { keywords: ['tomato', 'kamatis'], en: 'Tomato', tl: 'Kamatis' },
   { keywords: ['eggplant', 'talong'], en: 'Eggplant', tl: 'Talong' },
@@ -44,13 +42,10 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Whole-word match, the same rule as ./vegetables.js.
 function matchesKeyword(key, keyword) {
   return new RegExp(`\\b${escapeRegExp(keyword)}(?:es|s)?\\b`).test(key);
 }
 
-// Returns `name` rewritten in `language` ('en' | 'tl') when it matches a
-// known vegetable, otherwise returns `name` unchanged.
 export function localizeVegetableName(name, language) {
   const key = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
   if (!key) return name;

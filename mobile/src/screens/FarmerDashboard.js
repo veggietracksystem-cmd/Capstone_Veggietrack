@@ -15,7 +15,6 @@ import api from '../api/client';
 import {
   fetchHarvests, queueHarvest, syncPending, getQueue,
 } from '../offline/harvestStore';
-import { useAuth } from '../context/AuthContext';
 import HomeHeaderActions from '../components/HomeHeaderActions';
 import BottomNavBar, { useBottomNavHeight, useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
@@ -135,7 +134,6 @@ function weekRangeLabel(mondayKey) {
   const opts = { month: 'short', day: 'numeric' };
   return `${monday.toLocaleDateString(undefined, opts)}–${sunday.toLocaleDateString(undefined, { day: 'numeric' })}`;
 }
-// Groups report rows by week for the History sheet.
 function buildWeeklyRowBuckets(rows) {
   const weeks = {};
   rows.forEach((r) => {
@@ -170,10 +168,8 @@ export default function FarmerDashboard({ navigation, route }) {
   const navSpace = useBottomNavSpace();
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
-  const { user } = useAuth();
   const { t, tc, language } = useTranslation();
   const [activeTab, setActiveTab] = useState('home');
-  const [messagesUnreadCount, setMessagesUnreadCount] = useState(0);
 
   const FARMER_TABS = useMemo(() => ([
     { id: 'home', iconName: 'home-outline', label: t('dashboards.farmer.tabHome') },
@@ -190,14 +186,11 @@ export default function FarmerDashboard({ navigation, route }) {
   }), [t]);
 
   const [harvests, setHarvests] = useState([]);
-  const [notifUnreadCount, setNotifUnreadCount] = useState(0);
   const [distributorName, setDistributorName] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [offline, setOffline] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
-  // Add-harvest sheet
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [vegetableName, setVegetableName] = useState('');
   const [quantityKg, setQuantityKg] = useState('');
@@ -208,7 +201,6 @@ export default function FarmerDashboard({ navigation, route }) {
   const [weeklyReportRows, setWeeklyReportRows] = useState([]);
   const [loadingWeeklyReport, setLoadingWeeklyReport] = useState(false);
 
-  // Edit modal (per-row "Edit", separate from the add sheet)
   const [editHarvestId, setEditHarvestId] = useState(null);
   const [editVegetableName, setEditVegetableName] = useState('');
   const [editQuantityKg, setEditQuantityKg] = useState('');
@@ -216,7 +208,6 @@ export default function FarmerDashboard({ navigation, route }) {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [busyId, setBusyId] = useState(null);
 
-  // Weekly report / history sheets (Harvest tab)
   const [showWeeklySheet, setShowWeeklySheet] = useState(false);
   const [showHistorySheet, setShowHistorySheet] = useState(false);
   const [expandedHistoryKey, setExpandedHistoryKey] = useState(null);
@@ -226,7 +217,6 @@ export default function FarmerDashboard({ navigation, route }) {
   const [loadingHistoryReport, setLoadingHistoryReport] = useState(false);
   const [exportingReport, setExportingReport] = useState(false);
 
-  // Pick-up tab: multi-select cart
   const [cart, setCart] = useState({}); // { [harvestId]: true }
   const [showCartSheet, setShowCartSheet] = useState(false);
   const [showConfirmSheet, setShowConfirmSheet] = useState(false);
@@ -247,31 +237,6 @@ export default function FarmerDashboard({ navigation, route }) {
 
   const loadPickupRequests = useCallback(async () => {
     try { const list = await api.get('/api/pickup-requests'); setPickupRequests(Array.isArray(list) ? list : []); } catch { /* harvest actions remain usable if tracking is temporarily unavailable */ }
-  }, []);
-
-  const loadMessagesUnreadCount = useCallback(async () => {
-    const isCurrent = beginRead('loadMessagesUnreadCount');
-    try {
-      const { count } = await api.get('/api/messages/unread-count');
-      if (!isCurrent()) return;
-      setMessagesUnreadCount(count || 0);
-    } catch {
-      if (!isCurrent()) return;
-      setMessagesUnreadCount(0);
-    }
-  }, []);
-
-  const loadNotifUnreadCount = useCallback(async () => {
-    const isCurrent = beginRead('loadNotifUnreadCount');
-    try {
-      const data = await api.get('/api/notifications');
-      const list = Array.isArray(data) ? data : [];
-      if (!isCurrent()) return;
-      setNotifUnreadCount(list.filter((n) => !n.is_read).length);
-    } catch {
-      if (!isCurrent()) return;
-      setNotifUnreadCount(0);
-    }
   }, []);
 
   // There is only one distributor, so its name labels the report's Distributor column.
@@ -298,35 +263,33 @@ export default function FarmerDashboard({ navigation, route }) {
   // The shared sync coordinator handles reconnect, foreground and periodic
   // refreshes; this reader reloads every farmer tab.
   const { syncState } = useAutoSync('farmer-dashboard', useCallback(async () => {
-    await Promise.all([loadHarvests(), loadPickupRequests(), loadMessagesUnreadCount(), loadNotifUnreadCount()]);
-  }, [loadHarvests, loadPickupRequests, loadMessagesUnreadCount, loadNotifUnreadCount]));
+    await Promise.all([loadHarvests(), loadPickupRequests()]);
+  }, [loadHarvests, loadPickupRequests]));
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await Promise.all([loadHarvests(), loadPickupRequests(), loadMessagesUnreadCount(), loadNotifUnreadCount(), loadDistributorName()]);
+      await Promise.all([loadHarvests(), loadPickupRequests(), loadDistributorName()]);
       await trySync();
       setLoading(false);
     })();
 
     return undefined;
-  }, [loadHarvests, loadPickupRequests, loadMessagesUnreadCount, loadNotifUnreadCount, loadDistributorName, trySync]);
+  }, [loadHarvests, loadPickupRequests, loadDistributorName, trySync]);
 
   useEffect(() => {
     if (!navigation?.addListener) return undefined;
     return navigation.addListener('focus', () => {
       loadHarvests();
       loadPickupRequests();
-      loadMessagesUnreadCount();
-      loadNotifUnreadCount();
     });
-  }, [navigation, loadHarvests, loadPickupRequests, loadMessagesUnreadCount, loadNotifUnreadCount]);
+  }, [navigation, loadHarvests, loadPickupRequests]);
 
   const onRefresh = async () => {
     if (!requestLock.acquire('refresh')) return;
     setRefreshing(true);
     try {
-      await Promise.all([loadHarvests(), loadMessagesUnreadCount(), loadNotifUnreadCount()]);
+      await loadHarvests();
       await trySync();
       await loadPickupRequests();
     } catch (err) {
@@ -347,7 +310,6 @@ export default function FarmerDashboard({ navigation, route }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route?.params?.editHarvest]);
 
-  // ---- KPI calculations ----
   const thisWeekKey = useMemo(() => weekKeyOf(new Date().toISOString()), []);
   const lastWeekKey = useMemo(() => {
     const d = new Date();
@@ -395,7 +357,6 @@ export default function FarmerDashboard({ navigation, route }) {
     }
   };
 
-  // ---- Full history report ----
   const openHistoryReport = async () => {
     setShowWeeklySheet(false);
     setShowHistorySheet(true);
@@ -426,7 +387,6 @@ export default function FarmerDashboard({ navigation, route }) {
     }
   };
 
-  // ---- Add-harvest sheet ----
   const resetAddForm = () => {
     setVegetableName('');
     setQuantityKg('');
@@ -464,7 +424,6 @@ export default function FarmerDashboard({ navigation, route }) {
     }
   };
 
-  // ---- Edit modal ----
   const openEditForm = (harvest) => {
     setEditHarvestId(harvest.id);
     setEditVegetableName(harvest.vegetable_name);
@@ -530,7 +489,6 @@ export default function FarmerDashboard({ navigation, route }) {
     );
   };
 
-  // ---- Pick-up tab: cart ----
   const toggleCartItem = (id) => {
     setCart((prev) => {
       const next = { ...prev };
@@ -589,14 +547,12 @@ export default function FarmerDashboard({ navigation, route }) {
     );
   }
 
-  // Header titles per tab.
   const HEADER_TITLES = {
     home: t('dashboards.farmer.tabHome'),
     harvest: t('dashboards.farmer.tabHarvestNew'),
     pickup: t('dashboards.farmer.tabPickupNew'),
     profile: t('profile.title'),
   };
-  // Home header actions (Messages and Notifications).
   const headerRight = activeTab === 'home' ? (
     <HomeHeaderActions />
   ) : activeTab === 'harvest' ? (
@@ -689,7 +645,6 @@ export default function FarmerDashboard({ navigation, route }) {
               </>
             ) : activeTab === 'harvest' ? (
               <>
-                {/* Harvest list; the "+" add action is in the screen header. */}
                 <TouchableOpacity style={styles.btnOutlineBlock} onPress={openWeeklyReport} activeOpacity={0.8}>
                   <Ionicons name="calendar-outline" size={rf(16)} color={colors.leaf700} />
                   <Text style={styles.btnOutlineText}>{t('dashboards.farmer.weeklyReportDash', { range: weekRangeLabel(thisWeekKey) })}</Text>
@@ -710,7 +665,6 @@ export default function FarmerDashboard({ navigation, route }) {
                           <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
                           <Text style={styles.vegMeta}>{t('dashboards.farmer.harvestedMeta', { qty: h.quantity_kg, date: formatDate(h.recorded_at) })}</Text>
                         </View>
-                        {/* Badge sits top-right, above the Edit action. */}
                         <View style={styles.harvestActionCol}>
                           <View style={styles.harvestBadgeWrap}>
                             <StatusBadge status={h.status} label={getStatusPillStyle(h.status, t).label} compact />
@@ -862,7 +816,6 @@ export default function FarmerDashboard({ navigation, route }) {
 
       <BottomNavBar tabs={FARMER_TABS} activeTab={activeTab} onTabPress={handleTabPress} />
 
-      {/* Cart bar (Pick-up tab only) */}
       {showCartBar && (
         // Sits 8px above the bottom nav, whatever the phone's bottom inset.
         <View style={[styles.cartBar, { bottom: navHeight + 8 }]}>
@@ -875,7 +828,6 @@ export default function FarmerDashboard({ navigation, route }) {
         </View>
       )}
 
-      {/* Add Harvest sheet */}
       <BottomSheet visible={showAddSheet} onClose={() => setShowAddSheet(false)} title={t('dashboards.farmer.addHarvestSheetTitle')}>
         <Text style={styles.fieldLabel}>{t('dashboards.farmer.vegetableNameFieldLabel')}</Text>
         <TextInput
@@ -920,7 +872,6 @@ export default function FarmerDashboard({ navigation, route }) {
         </TouchableOpacity>
       </BottomSheet>
 
-      {/* Edit Harvest modal */}
       <Modal
         visible={editHarvestId !== null}
         transparent
@@ -989,7 +940,6 @@ export default function FarmerDashboard({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Weekly report sheet (the farmer's inventory record) */}
       <BottomSheet visible={showWeeklySheet} onClose={() => setShowWeeklySheet(false)} title={t('dashboards.farmer.weeklyReportSheetTitle')}>
         <Text style={styles.sheetHint}>{t('dashboards.farmer.autoGenerated', { range: weekRangeLabel(thisWeekKey) })}</Text>
         {loadingWeeklyReport ? (
@@ -1030,7 +980,6 @@ export default function FarmerDashboard({ navigation, route }) {
         </TouchableOpacity>
       </BottomSheet>
 
-      {/* Report history sheet — same table layout as the weekly report, grouped by week */}
       <BottomSheet visible={showHistorySheet} onClose={() => setShowHistorySheet(false)} title={t('dashboards.farmer.reportHistoryTitle')}>
         {loadingHistoryReport ? (
           <ActivityIndicator size="large" color={colors.leaf700} style={{ marginVertical: 24 }} />
@@ -1090,7 +1039,6 @@ export default function FarmerDashboard({ navigation, route }) {
         )}
       </BottomSheet>
 
-      {/* Cart review sheet (Pick-up tab) */}
       <BottomSheet visible={showCartSheet} onClose={() => setShowCartSheet(false)} title={t('dashboards.farmer.pickupRequestSheetTitle')}>
         {cartHarvests.map((h) => (
           <View key={String(h.id)} style={styles.vegCard}>
@@ -1123,7 +1071,6 @@ export default function FarmerDashboard({ navigation, route }) {
         </TouchableOpacity>
       </BottomSheet>
 
-      {/* Confirmation sheet */}
       <BottomSheet visible={showConfirmSheet} onClose={() => setShowConfirmSheet(false)} title="" scroll={false}>
         <View style={styles.confirmWrap}>
           <View style={styles.confirmBadge}>
@@ -1161,7 +1108,6 @@ const styles = StyleSheet.create({
   syncBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.gold100, borderRadius: 12, padding: 10, marginBottom: 14 },
   syncBannerText: { flex: 1, fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.gold700 },
 
-  // Bordered card (Active Pickup preview).
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, marginBottom: 14, ...shadowCard },
   cardHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 },
   cardHeadText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink },
@@ -1199,7 +1145,6 @@ const styles = StyleSheet.create({
   pickupCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
   pickupCardId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink },
   pickupCardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, alignSelf: 'flex-start' },
-  // Bordered list container with divided rows.
   list: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
   listRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
@@ -1215,9 +1160,7 @@ const styles = StyleSheet.create({
   vegName: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
   vegMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2 },
   harvestActionCol: { alignItems: 'flex-end', gap: 14 },
-  // Aligns the badge with the top of the vegetable name.
   harvestBadgeWrap: { marginTop: -3 },
-  // Same compact outlined Edit button as the Distributor module.
   editIconBtn: { ...actionBtn, ...actionBtnOutline, width: 56 },
   editIconBtnText: { ...actionBtnText, color: colors.leaf700 },
   // Same footprint as editIconBtn (no border/text) so locked rows keep the
@@ -1258,7 +1201,6 @@ const styles = StyleSheet.create({
     padding: 11, fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink,
   },
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  // Add Harvest status chips: centred and equal in size.
   statusRowCenter: { justifyContent: 'center', gap: 12 },
   chipEven: { minWidth: 108, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },

@@ -64,12 +64,8 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  // Centred, a step lighter than the default auth title, with even gaps
-  // logo → title → inputs.
   title: { fontSize: rf(fontSize.title + 2), marginTop: 4, marginBottom: 24 },
-  // Small extra gap between the last input and Continue.
   continueGap: { height: 4 },
-  // Keep me signed in (left) and Forgot password? (right) share one row; the left label shrinks before the link does.
   optionsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 4, marginBottom: 4, minHeight: control.minTouch },
   keepRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   keepText: { flexShrink: 1, fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },

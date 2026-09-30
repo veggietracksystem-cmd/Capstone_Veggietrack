@@ -8,13 +8,11 @@ import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
 
-// Common delivery time slots (24h).
 const TIME_SLOTS = ['08:00', '10:00', '12:00', '13:00', '15:00', '17:00'];
 
 const pad = (n) => String(n).padStart(2, '0');
 const dateKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-// Next 7 days as selectable chips.
 function nextDays(count = 7) {
   const out = [];
   for (let i = 0; i < count; i++) {
@@ -29,7 +27,6 @@ function nextDays(count = 7) {
   return out;
 }
 
-// Formats a stored "YYYY-MM-DDTHH:mm" value for the trigger button.
 function prettyValue(value, t) {
   if (!value) return t('cmp.selectDateTime');
   const d = new Date(value);

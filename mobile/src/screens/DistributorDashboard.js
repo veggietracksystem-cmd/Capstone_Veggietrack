@@ -16,7 +16,6 @@ import ModalCloseButton from '../components/ui/ModalCloseButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
-import { useAuth } from '../context/AuthContext';
 import ScreenHeader from '../components/ScreenHeader';
 import HomeHeaderActions from '../components/HomeHeaderActions';
 import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
@@ -58,7 +57,6 @@ export default function DistributorDashboard({ navigation, route }) {
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
   const refreshProducts = useRef(null);
-  const { user } = useAuth();
   const { t, language } = useTranslation();
 
   const DISTRIBUTOR_TABS = [
@@ -110,14 +108,12 @@ export default function DistributorDashboard({ navigation, route }) {
     }
   }, [route.params]);
 
-  // ----- Pickup requests (from farmers) + the receive (approve) modal -----
   const [pickupRequests, setPickupRequests] = useState([]);
   const [receiveReq, setReceiveReq] = useState(null); // request currently in the modal
   const [selectedRiderForPickup, setSelectedRiderForPickup] = useState(null);
   const [priceInput, setPriceInput] = useState('');   // optional price per kg
   const [receiveBusyId, setReceiveBusyId] = useState(null);
 
-  // ----- Orders state -----
   const [orders, setOrders] = useState([]);
   // Orders that are approved or in delivery.
   const [activeOrders, setActiveOrders] = useState([]);
@@ -128,7 +124,6 @@ export default function DistributorDashboard({ navigation, route }) {
   const [refreshing, setRefreshing] = useState(false);
   const [proofUri, setProofUri] = useState(null);
 
-  // ----- Payments state -----
   const [paymentsSub, setPaymentsSub] = useState('unpaid'); // 'unpaid' | 'paid'
   const [unpaidOrders, setUnpaidOrders] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -137,20 +132,14 @@ export default function DistributorDashboard({ navigation, route }) {
   const [amountInput, setAmountInput] = useState('');
   const [recordBusy, setRecordBusy] = useState(false);
 
-  // ----- Offline state -----
-  const [ordersOffline, setOrdersOffline] = useState(false);
-  const [paymentsOffline, setPaymentsOffline] = useState(false);
-
-  // ---------- Loaders ----------
   // Pending orders: read-through cache only (approve/assign stay online).
   const loadOrders = useCallback(async () => {
     const isCurrent = beginRead('loadOrders');
-    const { list, source } = await readThrough('orders_pending_cache', () =>
+    const { list } = await readThrough('orders_pending_cache', () =>
       api.get('/api/orders/pending')
     );
     if (!isCurrent()) return;
     setOrders(list);
-    setOrdersOffline(source === 'cache');
   }, []);
 
   // Approved, picked-up and in-transit orders, so assigned orders stay visible.
@@ -193,7 +182,6 @@ export default function DistributorDashboard({ navigation, route }) {
     if (!isCurrent()) return;
     setUnpaidOrders(unpaidRes.list);
     setPayments(paidRes.list);
-    setPaymentsOffline(unpaidRes.source === 'cache' || paidRes.source === 'cache');
   }, []);
 
   const { syncState } = useAutoSync('distributor-dashboard', useCallback(async () => {
@@ -238,7 +226,6 @@ export default function DistributorDashboard({ navigation, route }) {
     }
   };
 
-  // ---------- Payment actions (online-only) ----------
   const startRecord = (order) => {
     setRecordingId(order.id);
     setAmountInput(String(order.total_amount ?? ''));
@@ -266,7 +253,6 @@ export default function DistributorDashboard({ navigation, route }) {
     }
   };
 
-  // ---------- Order actions ----------
   const approveOrder = async (order) => {
     if (!requestLock.acquire('BusyOrderId')) return;
     setBusyOrderId(order.id);
@@ -329,8 +315,6 @@ export default function DistributorDashboard({ navigation, route }) {
     }
   };
 
-  // ---------- Pickup request actions ----------
-  // Open the price-entry / approval modal for a request.
   const openReceive = (req) => {
     setReceiveReq(req);
     setPriceInput('');
@@ -372,7 +356,6 @@ export default function DistributorDashboard({ navigation, route }) {
   // Outstanding pickup requests still awaiting the distributor.
   const pendingReceiveCount = pickupRequests.filter((p) => p.status === 'requested').length;
 
-  // ---------- Render ----------
   return (
     <SafeAreaView style={styles.container}>
       {isFullScreen ? (
@@ -533,7 +516,6 @@ export default function DistributorDashboard({ navigation, route }) {
   );
 }
 
-// ================= Pickup Requests tab =================
 function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
   const { t, language } = useTranslation();
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
@@ -586,8 +568,6 @@ function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
   );
 }
 
-// ================= Home tab =================
-// Summary counts, quick actions and the embedded Product List.
 function HomeTab({
   refreshProducts,
   pendingOrderCount, pendingPickupCount, unpaidCount,
@@ -614,7 +594,6 @@ function HomeTab({
         </View>
       </View>
 
-      {/* Quick Actions (pricing is edited in the Product List below). */}
       <Text style={styles.sectionTitle}>{t('dashboards.distributor.quickActions')}</Text>
       <View style={styles.quickActionGrid}>
         <QuickAction icon="checkmark-circle-outline" label={t('dashboards.distributor.pickupRequests')} onPress={onViewPickups} />
@@ -898,7 +877,6 @@ function getProofUrl(order) {
   return getDelivery(order)?.proof_photo_url || null;
 }
 
-// Quick Action card with a chevron and pressed state.
 function QuickAction({ icon, label, onPress }) {
   return (
     <Pressable
@@ -916,7 +894,6 @@ function QuickAction({ icon, label, onPress }) {
   );
 }
 
-// ================= Orders tab =================
 const ORDER_SUB_TABS = ['pending', 'approved', 'cancelled', 'history'];
 
 function OrdersTab({
@@ -972,7 +949,6 @@ function OrdersTab({
 
           return (
             <View key={order.id} style={styles.orderCard}>
-              {/* Header: order id and status badge */}
               <View style={styles.orderHeader}>
                 <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
                 <StatusBadge status={order.status} />
@@ -1163,7 +1139,6 @@ function OrdersTab({
   );
 }
 
-// ================= Payments tab =================
 function PaymentsTab({
   loading, sub, setSub, unpaidOrders, payments,
   recordingId, amountInput, setAmountInput, recordBusy,
@@ -1172,7 +1147,6 @@ function PaymentsTab({
   const { t } = useTranslation();
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
-  // Summary totals computed from the loaded payments.
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const thisWeekTotal = payments
     .filter((p) => p.recorded_at && new Date(p.recorded_at).getTime() >= weekAgo)
@@ -1192,7 +1166,6 @@ function PaymentsTab({
         </View>
       </View>
 
-      {/* Unpaid / Paid sub-toggle */}
       <SegmentedTabs
         style={styles.tabsSpaced}
         value={sub}
@@ -1289,7 +1262,6 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink },
   subtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
-  // Payments tab: summary tiles
   summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   statTile: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14 },
   statTileLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft },
@@ -1311,14 +1283,12 @@ const styles = StyleSheet.create({
   homeStatValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: PRIMARY },
   homeStatLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginTop: 4, textAlign: 'center' },
 
-  // Home tab: Quick Actions grid
   quickActionGrid: { flexDirection: 'row', gap: 10, marginBottom: 20 },
   quickAction: {
     flex: 1, minHeight: 104, alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.surface, borderWidth: 1.4, borderColor: colors.leaf500, borderRadius: radius.card,
     paddingVertical: 14, paddingHorizontal: 6, ...shadowCard,
   },
-  // Pressed feedback: light-green fill, darker border, tiny press-in.
   quickActionPressed: { backgroundColor: colors.leaf100, borderColor: colors.leaf700, transform: [{ scale: 0.97 }] },
   quickActionIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.leaf100, alignItems: 'center', justifyContent: 'center' },
   quickActionChevron: { position: 'absolute', top: 8, right: 8 },
@@ -1327,7 +1297,6 @@ const styles = StyleSheet.create({
   primaryBtn: { backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 14, alignItems: 'center', marginBottom: 14, justifyContent: 'center', minHeight: control.height },
   primaryBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg), textAlign: 'center' },
 
-  // Bordered list container with divided rows (Product List, order items, payments).
   list: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
   listRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
@@ -1335,7 +1304,6 @@ const styles = StyleSheet.create({
   },
   listRowLast: { borderBottomWidth: 0 },
 
-  // Home tab: embedded Product List section
   productTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   productTileIcon: { width: 34, height: 34 },
   productRowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
@@ -1345,7 +1313,6 @@ const styles = StyleSheet.create({
   deleteBtnText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.sm), textAlign: 'center' },
   btnDisabled: { opacity: 0.5 },
 
-  // Home tab: Product List edit modal (icon + name header, qty/price edit, remove, X close)
   modalKav: { flex: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalCard: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
@@ -1380,13 +1347,11 @@ const styles = StyleSheet.create({
 
   sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 10, marginTop: 4 },
 
-  // Pickup Requests tab
   pickupCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   pickupFarmer: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   pickupHarvest: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: PRIMARY, marginTop: 4 },
   pickupNote: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 4 },
   pickupMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 4 },
-  // Approve & Receive modal
   modalLine: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 6 },
   modalHint: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: 10 },
   emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },

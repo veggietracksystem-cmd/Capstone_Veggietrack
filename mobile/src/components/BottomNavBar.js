@@ -19,7 +19,6 @@ export function useBottomNavSpace() {
   return useBottomNavHeight() + 16;
 }
 
-// Count badge on a tab icon, with a pop animation when the count increases.
 function TabBadge({ count }) {
   const scale = useRef(new Animated.Value(1)).current;
   const prevCount = useRef(count);
@@ -111,8 +110,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: 10,
-    // Keep the navigation visually distinct from the cream screen surface
-    // without adding a hard divider or platform-specific elevation.
     boxShadow: '0 -1px 2px rgba(30, 78, 9, 0.06)',
     position: 'absolute',
     bottom: 0,

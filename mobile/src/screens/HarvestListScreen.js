@@ -107,7 +107,6 @@ export default function HarvestListScreen({ navigation }) {
     }
   };
 
-  // Filtered harvest list based on search bar
   const filteredHarvests = harvests.filter((h) =>
     h.vegetable_name?.toLowerCase().includes(searchQuery.toLowerCase().trim())
   );
@@ -120,7 +119,6 @@ export default function HarvestListScreen({ navigation }) {
         contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Search bar */}
         <View style={styles.searchRow}>
           <Ionicons name="search-outline" size={rf(19)} color={colors.inkFaint} />
           <TextInput
@@ -155,7 +153,6 @@ export default function HarvestListScreen({ navigation }) {
               const busy = busyId != null;
               return (
                 <View key={String(h.id)} style={styles.productCard}>
-                  {/* Photo (if uploaded) or soft icon tile */}
                   {h.image_url ? (
                     <RemoteImage uri={h.image_url} style={styles.tileContainer} resizeMode="cover" />
                   ) : (
@@ -230,7 +227,6 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200 },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
 
-  // Search Row
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -251,7 +247,6 @@ const styles = StyleSheet.create({
   },
   searchClear: { fontSize: rf(16), color: colors.inkFaint, paddingLeft: 8 },
 
-  // Two-column grid
   marketplaceGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

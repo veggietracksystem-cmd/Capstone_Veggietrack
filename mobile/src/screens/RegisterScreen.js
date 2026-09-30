@@ -281,9 +281,7 @@ const styles = StyleSheet.create({
   footerSpacer: { flexGrow: 1, minHeight: 10, marginTop: 22, marginBottom: 10 },
   footerSpacerTall: { minHeight: 28, maxHeight: 96 },
   link: { fontFamily: 'Poppins_400Regular', textAlign: 'center', color: colors.inkSoft, fontSize: rf(15), marginBottom: 4 },
-  // Only the tappable part is green and underlined.
   linkAction: { fontFamily: 'Poppins_500Medium', color: PRIMARY, textDecorationLine: 'underline' },
-  // Wide field with the compact Pin Map button to its right, vertically centered together.
   locationInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
   locationInput: { flex: 1, minWidth: 0, marginBottom: 0 },
   pinBtn: { ...actionBtn, ...actionBtnOutline, flexDirection: 'row', gap: 6, flexShrink: 0 },

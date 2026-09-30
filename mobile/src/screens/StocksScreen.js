@@ -28,7 +28,6 @@ import VegetableImage from '../components/VegetableImage';
 import BatchDateField from '../components/BatchDateField';
 import { titleCaseWords } from '../lib/textFormat';
 
-// More registered farmers than this and the picker gets a search box.
 const FARMER_SEARCH_THRESHOLD = 6;
 
 const PRIMARY = colors.leaf700;
@@ -54,16 +53,12 @@ export default function StocksScreen({ navigation }) {
     else if (tab.id === 'orders') navigation.navigate('DistributorDashboard', { tab: 'orders' });
     else if (tab.id === 'home') navigation.navigate('DistributorDashboard', { tab: 'home' });
   };
-  // Batches = received stock not yet listed; Products = listed batches with stock.
-  // Both come from /api/products filtered by status; completed batches appear only
-  // in the inventory report.
   const [seg, setSeg] = useState('batches');
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
 
-  // Price prompt — only shown when a vegetable has no existing listed price yet.
   const [priceBatch, setPriceBatch] = useState(null);
   const [priceInput, setPriceInput] = useState('');
   const [priceBusy, setPriceBusy] = useState(false);
@@ -73,8 +68,6 @@ export default function StocksScreen({ navigation }) {
   const [editPriceInput, setEditPriceInput] = useState('');
   const [photoBusy, setPhotoBusy] = useState(false);
 
-  // Add Product: creates a batch directly (POST /api/products) and lists it
-  // immediately, recording the same farmer, harvest date and pickup date.
   const [addProductVisible, setAddProductVisible] = useState(false);
   const [addVegName, setAddVegName] = useState('');
   const [addPrice, setAddPrice] = useState('');
@@ -117,11 +110,9 @@ export default function StocksScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  // Anything not listed or completed counts as received (including rows without a status).
-  const isListable = (status) => status !== 'listed' && status !== 'sold_out' && status !== 'archived';
-  const hasStock = (b) => Number(b.stock_kg) > 0;
-  // A listed batch of the same vegetable (any spelling) that is still on sale:
-  // its price is the one every batch of that vegetable shares.
+  const isListable = (status) => status == null || status === 'received';
+  const hasStock = (b) => Number.isFinite(Number(b.stock_kg)) && Number(b.stock_kg) > 0;
+  // All batches of a vegetable share the current listed price.
   const onSaleSibling = (name) => batches.find(
     (b) => b.status === 'listed' && hasStock(b) && vegetableKey(b.vegetable_name) === vegetableKey(name)
   );
@@ -174,9 +165,9 @@ export default function StocksScreen({ navigation }) {
       showAlert(t('common.error'), batchPhotoState === 'uploading' ? t('cmp2.photoWait') : t('cmp2.photoBeforeSave'));
       return;
     }
-    const canEditPrice = !isListable(editingBatch?.status);
+    const canEditPrice = editingBatch?.status === 'listed';
     const price = Number(editPriceInput);
-    if (canEditPrice && (!price || price <= 0)) {
+    if (canEditPrice && (!Number.isFinite(price) || price <= 0)) {
       showAlert(t('common.error'), t('stocks.priceRequired'));
       return;
     }
@@ -212,7 +203,7 @@ export default function StocksScreen({ navigation }) {
 
   const confirmPrice = async () => {
     const price = Number(priceInput);
-    if (!price || price <= 0) {
+    if (!Number.isFinite(price) || price <= 0) {
       showAlert(t('common.error'), t('stocks.priceRequired'));
       return;
     }
@@ -250,11 +241,9 @@ export default function StocksScreen({ navigation }) {
 
   const changeHarvestDate = (day) => {
     setAddHarvestDate(day);
-    // Pickup can't come before the harvest; make the distributor pick again.
     if (addPickupDate && addPickupDate < day) setAddPickupDate('');
   };
 
-  // The vegetable typed in Add Product already on sale: its shared price is used.
   const addSibling = isVegetable(addVegName.trim()) ? onSaleSibling(addVegName.trim()) : null;
 
   const submitAddProduct = async () => {
@@ -293,7 +282,6 @@ export default function StocksScreen({ navigation }) {
     }
   };
 
-  // Batches show whether the required photo has been added; Products show the stock level.
   const renderBadge = (b) => {
     if (isListable(b.status)) {
       return <StatusBadge status={b.batch_photo_url ? 'completed' : 'pending'} label={b.batch_photo_url ? t('stocks.photoCaptured') : t('stocks.photoMissing')} />;
@@ -307,8 +295,6 @@ export default function StocksScreen({ navigation }) {
     );
   };
 
-  // List rows always use the vegetable illustration; the distributor's
-  // uploaded photo is shown in the View / Edit modal instead.
   const renderTile = (b, large = false) => {
     const tile = getVegetableTile(b.vegetable_name);
     return (
@@ -573,7 +559,6 @@ const styles = StyleSheet.create({
   addProductBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
   addProductBtnText: { color: '#fff', fontSize: rf(fontSize.title), fontFamily: fonts.bodySemiBold, lineHeight: rf(22), textAlign: 'center' },
 
-  // Same spacing as the other Distributor filter tabs.
   segmented: { marginHorizontal: spacing.lg, marginTop: spacing.lg, marginBottom: 0 },
 
   card: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
@@ -602,7 +587,6 @@ const styles = StyleSheet.create({
   fieldHint: { fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 6 },
   farmerLoading: { alignSelf: 'flex-start' },
   farmerSearch: { marginBottom: 10 },
-  // Same chip picker as the distributor's rider assignment.
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgScreen },
   chipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },

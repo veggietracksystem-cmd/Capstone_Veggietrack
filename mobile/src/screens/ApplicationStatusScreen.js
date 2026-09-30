@@ -5,7 +5,6 @@ import {AuthPage,AuthButton,authStyles as s} from '../components/AuthForm';
 import {colors} from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
-// Icon and tint per account_status (display only).
 const STATUS_ICONS = {
   unverified:{name:'mail-unread-outline',bg:colors.gold100,color:colors.gold700},
   pending_approval:{name:'time-outline',bg:colors.gold100,color:colors.gold700},

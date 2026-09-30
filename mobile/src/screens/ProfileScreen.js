@@ -66,7 +66,6 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  // Modals state
   const [guideOpen, setGuideOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
@@ -81,7 +80,6 @@ export default function ProfileScreen({ navigation }) {
       <ScreenHeader title={t('profile.title')} onBack={isDistributor(user) || isRetailer(user) || isDeliveryPersonnel(user) ? undefined : () => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={[styles.content, bottomTabs && { paddingBottom: navSpace }]} keyboardShouldPersistTaps="handled">
-        {/* Profile header: avatar, name, role and Edit Profile shortcut */}
         <View style={styles.profileCard}>
           <UserAvatar user={user} style={styles.avatarCircle} textStyle={styles.avatarText} />
           <Text style={styles.userName}>{fullName || user?.email || 'User'}</Text>
@@ -93,7 +91,6 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Account details */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('profile.account')}</Text>
           <View style={[styles.infoRow, styles.menuItemLast]}>
@@ -105,7 +102,6 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Preferences: language, saved addresses (retailer only) and help & support */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
 
@@ -207,7 +203,6 @@ export const styles = StyleSheet.create({
   title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
   content: { padding: 16, paddingBottom: 100 },
 
-  // User Profile Card
   profileCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.card,
@@ -245,7 +240,6 @@ export const styles = StyleSheet.create({
   },
   roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.leaf700, letterSpacing: 0.5 },
 
-  // Account detail rows (icon, label, value)
   infoRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12,
     borderBottomWidth: 1, borderBottomColor: colors.border,
@@ -257,7 +251,6 @@ export const styles = StyleSheet.create({
   infoLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint },
   infoValue: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 2 },
 
-  // Section Card
   sectionCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.card,
@@ -283,7 +276,6 @@ export const styles = StyleSheet.create({
   chevron: { fontSize: rf(fontSize.xl), color: colors.inkFaint, fontWeight: '600' },
   logoutText: { color: colors.danger },
 
-  // Language modal rows
   langRow: {
     flexDirection: 'row',
     alignItems: 'center',

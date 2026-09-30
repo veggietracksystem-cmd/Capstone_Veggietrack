@@ -12,7 +12,6 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '../api/client';
 import { readThrough } from '../offline/cache';
 import { kvGet, kvSet } from '../offline/db';
-import { useAuth } from '../context/AuthContext';
 import ScreenHeader from '../components/ScreenHeader';
 import HomeHeaderActions from '../components/HomeHeaderActions';
 import OfflineBanner from '../components/OfflineBanner';
@@ -54,7 +53,6 @@ export function statusColor(status) {
   }
 }
 
-// Status codes with a translated label (see `status.*` in the translations).
 const STATUS_LABEL_KEYS = ['pending', 'approved', 'assigned', 'otw', 'picked_up', 'in_transit', 'delivered', 'completed', 'cancelled'];
 
 // Never show raw db values (snake_case) in the UI — always a friendly label.
@@ -88,7 +86,6 @@ function matchesFilter(order, filter) {
   if (filter === 'all') return true;
   if (filter === 'completed') return s === 'delivered';
   if (filter === 'cancelled') return s === 'cancelled';
-  // active = anything not yet finished
   return s !== 'delivered' && s !== 'cancelled';
 }
 
@@ -103,7 +100,6 @@ export default function DeliveryDashboard({ navigation, route }) {
   const navSpace = useBottomNavSpace();
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
-  const { user } = useAuth();
   const { t, tc, language } = useTranslation();
 
   const RIDER_TABS = [
@@ -119,7 +115,7 @@ export default function DeliveryDashboard({ navigation, route }) {
   // handled on this screen rather than RiderNavigationScreen. No delivery_id is
   // sent because the position belongs to a pickup, not an order.
   const hasOutstandingPickup = pickups.some((p) => p.status === 'assigned' || p.status === 'otw');
-  const riderLocation = useRiderLocation(null, hasOutstandingPickup);
+  useRiderLocation(null, hasOutstandingPickup);
   // 'deliveries' | 'pickups' — only relevant on the Tasks & History tabs.
   const [mode, setMode] = useState('deliveries');
   const [loading, setLoading] = useState(true);
@@ -127,9 +123,7 @@ export default function DeliveryDashboard({ navigation, route }) {
   const [busyId, setBusyId] = useState(null);
   const [mapAddress, setMapAddress] = useState(null); // address shown in the map modal (Farmer Pickups mode)
   const [mapCoords, setMapCoords] = useState(null); // coordinates shown in the map modal (Farmer Pickups mode)
-  // Bottom-nav tab currently shown; Home, Tasks and History each render their own content.
   const [activeBottomTab, setActiveBottomTab] = useState('home');
-  // History: pickup whose full details are open in the modal.
   const [historyPickup, setHistoryPickup] = useState(null);
 
   useEffect(() => {
@@ -170,7 +164,6 @@ export default function DeliveryDashboard({ navigation, route }) {
     }
   }, [loadOrders, loadPickups]);
 
-  // Refresh both the pickup and delivery lists through the shared sync lifecycle.
   const { syncState } = useAutoSync('delivery-dashboard', () => loadAll({ silent: true }));
 
   useEffect(() => {
@@ -456,11 +449,9 @@ export default function DeliveryDashboard({ navigation, route }) {
   return (
     <SafeAreaView style={styles.container}>
       <ScreenHeader
-        // Title follows the open tab (Home / Tasks / History).
         title={activeBottomTab === 'tasks' ? t('dashboards.delivery.tabTasks')
           : activeBottomTab === 'history' ? t('dashboards.delivery.tabHistory')
           : t('dashboards.delivery.tabHome')}
-        // Messages and notifications only appear on Home.
         right={activeBottomTab === 'home' ? <HomeHeaderActions /> : null}
       />
 
@@ -553,7 +544,6 @@ export default function DeliveryDashboard({ navigation, route }) {
 
         {activeBottomTab === 'history' && (
           <View>
-            {/* Finished deliveries and past pickups, newest first. */}
             {loading ? (
               <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
             ) : combinedHistory.length === 0 ? (
@@ -570,7 +560,6 @@ export default function DeliveryDashboard({ navigation, route }) {
           </ScrollView>
         </SharedScreenTransition>
 
-      {/* Full details for a pickup opened from History. */}
       <CustomModal
         visible={!!historyPickup}
         title={historyPickup ? t('dashboards.delivery.pickupNumber', { id: shortId(historyPickup.id) }) : ''}
@@ -650,10 +639,8 @@ const styles = StyleSheet.create({
   emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
   orderCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
-  // History list: compact card (number + status, then View Details).
   historyCard: { backgroundColor: colors.surface, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   historyDetailsBtn: { ...actionBtn, ...actionBtnOutline, marginTop: spacing.md },
-  // Pickup details modal rows.
   detailStatusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   detailRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   detailLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint },

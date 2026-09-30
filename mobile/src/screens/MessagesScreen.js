@@ -66,7 +66,6 @@ export default function MessagesScreen({ navigation, embedded }) {
     }
   }, []);
 
-  // Initial load.
   useEffect(() => {
     mounted.current = true;
     setLoading(true);
@@ -307,7 +306,6 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.inkSoft, marginBottom: 4 },
   emptySubtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, textAlign: 'center' },
 
-  // Each conversation is a separate card.
   list: { gap: 10 },
   contactRow: {
     flexDirection: 'row',

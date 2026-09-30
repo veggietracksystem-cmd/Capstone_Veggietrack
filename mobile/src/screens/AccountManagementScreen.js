@@ -24,7 +24,6 @@ const FILTERS = [
   { value: 'unverified', labelKey: 'acct.filterUnverified' },
 ];
 
-// Readable action names for the confirmation dialog.
 const ACTION_WORDING = {
   APPROVED: { verbKey: 'acct.verbApprove', titleKey: 'acct.approveTitle' },
   DECLINED: { verbKey: 'acct.verbDecline', titleKey: 'acct.declineTitle' },
@@ -107,7 +106,6 @@ export default function AccountManagementScreen({ navigation }) {
         )}
       />
       <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
-        {/* Filter chips scroll sideways so longer labels stay readable. */}
         <FilterChips options={FILTERS.map((f) => ({ value: f.value, label: t(f.labelKey), count: f.value === 'pending_approval' ? pendingCount : 0 }))} value={status} onChange={setStatus} disabled={busy} />
 
         {!!error && <Text style={[s.error, styles.errorText]} accessibilityRole="alert">{error}</Text>}
@@ -195,7 +193,6 @@ const styles = StyleSheet.create({
   },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   actionRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
-  // Approve and Decline share the row equally.
   actionSlot: { flex: 1 },
   name: { flex: 1, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
   role: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.leaf700, marginTop: 2 },

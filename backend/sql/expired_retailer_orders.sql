@@ -12,24 +12,27 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-DECLARE affected integer := 0; r record;
+DECLARE ids uuid[]; item record;
 BEGIN
-  FOR r IN
-    UPDATE public.orders
-       SET status = 'cancelled'
-     WHERE status IN ('pending', 'approved', 'assigned')
-       AND preferred_schedule IS NOT NULL
-       AND preferred_schedule < clock_timestamp()
-     RETURNING id
+  SELECT array_agg(eligible.id) INTO ids FROM (
+    SELECT id FROM public.orders
+    WHERE status IN ('pending', 'approved', 'assigned')
+      AND preferred_schedule IS NOT NULL AND preferred_schedule < clock_timestamp()
+    ORDER BY id FOR UPDATE
+  ) AS eligible;
+  IF ids IS NULL THEN RETURN 0; END IF;
+  PERFORM p.id FROM public.products p WHERE p.id IN
+    (SELECT product_id FROM public.order_items WHERE order_id = ANY(ids))
+    ORDER BY p.id FOR UPDATE;
+  FOR item IN SELECT product_id, sum(quantity_kg) AS quantity FROM public.order_items
+    WHERE order_id = ANY(ids) AND product_id IS NOT NULL GROUP BY product_id ORDER BY product_id
   LOOP
-    affected := affected + 1;
-    -- Restore stock to the exact batch each item was drawn from. Items created
-    -- before batch tracking have no product_id and are skipped.
-    PERFORM public.restore_product_stock(oi.product_id, oi.quantity_kg)
-      FROM public.order_items oi
-     WHERE oi.order_id = r.id AND oi.product_id IS NOT NULL;
+    IF public.restore_product_stock(item.product_id, item.quantity) IS NULL THEN
+      RAISE EXCEPTION 'Could not restore the original stock batch';
+    END IF;
   END LOOP;
-  RETURN affected;
+  UPDATE public.orders SET status = 'cancelled' WHERE id = ANY(ids);
+  RETURN cardinality(ids);
 END;
 $$;
 REVOKE ALL ON FUNCTION public.cancel_expired_retailer_orders() FROM PUBLIC, anon, authenticated;

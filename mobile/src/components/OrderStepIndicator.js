@@ -29,14 +29,7 @@ function stepIndexFor(status) {
   return i; // -1 if unknown (e.g. cancelled) → nothing highlighted
 }
 
-/**
- * Horizontal step indicator for an order's progress.
- * Pending → Approved → Out for Delivery → Delivered.
- *
- * Current + past steps are filled green; future steps are greyed out.
- * For terminal/unknown statuses (e.g. "cancelled") nothing is filled and the
- * caller should still render the status badge for context.
- */
+// Terminal/unknown statuses leave every step unfilled; callers render a status badge.
 export default function OrderStepIndicator({ status }) {
   const { t } = useTranslation();
   const current = stepIndexFor(status);

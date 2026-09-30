@@ -68,9 +68,7 @@ export default function PlaceAutocomplete({ visible, onSelect }) {
 }
 
 const styles = StyleSheet.create({
-  // 16px side margins with even gaps before the map.
   container: { paddingHorizontal: 16, paddingTop: 12, marginBottom: 12 },
-  // Search field (with its clear button) and a compact Search button.
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   field: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', minHeight: 44, backgroundColor: colors.card, borderWidth: 1.4, borderColor: colors.border, borderRadius: radius.ctrl, paddingLeft: 12, paddingRight: 4 },
   input: { flex: 1, minWidth: 0, paddingVertical: 10, fontSize: rf(14), color: colors.ink, textAlignVertical: 'center' },

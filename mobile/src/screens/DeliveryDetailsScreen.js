@@ -44,7 +44,6 @@ function withLocationStatus(photo, order) {
   } catch { return photo; }
 }
 
-// Splits the preferred delivery schedule into display date and time lines.
 function formatScheduleParts(preferredSchedule) {
   if (!preferredSchedule) return null;
   const d = new Date(preferredSchedule);
@@ -240,7 +239,6 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
 
       <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         <View style={styles.card}>
-          {/* 1. Order summary */}
           <View style={styles.orderHeader}>
             <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
             <StatusBadge status={status} label={formatStatus(status)} />
@@ -252,13 +250,11 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
 
           <View style={styles.divider} />
 
-          {/* 2. Pickup from */}
           <Text style={styles.sectionTitle}>{t('deliveryDetails.pickupFromTitle')}</Text>
           <Text style={styles.entityName}>{order.distributor_name}</Text>
 
           <View style={styles.divider} />
 
-          {/* 3. Deliver to */}
           <Text style={styles.sectionTitle}>{t('deliveryDetails.retailerTitle')}</Text>
           <Text style={styles.subLabel}>{t('deliveryDetails.retailerLabel')}</Text>
           <Text style={styles.entityName}>{order.retailer_name}</Text>
@@ -274,7 +270,6 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
 
           <View style={styles.divider} />
 
-          {/* 4. Ordered vegetables */}
           <Text style={styles.sectionTitle}>{t('deliveryDetails.itemsTitle')}</Text>
           {items.length === 0 ? (
             <Text style={styles.rowMeta}>{t('dashboards.delivery.noItemDetails')}</Text>
@@ -292,7 +287,6 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
             <>
               <View style={styles.divider} />
 
-              {/* 5. Delivery progress */}
               <Text style={styles.sectionTitle}>{t('deliveryDetails.progressTitle')}</Text>
               {locationDetails && <>
                 <Text style={styles.rowMeta}>Distance from the delivery address: {Math.round(locationDetails.distanceMeters)} m</Text>

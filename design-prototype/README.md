@@ -11,8 +11,6 @@
 
 Just open [`index.html`](index.html) in any browser — double-click it, or drag it into a browser tab. No build step, no server, no install required.
 
-(If you're viewing this inside the Claude Code preview panel, it's already running.)
-
 ## How to use it
 
 - **Left panel** — pick a role (Farmer / Distributor / Rider / Retailer) and jump directly to any of the ~79 proposed screens for quick review. This panel is a review aid only; it is not part of the proposed app design itself.
@@ -31,7 +29,3 @@ Look for the `✦ Proposed` tag and the dashed "note" boxes throughout the proto
 - `components.js` — reusable UI building blocks (rows, badges, timeline, map, forms, POD flow, profile, messaging, notifications)
 - `screens.farmer.js`, `screens.distributor.js`, `screens.rider.js`, `screens.retailer.js` — per-role screen definitions
 - `app.js` — router, state, event handling (no framework/build tool)
-
-## Next step
-
-This is for review only. If you approve the direction, implementation into the real VeggieTrack React Native app would be a separate, explicitly-requested piece of work.

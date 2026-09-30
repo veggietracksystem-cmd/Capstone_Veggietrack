@@ -93,7 +93,6 @@ export default function EditProfileScreen({ navigation }) {
       <ScreenHeader title={t('editProfile.title')} onBack={() => navigation.goBack()} />
 
       <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {/* Profile Details Card */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('editProfile.profileDetails')}</Text>
           <ProfilePhotoField user={user} value={avatarUrl} disabled={saving}
@@ -193,7 +192,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
   content: { padding: spacing.lg, paddingBottom: 40 },
 
-  // Section Card
   sectionCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.card,
@@ -218,7 +216,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.4,
     borderColor: colors.border,
   },
-  // Wide field with a compact Pin Map button on the right.
   locationInputRow: { flexDirection: 'row', gap: 10, alignItems: 'center', minWidth: 0 },
   locationInput: { flex: 1, minWidth: 0, marginBottom: 0 },
   pinBtn: { ...actionBtn, ...actionBtnOutline, flexDirection: 'row', gap: 6, alignSelf: 'center', flexShrink: 0 },

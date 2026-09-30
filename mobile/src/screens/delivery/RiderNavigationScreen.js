@@ -1,5 +1,5 @@
 import { rf } from '../../lib/responsive';
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -32,7 +32,6 @@ function arrivalClock(seconds) {
   catch { return null; }
 }
 
-// The big instruction at the top: what to do, and how far away it is.
 function instruction(t, g) {
   const key = g.kind === 'roundabout' && g.exit ? 'roundaboutExit' : g.kind;
   const params = { d: distanceLabel(g.turnDistance), exit: g.exit };
@@ -62,7 +61,6 @@ export default function RiderNavigationScreen({ route, navigation }) {
     [nav.route_steps, points, current?.latitude, current?.longitude]);
   const completed = guidance.status === 'ok' || guidance.status === 'arrived' ? guidance.completed : undefined;
 
-  // One banner at the top says what matters right now.
   let banner = null, retry = null, icon = 'navigation-variant';
   if (gpsError && !current) { banner = { primary: gpsError }; retry = () => refreshLocation().catch(() => {}); icon = 'map-marker-off'; }
   else if (!current) banner = { primary: t('nav.findingLocation') };

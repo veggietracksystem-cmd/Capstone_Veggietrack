@@ -1,3 +1,4 @@
+const { inventoryRpcStub } = require('./inventoryRpcStub');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -38,6 +39,8 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
   // In-memory versions of the sql/stock_safety.sql and sql/pickup_tracking_proof.sql
   // RPCs, so the real route handlers run end to end.
   async rpc(name, args) {
+    const inventoryResult = inventoryRpcStub(data, name, args, () => `order-${++sequence}`);
+    if (inventoryResult) return inventoryResult;
     if (name === 'decrement_product_stock') {
       const row = (data.products || []).find(p => p.id === args.p_product_id);
       if (!row || Number(args.p_quantity) <= 0 || Number(row.stock_kg) < Number(args.p_quantity)) return { data: null, error: null };
@@ -59,6 +62,16 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
       }
       row.status = 'picked_up'; row.received_at = new Date().toISOString();
       row.proof_photo_url = args.p_photo_url; row.pod = { ...args.p_pod, location_status: 'verified' };
+      const harvest = data.harvests.find(h => h.id === row.harvest_id);
+      if (harvest) {
+        (data.products ||= []).push({ id: `batch-${++sequence}`, distributor_id: row.received_by,
+          vegetable_name: harvest.vegetable_name, stock_kg: harvest.quantity_kg,
+          quantity_received: harvest.quantity_kg, price_per_kg: null, status: 'received',
+          harvest_id: harvest.id, farmer_id: row.farmer_id, pickup_request_id: row.id,
+          harvest_date: harvest.recorded_at, pickup_date: row.received_at });
+        harvest.status = 'picked_up';
+      }
+
       return { data: row.pod, error: null };
     }
     return { data: null, error: null };

@@ -6,12 +6,10 @@ import { colors, control, fonts } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
 import { useTranslation } from '../i18n/useTranslation';
 
-// Chat icon (transparent PNG) tinted to match NotificationBell.
 const CHAT_ICON = require('../../assets/chat-icon.png');
 
 const POLL_MS = 30000; // matches NotificationBell's unread-count poll interval
 
-// Header icon for distributors, retailers and riders; farmers use a Messages tab instead.
 export default function MessagesIcon() {
   const { t } = useTranslation();
   const navigation = useNavigation();
@@ -56,7 +54,6 @@ export default function MessagesIcon() {
 }
 
 const styles = StyleSheet.create({
-  // Shares its size with NotificationBell's button so the pair sits evenly.
   iconBtn: { width: 40, height: control.minTouch, alignItems: 'center', justifyContent: 'center' },
   icon: { width: rf(26), height: rf(26), tintColor: colors.soil800 },
   badge: {

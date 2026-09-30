@@ -1,6 +1,6 @@
 import useLatestRequest from '../hooks/useLatestRequest';
 import useRequestLock from '../hooks/useRequestLock';
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -14,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../api/client';
-import { useAuth } from '../context/AuthContext';
 import { showAlert, confirmAction } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import { colors, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnDanger, actionBtnText } from '../theme/appTheme';
@@ -32,13 +31,10 @@ const PRIMARY = colors.leaf700;
 export default function ManageAddressesScreen({ navigation }) {
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
-  const { user } = useAuth();
   const { t } = useTranslation();
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
-  // Modal state for add/edit
   const [modalVisible, setModalVisible] = useState(false);
   const [editingAddress, setEditingAddress] = useState(null);
   const [formLabel, setFormLabel] = useState('');
@@ -63,7 +59,7 @@ export default function ManageAddressesScreen({ navigation }) {
         showAlert(t('addr.loadFailedTitle'), t('addr.checkConnection'));
       }
     } finally {
-      if (isCurrent()) { setLoading(false); setRefreshing(false); }
+      if (isCurrent()) setLoading(false);
     }
   }, []);
 
@@ -255,7 +251,6 @@ export default function ManageAddressesScreen({ navigation }) {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Add/Edit modal with map pinning */}
       <CustomModal
         visible={modalVisible}
         title={editingAddress ? t('addr.editTitle') : t('addr.addTitle')}
@@ -320,7 +315,6 @@ export default function ManageAddressesScreen({ navigation }) {
         </TouchableOpacity>
       </CustomModal>
 
-      {/* Map Pinning Modal */}
       <MapPinningModal
         visible={mapModalVisible}
         onConfirm={handleMapConfirm}
@@ -361,7 +355,6 @@ const styles = StyleSheet.create({
   addressActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   actionBtn: { ...actionBtn },
   setDefaultBtn: { ...actionBtnOutline },
-  // Same compact outlined Edit button as the Distributor module.
   editBtn: { ...actionBtnOutline },
   editBtnText: { color: PRIMARY },
   deleteBtn: { ...actionBtnDanger },

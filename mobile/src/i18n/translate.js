@@ -1,8 +1,7 @@
 import en from './translations/en.json';
 import tl from './translations/tl.json';
 
-// Non-hook translator for code outside React components. LanguageProvider keeps
-// `current` in sync with the selected language; lookup rules match its `t()`.
+// LanguageProvider synchronizes this translator for code outside React components.
 const DICTS = { en, tl };
 let current = 'en';
 
@@ -27,17 +26,13 @@ export function tr(key, vars) {
   ));
 }
 
-// Translated label for a raw status code (e.g. "in_transit"); unknown codes
-// fall back to the code with underscores swapped for spaces.
-export function statusLabel(status) {
+export function statusLabel(status, translate = tr) {
   if (!status) return '';
   const key = `status.${status}`;
-  const label = tr(key);
+  const label = translate(key);
   return label === key ? String(status).replace(/_/g, ' ') : label;
 }
 
-// Count-aware translation: uses `<key>_one` when count is 1, otherwise
-// `<key>_other`. `{count}` is filled in automatically.
 export function trc(key, count, vars) {
   return tr(`${key}_${Number(count) === 1 ? 'one' : 'other'}`, { count, ...vars });
 }

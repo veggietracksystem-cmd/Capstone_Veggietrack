@@ -7,10 +7,6 @@ import { colors } from '../theme/appTheme';
 
 const PRIMARY = colors.leaf700;
 
-/**
- * Password field with a show/hide toggle. Accepts the same props as a
- * `<TextInput secureTextEntry />`; right padding keeps the text clear of the toggle.
- */
 export default function PasswordInput({
   style,
   value,

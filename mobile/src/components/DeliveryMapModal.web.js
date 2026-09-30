@@ -37,7 +37,6 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
     return () => { cancelled = true; navigator.geolocation.clearWatch(watch); };
   }, [visible]);
 
-  // Load Leaflet CDN script dynamically
   useEffect(() => {
     if (!visible) return;
     if (window.L) {
@@ -62,7 +61,6 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
     document.head.appendChild(script);
   }, [visible]);
 
-  // Geocode address or use coords
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
@@ -100,7 +98,6 @@ export default function DeliveryMapModal({ visible, address, coords, onClose }) 
     return () => { cancelled = true; };
   }, [visible, address, coords]);
 
-  // Initialize Map
   useEffect(() => {
     if (!visible || !leafletLoaded || loading) return;
 

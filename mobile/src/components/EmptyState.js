@@ -5,20 +5,6 @@ import { colors, fonts, radius } from '../theme/appTheme';
 
 const PRIMARY = colors.leaf700;
 
-/**
- * Reusable empty-state placeholder for any list that can be empty.
- *
- * Props:
- *  - iconElement: optional vector icon shown above the title (default sprout)
- *  - title:    bold headline (e.g. "No harvests yet")
- *  - message:  optional secondary line (e.g. "Tap + to add one.")
- *  - actionLabel + onAction: optional call-to-action button
- *
- * Usage:
- *   {list.length === 0
- *     ? <EmptyState title="No harvests yet" message="Tap Add Harvest Update." />
- *     : list.map(...)}
- */
 export default function EmptyState({ iconElement, title, message, actionLabel, onAction }) {
   return (
     <View style={styles.wrap}>

@@ -11,7 +11,6 @@ const TRANSLATIONS = { en, tl };
 
 const LanguageContext = createContext(null);
 
-// Walks a dot-path (e.g. "auth.login.title") through a nested translations object.
 function resolve(dict, path) {
   return path.split('.').reduce(
     (acc, key) => (acc && typeof acc === 'object' ? acc[key] : undefined),
@@ -21,11 +20,9 @@ function resolve(dict, path) {
 
 export function LanguageProvider({ children }) {
   const [language, setLanguageState] = useState('en');
-  // Keep the non-hook translator (lib/ helpers) on the same language; set during
-  // render so it is current when children build alert text.
+  // Synchronize before children render alerts through the non-hook translator.
   setCurrentLanguage(language);
 
-  // Restore the saved language on app start (defaults to English if unset/invalid).
   useEffect(() => {
     (async () => {
       try {
@@ -45,8 +42,6 @@ export function LanguageProvider({ children }) {
     });
   }, []);
 
-  // t('a.b.c', { name }) returns the active-language string, falling back to
-  // English and then to the key itself. `vars` fills {placeholder} tokens.
   const t = useCallback((key, vars) => {
     const value = resolve(TRANSLATIONS[language], key);
     const fallback = resolve(TRANSLATIONS.en, key);
@@ -57,13 +52,11 @@ export function LanguageProvider({ children }) {
     ));
   }, [language]);
 
-  // tRaw('a.b.c') returns the resolved value as-is (e.g. arrays for FAQ lists).
   const tRaw = useCallback((key) => {
     const value = resolve(TRANSLATIONS[language], key);
     return value !== undefined ? value : resolve(TRANSLATIONS.en, key);
   }, [language]);
 
-  // tc('plural.orderItems', n): singular/plural wording chosen by the count.
   const tc = useCallback((key, count, vars) => trc(key, count, vars), [language]);
 
   const value = useMemo(() => ({ language, setLanguage, t, tc, tRaw }), [language, setLanguage, t, tc, tRaw]);

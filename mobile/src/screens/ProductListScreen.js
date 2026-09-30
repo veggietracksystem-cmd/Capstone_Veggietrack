@@ -35,8 +35,6 @@ export default function ProductListScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [category, setCategory] = useState('All');
 
-  // The listing currently open in the edit modal, addressed by vegetable
-  // name so it always reflects the latest data after a reload.
   const [activeVeg, setActiveVeg] = useState(null);
   const [priceInput, setPriceInput] = useState('');
   const [qtyInput, setQtyInput] = useState('');
@@ -91,16 +89,15 @@ export default function ProductListScreen({ navigation }) {
 
   const savePrice = async () => {
     if (!activeListing) return;
-    const priceNum = parseFloat(priceInput);
-    if (isNaN(priceNum) || priceNum <= 0) {
+    const priceNum = Number(priceInput);
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
       showAlert(t('common.error'), t('dashboards.distributor.enterValidPrice'));
       return;
     }
     if (!requestLock.acquire('productEdit')) return;
     setSavingPrice(true);
     try {
-      // Any batch of this vegetable works — the backend cascades the price
-      // change across every listed/sold-out batch sharing the name.
+      // Updating one batch changes the price of its vegetable listing.
       await api.put(`/api/products/${activeListing.id}`, { price_per_kg: priceNum });
       await loadListings();
     } catch (err) {
@@ -113,8 +110,8 @@ export default function ProductListScreen({ navigation }) {
 
   const saveQty = async () => {
     if (!activeListing) return;
-    const qtyNum = parseFloat(qtyInput);
-    if (isNaN(qtyNum) || qtyNum < 0) {
+    const qtyNum = Number(qtyInput);
+    if (!qtyInput.trim() || !Number.isFinite(qtyNum) || qtyNum < 0) {
       showAlert(t('common.error'), t('productList.invalidQuantity'));
       return;
     }
@@ -137,8 +134,7 @@ export default function ProductListScreen({ navigation }) {
 
   const removeProduct = () => {
     if (!activeListing) return;
-    // Close the edit modal before showing the confirmation; stacked native modals
-    // are unreliable on Android/iOS and can swallow the Confirm tap.
+    // Close first because stacked native modals can swallow confirmation taps.
     const target = activeListing;
     const label = localizeVegetableName(target.vegetable_name, language);
     setActiveVeg(null);
@@ -323,12 +319,10 @@ const styles = StyleSheet.create({
   rowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
 
-  // Same compact outlined Edit button as the Distributor module.
   smallBtn: { ...actionBtn, ...actionBtnOutline },
   smallBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.sm), textAlign: 'center' },
   btnDisabled: { opacity: 0.5 },
 
-  // Edit modal
   modalKav: { flex: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalCard: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },

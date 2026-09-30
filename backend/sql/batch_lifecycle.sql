@@ -12,6 +12,8 @@
 --   archived  sold out and removed from the Product List (history only)
 -- ============================================================
 
+BEGIN;
+
 -- 1. Pickup date for batches added from the Stocks "Add New Product" form.
 --    Batches created by a rider pickup keep using pickup_requests.received_at.
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS pickup_date timestamptz;
@@ -33,14 +35,14 @@ WHERE status = 'listed' AND stock_kg <= 0;
 UPDATE public.products SET status = 'archived', updated_at = now()
 WHERE (status = 'received' OR status IS NULL) AND stock_kg <= 0;
 
--- 4. Enforce the lifecycle in the database: only the four statuses are allowed,
+-- 4. Validate lifecycle states and preserve inactive/rejected historical batches,
 --    and a batch with no stock cannot be active.
 ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_status_valid;
 ALTER TABLE public.products ADD CONSTRAINT products_status_valid
-  CHECK (status IS NULL OR status IN ('received', 'listed', 'sold_out', 'archived'));
+  CHECK (status IS NULL OR status IN ('received', 'listed', 'sold_out', 'archived', 'inactive', 'rejected'));
 ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_active_batch_has_stock;
 ALTER TABLE public.products ADD CONSTRAINT products_active_batch_has_stock
-  CHECK (status IS NULL OR status IN ('sold_out', 'archived') OR stock_kg > 0);
+  CHECK (status IS NULL OR status NOT IN ('received', 'listed') OR stock_kg > 0);
 
 -- 5. Order cancellation / rollback restore (replaces the stock_safety.sql
 --    version). Returned stock goes back to the batch it came from:
@@ -51,8 +53,8 @@ CREATE OR REPLACE FUNCTION public.restore_product_stock(p_product_id uuid, p_qua
 RETURNS public.products LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE result public.products;
 BEGIN
-  IF p_quantity IS NULL OR p_quantity <= 0 THEN RETURN NULL; END IF;
-  UPDATE products SET stock_kg = stock_kg + p_quantity,
+  IF p_quantity IS NULL OR p_quantity <= 0 OR p_quantity::text IN ('NaN', 'Infinity', '-Infinity') THEN RETURN NULL; END IF;
+  UPDATE public.products SET stock_kg = stock_kg + p_quantity,
     status = CASE status WHEN 'sold_out' THEN 'listed' WHEN 'archived' THEN 'received' ELSE status END,
     updated_at = clock_timestamp()
   WHERE id = p_product_id
@@ -70,8 +72,8 @@ CREATE OR REPLACE FUNCTION public.decrement_product_stock(p_product_id uuid, p_q
 RETURNS public.products LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE result public.products;
 BEGIN
-  IF p_quantity IS NULL OR p_quantity <= 0 THEN RETURN NULL; END IF;
-  UPDATE products SET stock_kg = stock_kg - p_quantity,
+  IF p_quantity IS NULL OR p_quantity <= 0 OR p_quantity::text IN ('NaN', 'Infinity', '-Infinity') THEN RETURN NULL; END IF;
+  UPDATE public.products SET stock_kg = stock_kg - p_quantity,
     status = CASE WHEN stock_kg - p_quantity <= 0 THEN 'sold_out' ELSE status END,
     updated_at = clock_timestamp()
   WHERE id = p_product_id AND status = 'listed' AND stock_kg >= p_quantity
@@ -81,6 +83,8 @@ BEGIN
 END; $$;
 REVOKE ALL ON FUNCTION public.decrement_product_stock(uuid, numeric) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.decrement_product_stock(uuid, numeric) TO service_role;
+
+COMMIT;
 
 -- ---- Verification -----------------------------------------------------
 -- select status, count(*), sum(stock_kg) from products group by status;
