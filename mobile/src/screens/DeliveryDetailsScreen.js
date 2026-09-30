@@ -16,6 +16,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import StatusBadge from '../components/ui/StatusBadge';
 import { showAlert, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
+import { isClosedOrderStatus } from '../lib/orderStatus';
 import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { formatStatus, getDelivery, effectiveStatus, STATUS_RANK } from './DeliveryDashboard';
@@ -74,7 +75,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
     mounted.current = true;
     let cancelled = false;
     const requestGeneration = ++locationGeneration.current;
-    if (order && !['delivered', 'cancelled'].includes(effectiveStatus(order))) {
+    if (order && !isClosedOrderStatus(effectiveStatus(order))) {
       currentProofLocation(t).then(position => {
         if (cancelled || requestGeneration !== locationGeneration.current) return;
         try { setLocationDetails(validateDeliveryLocation(position, orderDestination(order))); setLocationError(''); }
@@ -107,7 +108,7 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
   const delivery = getDelivery(order);
   const status = effectiveStatus(order);
   const rank = STATUS_RANK[status] ?? 0;
-  const finished = status === 'delivered' || status === 'cancelled';
+  const finished = isClosedOrderStatus(status);
   const items = order.order_items || [];
   const scheduleParts = formatScheduleParts(order.preferred_schedule);
   const verifiedLocation = async () => {

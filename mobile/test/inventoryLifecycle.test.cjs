@@ -59,7 +59,7 @@ function harness() {
     '@expo/vector-icons': { Ionicons: 'Ionicons', MaterialCommunityIcons: 'MaterialCommunityIcons' },
     '@react-native-async-storage/async-storage': { getItem: async key => storage.get(key) || null, setItem: async (key, value) => storage.set(key, value) },
   };
-  const real = /^(screens\/(StocksScreen|RetailerDashboard|DistributorInventoryReportScreen|ApplicationStatusScreen)|components\/(AuthForm|CustomModal)|i18n\/|lib\/(vegetableNames|vegetables|cartStore)|theme\/appTheme)/;
+  const real = /^(screens\/(StocksScreen|RetailerDashboard|DistributorInventoryReportScreen|ApplicationStatusScreen)|components\/(AuthForm|CustomModal)|i18n\/|lib\/(vegetableNames|vegetables|cartStore|orderStatus)|theme\/appTheme)/;
   function load(relative) {
     const file = relative.endsWith('.js') || relative.endsWith('.json') ? relative : `${relative}.js`;
     if (modules.has(file)) return modules.get(file);
@@ -128,7 +128,7 @@ test('Inventory English → Tagalog → English updates labels and values while 
     assert.equal(formatted.farmer_name, row.farmer_name);
     assert.equal(formatted.batch_photo, row.batch_photo_url);
     assert.equal(formatted.remaining_quantity, '0 kg');
-    assert.equal(t('inventoryReport.title'), language === 'tl' ? 'Ulat ng Imbentaryo' : 'Inventory Report');
+    assert.equal(t('inventoryReport.title'), language === 'tl' ? 'Imbentaryo' : 'Inventory');
     assert.equal(formatted.product, language === 'tl' ? 'Karot' : 'Carrot');
     assert.equal(formatted.batch_status, language === 'tl' ? 'Ubos na' : 'Sold out');
     assert.equal(formatted.payment_status, language === 'tl' ? 'Bayad na' : 'Paid');
@@ -138,10 +138,42 @@ test('Inventory English → Tagalog → English updates labels and values while 
   assert.deepEqual(output[0], output[2]);
 });
 
-test('Stocks excludes sold-out, archived, rejected and inactive stock; Add Product submits registered farmer and both dates', async () => {
+const texts = tree => nodes(tree).filter(node => node.type === 'Text').map(node => [].concat(node.props.children).join(''));
+
+test('Inventory shows current and past batches under Active and Sold out only, each batch listed once', async () => {
+  const h = harness();
+  const batch = (batch_id, product, batch_status, extra = {}) => ({ batch_id, product, batch_status, quantity_received: 10, quantity_sold: 0, remaining_quantity: 10, ...extra });
+  h.data['/api/distributor/inventory-report'] = [
+    batch('a', 'Tomato', 'listed', { quantity_sold: 4, order_status: 'delivered', retailer_name: 'Store One' }),
+    batch('a', 'Tomato', 'listed', { quantity_sold: 2, order_status: 'approved', retailer_name: 'Store Two' }),
+    batch('b', 'Carrot', 'sold_out', { quantity_sold: 10, remaining_quantity: 0, order_status: 'delivered' }),
+    batch('c', 'Okra', 'archived', { quantity_sold: 10, remaining_quantity: 0, order_status: 'delivered' }),
+    batch('d', 'Squash', 'received'),
+    batch('e', 'Pechay', 'rejected'),
+  ];
+  const screen = h.load('screens/DistributorInventoryReportScreen').default;
+  const render = () => h.render(screen, { navigation: {} });
+  render(); await flush();
+  let tree = render();
+  assert.equal(named(tree, 'ScreenHeader')[0].props.title, 'Inventory');
+  const tabs = () => named(render(), 'SegmentedTabs')[0];
+  assert.deepEqual([...tabs().props.options.map(o => o.label)], ['Active', 'Sold out'], 'no All, Archived or History tab');
+  assert.equal(tabs().props.value, 'active');
+  assert.ok(!texts(render()).some(text => /Received|Sold$/.test(text)), 'no Received/Sold summary cards');
+  const shown = () => JSON.parse(JSON.stringify(named(render(), 'ReportTable')[0].props.rows));
+  assert.deepEqual(shown().map(r => [r.batch_id, r.retailer_name, r.batch_status]),
+    [['a', 'Store One', 'Listed'], ['', 'Store Two', ''], ['d', '—', 'Received']],
+    'a batch with two orders is listed once; its second order repeats no batch details');
+  tabs().props.onChange('sold_out');
+  assert.deepEqual(shown().map(r => [r.batch_id, r.batch_status]), [['b', 'Sold out'], ['c', 'Sold out'], ['e', 'Rejected']],
+    'past batches stay available; a removed sold-out batch reads as Sold out, never Archived');
+  assert.ok(!texts(render()).includes('Archived'));
+});
+
+test('Stocks excludes sold-out, archived, rejected and inactive stock; Add Product submits the farmer picked by name and both dates', async () => {
   const h = harness();
   h.data['/api/products'] = ['received', 'listed', 'sold_out', 'archived', 'rejected', 'inactive', 'unexpected'].map(status => ({ id: status, status, stock_kg: status === 'sold_out' ? 0 : 12 }));
-  h.data['/api/farmers'] = [{ id: 'farmer-1', full_name: 'Juan Reyes' }];
+  h.data['/api/farmers'] = [{ id: 'farmer-1', full_name: 'Juan Reyes', farm_location: 'Calamba' }, { id: 'farmer-2', full_name: 'Maria Santos', farm_location: 'Los Baños' }];
   const screen = h.load('screens/StocksScreen').default;
   const render = () => h.render(screen, { navigation: {} });
   render(); await flush();
@@ -159,13 +191,33 @@ test('Stocks excludes sold-out, archived, rejected and inactive stock; Add Produ
   await addModal().props.onConfirm();
   assert.equal(h.calls.length, 0, 'farmer is required');
   modal = addModal();
-  named(modal, 'TouchableOpacity')[0].props.onPress();
+  assert.ok(texts(modal).includes(h.translation().t('stocks.selectFarmer')));
+  named(modal, 'TouchableOpacity')[0].props.onPress(); // open the farmer dropdown
+  modal = addModal();
+  assert.ok(['Juan Reyes', 'Calamba', 'Maria Santos', 'Los Baños'].every(text => texts(modal).includes(text)), 'real names and farm locations');
+  named(modal, 'AppTextInput')[3].props.onChangeText('santos');
+  modal = addModal();
+  assert.ok(!texts(modal).includes('Juan Reyes'), 'search filters by name');
+  named(modal, 'TouchableOpacity')[1].props.onPress();
+  modal = addModal();
+  assert.equal(named(modal, 'AppTextInput').length, 3, 'the dropdown closes after picking');
+  assert.ok(texts(modal).includes('Maria Santos') && texts(modal).includes('Los Baños'));
   named(modal, 'BatchDateField')[0].props.onChange('2026-09-20');
   named(modal, 'BatchDateField')[1].props.onChange('2026-09-21');
   named(modal, 'BatchPhotoField')[0].props.onChange('https://example.test/carrot.jpg');
   await addModal().props.onConfirm();
   assert.equal(h.calls[0].route, '/api/products');
-  assert.deepEqual(JSON.parse(JSON.stringify(h.calls[0].body)), { vegetable_name: 'Carrot', price_per_kg: 45, stock_kg: 12, batch_photo_url: 'https://example.test/carrot.jpg', farmer_id: 'farmer-1', harvest_date: '2026-09-20', pickup_date: '2026-09-21' });
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls[0].body)), { vegetable_name: 'Carrot', price_per_kg: 45, stock_kg: 12, batch_photo_url: 'https://example.test/carrot.jpg', farmer_id: 'farmer-2', harvest_date: '2026-09-20', pickup_date: '2026-09-21' });
+});
+
+test('Add Product explains when no approved farmers are available', async () => {
+  const h = harness();
+  const screen = h.load('screens/StocksScreen').default;
+  const render = () => h.render(screen, { navigation: {} });
+  render(); await flush();
+  named(render(), 'ScreenHeader')[0].props.right.props.onPress(); await flush();
+  const modal = named(render(), 'CustomModal').find(node => node.props.title === h.translation().t('stocks.addProductModalTitle'));
+  assert.ok(texts(modal).includes('No approved farmers available.'));
 });
 
 test('Retailer cart caps fractional stock and open product details follow refreshed availability and photos', async () => {

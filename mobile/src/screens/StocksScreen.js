@@ -28,8 +28,6 @@ import VegetableImage from '../components/VegetableImage';
 import BatchDateField from '../components/BatchDateField';
 import { titleCaseWords } from '../lib/textFormat';
 
-const FARMER_SEARCH_THRESHOLD = 6;
-
 const PRIMARY = colors.leaf700;
 
 const DISTRIBUTOR_TABS_KEYS = [
@@ -81,6 +79,7 @@ export default function StocksScreen({ navigation }) {
   const [farmers, setFarmers] = useState([]);
   const [farmersLoading, setFarmersLoading] = useState(false);
   const [farmerQuery, setFarmerQuery] = useState('');
+  const [farmerListOpen, setFarmerListOpen] = useState(false);
 
   const loadBatches = useCallback(async () => {
     const isCurrent = beginRead('loadBatches');
@@ -232,7 +231,7 @@ export default function StocksScreen({ navigation }) {
 
   const openAddProduct = () => {
     setAddVegName(''); setAddPrice(''); setAddStock('');
-    setAddFarmerId(null); setFarmerQuery('');
+    setAddFarmerId(null); setFarmerQuery(''); setFarmerListOpen(false);
     setAddHarvestDate(''); setAddPickupDate('');
     setAddPhotoUrl(''); setAddPhotoState('ready');
     setAddProductVisible(true);
@@ -245,6 +244,10 @@ export default function StocksScreen({ navigation }) {
   };
 
   const addSibling = isVegetable(addVegName.trim()) ? onSaleSibling(addVegName.trim()) : null;
+  const selectedFarmer = farmers.find((f) => f.id === addFarmerId) || null;
+  const farmerSearch = farmerQuery.trim().toLowerCase();
+  const farmerMatches = farmers.filter((f) => !farmerSearch
+    || [f.full_name, f.farm_location].some((text) => String(text || '').toLowerCase().includes(farmerSearch)));
 
   const submitAddProduct = async () => {
     const name = addVegName.trim();
@@ -501,36 +504,53 @@ export default function StocksScreen({ navigation }) {
           <Text style={styles.fieldHint}>{t('stocks.noFarmers')}</Text>
         ) : (
           <>
-            {farmers.length > FARMER_SEARCH_THRESHOLD && (
-              <TextInput
-                style={[styles.priceInput, styles.farmerSearch]}
-                value={farmerQuery}
-                onChangeText={setFarmerQuery}
-                placeholder={t('stocks.searchFarmer')} placeholderTextColor={colors.placeholder}
-                autoCapitalize="words"
-                editable={!addBusy}
-              />
-            )}
-            <View style={styles.chipWrap}>
-              {farmers
-                .filter((f) => f.id === addFarmerId || !farmerQuery.trim()
-                  || String(f.full_name || '').toLowerCase().includes(farmerQuery.trim().toLowerCase()))
-                .map((f) => {
+            {/* Searchable dropdown of approved farmer accounts; the batch stores the account id. */}
+            <TouchableOpacity
+              style={[styles.priceInput, styles.farmerSelect]}
+              onPress={() => setFarmerListOpen((open) => !open)}
+              disabled={addBusy}
+              accessibilityRole="button"
+              accessibilityLabel={t('stocks.farmerName')}
+              accessibilityState={{ expanded: farmerListOpen }}
+            >
+              <View style={styles.farmerSelectBody}>
+                <Text style={selectedFarmer ? styles.farmerName : styles.farmerPlaceholder} numberOfLines={1}>
+                  {selectedFarmer ? selectedFarmer.full_name : t('stocks.selectFarmer')}
+                </Text>
+                {!!selectedFarmer?.farm_location && <Text style={styles.farmerMeta} numberOfLines={1}>{selectedFarmer.farm_location}</Text>}
+              </View>
+              <MaterialCommunityIcons name={farmerListOpen ? 'chevron-up' : 'chevron-down'} size={rf(22)} color={colors.inkFaint} />
+            </TouchableOpacity>
+            {farmerListOpen && (
+              <View style={styles.farmerList}>
+                <TextInput
+                  style={[styles.priceInput, styles.farmerSearch]}
+                  value={farmerQuery}
+                  onChangeText={setFarmerQuery}
+                  placeholder={t('stocks.searchFarmer')} placeholderTextColor={colors.placeholder}
+                  autoCapitalize="words"
+                  editable={!addBusy}
+                />
+                {farmerMatches.length === 0 ? (
+                  <Text style={styles.fieldHint}>{t('stocks.noFarmerMatch')}</Text>
+                ) : farmerMatches.map((f) => {
                   const selected = addFarmerId === f.id;
                   return (
                     <TouchableOpacity
                       key={f.id}
-                      style={[styles.chip, selected && styles.chipActive]}
-                      onPress={() => setAddFarmerId(f.id)}
+                      style={[styles.farmerOption, selected && styles.farmerOptionActive]}
+                      onPress={() => { setAddFarmerId(f.id); setFarmerListOpen(false); setFarmerQuery(''); }}
                       disabled={addBusy}
                       accessibilityRole="button"
                       accessibilityState={{ selected }}
                     >
-                      <Text style={[styles.chipText, selected && styles.chipTextActive]}>{f.full_name}</Text>
+                      <Text style={styles.farmerName} numberOfLines={1}>{f.full_name}</Text>
+                      {!!f.farm_location && <Text style={styles.farmerMeta} numberOfLines={1}>{f.farm_location}</Text>}
                     </TouchableOpacity>
                   );
                 })}
-            </View>
+              </View>
+            )}
           </>
         )}
 
@@ -586,12 +606,15 @@ const styles = StyleSheet.create({
   inputLocked: { backgroundColor: colors.bgScreen, color: colors.inkSoft },
   fieldHint: { fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 6 },
   farmerLoading: { alignSelf: 'flex-start' },
-  farmerSearch: { marginBottom: 10 },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgScreen },
-  chipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  chipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(fontSize.sm) },
-  chipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
+  farmerSearch: { marginBottom: 6 },
+  farmerSelect: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: control.height },
+  farmerSelectBody: { flex: 1 },
+  farmerName: { fontFamily: fonts.bodySemiBold, color: colors.ink, fontSize: rf(fontSize.md) },
+  farmerPlaceholder: { fontFamily: fonts.body, color: colors.placeholder, fontSize: rf(fontSize.md) },
+  farmerMeta: { fontFamily: fonts.body, color: colors.inkFaint, fontSize: rf(fontSize.sm), marginTop: 2 },
+  farmerList: { marginTop: 6, padding: 8, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, backgroundColor: colors.bgScreen },
+  farmerOption: { paddingVertical: 10, paddingHorizontal: 10, borderRadius: radius.ctrl, minHeight: control.height, justifyContent: 'center' },
+  farmerOptionActive: { backgroundColor: colors.leaf100 },
   removePhotoBtn: { alignSelf: 'flex-start', marginTop: 4, paddingVertical: 6, minHeight: control.heightSm },
   removePhotoText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.sm) },
 });

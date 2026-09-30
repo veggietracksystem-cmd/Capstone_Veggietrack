@@ -7,6 +7,7 @@ import api from '../../api/client';
 import { friendlyError } from '../../lib/errorMessages';
 import { useAuth } from '../../context/AuthContext';
 import { isDeliveryPersonnel } from '../../lib/roles';
+import { isClosedOrderStatus } from '../../lib/orderStatus';
 import { useTranslation } from '../../i18n/useTranslation';
 import RiderNavMap from '../../components/RiderNavMap';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -47,7 +48,7 @@ export default function RiderNavigationScreen({ route, navigation }) {
   const { orderId } = route.params || {};
   const { user } = useAuth(), { t } = useTranslation();
   const { data, loading, error, refresh } = useDeliveryTracking(orderId);
-  const isAssigned = isDeliveryPersonnel(user) && data?.delivery_personnel_id === user?.id && !['delivered', 'cancelled'].includes(data?.status);
+  const isAssigned = isDeliveryPersonnel(user) && data?.delivery_personnel_id === user?.id && !isClosedOrderStatus(data?.status);
   // Live location is watched automatically and sent to the server; the rider never has to refresh it by hand.
   const { position, error: gpsError, refreshLocation } = useRiderLocation(orderId, isAssigned);
   const [actionError, setActionError] = useState(''), [opening, setOpening] = useState(false), [panelHeight, setPanelHeight] = useState(150);

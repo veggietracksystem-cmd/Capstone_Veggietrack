@@ -1,4 +1,4 @@
-const { inventoryRpcStub } = require('./inventoryRpcStub');
+const { inventoryRpcStub, syncOrderStock } = require('./inventoryRpcStub');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -23,6 +23,7 @@ function createApi() {
     { id: 'hub', role: 'distributor', full_name: 'Distributor' },
     { id: 'juan', role: 'farmer', full_name: 'Farmer Juan', account_status: 'active' },
     { id: 'retailer', role: 'retailer', full_name: 'Retailer' },
+    ...['pending_approval', 'declined', 'disabled'].map(status => ({ id: `farmer-${status}`, role: 'farmer', full_name: `Maria ${status}`, account_status: status })),
   ] };
   const db = { from(table) {
     const rows = data[table] ||= []; const filters = []; let mode = 'read', values, singular = false;
@@ -42,7 +43,11 @@ function createApi() {
           }));
           rows.push(...result);
         }
-        if (mode === 'update') result.forEach(row => Object.assign(row, values));
+        if (mode === 'update') for (const row of result) {
+          const before = { ...row }; Object.assign(row, values);
+          const error = table === 'orders' && syncOrderStock(data, before, row);
+          if (error) { Object.assign(row, before); return Promise.resolve({ data: null, error }).then(resolve, reject); }
+        }
         const copies = result.map(row => ({ ...row }));
         return Promise.resolve({ data: singular ? copies[0] || null : copies, error: null }).then(resolve, reject);
       },
@@ -94,10 +99,17 @@ function createApi() {
     items: [{ vegetable_name, quantity_kg }], delivery_address: 'Store', delivery_latitude: 14.1, delivery_longitude: 121.2,
     preferred_schedule: new Date(Date.now() + 86400000).toISOString(),
   });
+  const approve = order => raw('put /api/orders/:id/approve', 'hub', {}, order.id);
+  const buyApproved = async (vegetable_name, quantity_kg) => {
+    const res = await buy(vegetable_name, quantity_kg);
+    assert.equal(res.statusCode, 201, JSON.stringify(res.body));
+    assert.equal((await approve(res.body.order)).statusCode, 200);
+    return res.body.order;
+  };
   const shop = () => call('get /api/products/available', 'retailer');
   const stocks = () => call('get /api/products', 'hub');
   const report = () => call('get /api/distributor/inventory-report', 'hub');
-  return { data, raw, call, batch, addBatch, buy, shop, stocks, report };
+  return { data, raw, call, batch, addBatch, buy, approve, buyApproved, shop, stocks, report };
 }
 
 test('English and Tagalog spellings of a vegetable share one key and one display name', () => {
@@ -135,9 +147,8 @@ test('retailer aggregation: one entry per vegetable, sold-out and archived batch
     { id: '4', vegetable_name: 'Carrot', status: 'archived', stock_kg: 0, price_per_kg: 20 },
     { id: '5', vegetable_name: 'Okra', status: 'received', stock_kg: 9, price_per_kg: null },
   ]);
-  assert.deepEqual(products.map(p => [p.vegetable_name, p.available_kg]), [['Squash', 650], ['Cucumber', 0]]);
+  assert.deepEqual(products.map(p => [p.vegetable_name, p.available_kg]), [['Squash', 650]], 'sold-out, archived and received stock is not offered');
   assert.deepEqual(products[0].batch_photos, [photo('s1'), photo('s2')]);
-  assert.deepEqual(products[1].batch_photos, []);
 });
 
 test('batch dates accept real calendar days only', () => {
@@ -146,15 +157,15 @@ test('batch dates accept real calendar days only', () => {
   assert.equal(batchDate('2026-09-20').iso, '2026-09-20T04:00:00.000Z');
 });
 
-test('Scenario A: a single batch sells out, leaves active stock, shows out of stock and never returns to approval', async () => {
+test('Scenario A: a single batch sells out, leaves the retailer list and active stock, and never returns to approval', async () => {
   const api = createApi();
   const a = await api.addBatch('Tomato', 20);
   assert.deepEqual((await api.shop()).map(p => [p.vegetable_name, p.available_kg]), [['Tomato', 20]]);
 
-  assert.equal((await api.buy('Tomato', 20)).statusCode, 201);
+  await api.buyApproved('Tomato', 20);
   assert.equal(api.batch(a.id).stock_kg, 0);
   assert.equal(api.batch(a.id).status, 'sold_out');
-  assert.deepEqual((await api.shop()).map(p => [p.vegetable_name, p.available_kg]), [['Tomato', 0]], 'one Tomato, out of stock');
+  assert.deepEqual(await api.shop(), [], 'a sold-out Tomato is no longer offered to retailers');
   assert.equal((await api.stocks()).length, 0, 'sold-out batch left Stocks (Batches and Products)');
   const rows = (await api.report()).filter(r => r.batch_id === a.id);
   assert.ok(rows.length > 0 && rows.every(r => r.batch_status === 'sold_out'));
@@ -185,7 +196,7 @@ test('Scenarios B, C, E: two batches show as one product, FIFO takes the oldest 
   assert.deepEqual(shop[0].batch_photos, [photo('photo-a'), photo('photo-b')]);
   assert.equal(shop[0].batch_id, undefined, 'retailers never see batch ids');
 
-  assert.equal((await api.buy('Tomato', 30)).statusCode, 201);
+  await api.buyApproved('Tomato', 30);
   assert.deepEqual([api.batch(a.id).stock_kg, api.batch(a.id).status], [0, 'sold_out']);
   assert.deepEqual([api.batch(b.id).stock_kg, api.batch(b.id).status], [9, 'listed']);
   assert.deepEqual(api.data.order_items.map(i => [i.product_id, i.quantity_kg]), [[a.id, 26], [b.id, 4]]);
@@ -201,13 +212,32 @@ test('Scenario D: a new batch after selling out becomes the stock behind the sam
   const api = createApi();
   await api.addBatch('Tomato', 26, { harvestDaysAgo: 5 });
   await api.addBatch('Tomato', 13, { harvestDaysAgo: 4 });
-  assert.equal((await api.buy('Tomato', 39)).statusCode, 201);
-  assert.deepEqual((await api.shop()).map(p => [p.vegetable_name, p.available_kg]), [['Tomato', 0]]);
+  await api.buyApproved('Tomato', 39);
+  assert.deepEqual(await api.shop(), []);
 
   const c = await api.addBatch('Tomato', 18, { harvestDaysAgo: 1 });
   assert.deepEqual((await api.shop()).map(p => [p.vegetable_name, p.available_kg]), [['Tomato', 18]]);
   assert.deepEqual((await api.call('get /api/products/listings', 'hub')).map(l => [l.vegetable_name, l.available_kg, l.status]), [['Tomato', 18, 'Listed']]);
   assert.deepEqual((await api.stocks()).map(s => s.id), [c.id]);
+});
+
+test('an older batch reduced to exactly 0 kg leaves the retailer list; the next FIFO batch takes over as one Tomato entry', async () => {
+  const api = createApi();
+  const first = await api.addBatch('Tomato', 10, { harvestDaysAgo: 5, photoName: 'batch-a' });
+  const next = await api.addBatch('Kamatis', 30, { harvestDaysAgo: 1, photoName: 'batch-b' });
+  const listing = (await api.call('get /api/products/listings', 'hub'))[0];
+  await api.call('put /api/products/:id/reduce-quantity', 'hub', { new_total_kg: 30 }, listing.id);
+  assert.deepEqual([api.batch(first.id).stock_kg, api.batch(first.id).status], [0, 'sold_out']);
+
+  const shop = await api.shop();
+  assert.deepEqual(shop.map(p => [p.vegetable_name, p.available_kg, p.batch_photos]), [['Tomato', 30, [photo('batch-b')]]]);
+  assert.deepEqual((await api.stocks()).map(s => s.id), [next.id], 'the sold-out batch is not back in Stocks');
+  assert.equal((await api.raw('put /api/products/:id/list', 'hub', { price_per_kg: 50 }, first.id)).statusCode, 400);
+  assert.equal((await api.report()).find(r => r.batch_id === first.id).batch_status, 'sold_out', 'it stays in the inventory history');
+
+  await api.buyApproved('Tomato', 12);
+  assert.deepEqual([api.batch(next.id).stock_kg, api.batch(first.id).stock_kg], [18, 0], 'the next batch is drawn');
+  assert.deepEqual((await api.shop()).map(p => [p.vegetable_name, p.available_kg]), [['Tomato', 18]]);
 });
 
 test('Scenario F: farmer, harvest date and pickup date entered on Add New Product reach Stocks and Inventory', async () => {
@@ -227,9 +257,14 @@ test('Scenario F: farmer, harvest date and pickup date entered on Add New Produc
   assert.equal(api.batch(carrot.id).harvest_date, stock.harvest_date);
   assert.equal(api.batch(carrot.id).stock_kg, 12);
 
+  // Only approved, active farmer accounts can be picked, by id.
+  assert.deepEqual((await api.call('get /api/farmers', 'hub')).map(f => [f.id, f.full_name]), [['juan', 'Farmer Juan']]);
+  assert.equal(api.batch(carrot.id).farmer_id, 'juan');
   const base = { vegetable_name: 'Carrot', price_per_kg: 20, stock_kg: 5, batch_photo_url: photo('x'), farmer_id: 'juan', harvest_date: manilaDay(2), pickup_date: manilaDay(1) };
   for (const [change, field] of [
     [{ farmer_id: undefined }, 'farmer_id'], [{ farmer_id: 'retailer' }, 'farmer_id'],
+    [{ farmer_id: 'farmer-pending_approval' }, 'farmer_id'], [{ farmer_id: 'farmer-declined' }, 'farmer_id'],
+    [{ farmer_id: 'farmer-disabled' }, 'farmer_id'],
     [{ harvest_date: '' }, 'harvest_date'], [{ pickup_date: manilaDay(3) }, 'pickup_date'],
     [{ harvest_date: manilaDay(-2), pickup_date: manilaDay(-1) }, 'pickup_date'],
   ]) {
@@ -239,15 +274,20 @@ test('Scenario F: farmer, harvest date and pickup date entered on Add New Produc
   }
 });
 
-test('cancelling an order returns its kg to the exact batches, and a removed product keeps them in Stocks', async () => {
+test('pending orders hold no stock: declining or cancelling leaves every batch unchanged', async () => {
   const api = createApi();
   const a = await api.addBatch('Pechay', 10);
-  const order = (await api.buy('Pechay', 10)).body.order;
-  assert.equal(api.batch(a.id).status, 'sold_out');
-  await api.call('put /api/orders/:id/cancel', 'retailer', {}, order.id);
+  const declined = (await api.buy('Pechay', 10)).body.order;
+  const cancelled = (await api.buy('Pechay', 6)).body.order;
+  assert.deepEqual([api.batch(a.id).stock_kg, api.batch(a.id).status], [10, 'listed'], 'placing orders draws nothing');
+  assert.equal((await api.shop())[0].available_kg, 10);
+  await api.call('put /api/orders/:id/cancel', 'hub', { reason: 'Out of delivery range' }, declined.id);
+  await api.call('put /api/orders/:id/cancel', 'retailer', {}, cancelled.id);
   assert.deepEqual([api.batch(a.id).stock_kg, api.batch(a.id).status], [10, 'listed']);
-  const cancelledRows = (await api.report()).filter(row => row.batch_id === a.id);
-  assert.ok(cancelledRows.every(row => row.quantity_sold === 0 && row.total_amount === 0));
+  assert.equal((await api.raw('put /api/orders/:id/approve', 'hub', {}, declined.id)).statusCode, 400);
+  assert.equal(api.batch(a.id).stock_kg, 10, 'a declined order can never draw stock');
+  const rows = (await api.report()).filter(row => row.batch_id === a.id);
+  assert.ok(rows.every(row => row.quantity_sold === 0 && row.total_amount === 0));
 
   // Remove Product with stock left: the batch goes back to Stocks to be re-added.
   const listing = (await api.call('get /api/products/listings', 'hub'))[0];
@@ -256,19 +296,27 @@ test('cancelling an order returns its kg to the exact batches, and a removed pro
   assert.deepEqual((await api.stocks()).map(s => s.id), [a.id]);
 });
 
-test('cancellation restores archived batch quantity without returning it to Stocks', async () => {
+test('approval draws stock once; competing pending orders cannot oversell', async () => {
   const api = createApi();
   const batch = await api.addBatch('Pechay', 10);
-  const order = (await api.buy('Pechay', 10)).body.order;
-  assert.equal(api.batch(batch.id).status, 'sold_out');
-  await api.call('put /api/products/:id/unlist', 'hub', {}, batch.id);
-  assert.equal(api.batch(batch.id).status, 'archived');
-
-  await api.call('put /api/orders/:id/cancel', 'retailer', {}, order.id);
-  assert.deepEqual([api.batch(batch.id).stock_kg, api.batch(batch.id).status], [10, 'archived']);
-  assert.equal((await api.stocks()).length, 0);
-  assert.equal((await api.shop()).length, 0);
-  assert.equal((await api.report()).find(row => row.batch_id === batch.id).batch_status, 'archived');
+  const first = (await api.buy('Pechay', 8)).body.order;
+  const second = (await api.buy('Pechay', 8)).body.order;
+  assert.equal(api.batch(batch.id).stock_kg, 10, 'both orders can wait as pending');
+  assert.equal((await api.approve(first)).statusCode, 200);
+  assert.equal(api.batch(batch.id).stock_kg, 2);
+  assert.equal((await api.approve(first)).statusCode, 400, 'approving twice is rejected');
+  const blocked = await api.approve(second);
+  assert.equal(blocked.statusCode, 409);
+  assert.equal(blocked.body.error, 'Not enough stock available to approve this order.');
+  assert.equal(api.data.orders.find(o => o.id === second.id).status, 'pending');
+  assert.deepEqual([api.batch(batch.id).stock_kg, api.batch(batch.id).status], [2, 'listed']);
+  assert.equal((await api.shop())[0].available_kg, 2);
+  assert.equal((await api.call('get /api/products/listings', 'hub'))[0].available_kg, 2, 'distributor and retailer agree');
+  // An approved order can no longer be cancelled from the app, so its stock stays drawn.
+  assert.equal((await api.raw('put /api/orders/:id/cancel', 'retailer', {}, first.id)).statusCode, 400);
+  assert.equal(api.batch(batch.id).stock_kg, 2);
+  const [sold] = (await api.report()).filter(row => row.batch_id === batch.id);
+  assert.deepEqual([sold.quantity_sold, sold.order_status], [8, 'approved']);
 });
 
 test('inactive/rejected batches never return to approval; removing received stock preserves history', async () => {

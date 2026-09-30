@@ -34,6 +34,7 @@ const PLAIN_WORDING = [
   [/order id and valid amount/i, () => tr('dashboards.distributor.invalidAmount')],
   [/invalid delivery status transition|status was already updated|order was already updated/i, () => tr('errors.alreadyUpdated')],
   [/cannot cancel order with status/i, () => tr('errors.cantCancel')],
+  [/not enough stock available to approve/i, () => tr('errors.notEnoughStockToApprove')],
   [/cannot reject a delivery with status/i, () => tr('errors.cantRejectDelivery')],
   [/pickup request cannot be (marked on the way|picked up)/i, () => tr('errors.alreadyUpdated')],
   [/only un-?listed batches can be deleted/i, () => tr('errors.unlistFirst')],

@@ -91,7 +91,7 @@ function handler(path, endMarker, deps = {}) {
     verifyToken() {}, validateSchedule, validateProof, proofImageUrl: (url, pod) => proofImageUrl(url, pod, 'demo'),
     ensureProofImage: async () => {}, createNotification: async () => {}, loadDestination, destinationFor, coordinate, missingColumn, STALE_LOCATION_SECONDS, Date, console,
     deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection,
-    cancelExpiredRetailerOrders: async () => {}, ...deps,
+    markOverdueOrdersUnsuccessful: async () => {}, ...deps,
   });
   return callback;
 }
@@ -165,7 +165,7 @@ test('retailer and distributor read endpoints include persisted POD metadata', a
   for (const role of ['retailer', 'distributor']) {
     const selections = [];
     const db = { from(table) {
-      const q = { select(fields) { selections.push(fields); return q; }, eq() { return q; }, order() { return q; }, in() { return q; },
+      const q = { select(fields) { selections.push(fields); return q; }, eq() { return q; }, neq() { return q; }, order() { return q; }, in() { return q; },
         then(resolve) { const delivery = { order_id: 'o', proof_photo_url: original, pod };
           return Promise.resolve({ data: table === 'orders' ? [{ id: 'o', deliveries: [delivery] }] : table === 'deliveries' ? [delivery] : [] }).then(resolve);
         } }; return q;

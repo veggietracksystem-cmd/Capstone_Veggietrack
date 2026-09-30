@@ -76,7 +76,8 @@ export default function OrderDetailsScreen({ navigation, route }) {
 
   const delivery = getDelivery(order);
   const { date, time } = splitSchedule(order.preferred_schedule);
-  const canTrack = order.status !== 'pending' && order.status !== 'cancelled';
+  const closedUndelivered = ['cancelled', 'unsuccessful'].includes(order.status);
+  const canTrack = order.status !== 'pending' && !closedUndelivered;
   const proofUrl = getProofUrl(order);
 
   return (
@@ -96,11 +97,13 @@ export default function OrderDetailsScreen({ navigation, route }) {
               {t('dashboards.retailer.orderCancelledNote')}
               {order.cancellation_reason ? ` — ${order.cancellation_reason}` : ''}
             </Text>
+          ) : order.status === 'unsuccessful' ? (
+            <Text style={styles.cancelledNote}>{t('dashboards.retailer.orderUnsuccessfulNote')}</Text>
           ) : (
             <OrderStepIndicator status={order.status} />
           )}
 
-          {order.status !== 'cancelled' && <RiderEtaCard data={tracking} status={order.status} style={styles.etaCard} />}
+          {!closedUndelivered && <RiderEtaCard data={tracking} status={order.status} style={styles.etaCard} />}
 
           {canTrack && (
             <TouchableOpacity

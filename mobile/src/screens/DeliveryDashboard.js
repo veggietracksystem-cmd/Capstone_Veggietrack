@@ -24,6 +24,7 @@ import StatusBadge from '../components/ui/StatusBadge';
 import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import { showAlert, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
+import { effectiveOrderStatus, isClosedOrderStatus } from '../lib/orderStatus';
 import { colors, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
@@ -49,11 +50,12 @@ export function statusColor(status) {
     case 'in_transit': return colors.purple;
     case 'delivered': return PRIMARY;
     case 'pending': return colors.gold500;
+    case 'unsuccessful': return colors.danger;
     default: return colors.soil600;
   }
 }
 
-const STATUS_LABEL_KEYS = ['pending', 'approved', 'assigned', 'otw', 'picked_up', 'in_transit', 'delivered', 'completed', 'cancelled'];
+const STATUS_LABEL_KEYS = ['pending', 'approved', 'assigned', 'otw', 'picked_up', 'in_transit', 'delivered', 'completed', 'cancelled', 'unsuccessful'];
 
 // Never show raw db values (snake_case) in the UI — always a friendly label.
 export function formatStatus(status) {
@@ -71,11 +73,8 @@ export function getDelivery(order) {
   return order.deliveries || null; // tolerate a single object too
 }
 
-// Effective status prefers the delivery record's status, falling back to the order's.
-export function effectiveStatus(order) {
-  const d = getDelivery(order);
-  return d?.status || order.status || 'pending';
-}
+// Same status every role sees (lib/orderStatus).
+export const effectiveStatus = effectiveOrderStatus;
 
 // Delivery progression ranking used to enable the progress buttons:
 // assigned → picked_up → in_transit → delivered.
@@ -86,7 +85,7 @@ function matchesFilter(order, filter) {
   if (filter === 'all') return true;
   if (filter === 'completed') return s === 'delivered';
   if (filter === 'cancelled') return s === 'cancelled';
-  return s !== 'delivered' && s !== 'cancelled';
+  return !isClosedOrderStatus(s);
 }
 
 // Maps the `filter` route param ('all' | 'active' | 'completed') onto a bottom tab.
@@ -315,12 +314,9 @@ export default function DeliveryDashboard({ navigation, route }) {
     }
   };
 
-  // Deliveries: active (not yet completed/cancelled) vs history (finished).
+  // Deliveries: active (still open) vs history (delivered, cancelled or unsuccessful).
   const activeOrders = orders.filter((o) => matchesFilter(o, 'active'));
-  const historyOrders = orders.filter((o) => {
-    const s = effectiveStatus(o);
-    return s === 'delivered' || s === 'cancelled';
-  });
+  const historyOrders = orders.filter((o) => isClosedOrderStatus(effectiveStatus(o)));
   // Pickups: still actionable (assigned or on the way) vs already picked up (history).
   const activePickups = pickups.filter((p) => p.status === 'assigned' || p.status === 'otw');
   const pickupHistory = pickups.filter((p) => p.status !== 'assigned' && p.status !== 'otw');

@@ -560,6 +560,7 @@
       "deliverTo": "Ihatid sa: {address}",
       "schedule": "Oras: {schedule}",
       "orderCancelledNote": "Nakansela ang order na ito.",
+      "orderUnsuccessfulNote": "Hindi naihatid ang order na ito hanggang sa katapusan ng nakatakdang araw ng paghahatid.",
       "proofOfDelivery": "Patunay ng paghahatid — i-tap para tingnan",
       "cancelOrderBtn": "Kanselahin ang Order",
       "trackOrderBtn": "Subaybayan ang Order",
@@ -599,7 +600,7 @@
     "editQtyBtn": "I-edit ang Dami",
     "removeBtn": "Alisin",
     "removeConfirmTitle": "Alisin ang Produkto",
-    "removeConfirmMessage": "Alisin ang {name} sa iyong Listahan ng Produkto? Babalik sa Stocks ang natitirang stock at maaaring idagdag muli sa ibang pagkakataon. Mananatili sa Kasaysayan ng Imbentaryo ang mga ubos nang batch.",
+    "removeConfirmMessage": "Alisin ang {name} sa iyong Listahan ng Produkto? Babalik sa Stocks ang natitirang stock at maaaring idagdag muli sa ibang pagkakataon. Mananatili sa Imbentaryo ang mga ubos nang batch.",
     "removeFailed": "Nabigong alisin ang produkto",
     "editQtyModalTitle": "I-edit ang Dami — {name}",
     "editQtyHint": "Kasalukuyang {qty} kg ang available. Maglagay ng mas mababang halaga para itama ito (hal. sira o maling bilang).",
@@ -651,7 +652,9 @@
     "viewEditBtn": "Tingnan / I-edit",
     "priceSharedHint": "Nakabenta na ang gulay na ito sa presyong ito. Mapapalitan mo ito sa Listahan ng Produkto.",
     "searchFarmer": "Maghanap ng magsasaka",
-    "noFarmers": "Wala pang naaprubahang magsasaka. Kailangang maaprubahan muna ang account ng magsasaka bago maidagdag ang kanilang stock.",
+    "selectFarmer": "Pumili ng magsasaka",
+    "noFarmerMatch": "Walang magsasakang tumugma sa hinanap mo.",
+    "noFarmers": "Walang available na naaprubahang magsasaka.",
     "farmerRequired": "Piliin ang magsasakang pinagmulan ng batch na ito.",
     "harvestDateRequired": "Piliin ang petsa ng ani.",
     "pickupDateRequired": "Piliin ang petsa ng pagkuha.",
@@ -672,11 +675,8 @@
     "deliveryStatus": "Katayuan ng Delivery"
   },
   "inventoryReport": {
-    "title": "Ulat ng Imbentaryo",
-    "inventoryTitle": "Imbentaryo",
-    "historyTitle": "Kasaysayan",
-    "receivedLabel": "Natanggap",
-    "soldLabel": "Nabenta",
+    "title": "Imbentaryo",
+    "emptyFilterMessage": "Walang batch na tumugma sa filter na ito.",
     "emptyTitle": "Wala pang record",
     "emptyMessage": "Lalabas dito ang aktibidad ng imbentaryo kapag may natanggap at naibentang batch.",
     "exportPdfBtn": "I-export bilang PDF",
@@ -835,7 +835,7 @@
           "numbered": true,
           "items": [
             { "desc": "Buksan ang Orders tab — lalabas ang bagong order sa ilalim ng Pending." },
-            { "desc": "Pindutin ang Approve para tanggapin, o Reject at magbigay ng dahilan para tanggihan — awtomatiko nitong ibabalik ang stock sa imbentaryo mo." },
+            { "desc": "Pindutin ang Approve para tanggapin — sa pag-approve lang ibabawas ang stock sa imbentaryo mo. O pindutin ang Reject at magbigay ng dahilan para tanggihan; walang magbabago sa stock mo." },
             { "desc": "Kapag na-approve na, pumili ng available na rider at pindutin ang Assign Delivery." },
             { "desc": "Subaybayan ang progreso sa ilalim ng Approved, o tingnan ang mga tapos na order sa History." }
           ]
@@ -846,8 +846,9 @@
             { "title": "Pending", "desc": "Bagong order o kahilingan sa pickup na hinihintay ang aksyon mo." },
             { "title": "Approved", "desc": "Tinanggap mo na ang order; handa na itong bigyan ng rider." },
             { "title": "Assigned", "desc": "May rider nang nakatalaga at magsisimula na ang pickup o delivery." },
-            { "title": "Cancelled", "desc": "Tinanggihan o kinansela ang order; naibalik na ang stock nito sa imbentaryo mo." },
-            { "title": "Delivered", "desc": "Kumpleto na ang delivery ng rider." }
+            { "title": "Cancelled", "desc": "Tinanggihan o kinansela ang order. Walang stock na kinuha ang pending na order; ibinabalik sa imbentaryo mo ang stock ng aprubadong order." },
+            { "title": "Delivered", "desc": "Kumpleto na ang delivery ng rider." },
+            { "title": "Unsuccessful Delivery", "desc": "Hindi naihatid ang order hanggang sa katapusan ng nakatakdang araw nito. Ibinabalik sa imbentaryo mo ang stock na hindi pa nakukuha ng rider." }
           ]
         },
         {
@@ -900,7 +901,8 @@
             { "title": "Approved / Assigned", "desc": "Tinanggap na, at may naka-assign nang rider." },
             { "title": "In Transit", "desc": "Papunta na ang rider mo dala ang order mo." },
             { "title": "Delivered", "desc": "Dumating na ang order mo." },
-            { "title": "Cancelled", "desc": "Kinansela ang order — walang bayad, at awtomatikong naibalik ang stock." }
+            { "title": "Cancelled", "desc": "Kinansela ang order — walang bayad." },
+            { "title": "Unsuccessful Delivery", "desc": "Hindi naihatid ang order hanggang sa katapusan ng nakatakdang araw nito." }
           ]
         },
         {
@@ -954,7 +956,8 @@
             { "title": "On the Way / In Transit", "desc": "Nagsimula ka nang pumunta sa pickup o delivery." },
             { "title": "Picked Up", "desc": "Nakuha mo na ang ani mula sa magsasaka." },
             { "title": "Completed / Delivered", "desc": "Tapos na at naitala ang gawain." },
-            { "title": "Cancelled", "desc": "Kinansela ang gawain at hindi mo na ito responsibilidad." }
+            { "title": "Cancelled", "desc": "Kinansela ang gawain at hindi mo na ito responsibilidad." },
+            { "title": "Unsuccessful Delivery", "desc": "Hindi natapos ang paghahatid hanggang sa katapusan ng nakatakdang araw nito at sarado na ito." }
           ]
         },
         {
@@ -979,7 +982,7 @@
       },
       {
         "q": "Ano ang mangyayari kung kanselado ang isang order?",
-        "a": "Kapag kinansela ng retailer ang isang hindi pa aprubadong order, agad na ibinabalik ang stock ng produkto sa available na imbentaryo ng distributor."
+        "a": "Ibinabawas lang ang stock sa imbentaryo ng distributor kapag na-approve ang order, kaya walang nagbabago sa stock kapag kinansela o tinanggihan ang order na hindi pa aprubado. Kapag kinansela ang aprubadong order, ibinabalik ang stock nito sa mga batch na pinagkunan."
       },
       {
         "q": "Bakit iisa lang ang maaaring Distributor account?",
@@ -1138,6 +1141,7 @@
     "needLocation": "Kailangan namin ang iyong kasalukuyang lokasyon. Pakirefresh ito at subukang muli.",
     "alreadyUpdated": "Na-update na ito. I-pull down para mag-refresh at subukang muli.",
     "cantCancel": "Hindi na maaaring kanselahin ang order na ito.",
+    "notEnoughStockToApprove": "Kulang ang available na stock para i-approve ang order na ito.",
     "cantRejectDelivery": "Hindi na maaaring ibalik ang delivery na ito.",
     "unlistFirst": "Pakialis muna ang batch na ito sa listahan ng mga produkto."
   },
@@ -1287,7 +1291,8 @@
     "received": "Natanggap",
     "listed": "Nakalista",
     "sold_out": "Ubos na",
-    "archived": "Naka-archive"
+    "archived": "Naka-archive",
+    "unsuccessful": "Hindi Naihatid"
   },
   "acct": {
     "title": "Pamamahala ng User",

@@ -5,6 +5,7 @@ import { formatEta } from '../lib/formatEta';
 import { coordinate, routePoints, routeLength, routeProgress, positionAlong } from '../lib/trackingGeometry';
 import { acquireDevicePosition } from '../lib/deviceLocation';
 import { activeJourney, isLivePosition, liveEtaSeconds } from '../lib/trackingJourney';
+import { isClosedOrderStatus } from '../lib/orderStatus';
 import { useTranslation } from '../i18n/useTranslation';
 
 export { acquireDevicePosition } from '../lib/deviceLocation';
@@ -54,7 +55,7 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
   }, [demo, length]);
   const shownRider = demo ? positionAlong(points, demoMetres) : actualRider;
   const progress = useMemo(() => routeProgress(points, shownRider), [points, shownRider?.latitude, shownRider?.longitude]);
-  const ended = ['delivered', 'cancelled'].includes(trackingData?.status);
+  const ended = isClosedOrderStatus(trackingData?.status);
   const live = !ended && isLivePosition(actualPosition, now);
   const offRoute = !!journey.route && !demo && progress.offRoute != null && progress.offRoute > 150;
   const remainingKm = (journey.route || demo) && points.length > 1 && shownRider && !offRoute ? progress.remaining / 1000 : null;
@@ -65,7 +66,7 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
     : plannedSeconds ? t('cmp.etaEstimated', { eta: plannedSeconds })
     : !ended && !offRoute && !demo && mode === 'tracking' && phase === 'delivery' ? t('cmp.etaWaiting')
     : t('cmp.etaUnavailable');
-  const label = demo ? t('cmp.demoLabel') : ended ? (['delivered', 'completed', 'cancelled', 'picked_up'].includes(trackingData.status) ? t(`status.${trackingData.status}`) : String(trackingData.status).replace(/_/g, ' ')) :
+  const label = demo ? t('cmp.demoLabel') : ended ? (['delivered', 'completed', 'cancelled', 'unsuccessful', 'picked_up'].includes(trackingData.status) ? t(`status.${trackingData.status}`) : String(trackingData.status).replace(/_/g, ' ')) :
     live ? t('cmp.liveGps') : actualRider ? t('cmp.lastKnown') : t('cmp.waitingGps');
   const accuracy = demo ? null : numberOrNull(actualPosition?.accuracy);
   useEffect(() => { onMetrics?.({ distanceKm: remainingKm, etaSeconds, demo, offRoute, live }); }, [remainingKm, etaSeconds, demo, offRoute, live, onMetrics]);

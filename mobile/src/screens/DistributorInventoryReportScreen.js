@@ -62,14 +62,40 @@ const COLUMNS_META = [
   { key: 'order_status', labelKey: 'inventoryReport.colOrderStatus', width: 100, badge: true },
 ];
 
-const isCompletedBatch = (r) => r.batch_status === 'sold_out' || r.batch_status === 'archived';
+// Inventory filters over the batch lifecycle (backend/lib/batches.js): Active
+// batches still have stock (received or listed); every other batch has finished
+// its lifecycle and is listed under Sold out, including sold-out batches removed
+// from the Product List (stored as 'archived').
+const FILTERS = [
+  { value: 'active', labelKey: 'status.active' },
+  { value: 'sold_out', labelKey: 'status.sold_out' },
+];
+export const filterGroupOf = (r) => (['received', 'listed'].includes(r.batch_status) ? 'active' : 'sold_out');
+
+// Columns describing the batch itself; the rest describe one consuming order.
+const BATCH_COLUMNS = ['product', 'batch_id', 'batch_photo', 'batch_status', 'quantity_received', 'remaining_quantity',
+  'price_per_kg', 'farmer_name', 'pickup_rider_name', 'harvest_date', 'pickup_date'];
+
+// The report has one row per batch and order. Rows of a batch stay together and
+// only the first shows the batch details, so each batch is listed once.
+export function inventoryEntries(rows, filter) {
+  const groups = new Map();
+  rows.forEach((r, i) => {
+    if (filterGroupOf(r) !== filter) return;
+    const key = r.batch_id || `row-${i}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  });
+  return [...groups.values()].flatMap((batchRows) => batchRows.map((row, i) => ({ row, continued: i > 0 })));
+}
 
 // Payment statuses arrive as title-cased labels.
 const statusCode = (value) => (value ? String(value).toLowerCase() : null);
 
 export function formatRow(r, language, translate) {
   const codes = {
-    batch_status: statusCode(r.batch_status),
+    // A removed sold-out batch ('archived') reads as Sold out.
+    batch_status: r.batch_status === 'archived' ? 'sold_out' : statusCode(r.batch_status),
     payment_status: statusCode(r.payment_status),
     order_status: statusCode(r.order_status),
   };
@@ -96,8 +122,17 @@ export function formatRow(r, language, translate) {
   };
 }
 
-function PhotoCell({ uri, label, onOpen }) {
-  if (!uri) return <Text style={styles.reportCell}>—</Text>;
+// A further order of the batch above: batch details are left blank.
+export function formatEntry({ row, continued }, language, translate) {
+  const formatted = { ...formatRow(row, language, translate), continued };
+  if (!continued) return formatted;
+  BATCH_COLUMNS.forEach((key) => { formatted[key] = key === 'batch_photo' ? null : ''; });
+  formatted.codes = { ...formatted.codes, batch_status: null };
+  return formatted;
+}
+
+function PhotoCell({ uri, label, onOpen, blank }) {
+  if (!uri) return <Text style={styles.reportCell}>{blank ? '' : '—'}</Text>;
   return (
     <TouchableOpacity onPress={() => onOpen(uri)} accessibilityRole="imagebutton" accessibilityLabel={label}>
       <RemoteImage uri={uri} style={styles.photoThumb} resizeMode="cover" />
@@ -118,11 +153,11 @@ function ReportTable({ columns, rows, emptyLabel, onOpenPhoto }) {
           <Text style={styles.emptySubtitle}>{emptyLabel}</Text>
         ) : (
           rows.map((r, i) => (
-            <View key={i} style={styles.reportRow}>
+            <View key={i} style={[styles.reportRow, r.continued && styles.reportRowContinued]}>
               {columns.map((c) => (
                 <View key={c.key} style={{ width: c.width, paddingRight: 6 }}>
                   {c.photo ? (
-                    <PhotoCell uri={r[c.key]} label={c.label} onOpen={onOpenPhoto} />
+                    <PhotoCell uri={r[c.key]} label={c.label} onOpen={onOpenPhoto} blank={r.continued} />
                   ) : c.badge && r.codes?.[c.key] ? (
                     <StatusBadge status={r.codes[c.key]} label={r[c.key]} />
                   ) : (
@@ -153,7 +188,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [section, setSection] = useState('inventory');
+  const [filter, setFilter] = useState('active');
   const [exporting, setExporting] = useState(false);
   const [photoUri, setPhotoUri] = useState(null);
 
@@ -188,21 +223,16 @@ export default function DistributorInventoryReportScreen({ navigation }) {
   const columns = COLUMNS_META.map((c) => ({ key: c.key, label: t(c.labelKey), width: c.width, badge: c.badge, photo: c.photo }));
   // The PDF is text only, so the photo column is left out of exports.
   const exportColumns = columns.filter((c) => !c.photo);
-  const isHistory = (r) => r.order_status === 'delivered' || isCompletedBatch(r);
-  const inventoryRows = rows.filter((r) => !isHistory(r));
-  const historyRows = rows.filter(isHistory);
-  const activeRows = section === 'inventory' ? inventoryRows : historyRows;
-  const title = section === 'inventory' ? t('inventoryReport.inventoryTitle') : t('inventoryReport.historyTitle');
-
-  // Count received stock once when a batch appears in several orders.
-  const receivedByBatch = new Map(activeRows.map((r, i) => [r.batch_id || i, Number(r.quantity_received) || 0]));
-  const receivedTotal = [...receivedByBatch.values()].reduce((sum, kg) => sum + kg, 0);
-  const soldTotal = activeRows.reduce((sum, r) => sum + (Number(r.quantity_sold) || 0), 0);
+  // Current and past batches in one screen, split by batch status.
+  const filterOptions = FILTERS.map((f) => ({ value: f.value, label: t(f.labelKey) }));
+  const entries = inventoryEntries(rows, filter);
+  const filterLabel = filterOptions.find((option) => option.value === filter)?.label;
+  const title = `${t('inventoryReport.title')} — ${filterLabel}`;
 
   const handleExport = async (doPrint) => {
     setExporting(true);
     try {
-      const formatted = activeRows.map((r) => formatRow(r, language, t));
+      const formatted = entries.map((entry) => formatEntry(entry, language, t));
       if (doPrint) await printReport(title, exportColumns, formatted);
       else await exportReportPdf(title, exportColumns, formatted);
     } catch (err) {
@@ -225,12 +255,9 @@ export default function DistributorInventoryReportScreen({ navigation }) {
 
       <SegmentedTabs
         style={styles.tabRow}
-        value={section}
-        onChange={setSection}
-        options={[
-          { value: 'inventory', label: t('inventoryReport.inventoryTitle') },
-          { value: 'history', label: t('inventoryReport.historyTitle') },
-        ]}
+        value={filter}
+        onChange={setFilter}
+        options={filterOptions}
       />
 
       {loading ? (
@@ -240,28 +267,18 @@ export default function DistributorInventoryReportScreen({ navigation }) {
           contentContainerStyle={[styles.content, { paddingBottom: navSpace }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          <View style={styles.summaryGrid}>
-            <View style={styles.statTile}>
-              <Text style={styles.statTileLabel}>{t('inventoryReport.receivedLabel')}</Text>
-              <Text style={styles.statTileValue}>{receivedTotal} kg</Text>
-            </View>
-            <View style={styles.statTile}>
-              <Text style={styles.statTileLabel}>{t('inventoryReport.soldLabel')}</Text>
-              <Text style={styles.statTileValue}>{soldTotal} kg</Text>
-            </View>
-          </View>
-
-          {activeRows.length === 0 ? (
-            <EmptyState iconElement={<Ionicons name="bar-chart-outline" size={rf(44)} color={colors.inkFaint} />} title={t('inventoryReport.emptyTitle')} message={t('inventoryReport.emptyMessage')} />
+          {entries.length === 0 ? (
+            <EmptyState iconElement={<Ionicons name="bar-chart-outline" size={rf(44)} color={colors.inkFaint} />} title={t('inventoryReport.emptyTitle')}
+              message={rows.length === 0 ? t('inventoryReport.emptyMessage') : t('inventoryReport.emptyFilterMessage')} />
           ) : (
-            <ReportTable columns={columns} rows={activeRows.map((r) => formatRow(r, language, t))} emptyLabel={t('inventoryReport.emptyTitle')} onOpenPhoto={setPhotoUri} />
+            <ReportTable columns={columns} rows={entries.map((entry) => formatEntry(entry, language, t))} emptyLabel={t('inventoryReport.emptyTitle')} onOpenPhoto={setPhotoUri} />
           )}
 
           <View style={styles.reportActionsRow}>
             <TouchableOpacity
               style={[styles.reportActionBtn, exporting && styles.btnDisabled]}
               onPress={() => handleExport(false)}
-              disabled={exporting || activeRows.length === 0}
+              disabled={exporting || entries.length === 0}
               activeOpacity={0.8}
             >
               <Ionicons name="download-outline" size={rf(15)} color={PRIMARY} />
@@ -270,7 +287,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
             <TouchableOpacity
               style={[styles.reportActionBtn, exporting && styles.btnDisabled]}
               onPress={() => handleExport(true)}
-              disabled={exporting || activeRows.length === 0}
+              disabled={exporting || entries.length === 0}
               activeOpacity={0.8}
             >
               <Ionicons name="print-outline" size={rf(15)} color={PRIMARY} />
@@ -297,15 +314,12 @@ const styles = StyleSheet.create({
 
   tabRow: { marginHorizontal: spacing.lg, marginTop: spacing.lg, marginBottom: 0 },
 
-  summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  statTile: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14 },
-  statTileLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft },
-  statTileValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: colors.ink, marginTop: 4 },
-
   reportWrap: { borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, padding: 6 },
   reportHeaderRow: { flexDirection: 'row', borderBottomWidth: 1.5, borderBottomColor: colors.border, paddingVertical: 6, paddingHorizontal: 6 },
   reportHeaderCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3, paddingRight: 6 },
   reportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
+  // Another order of the batch in the row above.
+  reportRowContinued: { backgroundColor: colors.bgScreen },
   reportCell: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.ink },
   photoThumb: { width: 40, height: 40, borderRadius: 8, backgroundColor: colors.leaf50 },
   emptySubtitle: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', padding: 16, textAlign: 'center' },

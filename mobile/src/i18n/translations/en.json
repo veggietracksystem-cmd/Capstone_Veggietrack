@@ -560,6 +560,7 @@
       "deliverTo": "Deliver to: {address}",
       "schedule": "Schedule: {schedule}",
       "orderCancelledNote": "This order was cancelled.",
+      "orderUnsuccessfulNote": "This order was not delivered by the end of its scheduled delivery day.",
       "proofOfDelivery": "Proof of delivery — tap to view",
       "cancelOrderBtn": "Cancel Order",
       "trackOrderBtn": "Track Order",
@@ -599,7 +600,7 @@
     "editQtyBtn": "Edit Qty",
     "removeBtn": "Remove",
     "removeConfirmTitle": "Remove Product",
-    "removeConfirmMessage": "Remove {name} from your Product List? Any remaining stock moves back to Stocks and can be re-added later. Sold-out batches stay in Inventory History.",
+    "removeConfirmMessage": "Remove {name} from your Product List? Any remaining stock moves back to Stocks and can be re-added later. Sold-out batches stay in Inventory.",
     "removeFailed": "We couldn’t remove this product. Please try again.",
     "editQtyModalTitle": "Edit Quantity — {name}",
     "editQtyHint": "Currently {qty} kg available. Enter a lower amount to correct it (e.g. spoilage or a miscount).",
@@ -651,7 +652,9 @@
     "viewEditBtn": "View / Edit",
     "priceSharedHint": "This vegetable is already on sale at this price. You can change it in Product List.",
     "searchFarmer": "Search farmer",
-    "noFarmers": "No approved farmers yet. A farmer's account must be approved before you can add their stock.",
+    "selectFarmer": "Select a farmer",
+    "noFarmerMatch": "No farmer matches your search.",
+    "noFarmers": "No approved farmers available.",
     "farmerRequired": "Select the farmer who supplied this batch.",
     "harvestDateRequired": "Select the harvest date.",
     "pickupDateRequired": "Select the pickup date.",
@@ -672,11 +675,8 @@
     "deliveryStatus": "Delivery Status"
   },
   "inventoryReport": {
-    "title": "Inventory Report",
-    "inventoryTitle": "Inventory",
-    "historyTitle": "History",
-    "receivedLabel": "Received",
-    "soldLabel": "Sold",
+    "title": "Inventory",
+    "emptyFilterMessage": "No batches match this filter.",
     "emptyTitle": "No records yet",
     "emptyMessage": "Inventory activity will appear here once batches are received and sold.",
     "exportPdfBtn": "Export PDF",
@@ -835,7 +835,7 @@
           "numbered": true,
           "items": [
             { "desc": "Open the Orders tab — new orders appear under Pending." },
-            { "desc": "Tap Approve to accept it, or Reject and give a reason to decline it — this automatically returns the stock to your inventory." },
+            { "desc": "Tap Approve to accept it — the stock is taken from your inventory only when you approve. Or tap Reject and give a reason to decline it; your stock stays the same." },
             { "desc": "Once approved, choose an available rider and tap Assign Delivery." },
             { "desc": "Track its progress under Approved, or view completed orders under History." }
           ]
@@ -846,8 +846,9 @@
             { "title": "Pending", "desc": "A new order or pick-up request waiting for your action." },
             { "title": "Approved", "desc": "You've accepted the order; it's ready for a rider to be assigned." },
             { "title": "Assigned", "desc": "A rider has been assigned and will start the pick-up or delivery." },
-            { "title": "Cancelled", "desc": "The order was rejected or cancelled; its stock has already been returned to your inventory." },
-            { "title": "Delivered", "desc": "The rider has completed the delivery." }
+            { "title": "Cancelled", "desc": "The order was rejected or cancelled. A pending order never took stock; an approved order's stock goes back to your inventory." },
+            { "title": "Delivered", "desc": "The rider has completed the delivery." },
+            { "title": "Unsuccessful Delivery", "desc": "The order was not delivered by the end of its scheduled day. Stock not yet picked up goes back to your inventory." }
           ]
         },
         {
@@ -900,7 +901,8 @@
             { "title": "Approved / Assigned", "desc": "Accepted, and a rider has been assigned." },
             { "title": "In Transit", "desc": "Your rider is on the way with your order." },
             { "title": "Delivered", "desc": "Your order has arrived." },
-            { "title": "Cancelled", "desc": "The order was cancelled — no charge, and stock was returned automatically." }
+            { "title": "Cancelled", "desc": "The order was cancelled — no charge." },
+            { "title": "Unsuccessful Delivery", "desc": "The order was not delivered by the end of its scheduled day." }
           ]
         },
         {
@@ -954,7 +956,8 @@
             { "title": "On the Way / In Transit", "desc": "You've started heading to the pick-up or delivery." },
             { "title": "Picked Up", "desc": "You've collected the harvest from the farmer." },
             { "title": "Completed / Delivered", "desc": "The task is finished and recorded." },
-            { "title": "Cancelled", "desc": "The task was cancelled and is no longer yours." }
+            { "title": "Cancelled", "desc": "The task was cancelled and is no longer yours." },
+            { "title": "Unsuccessful Delivery", "desc": "The delivery was not completed by the end of its scheduled day and is closed." }
           ]
         },
         {
@@ -979,7 +982,7 @@
       },
       {
         "q": "What happens if an order is cancelled?",
-        "a": "When a retailer cancels an unapproved order, the product stock is immediately restored back to the distributor's available inventory."
+        "a": "Stock is only taken from the distributor's inventory when the order is approved, so cancelling or rejecting an order that hasn't been approved leaves the stock unchanged. If an approved order is cancelled, its stock goes back to the batches it came from."
       },
       {
         "q": "Why can there only be one Distributor account?",
@@ -1138,6 +1141,7 @@
     "needLocation": "We need your current location. Please refresh it and try again.",
     "alreadyUpdated": "This was already updated. Pull down to refresh and try again.",
     "cantCancel": "This order can’t be cancelled anymore.",
+    "notEnoughStockToApprove": "Not enough stock available to approve this order.",
     "cantRejectDelivery": "This delivery can’t be returned anymore.",
     "unlistFirst": "Please remove this batch from the product list first."
   },
@@ -1287,7 +1291,8 @@
     "received": "Received",
     "listed": "Listed",
     "sold_out": "Sold out",
-    "archived": "Archived"
+    "archived": "Archived",
+    "unsuccessful": "Unsuccessful Delivery"
   },
   "acct": {
     "title": "User Management",

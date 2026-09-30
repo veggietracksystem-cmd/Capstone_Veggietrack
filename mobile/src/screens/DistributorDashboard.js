@@ -27,6 +27,7 @@ import CustomModal from '../components/CustomModal';
 import ImageViewerModal from '../components/ImageViewerModal';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
+import { effectiveOrderStatus } from '../lib/orderStatus';
 import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { getVegetableTile } from '../lib/vegetableIcons';
@@ -263,6 +264,8 @@ export default function DistributorDashboard({ navigation, route }) {
       setOrders((prev) =>
         prev.map((o) => (o.id === order.id ? { ...o, status: 'approved' } : o))
       );
+      // Approval is when stock leaves the batches, so the product list changes now.
+      refreshProducts.current?.();
       if (personnel.length === 0) await loadPersonnel();
       showAlert(t('dashboards.distributor.orderApprovedTitle'), t('dashboards.distributor.orderApprovedMessage', { id: shortId(order.id) }));
     } catch (err) {
@@ -867,11 +870,8 @@ function getDelivery(order) {
   return order.deliveries || null;
 }
 
-// Effective status prefers the delivery record's status, falling back to the order's.
-function effectiveStatus(order) {
-  const d = getDelivery(order);
-  return d?.status || order.status || 'pending';
-}
+// Same status every role sees (lib/orderStatus).
+const effectiveStatus = effectiveOrderStatus;
 
 function getProofUrl(order) {
   return getDelivery(order)?.proof_photo_url || null;
@@ -912,7 +912,8 @@ function OrdersTab({
     (o) => ['approved', 'assigned', 'picked_up', 'in_transit'].includes(effectiveStatus(o)) && o.delivery_personnel_id
   );
   const cancelled = activeOrders.filter((o) => o.status === 'cancelled');
-  const history = activeOrders.filter((o) => effectiveStatus(o) === 'delivered');
+  // Finished deliveries: delivered, or unsuccessful (not delivered by the end of its day).
+  const history = activeOrders.filter((o) => ['delivered', 'unsuccessful'].includes(effectiveStatus(o)));
 
   const submitReject = async () => {
     if (!reasonInput.trim() || busyOrderId != null) return;
@@ -1094,7 +1095,9 @@ function OrdersTab({
           <View key={order.id} style={styles.orderCard}>
             <View style={styles.orderHeader}>
               <Text style={styles.orderId}>{t('dashboards.distributor.orderNumber', { id: shortId(order.id) })}</Text>
-              <StatusBadge status="delivered" label={t('dashboards.distributor.ordersSub.history')} />
+              {effectiveStatus(order) === 'unsuccessful'
+                ? <StatusBadge status="unsuccessful" />
+                : <StatusBadge status="delivered" label={t('dashboards.distributor.ordersSub.history')} />}
             </View>
             <Text style={styles.rowMeta}>{t('dashboards.distributor.totalLabel', { amount: peso(order.total_amount) })}</Text>
             <Text style={styles.rowMeta}>

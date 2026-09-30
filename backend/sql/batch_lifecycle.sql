@@ -45,17 +45,18 @@ ALTER TABLE public.products ADD CONSTRAINT products_active_batch_has_stock
   CHECK (status IS NULL OR status NOT IN ('received', 'listed') OR stock_kg > 0);
 
 -- 5. Order cancellation / rollback restore (replaces the stock_safety.sql
---    version). Returned stock goes back to the batch it came from:
+--    version; same as inventory_transactions.sql). Returned stock goes back to
+--    the batch it came from:
 --      sold_out -> listed    back on sale under the same product
---      archived -> received  the product was removed, so the stock waits in Stocks
---    Any other status is kept.
+--    An archived (removed) batch stays archived: a completed batch never returns
+--    to Stocks for approval. Any other status is kept.
 CREATE OR REPLACE FUNCTION public.restore_product_stock(p_product_id uuid, p_quantity numeric)
 RETURNS public.products LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE result public.products;
 BEGIN
   IF p_quantity IS NULL OR p_quantity <= 0 OR p_quantity::text IN ('NaN', 'Infinity', '-Infinity') THEN RETURN NULL; END IF;
   UPDATE public.products SET stock_kg = stock_kg + p_quantity,
-    status = CASE status WHEN 'sold_out' THEN 'listed' WHEN 'archived' THEN 'received' ELSE status END,
+    status = CASE status WHEN 'sold_out' THEN 'listed' ELSE status END,
     updated_at = clock_timestamp()
   WHERE id = p_product_id
   RETURNING * INTO result;

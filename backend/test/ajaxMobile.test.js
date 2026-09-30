@@ -84,15 +84,33 @@ test('farmer harvest add sends once on rapid taps and releases on failure withou
   assert.equal(busy, false); assert.equal(resets, 0);
 });
 
-test('distributor approval updates the affected order only and prevents overlapping writes', async () => {
-  const pending = deferred(); let writes = 0, rows = [{ id: 'a', status: 'pending' }, { id: 'b', status: 'pending' }];
+test('distributor approval updates the affected order only, refreshes stock and prevents overlapping writes', async () => {
+  const pending = deferred(); let writes = 0, stockRefreshes = 0, rows = [{ id: 'a', status: 'pending' }, { id: 'b', status: 'pending' }];
   const approve = handler('DistributorDashboard', 'approveOrder', {
     ...base(), api: { put: () => { writes++; return pending.promise; } },
     personnel: [{}], setBusyOrderId() {}, setOrders: fn => { rows=fn(rows); },
+    refreshProducts: { current: () => { stockRefreshes++; } },
   });
   const first = approve(rows[0]); await approve(rows[0]); assert.equal(writes, 1);
   pending.resolve({}); await first;
   assert.equal(rows[0].status, 'approved'); assert.equal(rows[1].status, 'pending');
+  assert.equal(stockRefreshes, 1, 'approval draws stock, so the product list reloads');
+});
+
+test('every role derives the same order status; closed statuses beat a stale delivery record', () => {
+  const { effectiveOrderStatus, isClosedOrderStatus } = load('lib/orderStatus.js');
+  const order = (status, deliveryStatus) => ({ status, deliveries: deliveryStatus ? [{ status: deliveryStatus }] : [] });
+  assert.equal(effectiveOrderStatus(order('unsuccessful', 'assigned')), 'unsuccessful');
+  assert.equal(effectiveOrderStatus(order('cancelled', 'pending')), 'cancelled');
+  assert.equal(effectiveOrderStatus(order('approved', 'assigned')), 'assigned', 'open orders show delivery progress');
+  assert.equal(effectiveOrderStatus(order('pending')), 'pending');
+  assert.deepEqual(['delivered', 'cancelled', 'unsuccessful', 'in_transit'].map(isClosedOrderStatus), [true, true, true, false]);
+  // Distributor, rider and retailer screens share this helper instead of their own copies.
+  for (const screen of fs.readdirSync(path.join(root, 'screens')).filter(f => f.endsWith('.js'))) {
+    assert.doesNotMatch(fs.readFileSync(path.join(root, 'screens', screen), 'utf8'), /function effectiveStatus\(/, screen);
+  }
+  const statuses = ['en', 'tl'].map(lang => JSON.parse(fs.readFileSync(path.join(root, `i18n/translations/${lang}.json`), 'utf8')).status.unsuccessful);
+  assert.deepEqual(statuses, ['Unsuccessful Delivery', 'Hindi Naihatid']);
 });
 
 test('retailer checkout sends once and preserves cart on server rejection', async () => {

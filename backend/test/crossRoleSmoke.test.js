@@ -1,4 +1,4 @@
-const { inventoryRpcStub } = require('./inventoryRpcStub');
+const { inventoryRpcStub, syncOrderStock } = require('./inventoryRpcStub');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -30,7 +30,11 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
       then(resolve, reject) {
         let result = rows.filter(row => filters.every(filter => filter(row)));
         if (mode === 'insert') { result = (Array.isArray(values) ? values : [values]).map(value => ({ id: `id-${++sequence}`, recorded_at: new Date().toISOString(), ...value })); rows.push(...result); }
-        if (mode === 'update') result.forEach(row => Object.assign(row, values));
+        if (mode === 'update') for (const row of result) {
+          const before = { ...row }; Object.assign(row, values);
+          const error = table === 'orders' && syncOrderStock(data, before, row);
+          if (error) { Object.assign(row, before); return Promise.resolve({ data: null, error }).then(resolve, reject); }
+        }
         const joined = result.map(row => table === 'pickup_requests' ? { ...row, harvests: data.harvests?.find(h => h.id === row.harvest_id) } : { ...row });
         return Promise.resolve({ data: singular ? joined[0] || null : joined, error: null }).then(resolve, reject);
       },
@@ -131,9 +135,15 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
     delivery_latitude: 14.1, delivery_longitude: 121.2,
     preferred_schedule: new Date(Date.now() + 86400000).toISOString(),
   })).order;
-  assert.equal(data.products[0].stock_kg, 2); assert.equal(data.order_items[0].product_id, batch.id);
+  // A pending order holds no stock; approval draws it from the batch once.
+  assert.equal(data.products[0].stock_kg, 8); assert.equal(data.order_items[0].product_id, null);
+  assert.equal((await call('get /api/products/available', 'retailer'))[0].available_kg, 8);
   assert.equal(data.orders[0].delivery_latitude, 14.1); assert.equal(data.orders[0].total_amount, 120);
   await call('put /api/orders/:id/approve', 'hub', {}, order.id);
+  assert.equal(data.products[0].stock_kg, 2); assert.equal(data.order_items[0].product_id, batch.id);
+  assert.equal((await call('get /api/products/available', 'retailer'))[0].available_kg, 2);
+  assert.equal((await raw('put /api/orders/:id/approve', 'hub', {}, order.id)).statusCode, 400);
+  assert.equal(data.products[0].stock_kg, 2, 'a repeated approval draws nothing');
   assert.equal(data.deliveries[0].order_id, order.id); assert.equal(data.deliveries[0].status, 'pending');
 
   // Order-level rider assignment idempotency: repeated assignment requests

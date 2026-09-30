@@ -26,6 +26,7 @@ import { getVegetableTile, getVegetableIcon } from '../lib/vegetableIcons';
 import { localizeVegetableName, vegetableKey } from '../lib/vegetableNames';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
+import { isClosedOrderStatus } from '../lib/orderStatus';
 import { colors, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { useAutoSync } from '../sync/SyncProvider';
@@ -43,7 +44,8 @@ export function statusColor(status) {
     case 'assigned': return colors.info;
     case 'in_transit': return colors.purple;
     case 'delivered': return PRIMARY;
-    case 'cancelled': return colors.danger;
+    case 'cancelled':
+    case 'unsuccessful': return colors.danger;
     default: return colors.soil600;
   }
 }
@@ -445,7 +447,7 @@ function HomeTab({ loading, products, orders, cart, searchQuery, setSearchQuery,
       .some((name) => String(name || '').toLowerCase().includes(query))
   );
 
-  const activeOrder = (orders || []).find((o) => o.status !== 'delivered' && o.status !== 'cancelled');
+  const activeOrder = (orders || []).find((o) => !isClosedOrderStatus(o.status));
 
   return (
     <View>

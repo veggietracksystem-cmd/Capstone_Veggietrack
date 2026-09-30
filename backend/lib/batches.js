@@ -68,8 +68,8 @@ function planFifoDraw(batches, quantity) {
 }
 
 // One entry per vegetable across its Product List batches. Only sellable batches
-// count toward stock, so a fully sold-out vegetable remains as a 0 kg entry.
-// In-stock vegetables are listed first.
+// count toward stock, so a fully sold-out vegetable is a 0 kg entry (kept on the
+// distributor's Product List as Sold Out). In-stock vegetables are listed first.
 function groupProducts(batches) {
   const groups = new Map();
   for (const batch of batches.filter(isOnProductList).sort(compareFifo)) {
@@ -92,9 +92,10 @@ function groupProducts(batches) {
   return [...products.filter((p) => p.available_kg > 0), ...products.filter((p) => !(p.available_kg > 0))];
 }
 
-// Retailer entry: no batch id, farmer or dates; photos of batches on sale, oldest first.
+// Retailer entry: no batch id, farmer or dates; photos of batches on sale, oldest
+// first. Only vegetables with sellable stock are offered; sold-out ones leave the list.
 function retailerProducts(batches) {
-  return groupProducts(batches).map(({ vegetable_name, price_per_kg, available_kg, sellable }) => {
+  return groupProducts(batches).filter((product) => product.available_kg > 0).map(({ vegetable_name, price_per_kg, available_kg, sellable }) => {
     const batch_photos = [...new Set(sellable.map((batch) => batch.batch_photo_url).filter(Boolean))];
     return { vegetable_name, price_per_kg, available_kg, batch_photo_url: batch_photos[0] || null, batch_photos };
   });

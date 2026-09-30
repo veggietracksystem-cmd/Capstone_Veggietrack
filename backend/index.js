@@ -40,11 +40,12 @@ const supabaseAdmin = createClient(
 configureAuth(supabaseAdmin);
 mountAccountRoutes(app, supabaseAdmin);
 
-// Cancels pending orders whose delivery schedule has passed. Uses the same RPC as
-// the pg_cron job so each order's stock is returned to the batches it came from.
-async function cancelExpiredRetailerOrders() {
+// Marks orders not delivered by the end of their scheduled day as 'unsuccessful'
+// before orders are read, so every role sees the same status even between the
+// pg_cron runs. Same RPC as the job; safe to repeat (sql/inventory_transactions.sql).
+async function markOverdueOrdersUnsuccessful() {
   const { error } = await supabaseAdmin.rpc('cancel_expired_retailer_orders');
-  if (error) console.error('Could not expire overdue orders:', error.message);
+  if (error) console.error('Could not update overdue orders:', error.message);
 }
 
 async function createNotification(userId, title, message, type = 'info', itemId = null) {
@@ -1015,13 +1016,15 @@ app.get('/api/products/listings', verifyToken, async (req, res) => {
   res.json(distributorListings(data || []));
 });
 
-// Retailer catalogue: one entry per vegetable, without batch or farmer details.
-// FIFO batch selection happens when the order is placed.
+// Retailer catalogue: one entry per vegetable with stock on sale, without batch or
+// farmer details. Sold-out batches are not available stock; FIFO batch selection
+// happens when the order is approved.
 app.get('/api/products/available', async (req, res) => {
   const { data, error } = await supabaseAdmin
     .from('products')
     .select('*')
-    .in('status', ['listed', 'sold_out']);
+    .eq('status', 'listed')
+    .gt('stock_kg', 0);
 
   if (error) return sendDbError(res, error);
   res.json(retailerProducts(data || []));
@@ -1096,7 +1099,7 @@ app.get('/api/orders', verifyToken, async (req, res) => {
   if (req.user.role !== 'retailer') {
     return res.status(403).json({ error: 'Only retailers can view their orders' });
   }
-  await cancelExpiredRetailerOrders();
+  await markOverdueOrdersUnsuccessful();
 
   // Related rows are fetched separately so one failed join cannot empty the list.
   const { data: orders, error } = await supabaseAdmin
@@ -1145,8 +1148,8 @@ app.get('/api/orders/pending', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view pending orders' });
   }
-  // Expire overdue schedules first so they cannot be approved.
-  await cancelExpiredRetailerOrders();
+  // Close overdue orders first so they cannot be approved.
+  await markOverdueOrdersUnsuccessful();
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(`
@@ -1199,7 +1202,7 @@ app.get('/api/orders/active', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view active orders' });
   }
-  await cancelExpiredRetailerOrders();
+  await markOverdueOrdersUnsuccessful();
   const { data: orders, error } = await supabaseAdmin
     .from('orders')
     .select(`
@@ -1208,7 +1211,9 @@ app.get('/api/orders/active', verifyToken, async (req, res) => {
       deliveries (id, status, delivery_personnel_id, proof_photo_url, delivered_at, pod)
     `)
     .eq('distributor_id', req.user.userId)
-    .in('status', ['approved', 'picked_up', 'in_transit', 'delivered', 'cancelled'])
+    // Every reviewed order (approved through delivered, cancelled or unsuccessful).
+    // Filtering out 'pending' works before and after the 'unsuccessful' status exists.
+    .neq('status', 'pending')
     .order('created_at', { ascending: false });
 
   if (error) return sendDbError(res, error);
@@ -1232,6 +1237,7 @@ app.get('/api/orders/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
   const userId = req.user.userId;
   const role = req.user.role;
+  await markOverdueOrdersUnsuccessful();
 
   let query = supabaseAdmin.from('orders').select(`
     *,
@@ -1342,6 +1348,8 @@ app.put('/api/orders/:id/approve', verifyToken, async (req, res) => {
     return res.status(400).json({ error: `Order is already ${order.status}` });
   }
 
+  // Leaving pending draws the stock FIFO in the same statement (sync_order_stock in
+  // sql/inventory_transactions.sql); it fails without changes if stock is short.
   const { data: updatedOrder, error: updateError } = await supabaseAdmin
     .from('orders')
     .update({ status: 'approved' })
@@ -1350,7 +1358,7 @@ app.put('/api/orders/:id/approve', verifyToken, async (req, res) => {
     .select()
     .maybeSingle();
 
-  if (updateError) return sendDbError(res, updateError);
+  if (updateError) return sendInventoryError(res, updateError);
   if (!updatedOrder) return res.status(409).json({ error: 'This order was already updated. Refresh and try again.' });
 
   const { error: deliveryError } = await supabaseAdmin
@@ -1362,6 +1370,7 @@ app.put('/api/orders/:id/approve', verifyToken, async (req, res) => {
     });
 
   if (deliveryError) {
+    // Returning to pending gives the drawn stock back.
     await supabaseAdmin.from('orders').update({ status: 'pending' }).eq('id', id);
     return res.status(500).json({ error: 'Failed to create delivery record' });
   }
@@ -1448,6 +1457,7 @@ app.get('/api/delivery/orders', verifyToken, async (req, res) => {
   if (req.user.role !== 'delivery_personnel') {
     return res.status(403).json({ error: 'Access denied' });
   }
+  await markOverdueOrdersUnsuccessful();
   const { data: orders, error } = await supabaseAdmin
     .from('orders')
     .select(`
@@ -2027,11 +2037,14 @@ app.get('/api/distributor/inventory-report', verifyToken, async (req, res) => {
     }
     for (const item of consumptions) {
       const order = orderById[item.order_id];
+      // Pending orders have not drawn stock yet; cancelled orders gave it back;
+      // unsuccessful deliveries were never sold.
+      const unsold = ['pending', 'cancelled', 'unsuccessful'].includes(order?.status);
       rows.push({
         ...base,
-        quantity_sold: order?.status === 'cancelled' ? 0 : item.quantity_kg,
+        quantity_sold: unsold ? 0 : item.quantity_kg,
         // Use the price charged at order time, not the current price.
-        total_amount: order?.status === 'cancelled' ? 0 : Number(item.quantity_kg) * Number(item.price_at_order ?? batch.price_per_kg ?? 0),
+        total_amount: unsold ? 0 : Number(item.quantity_kg) * Number(item.price_at_order ?? batch.price_per_kg ?? 0),
         retailer_name: order ? peopleNameById[order.retailer_id] || null : null,
         delivery_personnel: order?.delivery_personnel_id ? peopleNameById[order.delivery_personnel_id] || null : null,
         delivery_date: deliveryByOrderId[item.order_id] || null,

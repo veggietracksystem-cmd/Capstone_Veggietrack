@@ -39,6 +39,7 @@ const STATUS_TONE = {
   declined: 'danger',
   disabled: 'danger',
   cancelled: 'danger',
+  unsuccessful: 'danger',
   rejected: 'danger',
   out_of_stock: 'danger',
   // Inventory batch lifecycle (backend/lib/batches.js)

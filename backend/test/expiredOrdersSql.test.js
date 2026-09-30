@@ -1,83 +1,70 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { PGlite } = require('@electric-sql/pglite');
+const { hub, b, migration, rpc, buy, approve, manilaDayStart, stock, kg, setup } = require('./inventoryDb');
 
 // PGlite does not support pg_cron, so only the SQL function is tested here; the
 // scheduled job must be verified on the Supabase project.
-async function setup() {
-  const db = new PGlite();
-  await db.exec(`
-    CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
-    CREATE TABLE products(id uuid PRIMARY KEY, stock_kg numeric NOT NULL, status text, updated_at timestamptz);
-    CREATE TABLE orders(id uuid PRIMARY KEY, status text, preferred_schedule timestamptz);
-    CREATE TABLE order_items(order_id uuid, product_id uuid, quantity_kg numeric);
-    GRANT ALL ON products, orders, order_items TO anon, authenticated;
-  `);
-  await db.exec(fs.readFileSync(path.join(__dirname, '../sql/stock_safety.sql'), 'utf8'));
-  // Strip the pg_cron scheduling section (PGlite doesn't have the extension)
-  // and apply only the function definition + grants.
-  const full = fs.readFileSync(path.join(__dirname, '../sql/expired_retailer_orders.sql'), 'utf8').replace(/\r\n/g, '\n');
-  const functionOnly = full.slice(0, full.indexOf('-- ============================================================\n-- Scheduled execution'));
-  await db.exec(functionOnly);
-  return db;
-}
-const past = () => new Date(Date.now() - 3600_000).toISOString();
-const future = () => new Date(Date.now() + 3600_000).toISOString();
+const expiryFunction = file => {
+  const sql = migration(file).replace(/\r\n/g, '\n');
+  const start = sql.indexOf('CREATE OR REPLACE FUNCTION public.cancel_expired_retailer_orders()');
+  return sql.slice(start, sql.indexOf('$$;', start) + 3);
+};
+const cronFile = () => {
+  const full = migration('expired_retailer_orders.sql').replace(/\r\n/g, '\n');
+  return full.slice(0, full.indexOf('-- ============================================================\n-- Scheduled execution'));
+};
 
-test('cancels only eligible expired non-terminal orders, never delivered/in_transit/cancelled/future-scheduled, restores stock, and is idempotent on rerun', async () => {
+test('expired_retailer_orders.sql installs the same function as inventory_transactions.sql', () => {
+  const copy = expiryFunction('expired_retailer_orders.sql');
+  assert.ok(copy.includes("SET status = 'unsuccessful'"));
+  assert.equal(copy, expiryFunction('inventory_transactions.sql'));
+});
+
+test('orders not delivered by the end of their scheduled day become unsuccessful for every role; final orders and today\'s orders are untouched; runs once', async () => {
   const db = await setup();
   try {
-    const batchA = '00000000-0000-0000-0000-0000000000a1';
-    const batchB = '00000000-0000-0000-0000-0000000000a2';
-    await db.exec(`INSERT INTO products VALUES
-      ('${batchA}', 3, 'listed', now()),
-      ('${batchB}', 0, 'sold_out', now());`);
+    await db.exec(cronFile()); // either file's copy may be the one installed
+    await db.query('UPDATE products SET stock_kg = 20, quantity_received = 20 WHERE id = $1', [b]);
+    const today = await manilaDayStart(db); // 00:00 today, Philippine time
+    const yesterdayLastSecond = new Date(new Date(today).getTime() - 1000).toISOString();
+    const approvedYesterday = await buy(db, 30);
+    const pendingYesterday = await buy(db, 9);
+    const dueToday = await buy(db, 5);
+    const inTransitYesterday = await buy(db, 5);
+    const deliveredYesterday = await buy(db, 5);
+    const rejectedYesterday = await buy(db, 5);
+    for (const order of [approvedYesterday, dueToday, inTransitYesterday, deliveredYesterday]) await approve(db, order.id);
+    await db.query("UPDATE orders SET status = 'in_transit' WHERE id = $1", [inTransitYesterday.id]);
+    await db.query("UPDATE orders SET status = 'delivered' WHERE id = $1", [deliveredYesterday.id]);
+    await rpc(db, 'cancel_inventory_order', [rejectedYesterday.id, hub, 'Out of delivery range']);
+    for (const [order, status] of [[approvedYesterday, 'assigned'], [dueToday, 'assigned'], [inTransitYesterday, 'in_transit'], [deliveredYesterday, 'delivered']]) {
+      await db.query('INSERT INTO deliveries(order_id, status) VALUES ($1, $2)', [order.id, status]);
+    }
+    await db.query('UPDATE orders SET preferred_schedule = $1 WHERE id <> $2', [yesterdayLastSecond, dueToday.id]);
+    await db.query('UPDATE orders SET preferred_schedule = $1 WHERE id = $2', [today, dueToday.id]);
+    assert.deepEqual(kg(await stock(db)), [0, 1], '30 + 5 + 5 + 5 kg drawn by the approved orders only');
 
-    const expiredPending = '00000000-0000-0000-0000-0000000000b1';
-    const expiredApproved = '00000000-0000-0000-0000-0000000000b2';
-    const futurePending = '00000000-0000-0000-0000-0000000000b3';
-    const inTransit = '00000000-0000-0000-0000-0000000000b4';
-    const delivered = '00000000-0000-0000-0000-0000000000b5';
-    const alreadyCancelled = '00000000-0000-0000-0000-0000000000b6';
-    await db.query(
-      `INSERT INTO orders(id, status, preferred_schedule) VALUES
-        ($1,'pending',$7), ($2,'approved',$7), ($3,'pending',$8),
-        ($4,'in_transit',$7), ($5,'delivered',$7), ($6,'cancelled',$7)`,
-      [expiredPending, expiredApproved, futurePending, inTransit, delivered, alreadyCancelled, past(), future()]
-    );
-    // expiredApproved drew 5kg from batchA and 2kg from the already-sold-out batchB.
-    await db.query(`INSERT INTO order_items(order_id, product_id, quantity_kg) VALUES
-      ($1, $2, 5), ($1, $3, 2)`, [expiredApproved, batchA, batchB]);
+    assert.equal((await db.query('SELECT cancel_expired_retailer_orders() AS n')).rows[0].n, 3);
+    const statusOf = async table => Object.fromEntries((await db.query(
+      table === 'orders' ? 'SELECT id AS k, status FROM orders' : 'SELECT order_id AS k, status FROM deliveries')).rows.map(r => [r.k, r.status]));
+    const orders = await statusOf('orders'), deliveries = await statusOf('deliveries');
+    assert.deepEqual([approvedYesterday, pendingYesterday, dueToday, inTransitYesterday, deliveredYesterday, rejectedYesterday].map(o => orders[o.id]),
+      ['unsuccessful', 'unsuccessful', 'approved', 'unsuccessful', 'delivered', 'cancelled'],
+      'an order scheduled earlier today stays open until the day ends');
+    assert.deepEqual([approvedYesterday, dueToday, inTransitYesterday, deliveredYesterday].map(o => deliveries[o.id]),
+      ['unsuccessful', 'assigned', 'unsuccessful', 'delivered'], 'the delivery record shows the same status');
+    assert.deepEqual(kg(await stock(db)), [26, 5], 'only the order still at the warehouse returns its 26 kg + 4 kg');
 
-    const affected = (await db.query('SELECT cancel_expired_retailer_orders() AS n')).rows[0].n;
-    assert.equal(affected, 2, 'only the two expired pending/approved orders are eligible');
-
-    const statuses = Object.fromEntries((await db.query('SELECT id, status FROM orders')).rows.map(r => [r.id, r.status]));
-    assert.equal(statuses[expiredPending], 'cancelled');
-    assert.equal(statuses[expiredApproved], 'cancelled');
-    assert.equal(statuses[futurePending], 'pending', 'a future-scheduled order must never be touched');
-    assert.equal(statuses[inTransit], 'in_transit', 'an order already in transit must never be cancelled by this job');
-    assert.equal(statuses[delivered], 'delivered', 'a delivered order must never be cancelled');
-    assert.equal(statuses[alreadyCancelled], 'cancelled');
-
-    const stock = Object.fromEntries((await db.query('SELECT id, stock_kg, status FROM products')).rows.map(r => [r.id, r]));
-    assert.equal(Number(stock[batchA].stock_kg), 8, 'stock is restored to the exact batch it was drawn from');
-    assert.equal(stock[batchA].status, 'listed');
-    assert.equal(Number(stock[batchB].stock_kg), 2, 'a sold_out batch is restored and flips back to listed');
-    assert.equal(stock[batchB].status, 'listed');
-
-    // Rerunning must be a safe no-op: nothing left eligible, no double-restore.
-    const secondRun = (await db.query('SELECT cancel_expired_retailer_orders() AS n')).rows[0].n;
-    assert.equal(secondRun, 0);
-    assert.equal(Number((await db.query('SELECT stock_kg FROM products WHERE id = $1', [batchA])).rows[0].stock_kg), 8);
+    assert.equal((await db.query('SELECT cancel_expired_retailer_orders() AS n')).rows[0].n, 0);
+    assert.deepEqual(kg(await stock(db)), [26, 5], 'a rerun changes nothing');
+    assert.deepEqual(await statusOf('orders'), orders);
   } finally { await db.close(); }
 });
 
 test('function is locked down to service_role/postgres, never callable by anon or authenticated', async () => {
   const db = await setup();
   try {
+    await db.exec(cronFile());
     const privileges = (await db.query(
       "SELECT has_function_privilege('anon','cancel_expired_retailer_orders()','EXECUTE') AS anon_ok, " +
       "has_function_privilege('authenticated','cancel_expired_retailer_orders()','EXECUTE') AS auth_ok, " +

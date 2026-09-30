@@ -48,7 +48,7 @@ function CustomerTrackingView({ route, navigation }) {
         <StatusBadge status={status} />
       </View>
       <Text style={styles.note}>{t('cmp.locUpdates')}</Text>
-      {status !== 'cancelled' && <OrderStepIndicator status={status} />}
+      {!['cancelled', 'unsuccessful'].includes(status) && <OrderStepIndicator status={status} />}
       <RiderEtaCard data={data} status={status} />
       {!!view?.rider && (
         <View style={[styles.card, styles.riderCard]}>

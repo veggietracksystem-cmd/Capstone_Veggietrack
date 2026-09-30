@@ -143,7 +143,7 @@ function createTrackingHandler({ db, routes = createRouteService(), env = proces
         accuracy: person?.current_location_accuracy ?? null, last_updated: person?.last_location_update || null };
       const locationAge = now() - Date.parse(rider.last_updated);
       rider.live = !!riderCoords && Number.isFinite(locationAge) && locationAge <= STALE_LOCATION_SECONDS * 1000 && locationAge >= -30000;
-      const isFinal = ['delivered', 'cancelled'].includes(order.status);
+      const isFinal = ['delivered', 'cancelled', 'unsuccessful'].includes(order.status);
       const corridor = originCoords && coordinate(destination) ? await routes.getRoute([originCoords, destination], `corridor:${order.id}:${originCoords.latitude},${originCoords.longitude}`, 300000) : null;
       // Navigate one leg at a time; the rider must mark the order picked up
       // before navigation switches from the hub to the destination.

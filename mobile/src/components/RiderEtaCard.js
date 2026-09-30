@@ -18,7 +18,7 @@ function arrivalClock(etaSeconds) {
 export default function RiderEtaCard({ data, status, style }) {
   const { t } = useTranslation();
   const current = data?.status || status;
-  if (current === 'cancelled') return null;
+  if (current === 'cancelled' || current === 'unsuccessful') return null;
   let icon = 'time-outline', headline, detail;
   if (current === 'delivered' || current === 'completed') {
     icon = 'checkmark-circle-outline'; headline = t('orderTracking.etaDelivered');
