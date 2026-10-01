@@ -182,3 +182,19 @@ test('new functions and the spoilage table are only for the server', async () =>
     assert.deepEqual(table, { anon: false, auth: false });
   } finally { await db.close(); }
 });
+
+test('migration replaces the early stock check that only allowed sold_out or archived at 0 kg', async () => {
+  const db = await setup({ spoilage: false });
+  try {
+    // The hosted database was set up with this first version of batch_lifecycle.sql.
+    await db.exec(`ALTER TABLE products DROP CONSTRAINT products_active_batch_has_stock;
+      ALTER TABLE products ADD CONSTRAINT products_active_batch_has_stock CHECK (status IS NULL OR status IN ('sold_out', 'archived') OR stock_kg > 0);
+      UPDATE products SET created_at = now();`);
+    await db.exec(migration('pickup_pricing_and_spoilage.sql'));
+    await ageBatch(db, a, 9);
+    assert.equal((await db.query('SELECT public.spoil_expired_batches() AS n')).rows[0].n, 1);
+    assert.equal((await rpc(db, 'discard_product_stock', [b, hub])).reason, 'discarded');
+    assert.deepEqual((await stock(db)).map(p => [p.status, Number(p.stock_kg)]), [['spoiled', 0], ['spoiled', 0]]);
+    await assert.rejects(db.query("UPDATE products SET status='listed' WHERE id=$1", [a]), /products_active_batch_has_stock/);
+  } finally { await db.close(); }
+});

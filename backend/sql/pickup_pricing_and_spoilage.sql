@@ -213,6 +213,12 @@ GRANT ALL ON public.stock_spoilage TO service_role;
 ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_status_valid;
 ALTER TABLE public.products ADD CONSTRAINT products_status_valid
   CHECK (status IS NULL OR status IN ('received', 'listed', 'sold_out', 'archived', 'inactive', 'rejected', 'spoiled'));
+-- Only an active batch (received or listed) must have stock. Databases set up
+-- with an early batch_lifecycle.sql still allow 0 kg only for sold_out/archived,
+-- which would block 'spoiled'; this is the current batch_lifecycle.sql rule.
+ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_active_batch_has_stock;
+ALTER TABLE public.products ADD CONSTRAINT products_active_batch_has_stock
+  CHECK (status IS NULL OR status NOT IN ('received', 'listed') OR stock_kg > 0);
 
 -- Philippine calendar days a batch has been in distributor stock.
 CREATE OR REPLACE FUNCTION public.batch_days_in_stock(p_since timestamptz, p_now timestamptz DEFAULT clock_timestamp())
