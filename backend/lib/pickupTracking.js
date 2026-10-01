@@ -1,8 +1,8 @@
-// Farmer pickup tracking. Returns the same response shape as
-// GET /api/delivery/tracking/:orderId so DeliveryTrackingMap can render it:
-// pickup = distributor hub, delivery = the farmer's farm location. The navigation
-// phase is fixed to 'delivery' so the live rider-to-farm route drives the map and ETA.
-const { coordinate, createRouteService } = require('./deliveryTracking');
+// Farm pickup tracking. Returns the same response shape as
+// GET /api/delivery/tracking/:orderId: retailer_view drives the farmer's
+// DeliveryTrackingMap (pickup = distributor hub, delivery = the farm, phase fixed
+// to 'delivery'), and rider_view drives the rider's turn-by-turn navigation to the farm.
+const { coordinate, createRouteService, riderLegRoute, riderNavigationView } = require('./deliveryTracking');
 const { STALE_LOCATION_SECONDS } = require('./locationPolicy');
 
 function createPickupTrackingHandler({ db, routes = createRouteService(), env = process.env, now = Date.now }) {
@@ -41,14 +41,13 @@ function createPickupTrackingHandler({ db, routes = createRouteService(), env = 
       const isFinal = pickup.status === 'picked_up';
       const corridor = originCoords && destCoords && !isFinal
         ? await routes.getRoute([originCoords, destCoords], `pickup-corridor:${pickup.id}`, 300000) : null;
-      const navigation = !isFinal && rider.live && riderCoords && destCoords
-        ? await routes.getRoute([riderCoords, destCoords], `pickup-navigation:${pickup.id}`, 30000) : null;
+      const navigation = await riderLegRoute(routes, { active: !isFinal, rider, target: destination, identity: `pickup-navigation:${pickup.id}` });
       const routeError = isFinal ? null : !originCoords ? 'Distributor warehouse needs a saved map pin.' :
         !destCoords ? 'Farm location coordinates are unavailable. Ask the farmer to update their profile location.' :
         !navigation ? 'Road routing is temporarily unavailable. Live GPS is still shown.' : null;
 
       return res.json({
-        order_id: pickup.id, status: pickup.status,
+        order_id: pickup.id, delivery_personnel_id: pickup.delivery_personnel_id, status: pickup.status,
         map_config: { url: env.MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: env.MAP_TILE_ATTRIBUTION || '' },
         retailer_view: { rider, pickup: origin, delivery: destination,
           tracking: { route: navigation?.geometry || null, eta_seconds: navigation?.duration ?? null,
@@ -57,6 +56,10 @@ function createPickupTrackingHandler({ db, routes = createRouteService(), env = 
             estimated_route: corridor?.geometry || null, estimated_route_seconds: corridor?.duration ?? null,
             has_location: !!riderCoords, has_live_location: rider.live, route_error: routeError, route_updated_at: navigation?.fetched_at },
           timeline: { requested_at: pickup.requested_at, received_at: pickup.received_at } },
+        rider_view: riderNavigationView({ navigation, rider, target: destination, phase: 'farm', arriveInstruction: 'Arrive at the farm',
+          pickupLocation: destination, deliveryLocation: origin,
+          inactiveMessage: ['assigned', 'otw'].includes(pickup.status) ? null : 'Pickup is no longer active.',
+          missingTargetMessage: 'Farm location coordinates are unavailable. Ask the farmer to update their profile location.' }),
       });
     } catch (err) { console.error('Pickup tracking lookup failed:', err.message); return res.status(500).json({ error: 'Failed to get pickup tracking info' }); }
   };

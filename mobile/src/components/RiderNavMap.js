@@ -5,61 +5,89 @@ import DeliveryMapFrame from './DeliveryMapFrame';
 import { coordinate } from '../lib/trackingGeometry';
 import { useTranslation } from '../i18n/useTranslation';
 import { rf } from '../lib/responsive';
-import { colors, fonts, fontSize, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 
 const FOLLOW_ZOOM = 17;
+const BUTTON = 44, GAP = 8, EDGE = 12;
+const COLUMN_HEIGHT = 4 * BUTTON + 3 * GAP;
 
-// Full-height map for rider navigation. Follows the rider's live position;
-// dragging the map pauses following until Recenter is tapped.
-export default function RiderNavMap({ tracking, position, route, completed, toWarehouse, recenterBottom = 24 }) {
+// Full-height map for rider navigation (deliveries and farm pickups).
+// The camera opens on the whole route; dragging, pinching or zooming leaves it
+// where the rider put it until Recenter (follow the rider) or Route overview is
+// tapped. `insets` are the screen overlays (banner on top, panel at the bottom)
+// so markers and the route are never placed underneath them.
+// targetKind picks the stop's marker: 'hub' (warehouse), 'shop' (retailer) or 'farm'.
+export default function RiderNavMap({ tracking, position, route, completed, target, targetKind, targetName, insets }) {
   const { t } = useTranslation();
-  const [follow, setFollow] = useState(true), [fitToken, setFitToken] = useState(0);
+  const [camera, setCamera] = useState({ mode: 'overview', token: 0 });
+  const [command, setCommand] = useState({ type: null, token: 0 });
+  const [mode, setMode] = useState('overview');
   const [ready, setReady] = useState(false), [mapError, setMapError] = useState(''), [retry, setRetry] = useState(0);
-  const nav = tracking?.rider_view || {};
+  const [height, setHeight] = useState(0);
+  const top = insets?.top || 0, bottom = insets?.bottom || 0;
+  // On short screens the four buttons form a 2 x 2 grid so they never reach the banner.
+  const grid = height > 0 && height - top - bottom - 2 * EDGE < COLUMN_HEIGHT;
+  const controlsWidth = (grid ? 2 * BUTTON + GAP : BUTTON) + EDGE;
   const rider = coordinate(position) || null;
-  // Only the stop the rider is heading to gets a marker.
-  const target = toWarehouse ? nav.pickup_location : nav.delivery_location;
-  const targetPoint = { ...(target || {}), ...coordinate(target), name: target?.name || t(toWarehouse ? 'nav.toWarehouse' : 'nav.toRetailer') };
+  // Only the stop the rider is heading to gets a marker, at the exact routed coordinates.
+  const atHub = targetKind === 'hub';
+  const targetPoint = { ...(target || {}), ...coordinate(target), name: target?.name || targetName, glyph: targetKind };
   const idle = { name: '' };
+  const tileUrl = tracking?.map_config?.url, tileAttribution = tracking?.map_config?.attribution;
   const data = useMemo(() => ({
-    origin: toWarehouse ? targetPoint : idle,
-    destination: toWarehouse ? idle : targetPoint,
+    origin: atHub ? targetPoint : idle,
+    destination: atHub ? idle : targetPoint,
     rider: rider ? { ...rider, name: t('cmp.deliveryRider'), live: true, label: '', accuracy: position?.accuracy } : { name: '' },
     route: route || [], completed: completed || [],
-    nav: true, follow: true, followZoom: FOLLOW_ZOOM, autoRecenter: follow, fitToken,
-    focusPoints: [toWarehouse ? targetPoint : idle, toWarehouse ? idle : targetPoint, rider || idle],
-    tileConfig: tracking?.map_config,
-  }), [tracking?.map_config, rider?.latitude, rider?.longitude, position?.accuracy, route, completed, toWarehouse,
-    targetPoint.latitude, targetPoint.longitude, follow, fitToken, t]);
+    nav: true, followZoom: FOLLOW_ZOOM, camera, command,
+    insets: { top, bottom, left: 0, right: controlsWidth },
+    tileConfig: { url: tileUrl, attribution: tileAttribution },
+  }), [tileUrl, tileAttribution, rider?.latitude, rider?.longitude, position?.accuracy, route, completed, atHub, targetKind,
+    targetPoint.latitude, targetPoint.longitude, targetPoint.name, targetPoint.address, camera, command, top, bottom, controlsWidth, t]);
   const onEvent = event => {
     if (event.type === 'ready') { setReady(true); setMapError(''); }
     if (event.type === 'error') { setReady(true); setMapError(event.message || t('nav.mapProblem')); }
-    if (event.type === 'manual-pan') setFollow(false);
+    if (event.type === 'camera') setMode(event.mode);
   };
+  const moveCamera = next => { setMode(next); setCamera(current => ({ mode: next, token: current.token + 1 })); };
+  const zoom = type => setCommand(current => ({ type, token: current.token + 1 }));
+  const controls = [
+    { key: 'in', icon: 'plus', label: t('nav.zoomIn'), onPress: () => zoom('zoom-in') },
+    { key: 'out', icon: 'minus', label: t('nav.zoomOut'), onPress: () => zoom('zoom-out') },
+    { key: 'overview', icon: 'map-marker-path', label: t('nav.routeOverview'), onPress: () => moveCamera('overview'), active: mode === 'overview' },
+    { key: 'recenter', icon: 'crosshairs-gps', label: t('nav.recenter'), onPress: () => moveCamera('follow'), active: mode === 'follow', disabled: !rider },
+  ];
   return (
-    <View style={StyleSheet.absoluteFill}>
+    <View style={StyleSheet.absoluteFill} onLayout={event => setHeight(event.nativeEvent.layout.height)}>
       <DeliveryMapFrame key={retry} data={data} onEvent={onEvent} />
       {!ready && <View style={[styles.loading, { pointerEvents: 'none' }]}><ActivityIndicator color={colors.leaf700} /></View>}
       {!!mapError && (
-        <TouchableOpacity accessibilityRole="button" style={styles.mapError} onPress={() => { setRetry(v => v + 1); setMapError(''); setReady(false); }}>
+        <TouchableOpacity accessibilityRole="button" style={[styles.mapError, { top: top + 8, right: controlsWidth + 4 }]} onPress={() => { setRetry(v => v + 1); setMapError(''); setReady(false); }}>
           <Text style={styles.mapErrorText}>{t('nav.mapProblem')}</Text>
         </TouchableOpacity>
       )}
-      {!follow && (
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('nav.recenter')} activeOpacity={0.85}
-          style={[styles.recenter, { bottom: recenterBottom }]} onPress={() => { setFollow(true); setFitToken(v => v + 1); }}>
-          <MaterialCommunityIcons name="crosshairs-gps" size={rf(22)} color={colors.leaf700} />
-          <Text style={styles.recenterText}>{t('nav.recenter')}</Text>
-        </TouchableOpacity>
-      )}
+      <View style={[styles.controls, grid && styles.controlsGrid, { bottom: bottom + EDGE, pointerEvents: 'box-none' }]}>
+        {controls.map(control => (
+          <TouchableOpacity key={control.key} accessibilityRole="button" accessibilityLabel={control.label}
+            accessibilityState={{ selected: !!control.active, disabled: !!control.disabled }} disabled={control.disabled}
+            activeOpacity={0.8} onPress={control.onPress}
+            style={[styles.button, control.active && styles.buttonActive, control.disabled && styles.buttonDisabled]}>
+            <MaterialCommunityIcons name={control.icon} size={rf(22)} color={control.active ? '#fff' : colors.leaf700} />
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   loading: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.leaf50 },
-  mapError: { position: 'absolute', top: 120, left: 16, right: 16, padding: 12, borderRadius: 10, backgroundColor: colors.gold100 },
+  mapError: { position: 'absolute', left: 16, padding: 12, borderRadius: 10, backgroundColor: colors.gold100 },
   mapErrorText: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.gold700, textAlign: 'center' },
-  recenter: { position: 'absolute', right: 16, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 24, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, ...shadowCard },
-  recenterText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
+  controls: { position: 'absolute', right: EDGE, gap: GAP, alignItems: 'center' },
+  controlsGrid: { flexDirection: 'row', flexWrap: 'wrap', width: 2 * BUTTON + GAP, justifyContent: 'flex-end' },
+  button: { width: BUTTON, height: BUTTON, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, ...shadowCard },
+  buttonActive: { backgroundColor: colors.leaf700, borderColor: colors.leaf700 },
+  buttonDisabled: { opacity: 0.45 },
 });

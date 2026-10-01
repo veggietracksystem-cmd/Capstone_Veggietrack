@@ -5,12 +5,13 @@
 //   listed    sellable while stock_kg > 0
 //   sold_out  stock reached 0 (history only)
 //   archived  removed from the Product List (history only)
+//   spoiled   remaining stock moved to Spoiled Products (history only)
 //
 // Completed batches never return to received/listed, except when an order
 // cancellation restores stock to its original batch (restore_product_stock).
 const { vegetableKey, canonicalVegetableName } = require('./vegetables');
 
-const COMPLETED_STATUSES = ['sold_out', 'archived'];
+const COMPLETED_STATUSES = ['sold_out', 'archived', 'spoiled'];
 
 // Stock columns store hundredths of a kilogram.
 const roundKg = (value) => Math.round(Number(value) * 100) / 100;
@@ -125,8 +126,26 @@ function batchDate(value) {
 }
 const manilaToday = (now = Date.now()) => new Date(now + 8 * 3600000).toISOString().slice(0, 10);
 
+// 7-day stock rule, the same as sql/pickup_pricing_and_spoilage.sql: days are
+// Philippine calendar days since the batch entered distributor stock. A batch is
+// sellable through day 7, when the distributor is alerted; from day 8 the
+// database moves its unsold stock to Spoiled Products ('past_limit').
+const STOCK_ALERT_DAYS = 7;
+const manilaDayNumber = (time) => Math.floor((time + 8 * 3600000) / 86400000);
+const stockSince = (batch) => batch?.pickup_date || batch?.created_at || null;
+function daysInStock(batch, now = Date.now()) {
+  const since = stockSince(batch);
+  const time = since == null ? NaN : new Date(since).getTime();
+  return Number.isFinite(time) ? manilaDayNumber(now) - manilaDayNumber(time) : null;
+}
+// Unsold stock that has reached the limit day and needs the distributor's decision.
+function needsStockAlert(batch, now = Date.now()) {
+  const days = daysInStock(batch, now);
+  return isActiveBatch(batch) && days != null && days >= STOCK_ALERT_DAYS;
+}
+
 module.exports = {
   COMPLETED_STATUSES, roundKg, hasStockPrecision, isActiveBatch, isReceivedBatch, isSellableBatch, isOnProductList,
   compareFifo, sameVegetableAs, planFifoDraw, retailerProducts, distributorListings, batchStatus,
-  batchDate, manilaToday,
+  batchDate, manilaToday, STOCK_ALERT_DAYS, stockSince, daysInStock, needsStockAlert,
 };

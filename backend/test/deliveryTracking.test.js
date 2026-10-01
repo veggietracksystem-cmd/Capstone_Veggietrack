@@ -215,3 +215,122 @@ test('Leaflet bridge updates existing markers, preserves text, and handles missi
   context.updateDeliveryMap({ ...data, rider: {}, origin: {}, destination: {} });
   assert.ok(!layers.includes(rider));
 });
+
+const { createPickupTrackingHandler } = require('../lib/pickupTracking');
+function fakePickupDb(pickup, overrides = {}) {
+  const users = { farmer: { full_name: 'Ana', phone: '0917', farm_location: 'Farm Road', latitude: 14.07, longitude: 121.33 },
+    hub: { full_name: 'Distributor', warehouse_location: 'Warehouse', latitude: 14.068, longitude: 121.325 },
+    rider: { full_name: 'Rider', current_latitude: 14.0682, current_longitude: 121.3252, current_location_accuracy: 7, last_location_update: new Date().toISOString() }, ...overrides };
+  return { from(table) { let id; return { select() { return this; }, eq(_, value) { id = value; return this; },
+    single() { return Promise.resolve({ data: table === 'pickup_requests' ? pickup : users[id] }); } }; } };
+}
+const pickupRequest = { id: 'p', status: 'otw', farmer_id: 'farmer', delivery_personnel_id: 'rider', received_by: 'hub' };
+test('farm pickup rider view uses the same live rider-to-stop navigation as deliveries', async () => {
+  for (const status of ['assigned', 'otw']) {
+    const calls = [], res = response();
+    await createPickupTrackingHandler({ db: fakePickupDb({ ...pickupRequest, status }), env: {}, routes: { getRoute: async (points, identity) => {
+      calls.push({ points, identity }); return { ...route, duration: 45, steps: [{ type: 'turn', modifier: 'left' }, { type: 'arrive' }] };
+    } } })({ params: { id: 'p' }, user: { role: 'delivery_personnel', userId: 'rider' } }, res);
+    assert.equal(res.statusCode, 200);
+    const nav = calls.find(call => call.identity === 'pickup-navigation:p');
+    assert.deepEqual(nav.points[0], { latitude: 14.0682, longitude: 121.3252 });
+    assert.equal(nav.points[1].latitude, 14.07);
+    const view = res.body.rider_view;
+    assert.equal(res.body.delivery_personnel_id, 'rider');
+    assert.equal(view.navigation_phase, 'farm');
+    assert.equal(view.navigation_target.address, 'Farm Road');
+    assert.equal(view.pickup_location.address, 'Farm Road');
+    assert.equal(view.delivery_location.address, 'Warehouse');
+    assert.equal(view.eta_seconds, 45);
+    assert.deepEqual(view.full_route, route.geometry);
+    assert.equal(view.route_steps[1].instruction, 'Arrive at the farm');
+    assert.equal(view.current_location.accuracy, 7);
+    assert.equal(view.navigation_error, null);
+    // The farmer's tracking map keeps its existing retailer_view contract.
+    assert.equal(res.body.retailer_view.tracking.navigation_phase, 'delivery');
+    assert.equal(res.body.retailer_view.tracking.eta_seconds, 45);
+  }
+});
+test('farm pickup navigation reports missing farm pins, stale GPS and finished pickups like deliveries', async () => {
+  const run = async (pickup, overrides) => {
+    const calls = [], res = response();
+    await createPickupTrackingHandler({ db: fakePickupDb(pickup, overrides), env: {}, routes: { getRoute: async (points, identity) => { calls.push(identity); return { ...route, steps: [] }; } } })(
+      { params: { id: 'p' }, user: { role: 'delivery_personnel', userId: 'rider' } }, res);
+    return { calls, view: res.body.rider_view };
+  };
+  let result = await run(pickupRequest, { farmer: { full_name: 'Ana', farm_location: 'Farm Road' } });
+  assert.match(result.view.navigation_error, /Farm location coordinates are unavailable/);
+  assert.ok(!result.calls.includes('pickup-navigation:p'));
+  result = await run(pickupRequest, { rider: { full_name: 'Rider', current_latitude: 14.0682, current_longitude: 121.3252, last_location_update: '2020-01-01T00:00:00Z' } });
+  assert.equal(result.view.navigation_error, 'Waiting for fresh rider GPS.');
+  assert.equal(result.view.full_route, null);
+  result = await run({ ...pickupRequest, status: 'picked_up' });
+  assert.equal(result.view.navigation_error, 'Pickup is no longer active.');
+  assert.deepEqual(result.calls, []);
+});
+
+test('rider navigation map opens on the whole route, respects overlays and never snaps back after a gesture', async () => {
+  const read = file => require('node:fs').readFileSync(require('node:path').join(__dirname, '../../mobile/src/lib', file), 'utf8');
+  const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+  const source = read('deliveryTrackingHtml.js').replace("'./mapZoomStyle'", JSON.stringify(dataUrl(read('mapZoomStyle.js'))));
+  const { buildDeliveryTrackingHtml } = await import(dataUrl(source));
+  const vm = require('node:vm');
+  const calls = [], messages = [], handlers = {};
+  const layer = () => ({ addTo() { return this; }, on() { return this; }, setLatLng() { return this; }, getLatLng() { return { lat: 0, lng: 0 }; },
+    setIcon() { return this; }, bindPopup() { return this; }, setLatLngs() { return this; }, setStyle() { return this; } });
+  const point = (x, y) => ({ x, y, add(p) { return point(this.x + p.x, this.y + p.y); } });
+  const map = { zoom: 13, zoomControl: {}, attributionControl: { addAttribution() {} },
+    setView(center, zoom) { calls.push(['setView', center, zoom]); this.zoom = zoom; return this; },
+    fitBounds(bounds, options) { calls.push(['fitBounds', bounds, options]); }, setZoom(z) { calls.push(['setZoom', z]); this.zoom = z; },
+    getZoom() { return this.zoom; }, getMinZoom() { return 0; }, removeControl(c) { calls.push(['removeControl', c]); },
+    project: ll => point(ll.lng * 1000, -ll.lat * 1000), unproject: p => ({ lat: -p.y / 1000, lng: p.x / 1000 }),
+    latLngToContainerPoint: () => point(200, 400), getSize: () => point(400, 800),
+    on(name, fn) { handlers[name] = fn; }, removeLayer() {}, panTo() {}, invalidateSize() {} };
+  const L = { map: () => map, marker: layer, circle: layer, polyline: layer, tileLayer: layer, divIcon: o => o, latLngBounds: p => p,
+    latLng: p => (Array.isArray(p) ? { lat: p[0], lng: p[1] } : p), point };
+  const context = { L, Number, Date, JSON, Math, performance: { now: () => 0 },
+    document: { getElementById: () => ({ style: {} }), createElement: () => ({ textContent: '' }) },
+    ResizeObserver: class { observe() {} }, requestAnimationFrame: () => 1, cancelAnimationFrame() {},
+    parent: { postMessage: m => messages.push(m) }, addEventListener() {}, matchMedia: () => ({ matches: true }) };
+  context.window = context;
+  vm.createContext(context);
+  for (const match of buildDeliveryTrackingHtml().matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) vm.runInContext(match[1], context);
+  const farm = { latitude: 14.0835, longitude: 121.3132, name: 'Farm', glyph: 'farm' };
+  const base = { nav: true, followZoom: 17, origin: { name: '' }, destination: farm, completed: [],
+    rider: { latitude: 14.0683, longitude: 121.3256, name: 'Rider', live: true },
+    route: [{ latitude: 14.0683, longitude: 121.3256 }, { latitude: 14.075, longitude: 121.32 }, { latitude: 14.0835, longitude: 121.3132 }],
+    camera: { mode: 'overview', token: 0 }, command: { type: null, token: 0 }, insets: { top: 100, bottom: 200, left: 0, right: 56 } };
+  context.updateDeliveryMap(base);
+  // Whole route, rider and stop fitted inside the area left by the banner, buttons and panel.
+  const fit = calls.find(call => call[0] === 'fitBounds');
+  assert.ok(fit, 'opens on the whole route');
+  assert.equal(fit[1].length, 5);
+  // Values come from the map script's own realm, so compare them as JSON.
+  assert.equal(JSON.stringify(fit[2].paddingTopLeft), '[28,128]');
+  assert.equal(JSON.stringify(fit[2].paddingBottomRight), '[84,228]');
+  assert.ok(calls.some(call => call[0] === 'removeControl'), 'own zoom buttons replace Leaflet\'s hidden top-left control');
+  // A drag puts the camera in free mode; later GPS and polling updates leave it alone.
+  handlers.dragstart();
+  assert.equal(JSON.stringify(messages.at(-1)), JSON.stringify({ type: 'camera', mode: 'free', channel: 'veggietrack-map' }));
+  calls.length = 0;
+  for (const lat of [14.07, 14.072, 14.074]) context.updateDeliveryMap({ ...base, rider: { ...base.rider, latitude: lat } });
+  assert.deepEqual(calls, [], 'no snap back after manual movement');
+  // Zoom buttons zoom without recentring while exploring.
+  context.updateDeliveryMap({ ...base, command: { type: 'zoom-in', token: 1 } });
+  assert.deepEqual(calls.at(-1), ['setZoom', 14]);
+  context.updateDeliveryMap({ ...base, command: { type: 'zoom-out', token: 2 } });
+  assert.deepEqual(calls.at(-1), ['setZoom', 13]);
+  // Recenter follows the rider at street level, centred in the uncovered area.
+  context.updateDeliveryMap({ ...base, command: { type: 'zoom-out', token: 2 }, camera: { mode: 'follow', token: 1 } });
+  const [, centre, zoom] = calls.at(-1);
+  assert.equal(zoom, 17);
+  assert.ok(Math.abs(centre.lng - (base.rider.longitude + 0.028)) < 1e-9 && Math.abs(centre.lat - (base.rider.latitude - 0.05)) < 1e-9);
+  assert.equal(messages.at(-1).mode, 'follow');
+  // While following, zoom buttons keep the rider centred at the new zoom.
+  context.updateDeliveryMap({ ...base, camera: { mode: 'follow', token: 1 }, command: { type: 'zoom-in', token: 3 } });
+  assert.equal(calls.at(-1)[2], 18);
+  // Route overview fits the whole route again.
+  calls.length = 0;
+  context.updateDeliveryMap({ ...base, camera: { mode: 'overview', token: 2 }, command: { type: 'zoom-in', token: 3 } });
+  assert.equal(calls.at(-1)[0], 'fitBounds');
+});

@@ -47,6 +47,10 @@ const STATUS_TONE = {
   listed: 'done',
   sold_out: 'danger',
   archived: 'neutral',
+  // Spoiled Products (sql/pickup_pricing_and_spoilage.sql)
+  spoiled: 'danger',
+  discarded: 'danger',
+  past_limit: 'danger',
 };
 
 // Single badge size used on every screen.

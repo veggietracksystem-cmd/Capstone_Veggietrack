@@ -22,7 +22,8 @@ import BottomSheet from '../components/BottomSheet';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/ui/StatusBadge';
 import FarmerProfileTab from './FarmerProfileTab';
-import { showAlert, confirmAction } from '../lib/ui';
+import { showAlert, confirmAction, peso } from '../lib/ui';
+import { availableKgOf, pickupFieldErrors, parseAmount, estimatedTotal } from '../lib/pickupForm';
 import { friendlyError } from '../lib/errorMessages';
 import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
@@ -218,6 +219,9 @@ export default function FarmerDashboard({ navigation, route }) {
   const [exportingReport, setExportingReport] = useState(false);
 
   const [cart, setCart] = useState({}); // { [harvestId]: true }
+  // Per selected harvest: the kg to request and the farmer's price per kg (text inputs).
+  const [pickupInputs, setPickupInputs] = useState({}); // { [harvestId]: { quantity, price } }
+  const [pickupErrors, setPickupErrors] = useState({}); // { [harvestId]: { quantity?, price? } }
   const [showCartSheet, setShowCartSheet] = useState(false);
   const [showConfirmSheet, setShowConfirmSheet] = useState(false);
   const [submittingPickup, setSubmittingPickup] = useState(false);
@@ -330,7 +334,8 @@ export default function FarmerDashboard({ navigation, route }) {
   const totalHarvestKg = harvests.reduce((s, h) => s + Number(h.quantity_kg || 0), 0);
   const pendingWeavePct = totalHarvestKg > 0 ? Math.min(100, Math.round((pendingPickupKg / totalHarvestKg) * 100)) : 0;
 
-  const availableHarvests = useMemo(() => harvests.filter((h) => h.status === 'available'), [harvests]);
+  // Harvests with kilograms not yet requested (part of a harvest may already be picked up).
+  const availableHarvests = useMemo(() => harvests.filter((h) => h.status === 'available' && availableKgOf(h) > 0), [harvests]);
   // Keep the loaded order within each group without mutating the source list.
   const pickupDisplayHarvests = useMemo(() => [
     ...availableHarvests.filter((h) => cart[h.id]),
@@ -490,12 +495,20 @@ export default function FarmerDashboard({ navigation, route }) {
   };
 
   const toggleCartItem = (id) => {
+    const harvest = harvests.find((h) => h.id === id);
     setCart((prev) => {
       const next = { ...prev };
       if (next[id]) delete next[id];
       else next[id] = true;
       return next;
     });
+    // The quantity starts at everything still available; the farmer can lower it.
+    setPickupInputs((prev) => (prev[id] ? prev : { ...prev, [id]: { quantity: String(availableKgOf(harvest)), price: '' } }));
+    setPickupErrors((prev) => { const next = { ...prev }; delete next[id]; return next; });
+  };
+  const setPickupInput = (id, field, value) => {
+    setPickupInputs((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+    setPickupErrors((prev) => (prev[id]?.[field] ? { ...prev, [id]: { ...prev[id], [field]: undefined } } : prev));
   };
   const cartIds = Object.keys(cart);
   const cartHarvests = availableHarvests.filter((h) => cart[h.id]);
@@ -506,16 +519,25 @@ export default function FarmerDashboard({ navigation, route }) {
       delete next[id];
       return next;
     });
+    setPickupErrors((prev) => { const next = { ...prev }; delete next[id]; return next; });
   };
   const submitPickupRequest = async () => {
     if (cartHarvests.length === 0) { showAlert(t('common.checkDetails'), t('dashboards.farmer.selectAtLeastOneVeg')); return; }
+    // Every line needs a quantity within what is available and a price per kg.
+    const errors = Object.fromEntries(cartHarvests
+      .map((h) => [h.id, pickupFieldErrors(pickupInputs[h.id] || {}, availableKgOf(h))])
+      .filter(([, e]) => Object.keys(e).length));
+    setPickupErrors(errors);
+    if (Object.keys(errors).length) { showAlert(t('common.checkDetails'), t('pickupForm.fixFields')); return; }
     if (!requestLock.acquire('SubmittingPickup')) return;
     setSubmittingPickup(true);
     try {
       for (const h of cartHarvests) {
+        const input = pickupInputs[h.id];
         // Must be online: the request is what makes the pickup visible to the distributor.
         // eslint-disable-next-line no-await-in-loop
-        await api.post('/api/pickup-requests', { harvest_id: h.id });
+        await api.post('/api/pickup-requests', { harvest_id: h.id, quantity_kg: parseAmount(input.quantity), price_per_kg: parseAmount(input.price) });
+        setPickupInputs((prev) => { const next = { ...prev }; delete next[h.id]; return next; });
         removeFromCart(h.id);
         beginRead('loadHarvests');
         setHarvests(prev => prev.map(row => row.id === h.id ? { ...row, status: 'for_pickup' } : row));
@@ -605,7 +627,7 @@ export default function FarmerDashboard({ navigation, route }) {
                         <View style={styles.vegEmoji}><VegetableImage source={getVegTile(h.vegetable_name).source} style={styles.vegEmojiImage} fallbackSize={rf(20)} /></View>
                         <View style={styles.vegInfo}>
                           <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
-                          <Text style={styles.vegMeta}>{t('dashboards.farmer.harvestedMeta', { qty: h.quantity_kg, date: formatDate(h.recorded_at) })}</Text>
+                          <Text style={styles.vegMeta}>{t('pickupForm.availableMeta', { qty: availableKgOf(h), date: formatDate(h.recorded_at) })}</Text>
                         </View>
                         <TouchableOpacity
                           style={[styles.selectToggle, selected && styles.selectToggleOn]}
@@ -633,7 +655,13 @@ export default function FarmerDashboard({ navigation, route }) {
                         <Text style={styles.pickupCardId}>{t('cmp.pickupNo', { id: String(pickup.id).slice(0, 8) })}</Text>
                         <StatusBadge status={pickup.status === 'picked_up' ? 'completed' : pickup.status} />
                       </View>
-                      <Text style={styles.vegMeta}>{localizeVegetableName(pickup.harvests?.vegetable_name || t('cmp.vegetables'), language)} · {pickup.harvests?.quantity_kg ?? '—'} kg</Text>
+                      <Text style={styles.vegMeta}>
+                        {localizeVegetableName(pickup.harvests?.vegetable_name || t('cmp.vegetables'), language)} · {pickup.quantity_kg ?? pickup.harvests?.quantity_kg ?? '—'} kg
+                        {pickup.price_per_kg != null ? ` · ${peso(pickup.price_per_kg)}/kg` : ''}
+                      </Text>
+                      {pickup.status === 'declined' && !!pickup.decline_reason && (
+                        <Text style={styles.vegMeta}>{t('pickupForm.declinedReason', { reason: pickup.decline_reason })}</Text>
+                      )}
                       <Text style={styles.vegMeta}>{pickup.rider?.full_name ? t('cmp.riderName', { name: pickup.rider.full_name }) : t('cmp.waitingRider')}</Text>
                       <View style={styles.pickupCardFooter}>
                         <Text style={styles.linkBtnText}>{t('cmp.trackPickup')}</Text>
@@ -1040,18 +1068,54 @@ export default function FarmerDashboard({ navigation, route }) {
       </BottomSheet>
 
       <BottomSheet visible={showCartSheet} onClose={() => setShowCartSheet(false)} title={t('dashboards.farmer.pickupRequestSheetTitle')}>
-        {cartHarvests.map((h) => (
-          <View key={String(h.id)} style={styles.vegCard}>
-            <View style={styles.vegEmoji}><VegetableImage source={getVegTile(h.vegetable_name).source} style={styles.vegEmojiImage} fallbackSize={rf(20)} /></View>
-            <View style={styles.vegInfo}>
-              <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
-              <Text style={styles.vegMeta}>{t('dashboards.farmer.selectedKg', { qty: h.quantity_kg })}</Text>
+        {cartHarvests.map((h) => {
+          const input = pickupInputs[h.id] || {};
+          const errors = pickupErrors[h.id] || {};
+          const total = estimatedTotal(input.quantity, input.price);
+          return (
+            <View key={String(h.id)} style={styles.cartItem}>
+              <View style={styles.cartItemHead}>
+                <View style={styles.vegEmoji}><VegetableImage source={getVegTile(h.vegetable_name).source} style={styles.vegEmojiImage} fallbackSize={rf(20)} /></View>
+                <View style={styles.vegInfo}>
+                  <Text style={styles.vegName} numberOfLines={1}>{localizeVegetableName(h.vegetable_name, language)}</Text>
+                  <Text style={styles.vegMeta}>{t('pickupForm.availableKg', { qty: availableKgOf(h) })}</Text>
+                </View>
+                <TouchableOpacity style={styles.trashBtn} onPress={() => removeFromCart(h.id)} activeOpacity={0.7}
+                  accessibilityRole="button" accessibilityLabel={t('pickupForm.remove')}>
+                  <Ionicons name="trash-outline" size={rf(16)} color={colors.inkSoft} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.cartFields}>
+                <View style={styles.cartField}>
+                  <Text style={styles.cartFieldLabel}>{t('pickupForm.quantityLabel')}</Text>
+                  <View style={[styles.unitInput, errors.quantity && styles.unitInputError]}>
+                    <TextInput style={styles.unitInputText} value={input.quantity ?? ''} keyboardType="decimal-pad"
+                      onChangeText={(v) => setPickupInput(h.id, 'quantity', v)} editable={!submittingPickup}
+                      accessibilityLabel={t('pickupForm.quantityLabel')} placeholder="0" placeholderTextColor={colors.placeholder} />
+                    <Text style={styles.unitSuffix}>kg</Text>
+                  </View>
+                </View>
+                <View style={styles.cartField}>
+                  <Text style={styles.cartFieldLabel}>{t('pickupForm.priceLabel')}</Text>
+                  <View style={[styles.unitInput, errors.price && styles.unitInputError]}>
+                    <Text style={styles.unitPrefix}>₱</Text>
+                    <TextInput style={styles.unitInputText} value={input.price ?? ''} keyboardType="decimal-pad"
+                      onChangeText={(v) => setPickupInput(h.id, 'price', v)} editable={!submittingPickup}
+                      accessibilityLabel={t('pickupForm.priceLabel')} placeholder="0.00" placeholderTextColor={colors.placeholder} />
+                  </View>
+                </View>
+              </View>
+              {!!errors.quantity && <Text style={styles.fieldError}>{t(errors.quantity, { qty: availableKgOf(h) })}</Text>}
+              {!!errors.price && <Text style={styles.fieldError}>{t(errors.price)}</Text>}
+              <View style={styles.cartEstimate}>
+                <Text style={styles.cartEstimateLabel}>{t('pickupForm.estimatedTotal')}</Text>
+                <Text style={styles.cartEstimateValue}>
+                  {total != null ? `${parseAmount(input.quantity)} kg × ${peso(parseAmount(input.price))} = ${peso(total)}` : '—'}
+                </Text>
+              </View>
             </View>
-            <TouchableOpacity style={styles.trashBtn} onPress={() => removeFromCart(h.id)} activeOpacity={0.7}>
-              <Ionicons name="trash-outline" size={rf(16)} color={colors.inkSoft} />
-            </TouchableOpacity>
-          </View>
-        ))}
+          );
+        })}
         <View style={styles.cartTotalRow}>
           <Text style={styles.cartTotalLabel}>{t('dashboards.farmer.totalItems')}</Text>
           <Text style={styles.cartTotalValue}>{cartHarvests.length}</Text>
@@ -1096,6 +1160,21 @@ export default function FarmerDashboard({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
+
+  cartItem: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 12, marginBottom: 10, backgroundColor: colors.surface },
+  cartItemHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  cartFields: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  cartField: { flex: 1, minWidth: 0 },
+  cartFieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginBottom: 4 },
+  unitInput: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 10, minHeight: control.height, backgroundColor: colors.card },
+  unitInputError: { borderColor: colors.danger },
+  unitInputText: { flex: 1, minWidth: 0, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, paddingVertical: 8 },
+  unitSuffix: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginLeft: 6 },
+  unitPrefix: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.inkSoft, marginRight: 4 },
+  fieldError: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.xs), color: colors.danger, marginTop: 6 },
+  cartEstimate: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  cartEstimateLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
+  cartEstimateValue: { flexShrink: 1, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), color: colors.leaf700, textAlign: 'right' },
   bodyFlex: { flex: 1, minHeight: 0 },
   scrollArea: { flex: 1, minHeight: 0 },
   content: { padding: 16 },

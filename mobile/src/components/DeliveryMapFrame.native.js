@@ -4,17 +4,19 @@ import { WebView } from 'react-native-webview';
 import { buildDeliveryTrackingHtml } from '../lib/deliveryTrackingHtml';
 import { scriptJson } from '../lib/trackingGeometry';
 import { tr } from '../i18n/translate';
+import { MAP_PAGE_BASE_URL, isMapPageLoad } from '../lib/mapPageOrigin';
 
 export default function DeliveryMapFrame({ data, onEvent }) {
   const ref = useRef(null);
   const [ready, setReady] = useState(false);
-  const source = useMemo(() => ({ html: buildDeliveryTrackingHtml() }), []);
+  const source = useMemo(() => ({ html: buildDeliveryTrackingHtml(), baseUrl: MAP_PAGE_BASE_URL }), []);
   useEffect(() => {
     if (ready) ref.current?.injectJavaScript(`window.updateDeliveryMap && window.updateDeliveryMap(${scriptJson(data)});true;`);
   }, [data, ready]);
   return <WebView ref={ref} source={source} style={{ flex: 1 }} javaScriptEnabled cacheEnabled
     originWhitelist={['*']} applicationNameForUserAgent="VeggieTrack/1.0" setSupportMultipleWindows={false}
     onShouldStartLoadWithRequest={request => {
+      if (isMapPageLoad(request.url)) return true;
       if (/^https?:/.test(request.url) && request.isTopFrame !== false) { Linking.openURL(request.url).catch(() => {}); return false; }
       return true;
     }}

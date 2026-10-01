@@ -193,18 +193,23 @@ test('rider pickup card renders its existing completion action and disables repe
     styles: {}, busyId: 'another', PRIMARY: 'green', formatStatus: s => s, language: 'en',
     localizeVegetableName: n => n, openPickupProof: pickup => { picked = pickup.id; },
     handleStartPickup: id => { started = id; },
+    navigation: { navigate: (name, params) => { navigated = { name, params }; } },
   };
+  let navigated;
   vm.runInNewContext(code, scope);
-  const find = node => node?.type === 'TouchableOpacity' ? node : node?.children?.map(find).find(Boolean);
+  const buttons = node => node?.type === 'TouchableOpacity' ? [node] : (node?.children || []).flat().flatMap(buttons);
 
-  // Still 'assigned': the actionable button starts the pickup (marks 'otw').
-  const assignedCard = scope.result({ id: 'pickup', status: 'assigned', harvests: { vegetable_name: 'Carrot', quantity_kg: 8 } }, { actionable: true });
-  const startAction = find(assignedCard); assert.ok(startAction); assert.equal(startAction.props.disabled, true);
+  // Still 'assigned': Navigate opens the shared rider navigation, and the status
+  // action starts the pickup (marks 'otw').
+  const assigned = { id: 'pickup', status: 'assigned', harvests: { vegetable_name: 'Carrot', quantity_kg: 8 } };
+  const [navigate, startAction] = buttons(scope.result(assigned, { actionable: true }));
+  navigate.props.onPress(); assert.equal(navigated.name, 'PickupNavigation'); assert.equal(navigated.params.pickupId, 'pickup');
+  assert.ok(startAction); assert.equal(startAction.props.disabled, true);
   startAction.props.onPress(); assert.equal(started, 'pickup');
 
-  // 'otw': the actionable button now opens the proof-of-pickup capture flow.
-  const otwCard = scope.result({ id: 'pickup', status: 'otw', harvests: { vegetable_name: 'Carrot', quantity_kg: 8 } }, { actionable: true });
-  const completeAction = find(otwCard); assert.ok(completeAction); assert.equal(completeAction.props.disabled, true);
+  // 'otw': the status action now opens the proof-of-pickup capture flow.
+  const [, completeAction] = buttons(scope.result({ ...assigned, status: 'otw' }, { actionable: true }));
+  assert.ok(completeAction); assert.equal(completeAction.props.disabled, true);
   completeAction.props.onPress(); assert.equal(picked, 'pickup');
 });
 

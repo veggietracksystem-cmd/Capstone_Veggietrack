@@ -6,6 +6,9 @@ import api from '../api/client';
 import { friendlyError } from '../lib/errorMessages';
 import { locationSample, isRecentSample } from '../lib/locationSamples';
 import { acquireDevicePosition } from '../lib/deviceLocation';
+import { tr } from '../i18n/translate';
+
+const LOCATION_FALLBACK = 'We can’t find your location. Please check that location access is turned on.';
 
 export default function useRiderLocation(orderId, enabled) {
   const focused = useIsFocused();
@@ -14,6 +17,9 @@ export default function useRiderLocation(orderId, enabled) {
   const [refreshing, setRefreshing] = useState(false);
   const lastSent = useRef(0), sending = useRef(null), alive = useRef(true);
   const generation = useRef(0), latestSample = useRef(null), refreshPromise = useRef(null);
+  // A watch that stopped (permission denied, unsupported) is restarted by the next
+  // successful manual refresh, so live updates resume once location is allowed.
+  const watchStopped = useRef(false), [watchRun, setWatchRun] = useState(0);
   useEffect(() => {
     alive.current = true;
     const sub = AppState.addEventListener('change', state => setActive(state === 'active'));
@@ -61,6 +67,7 @@ export default function useRiderLocation(orderId, enabled) {
         latestSample.current = next; setPosition(next);
       }
       setError('');
+      if (watchStopped.current) { watchStopped.current = false; setWatchRun(run => run + 1); }
       if (shouldPublish) await publish(next, true);
       return next;
     }).catch(err => {
@@ -76,27 +83,36 @@ export default function useRiderLocation(orderId, enabled) {
   useEffect(() => {
     if (!enabled || !focused || !active) return undefined;
     let cancelled = false, subscription, browserWatch;
+    watchStopped.current = false;
     const receive = location => {
       if (cancelled) return;
       const sample = locationSample(location);
       if (sample) publish(sample);
     };
-    const fail = err => { if (!cancelled) setError(friendlyError(err, 'We can’t find your location. Please check that location access is turned on.')); };
+    // Browser GeolocationPositionError carries a numeric code and raw English
+    // text; show the same translated wording the rest of the app uses.
+    const fail = (err, stopped = true) => {
+      if (cancelled) return;
+      if (stopped) watchStopped.current = true;
+      if (Platform.OS === 'web' && typeof err?.code === 'number') setError(err.code === 1 ? tr('misc.gpsDenied') : LOCATION_FALLBACK);
+      else setError(friendlyError(err, LOCATION_FALLBACK));
+    };
     (async () => {
       try {
         if (Platform.OS === 'web') {
           if (!globalThis.navigator?.geolocation) throw new Error('Sharing your location isn’t supported in this browser.');
-          browserWatch = navigator.geolocation.watchPosition(receive, fail, { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
+          // Only a permission denial ends a browser watch; timeouts keep it running.
+          browserWatch = navigator.geolocation.watchPosition(receive, err => fail(err, err?.code === 1), { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
         } else {
           const permission = await Location.requestForegroundPermissionsAsync();
           if (cancelled) return;
-          if (permission.status !== 'granted') throw new Error('Please allow location access so your location can be shared.');
+          if (permission.status !== 'granted') throw new Error(tr('nav.locationOff'));
           subscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 5 }, receive);
           if (cancelled) subscription.remove();
         }
       } catch (err) { fail(err); }
     })();
     return () => { cancelled = true; subscription?.remove(); if (browserWatch != null) navigator.geolocation.clearWatch(browserWatch); };
-  }, [enabled, focused, active, publish]);
+  }, [enabled, focused, active, publish, watchRun]);
   return { position, error, publish, refreshLocation, refreshing };
 }

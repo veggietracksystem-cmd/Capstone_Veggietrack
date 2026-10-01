@@ -21,14 +21,16 @@ const items = (db, orderId) => db.query('SELECT product_id, quantity_kg, price_a
 
 // `beforeOrderStock` runs after the earlier migrations but before
 // inventory_transactions.sql, e.g. to create orders the way the old checkout did.
-async function setup({ beforeOrderStock } = {}) {
+// `spoilage: false` stops before pickup_pricing_and_spoilage.sql, the latest migration.
+async function setup({ beforeOrderStock, spoilage = true } = {}) {
   const db = new PGlite();
   await db.exec(`
     CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
     CREATE TYPE order_status AS ENUM ('pending', 'approved', 'picked_up', 'in_transit', 'delivered', 'cancelled');
     CREATE TABLE users(id uuid PRIMARY KEY, role text);
     CREATE TABLE harvests(id uuid PRIMARY KEY, farmer_id uuid, vegetable_name text, quantity_kg numeric(10,2), status text, recorded_at timestamptz);
-    CREATE TABLE pickup_requests(id uuid PRIMARY KEY, harvest_id uuid, farmer_id uuid, received_by uuid, status text, received_at timestamptz);
+    CREATE TABLE pickup_requests(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), harvest_id uuid, farmer_id uuid, received_by uuid, status text, received_at timestamptz,
+      amount numeric, note text, delivery_personnel_id uuid, requested_at timestamptz DEFAULT now());
     CREATE TABLE products(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), distributor_id uuid REFERENCES users,
       vegetable_name text, stock_kg numeric(10,2) NOT NULL, price_per_kg numeric(10,2), quantity_received numeric(10,2),
       status text, harvest_id uuid, pickup_request_id uuid, farmer_id uuid, harvest_date timestamptz,
@@ -52,6 +54,12 @@ async function setup({ beforeOrderStock } = {}) {
   await db.exec(migration('batch_lifecycle.sql'));
   if (beforeOrderStock) await beforeOrderStock(db);
   await db.exec(migration('inventory_transactions.sql'));
+  if (spoilage) {
+    // The fixture batches entered stock today (their harvest dates stay in the
+    // past for FIFO), so the 7-day rule leaves them sellable.
+    await db.exec('UPDATE products SET created_at = now()');
+    await db.exec(migration('pickup_pricing_and_spoilage.sql'));
+  }
   return db;
 }
 

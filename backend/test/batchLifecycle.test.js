@@ -23,7 +23,6 @@ function createApi() {
     { id: 'hub', role: 'distributor', full_name: 'Distributor' },
     { id: 'juan', role: 'farmer', full_name: 'Farmer Juan', account_status: 'active' },
     { id: 'retailer', role: 'retailer', full_name: 'Retailer' },
-    ...['pending_approval', 'declined', 'disabled'].map(status => ({ id: `farmer-${status}`, role: 'farmer', full_name: `Maria ${status}`, account_status: status })),
   ] };
   const db = { from(table) {
     const rows = data[table] ||= []; const filters = []; let mode = 'read', values, singular = false;
@@ -91,8 +90,8 @@ function createApi() {
     return res.body;
   }
   const batch = id => data.products.find(p => p.id === id);
-  const addBatch = async (vegetable_name, stock_kg, { harvestDaysAgo = 3, photoName = 'batch', price = 50 } = {}) => (await call('post /api/products', 'hub', {
-    vegetable_name, price_per_kg: price, stock_kg, batch_photo_url: photo(photoName), farmer_id: 'juan',
+  const addBatch = async (vegetable_name, stock_kg, { harvestDaysAgo = 3, photoName = 'batch', price = 50, farmer_name = 'Farmer Juan' } = {}) => (await call('post /api/products', 'hub', {
+    vegetable_name, price_per_kg: price, stock_kg, batch_photo_url: photo(photoName), farmer_name,
     harvest_date: manilaDay(harvestDaysAgo), pickup_date: manilaDay(Math.max(0, harvestDaysAgo - 1)),
   })).product;
   const buy = (vegetable_name, quantity_kg) => raw('post /api/orders', 'retailer', {
@@ -257,14 +256,18 @@ test('Scenario F: farmer, harvest date and pickup date entered on Add New Produc
   assert.equal(api.batch(carrot.id).harvest_date, stock.harvest_date);
   assert.equal(api.batch(carrot.id).stock_kg, 12);
 
-  // Only approved, active farmer accounts can be picked, by id.
-  assert.deepEqual((await api.call('get /api/farmers', 'hub')).map(f => [f.id, f.full_name]), [['juan', 'Farmer Juan']]);
-  assert.equal(api.batch(carrot.id).farmer_id, 'juan');
-  const base = { vegetable_name: 'Carrot', price_per_kg: 20, stock_kg: 5, batch_photo_url: photo('x'), farmer_id: 'juan', harvest_date: manilaDay(2), pickup_date: manilaDay(1) };
+  // The farmer is optional free text, stored as typed; no farmer account is required.
+  assert.deepEqual([api.batch(carrot.id).farmer_name, api.batch(carrot.id).farmer_id], ['Farmer Juan', undefined]);
+  const blank = await api.addBatch('Okra', 6, { farmer_name: '   ' });
+  assert.equal(api.batch(blank.id).farmer_name, null, 'a blank farmer is saved as empty');
+  assert.equal((await api.stocks()).find(s => s.id === blank.id).farmer_name, null);
+  assert.equal((await api.report()).find(r => r.batch_id === blank.id).farmer_name, null);
+  const typed = await api.addBatch('Okra', 6, { farmer_name: '  Maria dela Cruz ' });
+  assert.equal(api.batch(typed.id).farmer_name, 'Maria dela Cruz');
+  const base = { vegetable_name: 'Carrot', price_per_kg: 20, stock_kg: 5, batch_photo_url: photo('x'), harvest_date: manilaDay(2), pickup_date: manilaDay(1) };
+  assert.equal((await api.raw('post /api/products', 'hub', base)).statusCode, 201, 'no farmer at all is fine');
   for (const [change, field] of [
-    [{ farmer_id: undefined }, 'farmer_id'], [{ farmer_id: 'retailer' }, 'farmer_id'],
-    [{ farmer_id: 'farmer-pending_approval' }, 'farmer_id'], [{ farmer_id: 'farmer-declined' }, 'farmer_id'],
-    [{ farmer_id: 'farmer-disabled' }, 'farmer_id'],
+    [{ farmer_name: 42 }, 'farmer_name'], [{ farmer_name: 'x'.repeat(121) }, 'farmer_name'],
     [{ harvest_date: '' }, 'harvest_date'], [{ pickup_date: manilaDay(3) }, 'pickup_date'],
     [{ harvest_date: manilaDay(-2), pickup_date: manilaDay(-1) }, 'pickup_date'],
   ]) {

@@ -18,7 +18,7 @@ import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { showAlert, confirmAction, peso } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { localizeVegetableName, vegetableKey } from '../lib/vegetableNames';
@@ -38,7 +38,7 @@ const DISTRIBUTOR_TABS_KEYS = [
   { id: 'profile', iconName: 'person-outline', labelKey: 'dashboards.distributor.tabProfile' },
 ];
 
-export default function StocksScreen({ navigation }) {
+export default function StocksScreen({ navigation, route }) {
   const navSpace = useBottomNavSpace();
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
@@ -53,6 +53,9 @@ export default function StocksScreen({ navigation }) {
   };
   const [seg, setSeg] = useState('batches');
   const [batches, setBatches] = useState([]);
+  // Batch waiting for the Discard confirmation.
+  const [discarding, setDiscarding] = useState(null);
+  const [discardBusy, setDiscardBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
@@ -70,16 +73,12 @@ export default function StocksScreen({ navigation }) {
   const [addVegName, setAddVegName] = useState('');
   const [addPrice, setAddPrice] = useState('');
   const [addStock, setAddStock] = useState('');
-  const [addFarmerId, setAddFarmerId] = useState(null);
+  const [addFarmerName, setAddFarmerName] = useState('');
   const [addHarvestDate, setAddHarvestDate] = useState('');
   const [addPickupDate, setAddPickupDate] = useState('');
   const [addPhotoUrl, setAddPhotoUrl] = useState('');
   const [addPhotoState, setAddPhotoState] = useState('ready');
   const [addBusy, setAddBusy] = useState(false);
-  const [farmers, setFarmers] = useState([]);
-  const [farmersLoading, setFarmersLoading] = useState(false);
-  const [farmerQuery, setFarmerQuery] = useState('');
-  const [farmerListOpen, setFarmerListOpen] = useState(false);
 
   const loadBatches = useCallback(async () => {
     const isCurrent = beginRead('loadBatches');
@@ -159,6 +158,36 @@ export default function StocksScreen({ navigation }) {
     setBatchPhotoState('ready');
     setEditPriceInput(batch.price_per_kg != null ? String(batch.price_per_kg) : '');
   };
+
+  // A Home stock alert's "Change price" opens the edit form of its batch.
+  const editBatchId = route?.params?.editBatchId;
+  useEffect(() => {
+    if (!editBatchId || loading) return;
+    const batch = batches.find((b) => b.id === editBatchId);
+    navigation.setParams?.({ editBatchId: undefined });
+    if (!batch) return;
+    setSeg(isListable(batch.status) ? 'batches' : 'products');
+    openEdit(batch);
+  }, [editBatchId, loading, batches]);
+
+  // Discard: all remaining stock of the batch goes to Spoiled Products. It is no
+  // longer sold and does not return to Stocks.
+  const confirmDiscard = async () => {
+    if (!discarding || !requestLock.acquire('discard')) return;
+    setDiscardBusy(true);
+    try {
+      const result = await api.post(`/api/products/${discarding.id}/discard`);
+      setDiscarding(null);
+      await loadBatches();
+      showAlert(t('discard.doneTitle'), result?.spoilage?.reason === 'past_limit' ? t('discard.pastLimitMessage') : t('discard.doneMessage'));
+    } catch (err) {
+      showAlert(t('common.error'), friendlyError(err));
+      await loadBatches();
+    } finally {
+      requestLock.release('discard');
+      setDiscardBusy(false);
+    }
+  };
   const saveBatchPhoto = async () => {
     if (!batchPhotoUrl || batchPhotoState !== 'ready') {
       showAlert(t('common.error'), batchPhotoState === 'uploading' ? t('cmp2.photoWait') : t('cmp2.photoBeforeSave'));
@@ -217,25 +246,11 @@ export default function StocksScreen({ navigation }) {
     }
   };
 
-  const loadFarmers = async () => {
-    setFarmersLoading(true);
-    try {
-      const data = await api.get('/api/farmers');
-      setFarmers(Array.isArray(data) ? data : []);
-    } catch (err) {
-      showAlert(t('common.error'), friendlyError(err));
-    } finally {
-      setFarmersLoading(false);
-    }
-  };
-
   const openAddProduct = () => {
-    setAddVegName(''); setAddPrice(''); setAddStock('');
-    setAddFarmerId(null); setFarmerQuery(''); setFarmerListOpen(false);
+    setAddVegName(''); setAddPrice(''); setAddStock(''); setAddFarmerName('');
     setAddHarvestDate(''); setAddPickupDate('');
     setAddPhotoUrl(''); setAddPhotoState('ready');
     setAddProductVisible(true);
-    loadFarmers();
   };
 
   const changeHarvestDate = (day) => {
@@ -244,10 +259,6 @@ export default function StocksScreen({ navigation }) {
   };
 
   const addSibling = isVegetable(addVegName.trim()) ? onSaleSibling(addVegName.trim()) : null;
-  const selectedFarmer = farmers.find((f) => f.id === addFarmerId) || null;
-  const farmerSearch = farmerQuery.trim().toLowerCase();
-  const farmerMatches = farmers.filter((f) => !farmerSearch
-    || [f.full_name, f.farm_location].some((text) => String(text || '').toLowerCase().includes(farmerSearch)));
 
   const submitAddProduct = async () => {
     const name = addVegName.trim();
@@ -257,7 +268,6 @@ export default function StocksScreen({ navigation }) {
     if (!isVegetable(name)) { showAlert(t('common.error'), t('dashboards.farmer.vegetableOnlyValidation')); return; }
     if (!price || price <= 0 || !Number.isFinite(price)) { showAlert(t('common.error'), t('stocks.priceRequired')); return; }
     if (!stock || stock <= 0 || !Number.isFinite(stock)) { showAlert(t('common.error'), t('stocks.stockRequired')); return; }
-    if (!addFarmerId) { showAlert(t('common.error'), t('stocks.farmerRequired')); return; }
     if (!addHarvestDate) { showAlert(t('common.error'), t('stocks.harvestDateRequired')); return; }
     if (!addPickupDate) { showAlert(t('common.error'), t('stocks.pickupDateRequired')); return; }
     if (addPickupDate < addHarvestDate) { showAlert(t('common.error'), t('stocks.pickupBeforeHarvest')); return; }
@@ -270,11 +280,11 @@ export default function StocksScreen({ navigation }) {
     try {
       const { product } = await api.post('/api/products', {
         vegetable_name: name, price_per_kg: price, stock_kg: stock, batch_photo_url: addPhotoUrl,
-        farmer_id: addFarmerId, harvest_date: addHarvestDate, pickup_date: addPickupDate,
+        // Optional; the backend stores a blank name as empty.
+        farmer_name: addFarmerName.trim() || null, harvest_date: addHarvestDate, pickup_date: addPickupDate,
       });
       beginRead('loadBatches');
-      const farmer = farmers.find((f) => f.id === product.farmer_id);
-      setBatches((prev) => [{ ...product, farmer_name: farmer?.full_name || null }, ...prev]);
+      setBatches((prev) => [{ ...product, farmer_name: product.farmer_name || null }, ...prev]);
       setAddProductVisible(false);
       showAlert(t('common.success'), t('stocks.addProductSuccess'));
     } catch (err) {
@@ -327,6 +337,14 @@ export default function StocksScreen({ navigation }) {
         <Text style={styles.label}>{t('stocks.pickupDate')}</Text>
         <Text style={styles.value}>{b.pickup_date ? new Date(b.pickup_date).toLocaleDateString() : '—'}</Text>
       </View>
+      {b.days_in_stock != null && (
+        <View style={styles.row}>
+          <Text style={styles.label}>{t('stocks.daysInStock')}</Text>
+          <Text style={[styles.value, b.days_in_stock >= 7 && styles.valueWarning]}>
+            {b.days_in_stock >= 7 ? t('stocks.lastDayToSell') : t('stocks.daysOfSeven', { days: b.days_in_stock })}
+          </Text>
+        </View>
+      )}
       {!isListable(b.status) && b.price_per_kg != null && (
         <View style={styles.row}>
           <Text style={styles.label}>{t('productList.priceLabel')}</Text>
@@ -359,9 +377,15 @@ export default function StocksScreen({ navigation }) {
               : <Text style={styles.addBtnText}>{t('stocks.addToProductList')}</Text>}
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(b)} disabled={busy}>
-          <Text style={styles.editBtnText}>{isListable(b.status) ? t('common.edit') : t('stocks.viewEditBtn')}</Text>
-        </TouchableOpacity>
+        <View style={styles.cardActions}>
+          <TouchableOpacity style={[styles.editBtn, styles.cardAction]} onPress={() => openEdit(b)} disabled={busy}>
+            <Text style={styles.editBtnText}>{isListable(b.status) ? t('common.edit') : t('stocks.viewEditBtn')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.discardBtn, styles.cardAction]} onPress={() => setDiscarding(b)} disabled={busy}
+            accessibilityRole="button" accessibilityLabel={t('discard.button')}>
+            <Text style={styles.discardBtnText}>{t('discard.button')}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -413,6 +437,23 @@ export default function StocksScreen({ navigation }) {
           }
         />
       )}
+
+      <CustomModal
+        visible={!!discarding}
+        title={t('discard.title')}
+        confirmLabel={t('discard.button')}
+        onConfirm={confirmDiscard}
+        cancelLabel={t('common.cancel')}
+        onCancel={() => setDiscarding(null)}
+        busy={discardBusy}
+        danger
+      >
+        {!!discarding && (
+          <Text style={styles.discardText}>
+            {t('discard.confirm', { kg: Number(discarding.stock_kg), name: localizeVegetableName(discarding.vegetable_name, language) })}
+          </Text>
+        )}
+      </CustomModal>
 
       <CustomModal
         visible={!!priceBatch}
@@ -498,61 +539,15 @@ export default function StocksScreen({ navigation }) {
         />
 
         <Text style={styles.editPriceLabel}>{t('stocks.farmerName')}</Text>
-        {farmersLoading ? (
-          <ActivityIndicator color={PRIMARY} style={styles.farmerLoading} />
-        ) : farmers.length === 0 ? (
-          <Text style={styles.fieldHint}>{t('stocks.noFarmers')}</Text>
-        ) : (
-          <>
-            {/* Searchable dropdown of approved farmer accounts; the batch stores the account id. */}
-            <TouchableOpacity
-              style={[styles.priceInput, styles.farmerSelect]}
-              onPress={() => setFarmerListOpen((open) => !open)}
-              disabled={addBusy}
-              accessibilityRole="button"
-              accessibilityLabel={t('stocks.farmerName')}
-              accessibilityState={{ expanded: farmerListOpen }}
-            >
-              <View style={styles.farmerSelectBody}>
-                <Text style={selectedFarmer ? styles.farmerName : styles.farmerPlaceholder} numberOfLines={1}>
-                  {selectedFarmer ? selectedFarmer.full_name : t('stocks.selectFarmer')}
-                </Text>
-                {!!selectedFarmer?.farm_location && <Text style={styles.farmerMeta} numberOfLines={1}>{selectedFarmer.farm_location}</Text>}
-              </View>
-              <MaterialCommunityIcons name={farmerListOpen ? 'chevron-up' : 'chevron-down'} size={rf(22)} color={colors.inkFaint} />
-            </TouchableOpacity>
-            {farmerListOpen && (
-              <View style={styles.farmerList}>
-                <TextInput
-                  style={[styles.priceInput, styles.farmerSearch]}
-                  value={farmerQuery}
-                  onChangeText={setFarmerQuery}
-                  placeholder={t('stocks.searchFarmer')} placeholderTextColor={colors.placeholder}
-                  autoCapitalize="words"
-                  editable={!addBusy}
-                />
-                {farmerMatches.length === 0 ? (
-                  <Text style={styles.fieldHint}>{t('stocks.noFarmerMatch')}</Text>
-                ) : farmerMatches.map((f) => {
-                  const selected = addFarmerId === f.id;
-                  return (
-                    <TouchableOpacity
-                      key={f.id}
-                      style={[styles.farmerOption, selected && styles.farmerOptionActive]}
-                      onPress={() => { setAddFarmerId(f.id); setFarmerListOpen(false); setFarmerQuery(''); }}
-                      disabled={addBusy}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                    >
-                      <Text style={styles.farmerName} numberOfLines={1}>{f.full_name}</Text>
-                      {!!f.farm_location && <Text style={styles.farmerMeta} numberOfLines={1}>{f.farm_location}</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </>
-        )}
+        <TextInput
+          style={styles.priceInput}
+          value={addFarmerName}
+          onChangeText={setAddFarmerName}
+          placeholder={t('stocks.farmerPlaceholder')} placeholderTextColor={colors.placeholder}
+          autoCapitalize="words"
+          maxLength={120}
+          editable={!addBusy}
+        />
 
         <Text style={styles.editPriceLabel}>{t('stocks.harvestDate')}</Text>
         <BatchDateField value={addHarvestDate} onChange={changeHarvestDate} disabled={addBusy} />
@@ -599,22 +594,18 @@ const styles = StyleSheet.create({
   addBtnText: { color: '#fff', fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), textAlign: 'center' },
   editBtn: { ...actionBtn, ...actionBtnOutline, marginTop: 8 },
   editBtnText: { ...actionBtnText, color: PRIMARY },
+  cardActions: { flexDirection: 'row', gap: spacing.sm },
+  cardAction: { flex: 1 },
+  discardBtn: { ...actionBtn, ...actionBtnDanger, marginTop: 8 },
+  discardBtnText: { ...actionBtnText, color: colors.danger },
+  valueWarning: { color: colors.gold700, fontFamily: fonts.bodyBold },
 
   modalHint: { fontSize: rf(fontSize.sm), color: colors.inkFaint, marginBottom: 10 },
+  discardText: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink, lineHeight: rf(21) },
   priceInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, fontSize: rf(fontSize.lg) },
   editPriceLabel: { fontFamily: fonts.bodySemiBold, color: colors.ink, marginTop: 14, marginBottom: 7 },
   inputLocked: { backgroundColor: colors.bgScreen, color: colors.inkSoft },
   fieldHint: { fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 6 },
-  farmerLoading: { alignSelf: 'flex-start' },
-  farmerSearch: { marginBottom: 6 },
-  farmerSelect: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: control.height },
-  farmerSelectBody: { flex: 1 },
-  farmerName: { fontFamily: fonts.bodySemiBold, color: colors.ink, fontSize: rf(fontSize.md) },
-  farmerPlaceholder: { fontFamily: fonts.body, color: colors.placeholder, fontSize: rf(fontSize.md) },
-  farmerMeta: { fontFamily: fonts.body, color: colors.inkFaint, fontSize: rf(fontSize.sm), marginTop: 2 },
-  farmerList: { marginTop: 6, padding: 8, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, backgroundColor: colors.bgScreen },
-  farmerOption: { paddingVertical: 10, paddingHorizontal: 10, borderRadius: radius.ctrl, minHeight: control.height, justifyContent: 'center' },
-  farmerOptionActive: { backgroundColor: colors.leaf100 },
   removePhotoBtn: { alignSelf: 'flex-start', marginTop: 4, paddingVertical: 6, minHeight: control.heightSm },
   removePhotoText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.sm) },
 });

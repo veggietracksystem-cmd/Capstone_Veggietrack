@@ -396,7 +396,7 @@
       "tabHome": "Home",
       "tabOrders": "Mga Order",
       "tabStocks": "Stocks",
-      "tabInventory": "Imbentaryo",
+      "tabInventory": "Chain Tracking",
       "tabRiders": "Pickups",
       "tabProfile": "Profile",
       "inventoryShortcutTitle": "Imbentaryo",
@@ -614,9 +614,13 @@
     "emptyMessageFiltered": "Subukan ang ibang category filter."
   },
   "stocks": {
+    "daysInStock": "Araw sa stock",
+    "daysOfSeven": "{days} sa 7 araw",
+    "lastDayToSell": "Ika-7 araw: huling araw ng benta",
     "title": "Stocks",
     "product": "Produkto",
     "farmerName": "Magsasaka",
+    "farmerPlaceholder": "Ilagay ang pangalan ng magsasaka (opsyonal)",
     "harvestDate": "Petsa ng Ani",
     "quantity": "Dami",
     "pickupDate": "Petsa ng Pagkuha",
@@ -651,11 +655,6 @@
     "addProductSuccess": "Naidagdag ang produkto sa iyong listahan ng produkto.",
     "viewEditBtn": "Tingnan / I-edit",
     "priceSharedHint": "Nakabenta na ang gulay na ito sa presyong ito. Mapapalitan mo ito sa Listahan ng Produkto.",
-    "searchFarmer": "Maghanap ng magsasaka",
-    "selectFarmer": "Pumili ng magsasaka",
-    "noFarmerMatch": "Walang magsasakang tumugma sa hinanap mo.",
-    "noFarmers": "Walang available na naaprubahang magsasaka.",
-    "farmerRequired": "Piliin ang magsasakang pinagmulan ng batch na ito.",
     "harvestDateRequired": "Piliin ang petsa ng ani.",
     "pickupDateRequired": "Piliin ang petsa ng pagkuha.",
     "pickupBeforeHarvest": "Hindi maaaring mas maaga ang petsa ng pagkuha kaysa sa petsa ng ani."
@@ -676,6 +675,13 @@
   },
   "inventoryReport": {
     "title": "Imbentaryo",
+    "receivedLabel": "Natanggap",
+    "soldLabel": "Nabenta",
+    "viewDetails": "Tingnan ang Detalye",
+    "ordersHeading": "Mga Order ({count})",
+    "noOrders": "Wala pang order mula sa batch na ito.",
+    "exportTitleActive": "Aktibong Imbentaryo",
+    "exportTitleSoldOut": "Imbentaryong Ubos na",
     "emptyFilterMessage": "Walang batch na tumugma sa filter na ito.",
     "emptyTitle": "Wala pang record",
     "emptyMessage": "Lalabas dito ang aktibidad ng imbentaryo kapag may natanggap at naibentang batch.",
@@ -694,9 +700,9 @@
     "colHarvestDate": "Petsa ng Ani",
     "colPickupDate": "Petsa ng Pagkuha",
     "colDeliveryDate": "Petsa ng Paghahatid",
-    "colPayment": "Bayad",
+    "colPayment": "Katayuan ng Bayad",
     "colOrderStatus": "Katayuan ng Order",
-    "colBatch": "Batch",
+    "colBatch": "Batch ID",
     "colPhoto": "Larawan",
     "colBatchStatus": "Katayuan ng Batch"
   },
@@ -806,7 +812,7 @@
             { "title": "Home", "desc": "Nakabinbing order, kahilingan sa pickup, at kabuuang hindi pa bayad — lahat makikita agad, kasama ang live na Product List na may presyo at stock." },
             { "title": "Orders", "desc": "Bawat order ng retailer — Pending, Approved, Cancelled, at History — inaasikaso mula pag-apruba hanggang delivery." },
             { "title": "Stocks", "desc": "Mga batch ng aning nakuha mula sa mga magsasaka. Magdagdag ng larawan at presyo, pagkatapos ay ilista para bilhin ng mga retailer." },
-            { "title": "Inventory", "desc": "Kumpletong ulat ng lahat ng natanggap, naibenta, at natitira, kasama ang status ng bayad at order. Puwedeng i-export bilang PDF." },
+            { "title": "Vegetable Chain Tracking", "desc": "Kasaysayan ng bawat batch mula sa magsasaka hanggang sa retailer o sa Spoiled Products, may ulat para sa anumang panahon. Puwedeng i-export bilang PDF." },
             { "title": "Profile", "desc": "Detalye ng account mo, setting ng wika, ang gabay na ito, at contact ng suporta." }
           ]
         },
@@ -1291,6 +1297,7 @@
     "received": "Natanggap",
     "listed": "Nakalista",
     "sold_out": "Ubos na",
+    "spoiled": "Nasira",
     "archived": "Naka-archive",
     "unsuccessful": "Hindi Naihatid"
   },
@@ -1535,7 +1542,14 @@
     "arrivedHint": "Buksan ang mga detalye ng delivery para magpatuloy.",
     "openDetails": "Buksan ang mga detalye ng delivery",
     "opening": "Binubuksan…",
-    "shareProblem": "Hindi maibahagi ang iyong lokasyon ngayon. Gumagana pa rin ang navigation."
+    "shareProblem": "Hindi maibahagi ang iyong lokasyon ngayon. Gumagana pa rin ang navigation.",
+    "pickupTitle": "Nabigasyon sa pickup",
+    "toFarm": "Papunta sa bukid",
+    "arrivedPickupHint": "Bumalik sa pickup para kumpirmahin ito.",
+    "backToPickup": "Bumalik sa pickup",
+    "zoomIn": "Palakihin ang mapa",
+    "zoomOut": "Paliitin ang mapa",
+    "routeOverview": "Ipakita ang buong ruta"
   },
   "cmp2": {
     "orderN": "Order {label}",
@@ -1641,5 +1655,195 @@
   },
   "keepx": {
     "keepSignedIn": "Panatilihing naka-sign in ako"
+  },
+  "pickupForm": {
+    "availableMeta": "{qty} kg ang puwede · Inani noong {date}",
+    "availableKg": "{qty} kg ang puwedeng ipa-pickup",
+    "quantityLabel": "Dami na ipa-pickup",
+    "priceLabel": "Iyong presyo bawat kg",
+    "estimatedTotal": "Tinatayang kabuuan",
+    "quantityInvalid": "Maglagay ng dami na higit sa 0 kg (hanggang 2 decimal).",
+    "quantityTooHigh": "Hanggang {qty} kg lang ang puwede mula sa aning ito.",
+    "priceInvalid": "Maglagay ng presyo bawat kg na higit sa ₱0 (hanggang 2 decimal).",
+    "fixFields": "Pakisuri ang dami at presyo ng bawat gulay.",
+    "remove": "Alisin sa pickup request",
+    "declinedReason": "Tinanggihan: {reason}"
+  },
+  "pickupStatus": {
+    "requested": "Naghihintay",
+    "approved": "Aprubado",
+    "assigned": "Handa nang i-pickup",
+    "otw": "Ginagawa na",
+    "picked_up": "Na-pickup na",
+    "declined": "Tinanggihan"
+  },
+  "pickupPanel": {
+    "tabs": {
+      "pending": "Naghihintay",
+      "active": "Aktibo",
+      "completed": "Tapos na",
+      "declined": "Tinanggihan"
+    },
+    "empty": {
+      "pending": "Walang naghihintay na pickup request",
+      "active": "Walang aktibong pickup",
+      "completed": "Wala pang natapos na pickup",
+      "declined": "Walang tinanggihang request"
+    },
+    "emptyMessage": "Dito lalabas ang mga pickup request ng mga magsasaka.",
+    "pricePerKg": "{price} / kg",
+    "noPrice": "Walang presyo",
+    "totalShort": "Kabuuan {total}",
+    "harvestedOn": "Inani {date}",
+    "requestedOn": "Hiniling {date}",
+    "reason": "Dahilan: {reason}",
+    "decline": "Tanggihan",
+    "assignRider": "Magtalaga ng Rider",
+    "approveTitle": "Aprubahan ang Pickup Request",
+    "assignTitle": "Magtalaga ng Rider",
+    "approveAndAssign": "Aprubahan at Italaga",
+    "riderOptional": "Magtalaga ng rider ngayon (opsyonal)",
+    "approvedTitle": "Naaprubahan ang pickup",
+    "approvedMessage": "Nasabihan na ang magsasaka. Magtalaga ng rider kapag may bakante.",
+    "declineTitle": "Tanggihan ang Pickup Request",
+    "declineReasonLabel": "Dahilan ng pagtanggi",
+    "declineReasonPlaceholder": "Halimbawa: Masyadong mataas ang presyo",
+    "declinedTitle": "Tinanggihan ang pickup",
+    "declinedMessage": "Nasabihan na ang magsasaka kung bakit tinanggihan.",
+    "farmer": "Magsasaka",
+    "vegetable": "Gulay",
+    "quantity": "Hiniling na dami",
+    "farmerPrice": "Presyo ng magsasaka",
+    "estimatedTotal": "Tinatayang kabuuan",
+    "status": "Status",
+    "batch": "Batch ID",
+    "noBatchYet": "Gagawin pagkatapos ng pickup",
+    "harvestDate": "Petsa ng ani",
+    "pickupLocation": "Lugar ng pickup",
+    "requestDate": "Petsa ng request",
+    "approvedDate": "Naaprubahan noong",
+    "rider": "Rider",
+    "pickedUpDate": "Na-pickup noong",
+    "note": "Tala",
+    "pickupProof": "Patunay ng pickup"
+  },
+  "stockAlerts": {
+    "title": "Babala sa stock",
+    "subtitle": "Ika-7 araw na ngayon ng mga batch na ito. Bukas, ililipat sa Spoiled Products ang hindi nabenta.",
+    "message": "May natitirang {kg} kg ng {name} sa stock. Inani noong {date} at {days} araw na sa stock.",
+    "messageNoHarvest": "May natitirang {kg} kg ng {name} sa stock at {days} araw na sa stock.",
+    "keepSelling": "Ituloy ang Benta",
+    "changePrice": "Palitan ang Presyo"
+  },
+  "discard": {
+    "button": "Itapon",
+    "title": "Itapon ang Stock",
+    "confirm": "Itapon ang natitirang {kg} kg ng {name}? Hindi na ito maibebenta.",
+    "doneTitle": "Naitapon ang stock",
+    "doneMessage": "Inilipat ang stock sa Spoiled Products.",
+    "pastLimitMessage": "Lumampas na sa 7 araw ang batch na ito at nasa Spoiled Products na."
+  },
+  "chain": {
+    "title": "Vegetable Chain Tracking",
+    "viewReports": "Tingnan ang mga Ulat",
+    "spoiledProducts": "Spoiled Products",
+    "viewDetailsFor": "Tingnan ang detalye ng {name}",
+    "emptyTitle": "Walang batch dito",
+    "emptyMessage": "Lalabas dito ang mga batch pagkatapos ng pickup o kapag nagdagdag ng stock sa Stocks.",
+    "emptyFilterMessage": "Walang batch na tugma sa filter na ito.",
+    "col": {
+      "vegetableBatch": "Gulay / Batch",
+      "vegetable": "Gulay",
+      "batch": "Batch ID",
+      "status": "Status",
+      "farmer": "Magsasaka",
+      "harvestDate": "Petsa ng Ani",
+      "pickupDate": "Petsa ng Pickup",
+      "received": "Natanggap",
+      "sold": "Naibenta",
+      "spoiled": "Nasira",
+      "remaining": "Natitira",
+      "receivedKg": "Natanggap (kg)",
+      "soldKg": "Naibenta (kg)",
+      "spoiledKg": "Nasira (kg)",
+      "leftKg": "Natira (kg)",
+      "qty": "Dami",
+      "farmerPrice": "Presyo ng Magsasaka",
+      "sellingPrice": "Presyo ng Benta",
+      "retailers": "Mga Retailer"
+    },
+    "inStockSince": "Nasa stock mula",
+    "daysInStock": "Araw sa stock",
+    "daysValue": "{days} sa 7 araw",
+    "quantities": "Mga Dami",
+    "onOrder": "May order na papunta",
+    "notDelivered": "Hindi naihatid",
+    "adjusted": "Binago sa Edit Quantity",
+    "pickupHeading": "Pickup mula sa magsasaka",
+    "requestedQty": "Hiniling na dami",
+    "requestDate": "Petsa ng request",
+    "noPickup": "Idinagdag sa Stocks, hindi mula sa pickup request.",
+    "salesHeading": "Benta sa mga retailer ({count})",
+    "noSales": "Hindi pa naibebenta sa retailer.",
+    "orderDate": "Petsa ng order",
+    "returnedToStock": "Hindi kumuha ng stock ang order na ito sa batch.",
+    "spoilageHeading": "Pagkasira",
+    "noSpoilage": "Walang nasira sa batch na ito.",
+    "exportTitle": {
+      "active": "VeggieTrack — Mga Aktibong Batch",
+      "sold_out": "VeggieTrack — Mga Ubos na Batch",
+      "spoiled": "VeggieTrack — Mga Nasirang Batch"
+    }
+  },
+  "reports": {
+    "title": "Mga Ulat ng Transaksyon",
+    "period": {
+      "week": "Ngayong Linggo",
+      "month": "Ngayong Buwan",
+      "year": "Ngayong Taon",
+      "custom": "Pumili"
+    },
+    "from": "Mula",
+    "to": "Hanggang",
+    "pickDates": "Pumili ng petsa ng simula at katapusan.",
+    "startAfterEnd": "Hindi puwedeng mas huli ang simula sa katapusan.",
+    "receivedKg": "Natanggap",
+    "soldKg": "Naibenta",
+    "spoiledKg": "Nasira",
+    "completedSales": "Natapos na benta",
+    "summaryLine": "Natanggap {received} kg · Naibenta {sold} kg · Nasira {spoiled} kg",
+    "col": {
+      "date": "Petsa",
+      "activity": "Gawain",
+      "transaction": "Transaksyon",
+      "amount": "Halaga"
+    },
+    "type": {
+      "received": "Natanggap",
+      "sold": "Naibenta",
+      "spoiled": "Nasira"
+    },
+    "status": {
+      "received": "Natanggap sa stock",
+      "sold": "Naihatid"
+    },
+    "fromFarmer": "Mula kay {name}",
+    "toRetailer": "Para kay {name}",
+    "emptyTitle": "Walang transaksyon",
+    "emptyMessage": "Walang natanggap, naibenta o nasira sa panahong ito.",
+    "exportTitle": "VeggieTrack — Ulat ng Transaksyon"
+  },
+  "spoilage": {
+    "thisWeek": "Nasira Ngayong Linggo",
+    "reasonLabel": "Dahilan",
+    "dateLabel": "Petsa ng paglipat sa nasira",
+    "reason": {
+      "discarded": "Itinapon ng Distributor",
+      "past_limit": "Lampas sa 7 Araw"
+    },
+    "harvested": "Inani {date}",
+    "moved": "Inilipat {date}",
+    "emptyTitle": "Walang nasirang produkto",
+    "emptyMessage": "Dito lalabas ang itinapong stock at ang stock na lampas na sa 7 araw."
   }
 }

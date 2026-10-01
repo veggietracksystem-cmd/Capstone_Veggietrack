@@ -117,6 +117,25 @@ function createRouteService({ fetchImpl = global.fetch, env = process.env, now =
   return { getRoute };
 }
 
+// Live road route from the rider to the stop they are heading to. Shared by
+// delivery and farm-pickup navigation so both refresh routes the same way.
+function riderLegRoute(routes, { active, rider, target, identity }) {
+  const from = coordinate(rider);
+  return active && rider?.live && from && coordinate(target) ? routes.getRoute([from, target], identity, 30000) : null;
+}
+// Turn-by-turn payload for the rider app (rider_view), identical in shape for
+// deliveries and farm pickups.
+function riderNavigationView({ navigation, rider, target, phase, arriveInstruction, pickupLocation, deliveryLocation, inactiveMessage, missingTargetMessage }) {
+  const navigationError = inactiveMessage || (!coordinate(target) ? missingTargetMessage :
+    !rider?.live ? 'Waiting for fresh rider GPS.' : !navigation ? 'Road guidance is currently unavailable.' : null);
+  return { route_steps: (navigation?.steps || []).map(step => step.type === 'arrive' ? { ...step, instruction: arriveInstruction } : step),
+    route_summary: '', full_route: navigation?.geometry || null,
+    eta_seconds: navigation?.duration ?? null, distance_km: navigation ? navigation.distance / 1000 : null,
+    current_location: rider, pickup_location: pickupLocation, delivery_location: deliveryLocation,
+    navigation_phase: phase, navigation_target: target,
+    route_updated_at: navigation?.fetched_at, navigation_error: navigationError };
+}
+
 function createTrackingHandler({ db, routes = createRouteService(), env = process.env, now = Date.now }) {
   return async (req, res) => {
     try {
@@ -150,24 +169,18 @@ function createTrackingHandler({ db, routes = createRouteService(), env = proces
       const needsPickup = !['picked_up', 'in_transit', 'delivered'].includes(order.status);
       const navigationTarget = needsPickup ? origin : destination;
       const navigationPhase = needsPickup ? 'pickup' : 'delivery';
-      const navigationPoints = riderCoords && coordinate(navigationTarget) ? [riderCoords, navigationTarget] : [];
-      const navigation = !isFinal && rider.live && navigationPoints.length > 1 ?
-        await routes.getRoute(navigationPoints, `navigation:${order.id}:${navigationPhase}`, 30000) : null;
-      const navigationError = isFinal ? 'Delivery is no longer active.' : !coordinate(navigationTarget) ?
-        (needsPickup ? 'Distributor warehouse needs a saved map pin.' : 'Delivery location coordinates are unavailable. Contact the distributor.') :
-        !rider.live ? 'Waiting for fresh rider GPS.' : !navigation ? 'Road guidance is currently unavailable.' : null;
+      const navigation = await riderLegRoute(routes, { active: !isFinal, rider, target: navigationTarget,
+        identity: `navigation:${order.id}:${navigationPhase}` });
       const routeError = !originCoords ? 'Distributor warehouse needs a saved map pin.' : !coordinate(destination) ?
         'Delivery location coordinates are unavailable. Contact the distributor.' : !navigation ? 'Road routing is temporarily unavailable. Live GPS is still shown.' : null;
       return res.json({
         order_id: order.id, delivery_personnel_id: order.delivery_personnel_id, status: order.status,
         map_config: { url: env.MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: env.MAP_TILE_ATTRIBUTION || '' },
-        rider_view: { route_steps: (navigation?.steps || []).map(step => step.type === 'arrive' ?
-            { ...step, instruction: needsPickup ? 'Arrive at the dispatch hub' : 'Arrive at the retailer' } : step),
-          route_summary: '', full_route: navigation?.geometry || null,
-          eta_seconds: navigation?.duration ?? null, distance_km: navigation ? navigation.distance / 1000 : null,
-          current_location: rider, pickup_location: origin, delivery_location: destination,
-          navigation_phase: navigationPhase, navigation_target: navigationTarget,
-          route_updated_at: navigation?.fetched_at, navigation_error: navigationError },
+        rider_view: riderNavigationView({ navigation, rider, target: navigationTarget, phase: navigationPhase,
+          arriveInstruction: needsPickup ? 'Arrive at the dispatch hub' : 'Arrive at the retailer',
+          pickupLocation: origin, deliveryLocation: destination,
+          inactiveMessage: isFinal ? 'Delivery is no longer active.' : null,
+          missingTargetMessage: needsPickup ? 'Distributor warehouse needs a saved map pin.' : 'Delivery location coordinates are unavailable. Contact the distributor.' }),
         retailer_view: { rider, pickup: origin, delivery: destination,
           tracking: { route: navigation?.geometry || null, eta_seconds: navigation?.duration ?? null,
             distance_km: navigation ? navigation.distance / 1000 : null, eta_minutes: navigation ? Math.ceil(navigation.duration / 60) : null,
@@ -186,4 +199,5 @@ function missingColumn(error, names) {
   return !!error && ['PGRST204', '42703'].includes(error.code) && names.some(name => String(error.message).includes(name));
 }
 module.exports = { coordinate, destinationFor, loadDestination, instructionFor, createRouteService, createTrackingHandler, missingColumn,
+  riderLegRoute, riderNavigationView,
   ROUTE_MOVEMENT_METERS, ROUTE_OFF_ROUTE_METERS, offRouteMeters };

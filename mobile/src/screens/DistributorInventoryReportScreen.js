@@ -3,15 +3,17 @@ import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Text, View, ScrollView, TouchableOpacity,
+  Text, View, FlatList, TouchableOpacity,
   ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
+import CustomModal from '../components/CustomModal';
 import EmptyState from '../components/EmptyState';
 import ImageViewerModal from '../components/ImageViewerModal';
 import RemoteImage from '../components/RemoteImage';
+import VegetableImage from '../components/VegetableImage';
 import { SegmentedTabs } from '../components/ui/SegmentedTabs';
 import StatusBadge from '../components/ui/StatusBadge';
 import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
@@ -19,7 +21,8 @@ import ScreenHeader from '../components/ScreenHeader';
 import { exportReportPdf, printReport } from '../lib/reportPdf';
 import { showAlert, peso } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, spacing } from '../theme/appTheme';
+import { getVegetableTile } from '../lib/vegetableIcons';
+import { colors, control, fontSize, fonts, radius, spacing, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { statusLabel } from '../i18n/translate';
 import { localizeVegetableName } from '../lib/vegetableNames';
@@ -34,142 +37,77 @@ const DISTRIBUTOR_TABS_KEYS = [
   { id: 'profile', iconName: 'person-outline', labelKey: 'dashboards.distributor.tabProfile' },
 ];
 
-function formatDate(dateStr) {
+export function formatDate(dateStr) {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const COLUMNS_META = [
-  { key: 'product', labelKey: 'inventoryReport.colProduct', width: 100 },
-  { key: 'batch_id', labelKey: 'inventoryReport.colBatch', width: 150 },
-  { key: 'batch_photo', labelKey: 'inventoryReport.colPhoto', width: 64, photo: true },
-  { key: 'batch_status', labelKey: 'inventoryReport.colBatchStatus', width: 100, badge: true },
-  { key: 'quantity_received', labelKey: 'inventoryReport.colQtyReceived', width: 90 },
-  { key: 'quantity_sold', labelKey: 'inventoryReport.colQtySold', width: 80 },
-  { key: 'remaining_quantity', labelKey: 'inventoryReport.colRemaining', width: 90 },
-  { key: 'price_per_kg', labelKey: 'inventoryReport.colPrice', width: 80 },
-  { key: 'total_amount', labelKey: 'inventoryReport.colTotalAmount', width: 100 },
-  { key: 'farmer_name', labelKey: 'inventoryReport.colFarmer', width: 110 },
-  { key: 'retailer_name', labelKey: 'inventoryReport.colRetailer', width: 110 },
-  { key: 'pickup_rider_name', labelKey: 'inventoryReport.colPickupRider', width: 110 },
-  { key: 'delivery_personnel', labelKey: 'inventoryReport.colDeliveryRider', width: 110 },
-  { key: 'harvest_date', labelKey: 'inventoryReport.colHarvestDate', width: 100 },
-  { key: 'pickup_date', labelKey: 'inventoryReport.colPickupDate', width: 100 },
-  { key: 'delivery_date', labelKey: 'inventoryReport.colDeliveryDate', width: 100 },
-  { key: 'payment_status', labelKey: 'inventoryReport.colPayment', width: 90, badge: true },
-  { key: 'order_status', labelKey: 'inventoryReport.colOrderStatus', width: 100, badge: true },
-];
-
-// Inventory filters over the batch lifecycle (backend/lib/batches.js): Active
-// batches still have stock (received or listed); every other batch has finished
-// its lifecycle and is listed under Sold out, including sold-out batches removed
-// from the Product List (stored as 'archived').
+// Vegetable Chain Tracking filters over the batch lifecycle (backend/lib/batches.js):
+// Active batches still have stock, Spoiled batches had stock moved to Spoiled
+// Products, and every other batch finished by selling out.
 const FILTERS = [
   { value: 'active', labelKey: 'status.active' },
   { value: 'sold_out', labelKey: 'status.sold_out' },
+  { value: 'spoiled', labelKey: 'status.spoiled' },
 ];
-export const filterGroupOf = (r) => (['received', 'listed'].includes(r.batch_status) ? 'active' : 'sold_out');
+export const filterGroupOf = (batch) => (['received', 'listed'].includes(batch.status) ? 'active'
+  : batch.status === 'spoiled' ? 'spoiled' : 'sold_out');
 
-// Columns describing the batch itself; the rest describe one consuming order.
-const BATCH_COLUMNS = ['product', 'batch_id', 'batch_photo', 'batch_status', 'quantity_received', 'remaining_quantity',
-  'price_per_kg', 'farmer_name', 'pickup_rider_name', 'harvest_date', 'pickup_date'];
+// A listed batch reads as Active (as in Stocks); a removed sold-out batch ('archived') as Sold out.
+export const displayStatus = (status) => (status === 'listed' ? 'active' : status === 'archived' ? 'sold_out' : status);
 
-// The report has one row per batch and order. Rows of a batch stay together and
-// only the first shows the batch details, so each batch is listed once.
-export function inventoryEntries(rows, filter) {
-  const groups = new Map();
-  rows.forEach((r, i) => {
-    if (filterGroupOf(r) !== filter) return;
-    const key = r.batch_id || `row-${i}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(r);
-  });
-  return [...groups.values()].flatMap((batchRows) => batchRows.map((row, i) => ({ row, continued: i > 0 })));
-}
+const num = (value) => (value != null && Number.isFinite(Number(value)) ? Number(value) : null);
+export const kg = (value) => (num(value) != null ? `${num(value)} kg` : '—');
+export const shortBatchId = (id) => (id && id.length > 8 ? `${id.slice(0, 8)}...` : id || '—');
+const orderStatusCode = (value) => (value ? String(value).toLowerCase() : null);
 
-// Payment statuses arrive as title-cased labels.
-const statusCode = (value) => (value ? String(value).toLowerCase() : null);
+// Columns of the exported PDF/print table: one row per batch (the screen shows a
+// compact table and the full record in View Details).
+const COLUMNS_META = [
+  { key: 'product', labelKey: 'chain.col.vegetable', width: '7%' },
+  { key: 'batch_id', labelKey: 'chain.col.batch', width: '13%', monospace: true },
+  { key: 'status', labelKey: 'chain.col.status', width: '6%' },
+  { key: 'farmer_name', labelKey: 'chain.col.farmer', width: '8%' },
+  { key: 'harvest_date', labelKey: 'chain.col.harvestDate', width: '7%' },
+  { key: 'picked_up', labelKey: 'chain.col.pickupDate', width: '7%' },
+  { key: 'received', labelKey: 'chain.col.received', width: '6%' },
+  { key: 'sold', labelKey: 'chain.col.sold', width: '6%' },
+  { key: 'spoiled', labelKey: 'chain.col.spoiled', width: '6%' },
+  { key: 'remaining', labelKey: 'chain.col.remaining', width: '6%' },
+  { key: 'farmer_price', labelKey: 'chain.col.farmerPrice', width: '7%' },
+  { key: 'selling_price', labelKey: 'chain.col.sellingPrice', width: '7%' },
+  { key: 'retailers', labelKey: 'chain.col.retailers', width: '10%' },
+];
 
-export function formatRow(r, language, translate) {
-  const codes = {
-    // A removed sold-out batch ('archived') reads as Sold out.
-    batch_status: r.batch_status === 'archived' ? 'sold_out' : statusCode(r.batch_status),
-    payment_status: statusCode(r.payment_status),
-    order_status: statusCode(r.order_status),
-  };
+export function formatBatch(batch, language, t) {
+  const status = displayStatus(batch.status);
+  const retailers = [...new Set((batch.sales || []).filter((s) => s.stage === 'sold' || s.stage === 'on_order').map((s) => s.retailer_name).filter(Boolean))];
   return {
-    codes,
-    product: localizeVegetableName(r.product, language),
-    batch_id: r.batch_id || '—',
-    batch_photo: r.batch_photo_url || null,
-    batch_status: codes.batch_status ? statusLabel(codes.batch_status, translate) : '—',
-    quantity_received: r.quantity_received != null ? `${r.quantity_received} kg` : '—',
-    quantity_sold: r.quantity_sold != null ? `${r.quantity_sold} kg` : '—',
-    remaining_quantity: r.remaining_quantity != null ? `${r.remaining_quantity} kg` : '—',
-    price_per_kg: r.price_per_kg != null ? peso(r.price_per_kg) : '—',
-    total_amount: r.total_amount != null ? peso(r.total_amount) : '—',
-    farmer_name: r.farmer_name || '—',
-    retailer_name: r.retailer_name || '—',
-    pickup_rider_name: r.pickup_rider_name || '—',
-    delivery_personnel: r.delivery_personnel || '—',
-    harvest_date: formatDate(r.harvest_date),
-    pickup_date: formatDate(r.pickup_date),
-    delivery_date: formatDate(r.delivery_date),
-    payment_status: codes.payment_status ? statusLabel(codes.payment_status, translate) : '—',
-    order_status: codes.order_status ? statusLabel(codes.order_status, translate) : '—',
+    codes: { status },
+    product: localizeVegetableName(batch.vegetable_name, language),
+    batch_id: batch.batch_id || '—',
+    status: status ? statusLabel(status, t) : '—',
+    farmer_name: batch.farmer_name || '—',
+    harvest_date: formatDate(batch.harvest_date),
+    picked_up: formatDate(batch.pickup?.picked_up_at || batch.in_stock_since),
+    received: kg(batch.totals?.received),
+    sold: kg(batch.totals?.sold),
+    spoiled: kg(batch.totals?.spoiled),
+    remaining: kg(batch.totals?.remaining),
+    farmer_price: batch.pickup?.farmer_price_per_kg != null ? peso(batch.pickup.farmer_price_per_kg) : '—',
+    selling_price: batch.price_per_kg != null ? peso(batch.price_per_kg) : '—',
+    retailers: retailers.join(', ') || '—',
   };
 }
 
-// A further order of the batch above: batch details are left blank.
-export function formatEntry({ row, continued }, language, translate) {
-  const formatted = { ...formatRow(row, language, translate), continued };
-  if (!continued) return formatted;
-  BATCH_COLUMNS.forEach((key) => { formatted[key] = key === 'batch_photo' ? null : ''; });
-  formatted.codes = { ...formatted.codes, batch_status: null };
-  return formatted;
-}
-
-function PhotoCell({ uri, label, onOpen, blank }) {
-  if (!uri) return <Text style={styles.reportCell}>{blank ? '' : '—'}</Text>;
+function DetailRow({ label, value, children }) {
   return (
-    <TouchableOpacity onPress={() => onOpen(uri)} accessibilityRole="imagebutton" accessibilityLabel={label}>
-      <RemoteImage uri={uri} style={styles.photoThumb} resizeMode="cover" />
-    </TouchableOpacity>
-  );
-}
-
-function ReportTable({ columns, rows, emptyLabel, onOpenPhoto }) {
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      <View style={styles.reportWrap}>
-        <View style={styles.reportHeaderRow}>
-          {columns.map((c) => (
-            <Text key={c.key} style={[styles.reportHeaderCell, { width: c.width }]} numberOfLines={2}>{c.label}</Text>
-          ))}
-        </View>
-        {rows.length === 0 ? (
-          <Text style={styles.emptySubtitle}>{emptyLabel}</Text>
-        ) : (
-          rows.map((r, i) => (
-            <View key={i} style={[styles.reportRow, r.continued && styles.reportRowContinued]}>
-              {columns.map((c) => (
-                <View key={c.key} style={{ width: c.width, paddingRight: 6 }}>
-                  {c.photo ? (
-                    <PhotoCell uri={r[c.key]} label={c.label} onOpen={onOpenPhoto} blank={r.continued} />
-                  ) : c.badge && r.codes?.[c.key] ? (
-                    <StatusBadge status={r.codes[c.key]} label={r[c.key]} />
-                  ) : (
-                    <Text style={styles.reportCell} selectable>{r[c.key]}</Text>
-                  )}
-                </View>
-              ))}
-            </View>
-          ))
-        )}
-      </View>
-    </ScrollView>
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      {children || <Text style={styles.detailValue} selectable>{value}</Text>}
+    </View>
   );
 }
 
@@ -185,19 +123,22 @@ export default function DistributorInventoryReportScreen({ navigation }) {
     else if (tab.id === 'orders') navigation.navigate('DistributorDashboard', { tab: 'orders' });
     else if (tab.id === 'home') navigation.navigate('DistributorDashboard', { tab: 'home' });
   };
-  const [rows, setRows] = useState([]);
+  const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('active');
   const [exporting, setExporting] = useState(false);
-  const [photoUri, setPhotoUri] = useState(null);
+  const [detailId, setDetailId] = useState(null);
+  const [photo, setPhoto] = useState(null);
+  const [width, setWidth] = useState(0);
+  const wide = width >= 640;
 
   const load = useCallback(async () => {
     const isCurrent = beginRead('load');
     try {
-      const data = await api.get('/api/distributor/inventory-report');
+      const data = await api.get('/api/distributor/chain-tracking');
       if (!isCurrent()) return;
-      setRows(Array.isArray(data) ? data : []);
+      setBatches(Array.isArray(data?.batches) ? data.batches : []);
     } catch (err) {
       if (!isCurrent()) return;
       showAlert(t('common.error'), friendlyError(err));
@@ -220,21 +161,19 @@ export default function DistributorInventoryReportScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  const columns = COLUMNS_META.map((c) => ({ key: c.key, label: t(c.labelKey), width: c.width, badge: c.badge, photo: c.photo }));
-  // The PDF is text only, so the photo column is left out of exports.
-  const exportColumns = columns.filter((c) => !c.photo);
-  // Current and past batches in one screen, split by batch status.
   const filterOptions = FILTERS.map((f) => ({ value: f.value, label: t(f.labelKey) }));
-  const entries = inventoryEntries(rows, filter);
-  const filterLabel = filterOptions.find((option) => option.value === filter)?.label;
-  const title = `${t('inventoryReport.title')} — ${filterLabel}`;
+  const shown = batches.filter((batch) => filterGroupOf(batch) === filter);
+  const detail = batches.find((batch) => batch.batch_id === detailId) || null;
 
+  // Export/print a text-only table of the selected tab on an A4 landscape page.
   const handleExport = async (doPrint) => {
     setExporting(true);
     try {
-      const formatted = entries.map((entry) => formatEntry(entry, language, t));
-      if (doPrint) await printReport(title, exportColumns, formatted);
-      else await exportReportPdf(title, exportColumns, formatted);
+      const title = t(`chain.exportTitle.${filter}`);
+      const columns = COLUMNS_META.map((c) => ({ ...c, label: t(c.labelKey) }));
+      const formatted = shown.map((batch) => formatBatch(batch, language, t));
+      if (doPrint) await printReport(title, columns, formatted, undefined, { landscape: true });
+      else await exportReportPdf(title, columns, formatted, undefined, { landscape: true });
     } catch (err) {
       showAlert(t('common.error'), friendlyError(err));
     } finally {
@@ -242,68 +181,195 @@ export default function DistributorInventoryReportScreen({ navigation }) {
     }
   };
 
+  const renderStatus = (status) => <StatusBadge status={displayStatus(status)} label={statusLabel(displayStatus(status), t)} />;
+  const cell = (value) => (num(value) != null ? String(num(value)) : '—');
+
+  const header = (
+    <View>
+      <View style={styles.topActions}>
+        <TouchableOpacity style={styles.topActionBtn} onPress={() => navigation.navigate('ChainReport')} accessibilityRole="button">
+          <Ionicons name="document-text-outline" size={rf(16)} color={PRIMARY} />
+          <Text style={styles.topActionText}>{t('chain.viewReports')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.topActionBtn} onPress={() => navigation.navigate('SpoiledProducts')} accessibilityRole="button">
+          <Ionicons name="trash-bin-outline" size={rf(16)} color={PRIMARY} />
+          <Text style={styles.topActionText}>{t('chain.spoiledProducts')}</Text>
+        </TouchableOpacity>
+      </View>
+      <SegmentedTabs style={styles.tabRow} value={filter} onChange={(value) => { setFilter(value); setDetailId(null); }} options={filterOptions} />
+      {shown.length > 0 && (
+        <View style={[styles.tableRow, styles.tableHead]} accessibilityRole="header">
+          <Text style={[styles.headCell, styles.colBatch]}>{t('chain.col.vegetableBatch')}</Text>
+          {wide && <Text style={[styles.headCell, styles.colFarmer]}>{t('chain.col.farmer')}</Text>}
+          {wide && <Text style={[styles.headCell, styles.colDate]}>{t('chain.col.harvestDate')}</Text>}
+          <Text style={[styles.headCell, styles.colKg]}>{t('chain.col.receivedKg')}</Text>
+          <Text style={[styles.headCell, styles.colKg]}>{t('chain.col.soldKg')}</Text>
+          {wide && <Text style={[styles.headCell, styles.colKg]}>{t('chain.col.spoiledKg')}</Text>}
+          <Text style={[styles.headCell, styles.colKg]}>{t('chain.col.leftKg')}</Text>
+          <Text style={[styles.headCell, styles.colStatus]}>{t('chain.col.status')}</Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const renderItem = ({ item: b, index }) => {
+    const tile = getVegetableTile(b.vegetable_name);
+    const name = localizeVegetableName(b.vegetable_name, language);
+    return (
+      <TouchableOpacity style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]} onPress={() => setDetailId(b.batch_id)}
+        accessibilityRole="button" accessibilityLabel={t('chain.viewDetailsFor', { name })} activeOpacity={0.75}>
+        <View style={[styles.colBatch, styles.batchCell]}>
+          <View style={[styles.tile, { backgroundColor: tile.bg }]}>
+            <VegetableImage source={tile.source} style={styles.tileIcon} fallbackSize={rf(16)} />
+          </View>
+          <View style={styles.batchText}>
+            <Text style={styles.cellTitle} numberOfLines={1}>{name}</Text>
+            <Text style={styles.cellMeta} numberOfLines={1}>{shortBatchId(b.batch_id)}</Text>
+            {!wide && <Text style={styles.cellMeta} numberOfLines={1}>{b.farmer_name || '—'}</Text>}
+            <Text style={styles.viewLink}>{t('inventoryReport.viewDetails')}</Text>
+          </View>
+        </View>
+        {wide && <Text style={[styles.cell, styles.colFarmer]} numberOfLines={2}>{b.farmer_name || '—'}</Text>}
+        {wide && <Text style={[styles.cell, styles.colDate]}>{formatDate(b.harvest_date)}</Text>}
+        <Text style={[styles.cellNum, styles.colKg]}>{cell(b.totals?.received)}</Text>
+        <Text style={[styles.cellNum, styles.colKg]}>{cell(b.totals?.sold)}</Text>
+        {wide && <Text style={[styles.cellNum, styles.colKg]}>{cell(b.totals?.spoiled)}</Text>}
+        <Text style={[styles.cellNum, styles.colKg, styles.cellStrong]}>{cell(b.totals?.remaining)}</Text>
+        <View style={[styles.colStatus, styles.statusCell]}>{renderStatus(b.status)}</View>
+      </TouchableOpacity>
+    );
+  };
+
+  const exportButtons = shown.length > 0 && (
+    <View style={styles.reportActionsRow}>
+      <TouchableOpacity style={[styles.reportActionBtn, exporting && styles.btnDisabled]} onPress={() => handleExport(false)} disabled={exporting} activeOpacity={0.8}>
+        <Ionicons name="download-outline" size={rf(15)} color={PRIMARY} />
+        <Text style={styles.reportActionBtnText}>{t('inventoryReport.exportPdfBtn')}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.reportActionBtn, exporting && styles.btnDisabled]} onPress={() => handleExport(true)} disabled={exporting} activeOpacity={0.8}>
+        <Ionicons name="print-outline" size={rf(15)} color={PRIMARY} />
+        <Text style={styles.reportActionBtnText}>{t('inventoryReport.printBtn')}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const totals = detail?.totals || {};
   return (
     <SafeAreaView style={styles.container}>
-      <ScreenHeader
-        title={t('inventoryReport.title')}
-        right={
-          <TouchableOpacity onPress={onRefresh} accessibilityRole="button" accessibilityLabel={t('common.retry')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name="refresh-outline" size={rf(20)} color={PRIMARY} />
-          </TouchableOpacity>
-        }
-      />
-
-      <SegmentedTabs
-        style={styles.tabRow}
-        value={filter}
-        onChange={setFilter}
-        options={filterOptions}
-      />
+      <ScreenHeader title={t('chain.title')} />
 
       {loading ? (
         <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
       ) : (
-        <ScrollView
+        <FlatList
+          data={shown}
+          keyExtractor={(b) => b.batch_id}
+          renderItem={renderItem}
+          onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
           contentContainerStyle={[styles.content, { paddingBottom: navSpace }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        >
-          {entries.length === 0 ? (
-            <EmptyState iconElement={<Ionicons name="bar-chart-outline" size={rf(44)} color={colors.inkFaint} />} title={t('inventoryReport.emptyTitle')}
-              message={rows.length === 0 ? t('inventoryReport.emptyMessage') : t('inventoryReport.emptyFilterMessage')} />
-          ) : (
-            <ReportTable columns={columns} rows={entries.map((entry) => formatEntry(entry, language, t))} emptyLabel={t('inventoryReport.emptyTitle')} onOpenPhoto={setPhotoUri} />
-          )}
-
-          <View style={styles.reportActionsRow}>
-            <TouchableOpacity
-              style={[styles.reportActionBtn, exporting && styles.btnDisabled]}
-              onPress={() => handleExport(false)}
-              disabled={exporting || entries.length === 0}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="download-outline" size={rf(15)} color={PRIMARY} />
-              <Text style={styles.reportActionBtnText}>{t('inventoryReport.exportPdfBtn')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.reportActionBtn, exporting && styles.btnDisabled]}
-              onPress={() => handleExport(true)}
-              disabled={exporting || entries.length === 0}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="print-outline" size={rf(15)} color={PRIMARY} />
-              <Text style={styles.reportActionBtnText}>{t('inventoryReport.printBtn')}</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
+          ListHeaderComponent={header}
+          ListEmptyComponent={
+            <EmptyState iconElement={<Ionicons name="git-network-outline" size={rf(44)} color={colors.inkFaint} />} title={t('chain.emptyTitle')}
+              message={batches.length === 0 ? t('chain.emptyMessage') : t('chain.emptyFilterMessage')} />
+          }
+          ListFooterComponent={exportButtons || null}
+        />
       )}
 
-      <ImageViewerModal uri={photoUri} visible={!!photoUri} onClose={() => setPhotoUri(null)} />
+      <CustomModal visible={!!detail} title={detail ? localizeVegetableName(detail.vegetable_name, language) : ''} onCancel={() => setDetailId(null)} compactActions>
+        {!!detail && (
+          <>
+            <View style={styles.detailStatusRow}>
+              <Text style={styles.detailLabel}>{t('chain.col.status')}</Text>
+              {renderStatus(detail.status)}
+            </View>
+            {detail.batch_photo_url
+              ? <RemoteImage uri={detail.batch_photo_url} style={styles.detailPhoto} resizeMode="cover" accessibilityLabel={t('inventoryReport.colPhoto')} />
+              : null}
+            <DetailRow label={t('chain.col.batch')} value={detail.batch_id || '—'} />
+            <DetailRow label={t('chain.col.vegetable')} value={localizeVegetableName(detail.vegetable_name, language)} />
+            <DetailRow label={t('chain.col.farmer')} value={detail.farmer_name || '—'} />
+            <DetailRow label={t('chain.col.harvestDate')} value={formatDate(detail.harvest_date)} />
+            <DetailRow label={t('chain.inStockSince')} value={formatDate(detail.in_stock_since)} />
+            {detail.days_in_stock != null && <DetailRow label={t('chain.daysInStock')} value={t('chain.daysValue', { days: detail.days_in_stock })} />}
 
-      <BottomNavBar
-        tabs={DISTRIBUTOR_TABS}
-        activeTab="inventory"
-        onTabPress={handleBottomTabPress}
-      />
+            <Text style={styles.sectionHeading}>{t('chain.quantities')}</Text>
+            <DetailRow label={t('chain.col.received')} value={kg(totals.received)} />
+            <DetailRow label={t('chain.col.sold')} value={kg(totals.sold)} />
+            {num(totals.on_order) > 0 && <DetailRow label={t('chain.onOrder')} value={kg(totals.on_order)} />}
+            {num(totals.not_delivered) > 0 && <DetailRow label={t('chain.notDelivered')} value={kg(totals.not_delivered)} />}
+            <DetailRow label={t('chain.col.spoiled')} value={kg(totals.spoiled)} />
+            {num(totals.adjusted) > 0 && <DetailRow label={t('chain.adjusted')} value={kg(totals.adjusted)} />}
+            <DetailRow label={t('chain.col.remaining')} value={kg(totals.remaining)} />
+            <DetailRow label={t('chain.col.sellingPrice')} value={detail.price_per_kg != null ? `${peso(detail.price_per_kg)} / kg` : '—'} />
+
+            <Text style={styles.sectionHeading}>{t('chain.pickupHeading')}</Text>
+            {detail.pickup ? (
+              <View style={styles.block}>
+                <DetailRow label={t('chain.requestedQty')} value={kg(detail.pickup.quantity_kg)} />
+                <DetailRow label={t('chain.col.farmerPrice')} value={detail.pickup.farmer_price_per_kg != null ? `${peso(detail.pickup.farmer_price_per_kg)} / kg` : '—'} />
+                <DetailRow label={t('pickupPanel.estimatedTotal')} value={detail.pickup.estimated_total != null ? peso(detail.pickup.estimated_total) : '—'} />
+                <DetailRow label={t('chain.requestDate')} value={formatDate(detail.pickup.requested_at)} />
+                <DetailRow label={t('chain.col.pickupDate')} value={formatDate(detail.pickup.picked_up_at)} />
+                <DetailRow label={t('inventoryReport.colPickupRider')} value={detail.pickup.rider_name || '—'} />
+                {!!detail.pickup.proof_photo_url && (
+                  <TouchableOpacity style={styles.proofRow} onPress={() => setPhoto({ proof_photo_url: detail.pickup.proof_photo_url, pod: detail.pickup.pod })} accessibilityRole="button">
+                    <RemoteImage uri={detail.pickup.proof_photo_url} style={styles.proofThumb} />
+                    <Text style={styles.proofText}>{t('pickupPanel.pickupProof')}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <Text style={styles.noneText}>{t('chain.noPickup')}</Text>
+            )}
+
+            <Text style={styles.sectionHeading}>{t('chain.salesHeading', { count: detail.sales.length })}</Text>
+            {detail.sales.length === 0 ? (
+              <Text style={styles.noneText}>{t('chain.noSales')}</Text>
+            ) : detail.sales.map((sale, i) => (
+              <View key={`${sale.order_id}-${i}`} style={styles.block}>
+                <DetailRow label={t('inventoryReport.colRetailer')} value={sale.retailer_name || '—'} />
+                <DetailRow label={t('chain.col.qty')} value={kg(sale.quantity_kg)} />
+                <DetailRow label={t('inventoryReport.colTotalAmount')} value={sale.total_amount != null ? peso(sale.total_amount) : '—'} />
+                <DetailRow label={t('chain.orderDate')} value={formatDate(sale.ordered_at)} />
+                <DetailRow label={t('inventoryReport.colDeliveryDate')} value={formatDate(sale.delivered_at)} />
+                <DetailRow label={t('inventoryReport.colDeliveryRider')} value={sale.rider_name || '—'} />
+                <DetailRow label={t('inventoryReport.colPayment')}>
+                  {sale.payment_status ? <StatusBadge status={sale.payment_status} label={statusLabel(sale.payment_status, t)} /> : <Text style={styles.detailValue}>—</Text>}
+                </DetailRow>
+                <DetailRow label={t('inventoryReport.colOrderStatus')}>
+                  {sale.order_status ? <StatusBadge status={orderStatusCode(sale.order_status)} label={statusLabel(orderStatusCode(sale.order_status), t)} /> : <Text style={styles.detailValue}>—</Text>}
+                </DetailRow>
+                {sale.stage == null && <Text style={styles.noneText}>{t('chain.returnedToStock')}</Text>}
+                {!!sale.proof_photo_url && (
+                  <TouchableOpacity style={styles.proofRow} onPress={() => setPhoto({ proof_photo_url: sale.proof_photo_url, pod: sale.pod })} accessibilityRole="button">
+                    <RemoteImage uri={sale.proof_photo_url} style={styles.proofThumb} />
+                    <Text style={styles.proofText}>{t('dashboards.distributor.proofOfDelivery')}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+
+            <Text style={styles.sectionHeading}>{t('chain.spoilageHeading')}</Text>
+            {detail.spoilage.length === 0 ? (
+              <Text style={styles.noneText}>{t('chain.noSpoilage')}</Text>
+            ) : detail.spoilage.map((record) => (
+              <View key={record.id} style={styles.block}>
+                <DetailRow label={t('chain.col.qty')} value={kg(record.quantity_kg)} />
+                <DetailRow label={t('spoilage.reasonLabel')}>
+                  <StatusBadge status={record.reason} label={t(`spoilage.reason.${record.reason}`)} />
+                </DetailRow>
+                <DetailRow label={t('spoilage.dateLabel')} value={formatDate(record.recorded_at)} />
+              </View>
+            ))}
+          </>
+        )}
+      </CustomModal>
+
+      <ImageViewerModal uri={photo?.proof_photo_url} proof={photo?.pod} visible={!!photo} onClose={() => setPhoto(null)} />
+
+      <BottomNavBar tabs={DISTRIBUTOR_TABS} activeTab="inventory" onTabPress={handleBottomTabPress} />
     </SafeAreaView>
   );
 }
@@ -312,19 +378,45 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
   content: { padding: 16, paddingBottom: 100, flexGrow: 1 },
 
-  tabRow: { marginHorizontal: spacing.lg, marginTop: spacing.lg, marginBottom: 0 },
+  topActions: { flexDirection: 'row', gap: 10, marginBottom: spacing.md },
+  topActionBtn: { ...actionBtn, ...actionBtnOutline, flex: 1, flexDirection: 'row', gap: 6, minHeight: control.height },
+  topActionText: { ...actionBtnText, fontSize: rf(fontSize.md), color: PRIMARY },
+  tabRow: { marginBottom: spacing.md },
 
-  reportWrap: { borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, padding: 6 },
-  reportHeaderRow: { flexDirection: 'row', borderBottomWidth: 1.5, borderBottomColor: colors.border, paddingVertical: 6, paddingHorizontal: 6 },
-  reportHeaderCell: { flexGrow: 0, flexShrink: 0, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3, paddingRight: 6 },
-  reportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
-  // Another order of the batch in the row above.
-  reportRowContinued: { backgroundColor: colors.bgScreen },
-  reportCell: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.ink },
-  photoThumb: { width: 40, height: 40, borderRadius: 8, backgroundColor: colors.leaf50 },
-  emptySubtitle: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', padding: 16, textAlign: 'center' },
+  tableRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 10, backgroundColor: colors.surface, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: colors.border },
+  tableRowAlt: { backgroundColor: colors.bgScreen },
+  tableHead: { borderTopWidth: 1, borderTopLeftRadius: radius.card, borderTopRightRadius: radius.card, backgroundColor: colors.leaf50, paddingVertical: 8 },
+  headCell: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft },
+  colBatch: { flex: 2.6, minWidth: 0 },
+  colFarmer: { flex: 1.6, minWidth: 0 },
+  colDate: { flex: 1.4, minWidth: 0 },
+  colKg: { flex: 1, minWidth: 0, textAlign: 'right' },
+  colStatus: { flex: 1.7, minWidth: 0, alignItems: 'flex-end' },
+  batchCell: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  batchText: { flex: 1, minWidth: 0 },
+  tile: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  tileIcon: { width: 26, height: 26 },
+  cellTitle: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
+  cellMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginTop: 1 },
+  viewLink: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: PRIMARY, marginTop: 4 },
+  cell: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.ink },
+  cellNum: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.ink },
+  cellStrong: { fontFamily: fonts.bodyBold, color: PRIMARY },
+  statusCell: { justifyContent: 'center' },
 
-  reportActionsRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  detailStatusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+  detailPhoto: { width: '100%', height: 180, borderRadius: radius.card, marginTop: 12, backgroundColor: colors.leaf50 },
+  detailRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border, alignItems: 'flex-start' },
+  detailLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint },
+  detailValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 2 },
+  sectionHeading: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 18, marginBottom: 4 },
+  block: { marginTop: 8, paddingHorizontal: 12, borderRadius: radius.ctrl, backgroundColor: colors.bgScreen },
+  noneText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, paddingVertical: 8 },
+  proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+  proofThumb: { width: 56, height: 56, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 },
+  proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
+
+  reportActionsRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   reportActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY, minHeight: control.height },
   reportActionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: PRIMARY, textAlign: 'center' },
   btnDisabled: { opacity: 0.6 },

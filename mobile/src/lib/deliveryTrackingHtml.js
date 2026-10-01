@@ -5,7 +5,7 @@ export function buildDeliveryTrackingHtml() {
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
 html,body,#map{height:100%;margin:0;background:#e8efe6;font-family:system-ui,sans-serif}
 ${MAP_ZOOM_CSS}
@@ -22,11 +22,14 @@ ${MAP_ZOOM_CSS}
 function post(data){data.channel='veggietrack-map';if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(JSON.stringify(data));else window.parent.postMessage(data,'*');}
 function fail(message){var el=document.getElementById('load-error');el.textContent=message;el.style.display='block';post({type:'error',message:message});}
 </script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="fail('The map could not load. Please check your internet connection and try again.')"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" onerror="fail('The map could not load. Please check your internet connection and try again.')"></script>
 <script>
 if(window.L){
 var map=L.map('map',{zoomControl:true,attributionControl:true}).setView([14.0683,121.3256],13);
 var tiles=null,tileUrl=null,markers={},accuracy=null,route=null,progress=null,lastFit=0,lastToken=null,initialFit=false,riderFrame=null;
+// Rider navigation camera: 'overview' fits the whole route, 'follow' keeps the
+// rider centred, 'free' leaves the camera wherever the rider moved it.
+var navMode=false,camera='overview',cameraToken=null,commandToken=null,riderFitted=false,routeFitted=false,insetKey='';
 function latLng(p){return [p.latitude,p.longitude];}
 function valid(p){return p&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude);}
 function moveRider(marker,target){
@@ -45,7 +48,8 @@ var GLYPHS={
  hub:'<svg viewBox="0 0 24 24"><path d="M3 21V7l6-4 6 4v2h6v12H3zm2-2h4v-3H5v3zm0-5h4v-3H5v3zm0-5h4V6H5v3zm6 10h4v-3h-4v3zm0-5h4v-3h-4v3zm0-5h4V6h-4v3zm6 10h4v-3h-4v3zm0-5h4v-3h-4v3z"/></svg>',
  shop:'<svg viewBox="0 0 24 24"><path d="M4 4h16l1.5 5a3 3 0 0 1-2.9 3.8A3 3 0 0 1 16 11a3 3 0 0 1-4 1.7A3 3 0 0 1 8 11a3 3 0 0 1-2.6 1.8A3 3 0 0 1 2.5 9L4 4zm1 9.9V20h14v-6.1a5 5 0 0 1-3-.6A5 5 0 0 1 12 14a5 5 0 0 1-4-.7 5 5 0 0 1-3 .6z"/></svg>',
  rider:'<svg viewBox="0 0 24 24"><path d="M19 17a3 3 0 1 1-2.8-3H13l-3-4H7.2A3 3 0 1 1 5 7h3.5l1.5 2h4V7h5v4h1l1 3h-1.3A3 3 0 0 1 19 17z"/></svg>',
- viewer:'<svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7zm0 9.5A2.5 2.5 0 1 0 12 6.5a2.5 2.5 0 0 0 0 5z"/></svg>'
+ viewer:'<svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7zm0 9.5A2.5 2.5 0 1 0 12 6.5a2.5 2.5 0 0 0 0 5z"/></svg>',
+ farm:'<svg viewBox="0 0 24 24"><path d="M12 2 2 8v14h7v-7h6v7h7V8L12 2zm-2 8h4v3h-4v-3z"/></svg>'
 };
 function putMarker(key,p,glyphKey,title,details,pulse){
  var emoji=GLYPHS[glyphKey]||GLYPHS.viewer;
@@ -63,7 +67,7 @@ function update(data){
   tiles.on('tileload',function(){document.getElementById('load-error').style.display='none';});
  }
  putMarker('hub',data.origin,'hub',data.origin.name,data.origin.address,false);
- putMarker('shop',data.destination,'shop',data.destination.name,[data.destination.address,data.destination.contact].filter(Boolean).join('\\n'),false);
+ putMarker('shop',data.destination,data.destination.glyph==='farm'?'farm':'shop',data.destination.name,[data.destination.address,data.destination.contact].filter(Boolean).join('\\n'),false);
  putMarker('rider',data.rider,'rider',data.rider.name||'Delivery rider',data.rider.label,data.rider.live);
  putMarker('viewer',data.viewer,'viewer','Your device',data.viewer?data.viewer.latitude.toFixed(5)+', '+data.viewer.longitude.toFixed(5):'',false);
  if(accuracy){map.removeLayer(accuracy);accuracy=null;}
@@ -74,17 +78,63 @@ function update(data){
  route.setStyle(data.nav?{color:'#198656',weight:8,opacity:.95}:{color:'#4a7295',weight:6,opacity:.65});route.setLatLngs(pts);
  if(!progress)progress=L.polyline([],{color:'#198656',weight:6}).addTo(map);
  progress.setStyle(data.nav?{color:'#9aa79f',weight:8,opacity:.9}:{color:'#198656',weight:6});progress.setLatLngs(done);
+ if(data.nav){navigationCamera(data,pts);return;}
  var bounds=(data.focusPoints||[data.origin,data.destination,data.rider]).filter(valid).map(latLng);
  var force=data.fitToken!==lastToken;lastToken=data.fitToken;
- if(data.follow&&valid(data.rider)){
-  // Follow the rider at street level; leave the map alone if they dragged it away.
-  if(force||!initialFit||data.autoRecenter){map.setView(latLng(data.rider),data.followZoom||17,{animate:initialFit,duration:.6});initialFit=true;lastFit=Date.now();}
- }else if(bounds.length&&(force||!initialFit||(data.autoRecenter&&Date.now()-lastFit>1500))){map.fitBounds(L.latLngBounds(bounds),{padding:[38,38],maxZoom:16,animate:initialFit});initialFit=true;lastFit=Date.now();}
+ if(bounds.length&&(force||!initialFit||(data.autoRecenter&&Date.now()-lastFit>1500))){map.fitBounds(L.latLngBounds(bounds),{padding:[38,38],maxZoom:16,animate:initialFit});initialFit=true;lastFit=Date.now();}
  if(data.viewer&&data.viewerToken!==window.viewerToken){window.viewerToken=data.viewerToken;map.panTo(latLng(data.viewer));}
 }
+// Screen overlays (instruction banner, map buttons, bottom panel) in CSS pixels.
+function insetsOf(data){var i=data.insets||{};return{top:+i.top||0,right:+i.right||0,bottom:+i.bottom||0,left:+i.left||0};}
+function setCamera(mode){if(camera!==mode){camera=mode;post({type:'camera',mode:mode});}}
+// Centres a point in the part of the map that no overlay covers.
+function centreOn(point,zoom,i,animate){
+ var z=zoom==null?map.getZoom():zoom,shift=L.point((i.right-i.left)/2,(i.bottom-i.top)/2);
+ map.setView(map.unproject(map.project(L.latLng(point),z).add(shift),z),z,{animate:animate,duration:.6});
+}
+function fitOverview(data,pts,i,animate){
+ var points=pts.slice();[data.rider,data.origin,data.destination].forEach(function(p){if(valid(p))points.push(latLng(p));});
+ if(!points.length)return;
+ if(points.length===1){centreOn(points[0],16,i,animate);return;}
+ map.fitBounds(L.latLngBounds(points),{paddingTopLeft:[i.left+28,i.top+28],paddingBottomRight:[i.right+28,i.bottom+28],maxZoom:17,animate:animate});
+}
+// True when the point sits behind an overlay or off screen.
+function hidden(point,i){var c=map.latLngToContainerPoint(L.latLng(point)),size=map.getSize();return c.x<i.left||c.y<i.top||c.x>size.x-i.right||c.y>size.y-i.bottom;}
+function navigationCamera(data,pts){
+ var i=insetsOf(data),animate=initialFit,key=[i.top,i.right,i.bottom,i.left].join(',');
+ if(!navMode){navMode=true;if(map.zoomControl){map.removeControl(map.zoomControl);map.zoomControl=null;}}
+ document.getElementById('load-error').style.top=(i.top+8)+'px';
+ var request=data.camera||{},command=data.command||{};
+ var forced=request.token!=null&&request.token!==cameraToken;cameraToken=request.token;
+ if(forced&&request.mode)setCamera(request.mode);
+ if(command.type&&command.token!==commandToken){commandToken=command.token;
+  var step=command.type==='zoom-in'?1:command.type==='zoom-out'?-1:0,z=Math.max(map.getMinZoom?map.getMinZoom():0,Math.min(19,map.getZoom()+step));
+  if(step){if(camera==='follow'&&valid(data.rider))centreOn(latLng(data.rider),z,i,true);else{setCamera('free');map.setZoom(z,{animate:true});}}
+  return;
+ }
+ var insetsChanged=key!==insetKey;insetKey=key;
+ var hasRider=valid(data.rider),hasTarget=valid(data.origin)||valid(data.destination);
+ if(camera==='follow'){
+  if(hasRider){centreOn(latLng(data.rider),forced?(data.followZoom||17):null,i,animate);initialFit=true;}
+ }else if(camera==='overview'){
+  // Fit once the stop is known, again when the rider and then the road route
+  // first appear, when the overlays change size, or when the rider leaves the
+  // visible area. Otherwise the view stays put.
+  var refit=forced||!initialFit||insetsChanged||(hasRider&&!riderFitted)||(pts.length>1&&!routeFitted)||(hasRider&&hidden(latLng(data.rider),i));
+  if(refit&&(hasRider||hasTarget||pts.length)){fitOverview(data,pts,i,animate);initialFit=true;riderFitted=riderFitted||hasRider;routeFitted=routeFitted||pts.length>1;}
+ }
+}
+// Any gesture by the rider stops automatic camera moves until Recenter or Route overview is pressed.
+function userMoved(){if(navMode)setCamera('free');}
 window.updateDeliveryMap=update;
 window.addEventListener('message',function(event){if(event.source!==window.parent)return;var msg=event.data;if(msg&&msg.channel==='veggietrack-map'&&msg.type==='update')update(msg.data);});
-map.on('dragstart',function(){post({type:'manual-pan'});});
+map.on('dragstart',function(){post({type:'manual-pan'});userMoved();});
+map.on('dblclick',userMoved);
+var mapBox=document.getElementById('map');
+if(mapBox&&mapBox.addEventListener){
+ mapBox.addEventListener('touchstart',function(event){if(event.touches&&event.touches.length>1)userMoved();},{passive:true});
+ mapBox.addEventListener('wheel',userMoved,{passive:true});
+}
 new ResizeObserver(function(){map.invalidateSize();}).observe(document.getElementById('map'));
 map.attributionControl.addAttribution('<a href="https://project-osrm.org/" target="_blank" rel="noopener">OSRM routing</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fix the map</a>');
 post({type:'ready'});

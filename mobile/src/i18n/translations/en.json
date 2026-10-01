@@ -396,7 +396,7 @@
       "tabHome": "Home",
       "tabOrders": "Orders",
       "tabStocks": "Stocks",
-      "tabInventory": "Inventory",
+      "tabInventory": "Chain Tracking",
       "tabRiders": "Pickups",
       "tabProfile": "Profile",
       "inventoryShortcutTitle": "Inventory",
@@ -614,9 +614,13 @@
     "emptyMessageFiltered": "Try a different category filter."
   },
   "stocks": {
+    "daysInStock": "Days in stock",
+    "daysOfSeven": "{days} of 7 days",
+    "lastDayToSell": "Day 7: last day to sell",
     "title": "Stocks",
     "product": "Product",
     "farmerName": "Farmer",
+    "farmerPlaceholder": "Enter farmer name (optional)",
     "harvestDate": "Harvest Date",
     "quantity": "Quantity",
     "pickupDate": "Pickup Date",
@@ -651,11 +655,6 @@
     "addProductSuccess": "Product added to your product list.",
     "viewEditBtn": "View / Edit",
     "priceSharedHint": "This vegetable is already on sale at this price. You can change it in Product List.",
-    "searchFarmer": "Search farmer",
-    "selectFarmer": "Select a farmer",
-    "noFarmerMatch": "No farmer matches your search.",
-    "noFarmers": "No approved farmers available.",
-    "farmerRequired": "Select the farmer who supplied this batch.",
     "harvestDateRequired": "Select the harvest date.",
     "pickupDateRequired": "Select the pickup date.",
     "pickupBeforeHarvest": "The pickup date cannot be before the harvest date."
@@ -676,6 +675,13 @@
   },
   "inventoryReport": {
     "title": "Inventory",
+    "receivedLabel": "Received",
+    "soldLabel": "Sold",
+    "viewDetails": "View Details",
+    "ordersHeading": "Orders ({count})",
+    "noOrders": "No orders from this batch yet.",
+    "exportTitleActive": "Active Inventory",
+    "exportTitleSoldOut": "Sold Out Inventory",
     "emptyFilterMessage": "No batches match this filter.",
     "emptyTitle": "No records yet",
     "emptyMessage": "Inventory activity will appear here once batches are received and sold.",
@@ -694,9 +700,9 @@
     "colHarvestDate": "Harvest Date",
     "colPickupDate": "Pickup Date",
     "colDeliveryDate": "Delivery Date",
-    "colPayment": "Payment",
+    "colPayment": "Payment Status",
     "colOrderStatus": "Order Status",
-    "colBatch": "Batch",
+    "colBatch": "Batch ID",
     "colPhoto": "Photo",
     "colBatchStatus": "Batch Status"
   },
@@ -806,7 +812,7 @@
             { "title": "Home", "desc": "Pending orders, pickup requests, and unpaid totals at a glance, plus your live Product List with prices and stock." },
             { "title": "Orders", "desc": "Every retailer order — Pending, Approved, Cancelled, and History — moved through approval and delivery." },
             { "title": "Stocks", "desc": "Harvest batches picked up from farmers. Add a photo and a price, then list them for retailers to buy." },
-            { "title": "Inventory", "desc": "A full report of everything received, sold, and remaining, with payment and order status. Exportable as a PDF." },
+            { "title": "Vegetable Chain Tracking", "desc": "The history of every batch from the farmer to the retailer or to Spoiled Products, with reports for any period. Exportable as a PDF." },
             { "title": "Profile", "desc": "Your account details, language setting, this guide, and support contact." }
           ]
         },
@@ -1291,6 +1297,7 @@
     "received": "Received",
     "listed": "Listed",
     "sold_out": "Sold out",
+    "spoiled": "Spoiled",
     "archived": "Archived",
     "unsuccessful": "Unsuccessful Delivery"
   },
@@ -1535,7 +1542,14 @@
     "arrivedHint": "Open the delivery details to continue.",
     "openDetails": "Open delivery details",
     "opening": "Opening…",
-    "shareProblem": "Your location couldn’t be shared right now. Navigation still works."
+    "shareProblem": "Your location couldn’t be shared right now. Navigation still works.",
+    "pickupTitle": "Pickup Navigation",
+    "toFarm": "Heading to the farm",
+    "arrivedPickupHint": "Go back to the pickup to confirm it.",
+    "backToPickup": "Back to pickup",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "routeOverview": "Show whole route"
   },
   "cmp2": {
     "orderN": "Order {label}",
@@ -1641,5 +1655,195 @@
   },
   "keepx": {
     "keepSignedIn": "Keep me signed in"
+  },
+  "pickupForm": {
+    "availableMeta": "{qty} kg available · Harvested {date}",
+    "availableKg": "{qty} kg available to request",
+    "quantityLabel": "Quantity to pick up",
+    "priceLabel": "Your price per kg",
+    "estimatedTotal": "Estimated total",
+    "quantityInvalid": "Enter a quantity greater than 0 kg (up to 2 decimal places).",
+    "quantityTooHigh": "You can request up to {qty} kg from this harvest.",
+    "priceInvalid": "Enter a price per kg greater than ₱0 (up to 2 decimal places).",
+    "fixFields": "Please check the quantity and price of each vegetable.",
+    "remove": "Remove from pickup request",
+    "declinedReason": "Declined: {reason}"
+  },
+  "pickupStatus": {
+    "requested": "Pending",
+    "approved": "Approved",
+    "assigned": "Ready for Pickup",
+    "otw": "In Progress",
+    "picked_up": "Picked Up",
+    "declined": "Declined"
+  },
+  "pickupPanel": {
+    "tabs": {
+      "pending": "Pending",
+      "active": "Active",
+      "completed": "Completed",
+      "declined": "Declined"
+    },
+    "empty": {
+      "pending": "No pending pickup requests",
+      "active": "No active pickups",
+      "completed": "No completed pickups yet",
+      "declined": "No declined requests"
+    },
+    "emptyMessage": "Pickup requests from farmers will appear here.",
+    "pricePerKg": "{price} / kg",
+    "noPrice": "No price given",
+    "totalShort": "Total {total}",
+    "harvestedOn": "Harvested {date}",
+    "requestedOn": "Requested {date}",
+    "reason": "Reason: {reason}",
+    "decline": "Decline",
+    "assignRider": "Assign Rider",
+    "approveTitle": "Approve Pickup Request",
+    "assignTitle": "Assign a Rider",
+    "approveAndAssign": "Approve and Assign",
+    "riderOptional": "Assign a rider now (optional)",
+    "approvedTitle": "Pickup approved",
+    "approvedMessage": "The farmer has been told. Assign a rider when one is available.",
+    "declineTitle": "Decline Pickup Request",
+    "declineReasonLabel": "Reason for declining",
+    "declineReasonPlaceholder": "For example: The price is too high",
+    "declinedTitle": "Pickup declined",
+    "declinedMessage": "The farmer has been told why the request was declined.",
+    "farmer": "Farmer",
+    "vegetable": "Vegetable",
+    "quantity": "Requested quantity",
+    "farmerPrice": "Farmer's price",
+    "estimatedTotal": "Estimated total",
+    "status": "Status",
+    "batch": "Batch ID",
+    "noBatchYet": "Created after pickup",
+    "harvestDate": "Harvest date",
+    "pickupLocation": "Pickup location",
+    "requestDate": "Request date",
+    "approvedDate": "Approved on",
+    "rider": "Rider",
+    "pickedUpDate": "Picked up on",
+    "note": "Note",
+    "pickupProof": "Proof of pickup"
+  },
+  "stockAlerts": {
+    "title": "Stock alert",
+    "subtitle": "These batches reach the 7-day limit today. Unsold stock moves to Spoiled Products tomorrow.",
+    "message": "{name} has {kg} kg remaining in stock. Harvested on {date} and has been in stock for {days} days.",
+    "messageNoHarvest": "{name} has {kg} kg remaining in stock and has been in stock for {days} days.",
+    "keepSelling": "Keep Selling",
+    "changePrice": "Change Price"
+  },
+  "discard": {
+    "button": "Discard",
+    "title": "Discard Stock",
+    "confirm": "Discard the remaining {kg} kg of {name}? This stock will no longer be available for sale.",
+    "doneTitle": "Stock discarded",
+    "doneMessage": "The stock was moved to Spoiled Products.",
+    "pastLimitMessage": "This batch passed the 7-day limit and is now in Spoiled Products."
+  },
+  "chain": {
+    "title": "Vegetable Chain Tracking",
+    "viewReports": "View Reports",
+    "spoiledProducts": "Spoiled Products",
+    "viewDetailsFor": "View details of {name}",
+    "emptyTitle": "No batches here",
+    "emptyMessage": "Batches appear here after a pickup or when stock is added in Stocks.",
+    "emptyFilterMessage": "No batches match this filter.",
+    "col": {
+      "vegetableBatch": "Vegetable / Batch",
+      "vegetable": "Vegetable",
+      "batch": "Batch ID",
+      "status": "Status",
+      "farmer": "Farmer",
+      "harvestDate": "Harvest Date",
+      "pickupDate": "Pickup Date",
+      "received": "Received",
+      "sold": "Sold",
+      "spoiled": "Spoiled",
+      "remaining": "Remaining",
+      "receivedKg": "Received (kg)",
+      "soldKg": "Sold (kg)",
+      "spoiledKg": "Spoiled (kg)",
+      "leftKg": "Left (kg)",
+      "qty": "Quantity",
+      "farmerPrice": "Farmer's Price",
+      "sellingPrice": "Selling Price",
+      "retailers": "Retailers"
+    },
+    "inStockSince": "In stock since",
+    "daysInStock": "Days in stock",
+    "daysValue": "{days} of 7 days",
+    "quantities": "Quantities",
+    "onOrder": "With orders on the way",
+    "notDelivered": "Not delivered",
+    "adjusted": "Adjusted in Edit Quantity",
+    "pickupHeading": "Pickup from the farmer",
+    "requestedQty": "Requested quantity",
+    "requestDate": "Request date",
+    "noPickup": "Added in Stocks, not from a pickup request.",
+    "salesHeading": "Sales to retailers ({count})",
+    "noSales": "Not sold to any retailer yet.",
+    "orderDate": "Order date",
+    "returnedToStock": "This order did not take stock from the batch.",
+    "spoilageHeading": "Spoilage",
+    "noSpoilage": "No spoilage for this batch.",
+    "exportTitle": {
+      "active": "VeggieTrack — Active Batches",
+      "sold_out": "VeggieTrack — Sold Out Batches",
+      "spoiled": "VeggieTrack — Spoiled Batches"
+    }
+  },
+  "reports": {
+    "title": "Transaction Reports",
+    "period": {
+      "week": "This Week",
+      "month": "This Month",
+      "year": "This Year",
+      "custom": "Custom"
+    },
+    "from": "From",
+    "to": "To",
+    "pickDates": "Choose a start date and an end date.",
+    "startAfterEnd": "The start date cannot be after the end date.",
+    "receivedKg": "Received",
+    "soldKg": "Sold",
+    "spoiledKg": "Spoiled",
+    "completedSales": "Completed sales",
+    "summaryLine": "Received {received} kg · Sold {sold} kg · Spoiled {spoiled} kg",
+    "col": {
+      "date": "Date",
+      "activity": "Activity",
+      "transaction": "Transaction",
+      "amount": "Amount"
+    },
+    "type": {
+      "received": "Received",
+      "sold": "Sold",
+      "spoiled": "Spoiled"
+    },
+    "status": {
+      "received": "Received in stock",
+      "sold": "Delivered"
+    },
+    "fromFarmer": "From {name}",
+    "toRetailer": "To {name}",
+    "emptyTitle": "No transactions",
+    "emptyMessage": "Nothing was received, sold or spoiled in this period.",
+    "exportTitle": "VeggieTrack — Transaction Report"
+  },
+  "spoilage": {
+    "thisWeek": "This Week's Spoilage",
+    "reasonLabel": "Reason",
+    "dateLabel": "Date moved to spoilage",
+    "reason": {
+      "discarded": "Discarded by Distributor",
+      "past_limit": "Past Spoilage Limit"
+    },
+    "harvested": "Harvested {date}",
+    "moved": "Moved {date}",
+    "emptyTitle": "No spoiled products",
+    "emptyMessage": "Discarded stock and stock past the 7-day limit will appear here."
   }
 }

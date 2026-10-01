@@ -38,25 +38,6 @@ ${bodyScript}
 </html>`;
 }
 
-// Read-only display map (courier/destination markers + optional route line).
-// Callers rebuild the HTML and remount (via a changing `key`) whenever the
-// coordinates change — cheap, since this map has no user interaction to lose.
-export function buildStaticMapHtml({ centerLat, centerLng, zoom = 14, markers = [], polyline = null, polylineColor = '#1E4E09' }) {
-  const script = `
-    var map = L.map('map', { attributionControl: true, zoomControl: true }).setView([${centerLat}, ${centerLng}], ${zoom});
-    L.tileLayer('${TILE_URL}', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
-    ${markers.map((m) => `
-    L.circleMarker([${m.lat}, ${m.lng}], { radius: 9, color: '#fff', weight: 2, fillColor: ${JSON.stringify(m.color || '#1E4E09')}, fillOpacity: 1 })
-      .addTo(map)${m.popup ? `.bindPopup(${JSON.stringify(m.popup)})` : ''};
-    `).join('\n')}
-    ${polyline && polyline.length > 1 ? `
-    L.polyline(${JSON.stringify(polyline.map((p) => [p.lat, p.lng]))}, { color: ${JSON.stringify(polylineColor)}, weight: 3 }).addTo(map);
-    ` : ''}
-    post({ type: 'ready' });
-  `;
-  return page(script);
-}
-
 // Interactive pin-placement map: draggable marker + tap-to-move. RN drives it
 // via WebView.injectJavaScript() calling window.setPin()/window.flyTo(); the
 // page reports pin moves back to RN via postMessage({ type: 'pinchange' }).

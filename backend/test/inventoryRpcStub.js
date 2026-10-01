@@ -1,4 +1,4 @@
-const { planFifoDraw, sameVegetableAs, roundKg } = require('../lib/batches');
+const { planFifoDraw, sameVegetableAs, roundKg, isActiveBatch, daysInStock, STOCK_ALERT_DAYS } = require('../lib/batches');
 const { vegetableKey } = require('../lib/vegetables');
 
 // Route integration uses a stateful API stub; inventoryTransactionsSql exercises real SQL.
@@ -17,6 +17,7 @@ function syncOrderStock(data, before, order) {
   const items = (data.order_items || []).filter(i => i.order_id === order.id);
   order.stock_committed_at = before.stock_committed_at ?? null;
   if (holdsStock(order.status) && !order.stock_committed_at) {
+    spoilExpired(data);
     const byKey = new Map();
     for (const item of items) byKey.set(vegetableKey(item.vegetable_name), [...(byKey.get(vegetableKey(item.vegetable_name)) || []), item]);
     const plans = [];
@@ -46,10 +47,76 @@ function syncOrderStock(data, before, order) {
   return null;
 }
 
+// In-memory sql/pickup_pricing_and_spoilage.sql: the 7-day rule and discards
+// record spoilage and empty the batch; nothing is deleted.
+function spoilExpired(data) {
+  let moved = 0;
+  for (const batch of data.products || []) {
+    if (isActiveBatch(batch) && (daysInStock(batch) ?? 0) > STOCK_ALERT_DAYS) {
+      (data.stock_spoilage ||= []).push({ id: `spoil-${data.stock_spoilage.length + 1}`, product_id: batch.id,
+        distributor_id: batch.distributor_id, quantity_kg: batch.stock_kg, reason: 'past_limit', recorded_at: new Date().toISOString() });
+      batch.stock_kg = 0; batch.status = 'spoiled'; moved += 1;
+    }
+  }
+  return moved;
+}
+const OPEN_PICKUPS = ['requested', 'approved', 'assigned', 'otw'];
+function syncHarvest(data, harvest) {
+  const requests = (data.pickup_requests || []).filter(r => r.harvest_id === harvest.id);
+  const claimed = requests.filter(r => !['declined', 'cancelled'].includes(r.status))
+    .reduce((sum, r) => sum + Number(r.quantity_kg ?? harvest.quantity_kg), 0);
+  harvest.status = requests.some(r => OPEN_PICKUPS.includes(r.status)) ? 'for_pickup'
+    : roundKg(harvest.quantity_kg - claimed) > 0 ? 'available' : 'picked_up';
+}
+
 function inventoryRpcStub(data, name, args, nextId) {
   const products = data.products || [];
   const failed = message => ({ data: null, error: fail(message) });
+  const invalid = message => ({ data: null, error: { code: '22023', message } });
+  if (name === 'spoil_expired_batches') return { data: spoilExpired(data), error: null };
+  if (name === 'discard_product_stock') {
+    spoilExpired(data);
+    const batch = products.find(p => p.id === args.p_product_id && p.distributor_id === args.p_distributor_id);
+    if (!batch) return { data: null, error: { code: 'P0002', message: 'Batch not found or not owned by you' } };
+    if (batch.status === 'spoiled') return { data: [...(data.stock_spoilage || [])].reverse().find(s => s.product_id === batch.id), error: null };
+    if (!isActiveBatch(batch)) return failed('This batch has no stock left to discard.');
+    const record = { id: `spoil-${(data.stock_spoilage ||= []).length + 1}`, product_id: batch.id, distributor_id: batch.distributor_id,
+      quantity_kg: batch.stock_kg, reason: 'discarded', recorded_by: args.p_distributor_id, recorded_at: new Date().toISOString() };
+    data.stock_spoilage.push(record);
+    batch.stock_kg = 0; batch.status = 'spoiled';
+    return { data: { ...record }, error: null };
+  }
+  if (name === 'request_harvest_pickup') {
+    const harvest = (data.harvests || []).find(h => h.id === args.p_harvest_id && h.farmer_id === args.p_farmer_id);
+    if (!harvest) return { data: null, error: { code: 'P0002', message: 'Harvest not found or not owned by you' } };
+    if (!(args.p_quantity > 0)) return invalid('Enter a quantity greater than 0 kg.');
+    if (!(args.p_price > 0)) return invalid('Enter a price per kg greater than 0.');
+    const requests = (data.pickup_requests ||= []).filter(r => r.harvest_id === harvest.id);
+    if (requests.some(r => OPEN_PICKUPS.includes(r.status))) return failed('A pickup has already been requested for this harvest.');
+    const available = roundKg(harvest.quantity_kg - requests.filter(r => !['declined', 'cancelled'].includes(r.status))
+      .reduce((sum, r) => sum + Number(r.quantity_kg ?? harvest.quantity_kg), 0));
+    if (available <= 0) return failed('This harvest has no kilograms left to request.');
+    if (args.p_quantity > available) return invalid(`You can request up to ${available} kg from this harvest.`);
+    const request = { id: nextId(), farmer_id: args.p_farmer_id, harvest_id: harvest.id, note: args.p_note, status: 'requested',
+      quantity_kg: args.p_quantity, price_per_kg: args.p_price, requested_at: new Date().toISOString() };
+    data.pickup_requests.push(request);
+    syncHarvest(data, harvest);
+    return { data: { ...request }, error: null };
+  }
+  if (name === 'decline_pickup_request') {
+    const request = (data.pickup_requests || []).find(r => r.id === args.p_pickup_id);
+    if (!request) return { data: null, error: { code: 'P0002', message: 'Pickup request not found' } };
+    if (request.status !== 'declined') {
+      if (!['requested', 'approved'].includes(request.status)) return failed('This pickup request was already updated. Refresh and try again.');
+      Object.assign(request, { status: 'declined', declined_at: new Date().toISOString(), decline_reason: args.p_reason,
+        received_by: request.received_by || args.p_distributor_id });
+      const harvest = (data.harvests || []).find(h => h.id === request.harvest_id);
+      if (harvest) syncHarvest(data, harvest);
+    }
+    return { data: { ...request }, error: null };
+  }
   if (name === 'place_inventory_order') {
+    spoilExpired(data);
     // A pending order is quoted from listed stock but draws nothing.
     const draws = [];
     for (const item of args.p_items) {
@@ -97,4 +164,4 @@ function inventoryRpcStub(data, name, args, nextId) {
   return null;
 }
 
-module.exports = { inventoryRpcStub, syncOrderStock };
+module.exports = { inventoryRpcStub, syncOrderStock, syncHarvest, spoilExpired };

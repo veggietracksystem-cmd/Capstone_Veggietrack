@@ -1,4 +1,4 @@
-const { inventoryRpcStub, syncOrderStock } = require('./inventoryRpcStub');
+const { inventoryRpcStub, syncOrderStock, syncHarvest } = require('./inventoryRpcStub');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -68,12 +68,14 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
       row.proof_photo_url = args.p_photo_url; row.pod = { ...args.p_pod, location_status: 'verified' };
       const harvest = data.harvests.find(h => h.id === row.harvest_id);
       if (harvest) {
+        // Same as the receive_pickup_inventory trigger: the batch holds the requested kg.
+        const received = row.quantity_kg ?? harvest.quantity_kg;
         (data.products ||= []).push({ id: `batch-${++sequence}`, distributor_id: row.received_by,
-          vegetable_name: harvest.vegetable_name, stock_kg: harvest.quantity_kg,
-          quantity_received: harvest.quantity_kg, price_per_kg: null, status: 'received',
+          vegetable_name: harvest.vegetable_name, stock_kg: received,
+          quantity_received: received, price_per_kg: null, status: 'received',
           harvest_id: harvest.id, farmer_id: row.farmer_id, pickup_request_id: row.id,
-          harvest_date: harvest.recorded_at, pickup_date: row.received_at });
-        harvest.status = 'picked_up';
+          harvest_date: harvest.recorded_at, pickup_date: row.received_at, created_at: row.received_at });
+        syncHarvest(data, harvest);
       }
 
       return { data: row.pod, error: null };
@@ -88,10 +90,10 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
     require: name => name === 'express' ? express : name === 'dotenv' ? { config() {} } : name === '@supabase/supabase-js' ? { createClient: () => db } : realRequire(name),
     process: { env: { CLOUDINARY_CLOUD_NAME: 'veggietrack' }, on() {} }, console, Date, URL, setTimeout, clearTimeout,
   });
-  async function raw(key, userId, body = {}, id) {
+  async function raw(key, userId, body = {}, id, query = {}) {
     const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
     const user = data.users.find(row => row.id === userId);
-    await handlers.get(key)({ user: { userId, role: user?.role }, body, params: { id }, query: {} }, res);
+    await handlers.get(key)({ user: { userId, role: user?.role }, body, params: { id }, query }, res);
     return res;
   }
   async function call(key, userId, body = {}, id) {
@@ -99,17 +101,36 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
     assert.ok(res.statusCode < 400, `${key}: ${JSON.stringify(res.body)}`);
     return res.body;
   }
-  const harvest = (await call('post /api/harvests', 'farmer', { vegetable_name: 'Carrot', quantity_kg: 8 })).harvest;
-  const pickup = (await call('post /api/pickup-requests', 'farmer', { harvest_id: harvest.id })).request;
+  const harvest = (await call('post /api/harvests', 'farmer', { vegetable_name: 'Carrot', quantity_kg: 10 })).harvest;
+  // The farmer must give a quantity within the harvest and a price per kg.
+  for (const [body, field] of [[{}, 'quantity_kg'], [{ quantity_kg: 0, price_per_kg: 35 }, 'quantity_kg'],
+    [{ quantity_kg: -2, price_per_kg: 35 }, 'quantity_kg'], [{ quantity_kg: 11, price_per_kg: 35 }, 'quantity_kg'],
+    [{ quantity_kg: 8, price_per_kg: 0 }, 'price_per_kg'], [{ quantity_kg: 8, price_per_kg: 'abc' }, 'price_per_kg']]) {
+    const rejected = await raw('post /api/pickup-requests', 'farmer', { harvest_id: harvest.id, ...body });
+    assert.equal(rejected.statusCode, 422, JSON.stringify(body)); assert.equal(rejected.body.field, field);
+  }
+  assert.equal((data.pickup_requests || []).length, 0);
+  const pickup = (await call('post /api/pickup-requests', 'farmer', { harvest_id: harvest.id, quantity_kg: 8, price_per_kg: 35 })).request;
+  assert.deepEqual([pickup.status, pickup.quantity_kg, pickup.price_per_kg], ['requested', 8, 35]);
   // Duplicate protection: a double-tap / retried pickup request for the same
   // harvest must not create a second active request.
-  const dupePickup = await raw('post /api/pickup-requests', 'farmer', { harvest_id: harvest.id });
+  const dupePickup = await raw('post /api/pickup-requests', 'farmer', { harvest_id: harvest.id, quantity_kg: 2, price_per_kg: 35 });
   assert.equal(dupePickup.statusCode, 409);
   assert.equal(data.pickup_requests.filter(p => p.harvest_id === harvest.id).length, 1);
+  const farmerHarvest = (await call('get /api/harvests', 'farmer')).find(h => h.id === harvest.id);
+  assert.deepEqual([farmerHarvest.status, farmerHarvest.requested_kg, farmerHarvest.available_kg], ['for_pickup', 8, 2]);
 
-  await call('put /api/pickup-requests/:id/assign', 'hub', { delivery_personnel_id: 'rider', price_per_kg: 10 }, pickup.id);
+  // The distributor sees the farmer's quantity, price and total before approving.
+  const pending = (await call('get /api/pickup-requests', 'hub')).find(p => p.id === pickup.id);
+  assert.deepEqual([pending.farmer_name, pending.harvests.vegetable_name, pending.quantity_kg, pending.price_per_kg, pending.estimated_total, pending.status],
+    ['Farmer', 'Carrot', 8, 35, 280, 'requested']);
+  await call('put /api/pickup-requests/:id/approve', 'hub', {}, pickup.id);
+  assert.equal(data.pickup_requests.find(p => p.id === pickup.id).status, 'approved');
+  assert.equal((await raw('put /api/pickup-requests/:id/assign', 'hub', { delivery_personnel_id: 'retailer' }, pickup.id)).statusCode, 400, 'only riders can be assigned');
+  await call('put /api/pickup-requests/:id/assign', 'hub', { delivery_personnel_id: 'rider' }, pickup.id);
   // Rider assignment idempotency: a duplicate/retried assign call is rejected
   // once the pickup is already assigned, and the original rider stays assigned.
+  assert.equal((await raw('put /api/pickup-requests/:id/decline', 'hub', { reason: 'late' }, pickup.id)).statusCode, 409);
   const dupeAssign = await raw('put /api/pickup-requests/:id/assign', 'hub', { delivery_personnel_id: 'rider', price_per_kg: 10 }, pickup.id);
   assert.equal(dupeAssign.statusCode, 400); // rejected by the status guard before the atomic update is even attempted
   assert.equal(data.pickup_requests.find(p => p.id === pickup.id).delivery_personnel_id, 'rider');
@@ -123,6 +144,18 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
   } finally { global.fetch = realFetch; }
   const batch = data.products[0];
   assert.equal(batch.status, 'received'); assert.equal(batch.harvest_id, harvest.id); assert.equal(batch.farmer_id, 'farmer');
+  // One batch with the requested 8 kg; the other 2 kg stay with the farmer.
+  assert.deepEqual([data.products.length, batch.stock_kg, batch.quantity_received], [1, 8, 8]);
+  assert.equal(data.harvests.find(h => h.id === harvest.id).status, 'available');
+  const completed = (await call('get /api/pickup-requests', 'hub')).find(p => p.id === pickup.id);
+  assert.deepEqual([completed.status, completed.batch_id, completed.rider_name], ['picked_up', batch.id, 'Rider']);
+  // The farmer requests the rest; the distributor declines it with a reason.
+  const rest = (await call('post /api/pickup-requests', 'farmer', { harvest_id: harvest.id, quantity_kg: 2, price_per_kg: 40 })).request;
+  assert.equal((await raw('put /api/pickup-requests/:id/decline', 'hub', { reason: '  ' }, rest.id)).statusCode, 400);
+  await call('put /api/pickup-requests/:id/decline', 'hub', { reason: 'Too little to collect' }, rest.id);
+  const declined = (await call('get /api/pickup-requests', 'farmer')).find(p => p.id === rest.id);
+  assert.deepEqual([declined.status, declined.decline_reason], ['declined', 'Too little to collect']);
+  assert.equal((await call('get /api/harvests', 'farmer')).find(h => h.id === harvest.id).available_kg, 2);
   assert.equal((await call('get /api/products/available', 'retailer')).length, 0);
   const photo = 'https://res.cloudinary.com/veggietrack/image/upload/v123/batches/carrot-received.jpg';
   await call('put /api/products/:id/batch-photo', 'hub', { batch_photo_url: photo }, batch.id);
@@ -155,4 +188,66 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
   const reassignOtherRider = await raw('put /api/orders/:id/assign', 'hub', { delivery_personnel_id: 'other-rider' }, order.id);
   assert.equal(reassignOtherRider.statusCode, 409); // assigning a different rider on top is rejected
   assert.equal(data.orders[0].delivery_personnel_id, 'rider', 'the original rider must remain assigned');
+
+  // Vegetable Chain Tracking traces the batch from the farmer to the retailer.
+  data.orders[0].status = 'delivered'; data.deliveries[0].delivered_at = new Date().toISOString();
+  data.deliveries[0].proof_photo_url = 'https://res.cloudinary.com/veggietrack/image/upload/v1/pod.jpg';
+  let [traced] = (await call('get /api/distributor/chain-tracking', 'hub')).batches;
+  assert.deepEqual([traced.batch_id, traced.farmer_name, traced.pickup.farmer_price_per_kg, traced.pickup.estimated_total,
+    traced.pickup.rider_name, traced.pickup.proof_photo_url], [batch.id, 'Farmer', 35, 280, 'Rider', data.pickup_requests.find(p => p.id === pickup.id).proof_photo_url]);
+  assert.ok(traced.pickup.proof_photo_url.endsWith('/v123/pickups/carrot-proof.jpg'));
+  assert.deepEqual(traced.sales.map(s => [s.retailer_name, s.quantity_kg, s.stage, s.proof_photo_url]),
+    [['Retailer', 6, 'sold', data.deliveries[0].proof_photo_url]]);
+  assert.deepEqual(traced.totals, { received: 8, remaining: 2, sold: 6, on_order: 0, not_delivered: 0, spoiled: 0, adjusted: 0 });
+
+  // Discard: the remaining 2 kg leave sale, go to Spoiled Products and never back to Stocks.
+  assert.equal((await raw('post /api/products/:id/discard', 'retailer', {}, batch.id)).statusCode, 403);
+  const discard = await call('post /api/products/:id/discard', 'hub', {}, batch.id);
+  assert.deepEqual([discard.spoilage.reason, discard.spoilage.quantity_kg], ['discarded', 2]);
+  assert.deepEqual([data.products[0].stock_kg, data.products[0].status], [0, 'spoiled']);
+  assert.equal((await call('get /api/products/available', 'retailer')).length, 0);
+  assert.equal((await call('get /api/products', 'hub')).length, 0, 'not in Stocks or Stock to Approve');
+  [traced] = (await call('get /api/distributor/chain-tracking', 'hub')).batches;
+  assert.deepEqual([traced.status, traced.totals.remaining, traced.totals.sold, traced.totals.spoiled], ['spoiled', 0, 6, 2]);
+  const spoiled = await call('get /api/distributor/spoilage', 'hub');
+  assert.deepEqual(spoiled.records.map(r => [r.batch_id, r.vegetable_name, r.farmer_name, r.quantity_kg, r.reason]), [[batch.id, 'Carrot', 'Farmer', 2, 'discarded']]);
+  assert.equal(spoiled.this_week.kg, 2);
+
+  // Reports: received, sold and spoiled kilograms within the chosen dates only.
+  const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+  const report = await call('get /api/distributor/chain-report', 'hub');
+  assert.deepEqual(report.summary, { received_kg: 8, sold_kg: 6, spoiled_kg: 2, sales_total: 120, completed_transactions: 1, batches: 1 });
+  const lastYear = await raw('get /api/distributor/chain-report', 'hub', {}, undefined, { from: '2025-01-01', to: '2025-12-31' });
+  assert.deepEqual([lastYear.body.events.length, lastYear.body.summary.received_kg], [0, 0]);
+  const todayOnly = await raw('get /api/distributor/chain-report', 'hub', {}, undefined, { from: today, to: today });
+  assert.deepEqual(todayOnly.body.events.map(e => e.type).sort(), ['received', 'sold', 'spoiled']);
+  assert.equal((await raw('get /api/distributor/chain-report', 'hub', {}, undefined, { from: today, to: '2025-01-01' })).statusCode, 400);
+
+  // 7-day rule. Stock picked up more than 7 days ago cannot be added at all.
+  const daysAgo = d => new Date(Date.now() + 8 * 3600000 - d * 86400000).toISOString().slice(0, 10);
+  const addStock = (vegetable_name, stock_kg, pickupDaysAgo) => raw('post /api/products', 'hub', {
+    vegetable_name, price_per_kg: 30, stock_kg, batch_photo_url: photo, harvest_date: daysAgo(pickupDaysAgo + 1), pickup_date: daysAgo(pickupDaysAgo),
+  });
+  const tooOld = await addStock('Tomato', 18, 8);
+  assert.deepEqual([tooOld.statusCode, tooOld.body.field], [400, 'pickup_date']);
+  const tomato = (await addStock('Tomato', 18, 7)).body.product;
+  await addStock('Okra', 6, 6);
+  // Day 7: still on sale, and the distributor is alerted once (not on every refresh).
+  const harvested = new Date(tomato.harvest_date).toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'long', day: 'numeric', year: 'numeric' });
+  for (let refresh = 0; refresh < 2; refresh += 1) {
+    const alerts = await call('get /api/distributor/stock-alerts', 'hub');
+    assert.deepEqual(alerts.map(a => [a.batch_id, a.remaining_kg, a.days_in_stock]), [[tomato.id, 18, 7]]);
+    assert.equal(alerts[0].message, `Tomato has 18 kg remaining in stock. Harvested on ${harvested} and has been in stock for 7 days.`);
+  }
+  assert.equal(data.notifications.filter(n => n.type === 'stock_alert' && n.item_id === tomato.id).length, 1);
+  assert.equal((await call('get /api/products/available', 'retailer')).find(p => p.vegetable_name === 'Tomato').available_kg, 18);
+  // Day 8: past the limit, so it moves to Spoiled Products on its own and stops being sold.
+  data.products.find(p => p.id === tomato.id).pickup_date = `${daysAgo(8)}T04:00:00.000Z`;
+  assert.equal((await call('get /api/products/available', 'retailer')).some(p => p.vegetable_name === 'Tomato'), false);
+  assert.deepEqual([data.products.find(p => p.id === tomato.id).status, data.products.find(p => p.id === tomato.id).stock_kg], ['spoiled', 0]);
+  assert.deepEqual(await call('get /api/distributor/stock-alerts', 'hub'), []);
+  const spoiledNow = await call('get /api/distributor/spoilage', 'hub');
+  assert.deepEqual(spoiledNow.records.map(r => [r.vegetable_name, r.quantity_kg, r.reason]), [['Tomato', 18, 'past_limit'], ['Carrot', 2, 'discarded']]);
+  assert.equal(spoiledNow.this_week.kg, 20);
+  assert.deepEqual((await call('get /api/products', 'hub')).map(p => p.vegetable_name), ['Okra']);
 });

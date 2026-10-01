@@ -8,6 +8,7 @@ import * as Location from 'expo-location';
 import { rf } from '../lib/responsive';
 import PlaceAutocomplete from './PlaceAutocomplete';
 import { buildPinningMapHtml } from '../lib/leafletMapHtml';
+import { MAP_PAGE_BASE_URL } from '../lib/mapPageOrigin';
 import { Ionicons } from '@expo/vector-icons';
 import ModalCloseButton from './ui/ModalCloseButton';
 import { useTranslation } from '../i18n/useTranslation';
@@ -176,7 +177,8 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
             ref={webviewRef}
             key={openId}
             originWhitelist={['*']}
-            source={{ html }}
+            source={{ html, baseUrl: MAP_PAGE_BASE_URL }}
+            applicationNameForUserAgent="VeggieTrack/1.0"
             style={styles.map}
             onMessage={handleWebViewMessage}
             onError={() => setWebviewError(t('cmp.mapLoadFailed'))}

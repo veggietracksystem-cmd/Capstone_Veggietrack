@@ -40,6 +40,9 @@ import DeliveryDetailsScreen from './src/screens/DeliveryDetailsScreen';
 import MessagesScreen from './src/screens/MessagesScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import RiderNavigationScreen from './src/screens/delivery/RiderNavigationScreen';
+import PickupNavigationScreen from './src/screens/delivery/PickupNavigationScreen';
+import ChainReportScreen from './src/screens/ChainReportScreen';
+import SpoiledProductsScreen from './src/screens/SpoiledProductsScreen';
 import ShopeeTrackingScreen from './src/screens/Retailer/ShopeeTrackingScreen';
 import ManageAddressesScreen from './src/screens/ManageAddressesScreen';
 import FarmerPickupTrackingScreen from './src/screens/FarmerPickupTrackingScreen';
@@ -125,8 +128,11 @@ function RootNavigator() {
             <Stack.Screen name="ProductList" component={ProductListScreen} />
             <Stack.Screen name="Stocks" component={StocksScreen} />
             <Stack.Screen name="DistributorInventoryReport" component={DistributorInventoryReportScreen} />
+            <Stack.Screen name="ChainReport" component={ChainReportScreen} />
+            <Stack.Screen name="SpoiledProducts" component={SpoiledProductsScreen} />
             <Stack.Screen name="DeliveryDetails" component={DeliveryDetailsScreen} />
             <Stack.Screen name="RiderNavigation" component={RiderNavigationScreen} />
+            <Stack.Screen name="PickupNavigation" component={PickupNavigationScreen} />
             <Stack.Screen name="ShopeeTracking" component={ShopeeTrackingScreen} />
             <Stack.Screen name="ManageAddresses" component={ManageAddressesScreen} />
             <Stack.Screen name="FarmerPickupTracking" component={FarmerPickupTrackingScreen} />

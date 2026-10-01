@@ -11,8 +11,11 @@ const { isVegetable, VEGETABLE_VALIDATION_MESSAGE } = require('./lib/vegetables'
 const {
   COMPLETED_STATUSES, roundKg, hasStockPrecision, isActiveBatch, isReceivedBatch, isSellableBatch,
   compareFifo, sameVegetableAs, retailerProducts, distributorListings, batchStatus, batchDate, manilaToday,
+  daysInStock, needsStockAlert, stockSince, STOCK_ALERT_DAYS,
 } = require('./lib/batches');
-const { coordinate, destinationFor, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
+const { OPEN_PICKUP_STATUSES, harvestAvailability, estimatedTotal, pickupInputError, requestedKg } = require('./lib/pickups');
+const { buildChainBatches, chainEvents, reportSummary, manilaWeek } = require('./lib/chainTracking');
+const { coordinate, destinationFor, createRouteService, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
 const { createPickupTrackingHandler } = require('./lib/pickupTracking');
 const { STALE_LOCATION_SECONDS } = require('./lib/locationPolicy');
 const { deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection } = require('./lib/proofGuards');
@@ -39,6 +42,9 @@ const supabaseAdmin = createClient(
 );
 configureAuth(supabaseAdmin);
 mountAccountRoutes(app, supabaseAdmin);
+// One road-routing service for delivery and pickup tracking, so both share its
+// cache and its one-request-per-second limit on the public OSRM server.
+const routeService = createRouteService();
 
 // Marks orders not delivered by the end of their scheduled day as 'unsuccessful'
 // before orders are read, so every role sees the same status even between the
@@ -47,6 +53,33 @@ async function markOverdueOrdersUnsuccessful() {
   const { error } = await supabaseAdmin.rpc('cancel_expired_retailer_orders');
   if (error) console.error('Could not update overdue orders:', error.message);
 }
+
+// 7-day stock rule (sql/pickup_pricing_and_spoilage.sql): moves unsold stock past
+// the limit to Spoiled Products before stock is read. The database runs the same
+// rule on checkout and order approval, so expired stock is never sold.
+let spoilageRuleWarned = false;
+async function spoilExpiredBatches() {
+  const { error } = await supabaseAdmin.rpc('spoil_expired_batches');
+  if (error && !spoilageRuleWarned) {
+    spoilageRuleWarned = true;
+    console.warn('7-day stock rule is not active; apply sql/pickup_pricing_and_spoilage.sql:', error.message);
+  }
+}
+
+// A missing database function or column means sql/pickup_pricing_and_spoilage.sql
+// has not been applied yet.
+const needsMigration = (error) => !!error && ['PGRST202', '42883', 'PGRST204', '42703', 'PGRST200', 'PGRST205', '42P01'].includes(error.code);
+function sendMigrationRequired(res) {
+  return res.status(503).json({ error: 'This feature needs the latest database update. Please contact the administrator.', code: 'DATABASE_UPDATE_REQUIRED' });
+}
+// Database function errors raised with a plain message for the user.
+function sendWorkflowError(res, error) {
+  if (needsMigration(error)) return sendMigrationRequired(res);
+  const statuses = { P0001: 409, P0002: 404, '22023': 422, '42501': 403 };
+  if (statuses[error.code]) return res.status(statuses[error.code]).json({ error: error.message });
+  return sendDbError(res, error);
+}
+const philippineDate = (value) => new Date(value).toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'long', day: 'numeric', year: 'numeric' });
 
 async function createNotification(userId, title, message, type = 'info', itemId = null) {
   const insertData = {
@@ -143,8 +176,29 @@ app.get('/api/harvests', verifyToken, async (req, res) => {
     .order('recorded_at', { ascending: false });
 
   if (error) return sendDbError(res, error);
-  res.json(data);
+  // Kilograms still free to request, after every pickup request that was not declined.
+  const requests = await farmerPickupQuantities(req.user.userId);
+  res.json((data || []).map((harvest) => ({ ...harvest, ...harvestAvailability(harvest, requests) })));
 });
+
+// Pickup requests (harvest, quantity, status) of one farmer or one harvest. Before
+// the pickup quantity column exists, every request covers its whole harvest.
+async function farmerPickupQuantities(farmerId, harvestId) {
+  const query = (columns) => {
+    let q = supabaseAdmin.from('pickup_requests').select(columns);
+    if (farmerId) q = q.eq('farmer_id', farmerId);
+    if (harvestId) q = q.eq('harvest_id', harvestId);
+    return q;
+  };
+  let { data, error } = await query('harvest_id, quantity_kg, status');
+  if (needsMigration(error)) ({ data, error } = await query('harvest_id, status'));
+  return error ? [] : (data || []);
+}
+// True when part of the harvest has a pickup request that was not declined.
+async function harvestHasPickups(harvestId) {
+  const requests = await farmerPickupQuantities(null, harvestId);
+  return requests.some((request) => !['declined', 'cancelled'].includes(request.status));
+}
 
 app.get('/api/harvests/weekly-report', verifyToken, async (req, res) => {
   if (req.user.role !== 'farmer') {
@@ -248,8 +302,9 @@ app.put('/api/harvests/:id', verifyToken, async (req, res) => {
     return res.status(400).json({ error: 'Harvest status is managed by the pickup workflow.' });
   }
 
-  // A harvest's name and quantity are locked once a pickup has been requested.
-  if ((vegetable_name !== undefined || quantity_kg !== undefined) && existing.status !== 'available') {
+  // A harvest's name and quantity are locked once any part of it has a pickup request.
+  if ((vegetable_name !== undefined || quantity_kg !== undefined)
+    && (existing.status !== 'available' || await harvestHasPickups(id))) {
     return res.status(400).json({ error: 'This harvest is pending pickup or has already been picked up and can no longer be edited' });
   }
 
@@ -296,7 +351,7 @@ app.delete('/api/harvests/:id', verifyToken, async (req, res) => {
     return res.status(404).json({ error: 'Harvest not found or not owned by you' });
   }
 
-  if (['for_pickup', 'picked_up'].includes(existing.status)) {
+  if (['for_pickup', 'picked_up'].includes(existing.status) || await harvestHasPickups(id)) {
     return res.status(400).json({ error: 'This harvest is pending pickup or has already been picked up and can no longer be deleted' });
   }
 
@@ -309,57 +364,37 @@ app.delete('/api/harvests/:id', verifyToken, async (req, res) => {
   res.json({ message: 'Harvest deleted' });
 });
 
+// A farmer requests a pickup for part or all of one harvest at their price per kg.
+// The database function locks the harvest, so two requests never claim the same kg.
 app.post('/api/pickup-requests', verifyToken, async (req, res) => {
   if (req.user.role !== 'farmer') {
     return res.status(403).json({ error: 'Only farmers can request pickups' });
   }
   const { harvest_id, note } = req.body || {};
-  if (harvest_id) {
-    const { data: ownedHarvest, error: ownershipError } = await supabaseAdmin.from('harvests')
-      .select('id, status').eq('id', harvest_id).eq('farmer_id', req.user.userId).maybeSingle();
-    if (ownershipError) return sendDbError(res, ownershipError);
-    if (!ownedHarvest) return res.status(404).json({ error: 'Harvest not found or not owned by you' });
-    if (ownedHarvest.status !== 'available') {
-      return res.status(409).json({ error: 'A pickup has already been requested for this harvest.' });
-    }
-    // Conditional update: only one concurrent request can reserve the harvest.
-    const { data: locked, error: lockError } = await supabaseAdmin.from('harvests')
-      .update({ status: 'for_pickup' })
-      .eq('id', harvest_id).eq('status', 'available')
-      .select('id').maybeSingle();
-    if (lockError) return sendDbError(res, lockError);
-    if (!locked) return res.status(409).json({ error: 'A pickup has already been requested for this harvest.' });
+  if (!harvest_id) return res.status(400).json({ error: 'Select a harvest to request a pickup.', field: 'harvest_id' });
+  if (note != null && (typeof note !== 'string' || note.length > 500)) {
+    return res.status(400).json({ error: 'Note must be text of 500 characters or fewer.', field: 'note' });
   }
-
-  const { data: request, error } = await supabaseAdmin
-    .from('pickup_requests')
-    .insert({
-      farmer_id: req.user.userId,
-      harvest_id: harvest_id || null,
-      note: note || null,
-      status: 'requested',
-    })
-    .select()
-    .single();
-
-  if (error) {
-    // Release the harvest reservation if the pickup request could not be created.
-    if (harvest_id) await supabaseAdmin.from('harvests').update({ status: 'available' }).eq('id', harvest_id);
-    return sendDbError(res, error);
+  const { data: harvest, error: harvestError } = await supabaseAdmin.from('harvests')
+    .select('id, vegetable_name, quantity_kg, status').eq('id', harvest_id).eq('farmer_id', req.user.userId).maybeSingle();
+  if (harvestError) return sendDbError(res, harvestError);
+  if (!harvest) return res.status(404).json({ error: 'Harvest not found or not owned by you' });
+  const { available_kg: availableKg } = harvestAvailability(harvest, await farmerPickupQuantities(null, harvest.id));
+  if (harvest.status !== 'available' || !(availableKg > 0)) {
+    return res.status(409).json({ error: 'A pickup has already been requested for this harvest.' });
   }
+  const invalid = pickupInputError(req.body || {}, availableKg);
+  if (invalid) return res.status(422).json(invalid);
+  const quantity = roundKg(req.body.quantity_kg), price = Math.round(Number(req.body.price_per_kg) * 100) / 100;
 
-  let label = 'available harvests';
-  if (harvest_id) {
-    const { data: h } = await supabaseAdmin
-      .from('harvests')
-      .select('vegetable_name, quantity_kg')
-      .eq('id', harvest_id)
-      .single();
-    if (h) label = `${h.vegetable_name} (${h.quantity_kg}kg)`;
-  }
+  const { data: request, error } = await supabaseAdmin.rpc('request_harvest_pickup', {
+    p_farmer_id: req.user.userId, p_harvest_id: harvest.id, p_quantity: quantity, p_price: price, p_note: note || null,
+  });
+  if (error) return sendWorkflowError(res, error);
 
   const { data: farmer } = await supabaseAdmin
     .from('users').select('full_name').eq('id', req.user.userId).single();
+  const label = `${quantity} kg of ${harvest.vegetable_name} at PHP ${price.toFixed(2)} per kg`;
 
   // Notify every distributor of the new pickup request.
   const { data: distributors } = await supabaseAdmin
@@ -377,28 +412,42 @@ app.post('/api/pickup-requests', verifyToken, async (req, res) => {
   res.status(201).json({ message: 'Pickup requested', request });
 });
 
+const PICKUP_COLUMNS = 'id, farmer_id, harvest_id, note, status, requested_at, delivery_personnel_id, received_by, received_at, proof_photo_url, pod';
+// Added by sql/pickup_pricing_and_spoilage.sql; omitted until it is applied.
+const PICKUP_PRICING_COLUMNS = 'quantity_kg, price_per_kg, approved_at, declined_at, decline_reason';
+
+// Reads pickup requests with their harvest, newest first. `scope` narrows the query.
+async function readPickups(scope) {
+  const run = (columns) => scope(supabaseAdmin.from('pickup_requests').select(columns)).order('requested_at', { ascending: false });
+  let { data, error } = await run(`${PICKUP_COLUMNS}, ${PICKUP_PRICING_COLUMNS}, harvests (vegetable_name, quantity_kg, recorded_at)`);
+  if (needsMigration(error)) ({ data, error } = await run(`${PICKUP_COLUMNS}, harvests (vegetable_name, quantity_kg, recorded_at)`));
+  return { data: data || [], error };
+}
+async function usersById(ids, columns) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return {};
+  const { data } = await supabaseAdmin.from('users').select(`id, ${columns}`).in('id', unique);
+  return Object.fromEntries((data || []).map((user) => [user.id, user]));
+}
+// Requested quantity (older requests: the whole harvest), price and estimated total.
+const withPricing = (pickup) => {
+  const quantity = requestedKg(pickup, pickup.harvests);
+  return { ...pickup, quantity_kg: quantity, price_per_kg: pickup.price_per_kg ?? null,
+    estimated_total: estimatedTotal(quantity, pickup.price_per_kg) };
+};
+
 app.get('/api/pickup-requests', verifyToken, async (req, res) => {
   const role = req.user.role;
 
   // Farmer: only their own requests.
   if (role === 'farmer') {
-    const { data, error } = await supabaseAdmin
-      .from('pickup_requests')
-      .select('id, farmer_id, harvest_id, note, status, requested_at, delivery_personnel_id, received_by, received_at, proof_photo_url, pod, harvests (vegetable_name, quantity_kg)')
-      .eq('farmer_id', req.user.userId)
-      .order('requested_at', { ascending: false });
+    const { data, error } = await readPickups((q) => q.eq('farmer_id', req.user.userId));
     if (error) return sendDbError(res, error);
-    const participantIds = [...new Set((data || []).flatMap((p) => [p.delivery_personnel_id, p.received_by]).filter(Boolean))];
-    let peopleById = {};
-    if (participantIds.length) {
-      const { data: people } = await supabaseAdmin.from('users')
-        .select('id, full_name, phone').in('id', participantIds);
-      peopleById = Object.fromEntries((people || []).map((person) => [person.id, person]));
-    }
+    const peopleById = await usersById(data.flatMap((p) => [p.delivery_personnel_id, p.received_by]), 'full_name, phone');
     const { data: farmerProfile } = await supabaseAdmin.from('users')
       .select('farm_location, latitude, longitude').eq('id', req.user.userId).maybeSingle();
-    return res.json((data || []).map((pickup) => ({
-      ...pickup,
+    return res.json(data.map((pickup) => ({
+      ...withPricing(pickup),
       rider: pickup.delivery_personnel_id ? peopleById[pickup.delivery_personnel_id] || null : null,
       distributor: pickup.received_by ? peopleById[pickup.received_by] || null : null,
       // The farmer profile is the source of truth for this pickup location.
@@ -406,74 +455,114 @@ app.get('/api/pickup-requests', verifyToken, async (req, res) => {
     })));
   }
 
-  // Distributors see all requests, with farmer names attached.
+  // Distributors see every request with the farmer, price and progress details
+  // needed before approval and afterwards as history.
   if (role === 'distributor') {
-    const { data, error } = await supabaseAdmin
-      .from('pickup_requests')
-      .select('id, farmer_id, harvest_id, note, status, requested_at, harvests (vegetable_name, quantity_kg)')
-      .order('requested_at', { ascending: false });
+    const { data, error } = await readPickups((q) => q);
     if (error) return sendDbError(res, error);
-
-    const farmerIds = [...new Set((data || []).map((r) => r.farmer_id).filter(Boolean))];
-    let nameById = {};
-    let avatarById = {};
-    if (farmerIds.length) {
-      const { data: farmers } = await supabaseAdmin
-        .from('users').select('id, full_name, avatar_url').in('id', farmerIds);
-      avatarById = Object.fromEntries((farmers || []).map((f) => [f.id, f.avatar_url]));
-      nameById = Object.fromEntries((farmers || []).map((f) => [f.id, f.full_name]));
+    const [farmersById, peopleById] = await Promise.all([
+      usersById(data.map((r) => r.farmer_id), 'full_name, avatar_url, phone, farm_location'),
+      usersById(data.map((r) => r.delivery_personnel_id), 'full_name'),
+    ]);
+    const pickupIds = data.filter((r) => r.status === 'picked_up').map((r) => r.id);
+    let batchByPickup = {};
+    if (pickupIds.length) {
+      const { data: batches } = await supabaseAdmin.from('products').select('id, pickup_request_id').in('pickup_request_id', pickupIds);
+      batchByPickup = Object.fromEntries((batches || []).map((b) => [b.pickup_request_id, b.id]));
     }
-    const list = (data || []).map((r) => ({
-      ...r,
-      farmer_name: nameById[r.farmer_id] || null,
-      farmer_avatar_url: avatarById[r.farmer_id] || null,
-      created_at: r.requested_at,
+    return res.json(data.map((r) => {
+      const farmer = farmersById[r.farmer_id];
+      return {
+        ...withPricing(r),
+        farmer_name: farmer?.full_name || null,
+        farmer_avatar_url: farmer?.avatar_url || null,
+        farmer_phone: farmer?.phone || null,
+        pickup_location: farmer?.farm_location || null,
+        harvest_date: r.harvests?.recorded_at || null,
+        rider_name: r.delivery_personnel_id ? peopleById[r.delivery_personnel_id]?.full_name || null : null,
+        batch_id: batchByPickup[r.id] || null,
+        created_at: r.requested_at,
+      };
     }));
-    return res.json(list);
   }
 
   // Riders see only the requests assigned to them.
   if (role === 'delivery_personnel') {
-    const { data, error } = await supabaseAdmin
-      .from('pickup_requests')
-      .select('id, farmer_id, harvest_id, note, status, requested_at, harvests (vegetable_name, quantity_kg)')
-      .eq('delivery_personnel_id', req.user.userId)
-      .order('requested_at', { ascending: false });
+    const { data, error } = await readPickups((q) => q.eq('delivery_personnel_id', req.user.userId));
     if (error) return sendDbError(res, error);
-
-    const farmerIds = [...new Set((data || []).map((r) => r.farmer_id).filter(Boolean))];
-    let nameById = {};
-    let coordsById = {};
-    let addressById = {};
-    if (farmerIds.length) {
-      const { data: farmers } = await supabaseAdmin
-        .from('users').select('id, full_name, farm_location, latitude, longitude').in('id', farmerIds);
-      nameById = Object.fromEntries((farmers || []).map((f) => [f.id, f.full_name]));
-      coordsById = Object.fromEntries((farmers || []).map((f) => [f.id, { latitude: f.latitude, longitude: f.longitude }]));
-      addressById = Object.fromEntries((farmers || []).map((f) => [f.id, f.farm_location]));
-    }
-    const list = (data || []).map((r) => ({
-      ...r,
-      farmer_name: nameById[r.farmer_id] || null,
-      farmer_coords: coordsById[r.farmer_id] || null,
-      farmer_address: addressById[r.farmer_id] || null,
-      created_at: r.requested_at,
+    const farmersById = await usersById(data.map((r) => r.farmer_id), 'full_name, farm_location, latitude, longitude');
+    return res.json(data.map((r) => {
+      const farmer = farmersById[r.farmer_id];
+      return {
+        id: r.id, farmer_id: r.farmer_id, harvest_id: r.harvest_id, note: r.note, status: r.status,
+        requested_at: r.requested_at, quantity_kg: requestedKg(r, r.harvests),
+        harvests: r.harvests ? { vegetable_name: r.harvests.vegetable_name, quantity_kg: requestedKg(r, r.harvests) } : null,
+        farmer_name: farmer?.full_name || null,
+        farmer_coords: farmer ? { latitude: farmer.latitude, longitude: farmer.longitude } : null,
+        farmer_address: farmer?.farm_location || null,
+        created_at: r.requested_at,
+      };
     }));
-    return res.json(list);
   }
 
   return res.status(403).json({ error: 'Not allowed' });
 });
 
+// Distributor accepts the farmer's quantity and price; a rider can be assigned now or later.
+app.put('/api/pickup-requests/:id/approve', verifyToken, async (req, res) => {
+  if (req.user.role !== 'distributor') {
+    return res.status(403).json({ error: 'Only distributors can approve pickup requests' });
+  }
+  const { id } = req.params;
+  const { data: request, error: fetchErr } = await supabaseAdmin
+    .from('pickup_requests').select('id, status, farmer_id').eq('id', id).maybeSingle();
+  if (fetchErr) return sendDbError(res, fetchErr);
+  if (!request) return res.status(404).json({ error: 'Pickup request not found' });
+  if (request.status === 'approved') return res.json({ message: 'Pickup request approved', request });
+  if (request.status !== 'requested') {
+    return res.status(409).json({ error: 'This pickup request was already updated. Refresh and try again.' });
+  }
+  const { data: updated, error } = await supabaseAdmin.from('pickup_requests')
+    .update({ status: 'approved', approved_at: new Date().toISOString(), received_by: req.user.userId })
+    .eq('id', id).eq('status', 'requested').select().maybeSingle();
+  if (error) return needsMigration(error) || error.code === '23514' ? sendMigrationRequired(res) : sendDbError(res, error);
+  if (!updated) return res.status(409).json({ error: 'This pickup request was already updated. Refresh and try again.' });
+  await createNotification(request.farmer_id, 'Pickup Approved',
+    'Your pickup request was approved. A rider will be assigned to collect your vegetables.', 'pickup', id);
+  res.json({ message: 'Pickup request approved', request: updated });
+});
+
+// Distributor declines a pending or approved request (before a rider is assigned).
+app.put('/api/pickup-requests/:id/decline', verifyToken, async (req, res) => {
+  if (req.user.role !== 'distributor') {
+    return res.status(403).json({ error: 'Only distributors can decline pickup requests' });
+  }
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+  if (!reason) return res.status(400).json({ error: 'Enter a reason for declining.', field: 'reason' });
+  if (reason.length > 300) return res.status(400).json({ error: 'The reason must be 300 characters or fewer.', field: 'reason' });
+  const { data: request, error } = await supabaseAdmin.rpc('decline_pickup_request', {
+    p_pickup_id: req.params.id, p_distributor_id: req.user.userId, p_reason: reason,
+  });
+  if (error) return sendWorkflowError(res, error);
+  await createNotification(request.farmer_id, 'Pickup Declined',
+    `Your pickup request was declined. Reason: ${reason}`, 'pickup', request.id);
+  res.json({ message: 'Pickup request declined', request });
+});
+
+// Assigns the rider (from Pending, which also approves it, or from Approved).
 app.put('/api/pickup-requests/:id/assign', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can assign riders to pickup requests' });
   }
   const { id } = req.params;
-  const { delivery_personnel_id, price_per_kg } = req.body;
+  const { delivery_personnel_id } = req.body || {};
 
   if (!delivery_personnel_id) {
-    return res.status(400).json({ error: 'delivery_personnel_id is required' });
+    return res.status(400).json({ error: 'Select a rider for this pickup.', field: 'delivery_personnel_id' });
+  }
+  const { data: rider } = await supabaseAdmin.from('users').select('id, role').eq('id', delivery_personnel_id).maybeSingle();
+  if (!rider || rider.role !== 'delivery_personnel') {
+    return res.status(400).json({ error: 'Select a valid rider for this pickup.', field: 'delivery_personnel_id' });
   }
 
   const { data: request, error: fetchErr } = await supabaseAdmin
@@ -483,23 +572,17 @@ app.put('/api/pickup-requests/:id/assign', verifyToken, async (req, res) => {
     .single();
 
   if (fetchErr || !request) return res.status(404).json({ error: 'Pickup request not found' });
-  if (request.status !== 'requested') {
+  if (!['requested', 'approved'].includes(request.status)) {
     return res.status(400).json({ error: `Pickup request is already ${request.status}` });
   }
 
   // Conditional update: only one concurrent assignment can succeed.
-  const { data: updated, error: updErr } = await supabaseAdmin
-    .from('pickup_requests')
-    .update({
-      status: 'assigned',
-      delivery_personnel_id,
-      amount: price_per_kg ? Number(price_per_kg) : null,
-      received_by: req.user.userId
-    })
-    .eq('id', id)
-    .eq('status', 'requested')
-    .select()
-    .maybeSingle();
+  const updates = { status: 'assigned', delivery_personnel_id, received_by: req.user.userId };
+  const assign = (values) => supabaseAdmin.from('pickup_requests').update(values)
+    .eq('id', id).in('status', ['requested', 'approved']).select().maybeSingle();
+  let { data: updated, error: updErr } = await assign(request.status === 'requested' ? { ...updates, approved_at: new Date().toISOString() } : updates);
+  // Before sql/pickup_pricing_and_spoilage.sql there is no approved_at column.
+  if (needsMigration(updErr)) ({ data: updated, error: updErr } = await assign(updates));
 
   if (updErr) return sendDbError(res, updErr);
   if (!updated) {
@@ -619,7 +702,7 @@ app.put('/api/pickup-requests/:id/status', verifyToken, async (req, res) => {
 });
 
 // Pickup tracking; same response shape as GET /api/delivery/tracking/:orderId.
-app.get('/api/pickup-requests/:id/tracking', verifyToken, createPickupTrackingHandler({ db: supabaseAdmin }));
+app.get('/api/pickup-requests/:id/tracking', verifyToken, createPickupTrackingHandler({ db: supabaseAdmin, routes: routeService }));
 
 app.get('/', (req, res) => {
   res.json({ message: 'VeggieTrack API is running!' });
@@ -637,7 +720,7 @@ function sendInventoryError(res, error) {
 // see lib/batches.js). This route adds a batch from the Stocks form and lists it
 // immediately.
 app.post('/api/products', verifyToken, async (req, res) => {
-  const { vegetable_name, price_per_kg, stock_kg, batch_photo_url, farmer_id } = req.body;
+  const { vegetable_name, price_per_kg, stock_kg, batch_photo_url } = req.body;
   const distributorId = req.user.userId;
   const role = req.user.role;
 
@@ -656,8 +739,14 @@ app.post('/api/products', verifyToken, async (req, res) => {
   if (!isPositiveQuantity(stock_kg) || !hasStockPrecision(stock_kg)) {
     return res.status(400).json({ error: 'Stock must be positive with at most two decimal places in kg.' });
   }
-  if (!farmer_id) {
-    return res.status(400).json({ error: 'Select the farmer who supplied this batch.', field: 'farmer_id' });
+  // Optional free-text farmer name, stored as typed (NULL when left blank).
+  const farmerInput = req.body.farmer_name;
+  if (farmerInput != null && typeof farmerInput !== 'string') {
+    return res.status(400).json({ error: 'Farmer name must be text.', field: 'farmer_name' });
+  }
+  const farmerName = farmerInput?.trim() || null;
+  if (farmerName && farmerName.length > 120) {
+    return res.status(400).json({ error: 'Farmer name must be 120 characters or fewer.', field: 'farmer_name' });
   }
   const harvest = batchDate(req.body.harvest_date);
   const pickup = batchDate(req.body.pickup_date);
@@ -669,16 +758,13 @@ app.post('/api/products', verifyToken, async (req, res) => {
   if (pickup.day > manilaToday()) {
     return res.status(400).json({ error: 'The harvest and pickup dates cannot be in the future.', field: 'pickup_date' });
   }
+  // 7-day stock rule: stock picked up more than 7 days ago is already past the limit.
+  if (daysInStock({ pickup_date: pickup.iso }) > STOCK_ALERT_DAYS) {
+    return res.status(400).json({ error: `Stock picked up more than ${STOCK_ALERT_DAYS} days ago can no longer be sold.`, field: 'pickup_date' });
+  }
   let batchPhotoUrl;
   try { batchPhotoUrl = validateBatchPhotoUrl(batch_photo_url); }
   catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
-
-  const { data: farmer, error: farmerError } = await supabaseAdmin
-    .from('users').select('id, role, account_status').eq('id', farmer_id).maybeSingle();
-  if (farmerError) return sendDbError(res, farmerError);
-  if (!farmer || farmer.role !== 'farmer' || farmer.account_status !== 'active') {
-    return res.status(400).json({ error: 'Select a registered farmer.', field: 'farmer_id' });
-  }
 
   // All listed batches of a vegetable share one price; a new batch adopts it.
   const { data: listed, error: listedError } = await supabaseAdmin
@@ -686,39 +772,30 @@ app.post('/api/products', verifyToken, async (req, res) => {
   if (listedError) return sendDbError(res, listedError);
   const onSale = (listed || []).filter(sameVegetableAs(vegetable_name)).find(isSellableBatch);
 
-  const { data, error } = await supabaseAdmin
-    .from('products')
-    .insert({
-      distributor_id: distributorId,
-      vegetable_name,
-      price_per_kg: onSale ? onSale.price_per_kg : Number(price_per_kg),
-      stock_kg: Number(stock_kg),
-      batch_photo_url: batchPhotoUrl,
-      quantity_received: Number(stock_kg),
-      status: 'listed',
-      farmer_id: farmer.id,
-      harvest_date: harvest.iso,
-      pickup_date: pickup.iso,
-    })
-    .select()
-    .single();
+  const batch = {
+    distributor_id: distributorId,
+    vegetable_name,
+    price_per_kg: onSale ? onSale.price_per_kg : Number(price_per_kg),
+    stock_kg: Number(stock_kg),
+    batch_photo_url: batchPhotoUrl,
+    quantity_received: Number(stock_kg),
+    status: 'listed',
+    farmer_name: farmerName,
+    harvest_date: harvest.iso,
+    pickup_date: pickup.iso,
+  };
+  const insertBatch = (row) => supabaseAdmin.from('products').insert(row).select().single();
+  let { data, error } = await insertBatch(batch);
+  // Retry without the name if sql/batch_farmer_name.sql has not been applied.
+  if (missingColumn(error, ['farmer_name'])) {
+    console.warn('products.farmer_name missing — apply sql/batch_farmer_name.sql to save farmer names.');
+    const withoutName = { ...batch };
+    delete withoutName.farmer_name;
+    ({ data, error } = await insertBatch(withoutName));
+  }
 
   if (error) return sendDbError(res, error);
   res.status(201).json({ message: 'Product added', product: data });
-});
-
-// Farmers for the Stocks "Add New Product" picker.
-app.get('/api/farmers', verifyToken, async (req, res) => {
-  if (req.user.role !== 'distributor') {
-    return res.status(403).json({ error: 'Only distributors can access the farmer list' });
-  }
-  const { data, error } = await supabaseAdmin
-    .from('users')
-    .select('id, full_name, farm_location')
-    .eq('role', 'farmer')
-    .eq('account_status', 'active');
-  if (error) return sendDbError(res, error);
-  res.json((data || []).sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''))));
 });
 
 // Stocks: batches still in the warehouse, in FIFO order. Sold-out and archived
@@ -728,6 +805,7 @@ app.get('/api/products', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view their products' });
   }
+  await spoilExpiredBatches();
   const { data: rows, error } = await supabaseAdmin
     .from('products')
     .select('*')
@@ -754,9 +832,12 @@ app.get('/api/products', verifyToken, async (req, res) => {
 
   const list = (data || []).map((p) => ({
     ...p,
-    farmer_name: farmerNameById[p.farmer_id] || null,
+    // The linked farmer account (rider pickups), else the name typed on Add New Product.
+    farmer_name: farmerNameById[p.farmer_id] || p.farmer_name || null,
     // Pickup batches use the rider's completion time; manual batches use the entered date.
     pickup_date: pickupDateById[p.pickup_request_id] || p.pickup_date || null,
+    // 7-day stock rule: day 7 is the last day the batch can be sold.
+    days_in_stock: daysInStock(p),
   }));
   res.json(list);
 });
@@ -771,6 +852,7 @@ app.put('/api/products/:id/list', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can list products' });
   }
+  await spoilExpiredBatches();
 
   const { data: batch, error: fetchError } = await supabaseAdmin
     .from('products')
@@ -968,6 +1050,23 @@ app.put('/api/products/:id/reduce-quantity', verifyToken, async (req, res) => {
   res.json({ message: 'Quantity updated' });
 });
 
+// Discard: the distributor takes all remaining stock of one batch out of sale. It is
+// recorded in Spoiled Products ('discarded'); the batch keeps its history and never
+// returns to Stocks. A batch already past the 7-day limit is recorded as such.
+app.post('/api/products/:id/discard', verifyToken, async (req, res) => {
+  if (req.user.role !== 'distributor') {
+    return res.status(403).json({ error: 'Only distributors can discard stock' });
+  }
+  const { data: spoilage, error } = await supabaseAdmin.rpc('discard_product_stock', {
+    p_product_id: req.params.id, p_distributor_id: req.user.userId,
+  });
+  if (error) return sendWorkflowError(res, error);
+  const message = spoilage?.reason === 'past_limit'
+    ? 'This batch passed the 7-day limit and is now in Spoiled Products.'
+    : 'Stock discarded and moved to Spoiled Products.';
+  res.json({ message, spoilage });
+});
+
 // Removing a received batch archives it so provenance and order history remain intact.
 app.delete('/api/products/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
@@ -1006,6 +1105,7 @@ app.get('/api/products/listings', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view their product list' });
   }
+  await spoilExpiredBatches();
   const { data, error } = await supabaseAdmin
     .from('products')
     .select('*')
@@ -1020,6 +1120,7 @@ app.get('/api/products/listings', verifyToken, async (req, res) => {
 // farmer details. Sold-out batches are not available stock; FIFO batch selection
 // happens when the order is approved.
 app.get('/api/products/available', async (req, res) => {
+  await spoilExpiredBatches();
   const { data, error } = await supabaseAdmin
     .from('products')
     .select('*')
@@ -2020,7 +2121,7 @@ app.get('/api/distributor/inventory-report', verifyToken, async (req, res) => {
       product: batch.vegetable_name,
       batch_status: batchStatus(batch),
       batch_photo_url: batch.batch_photo_url || null,
-      farmer_name: farmerNameById[batch.farmer_id] || null,
+      farmer_name: farmerNameById[batch.farmer_id] || batch.farmer_name || null,
       harvest_date: batch.harvest_date,
       pickup_date: pickupDateById[batch.pickup_request_id] || batch.pickup_date || null,
       pickup_rider_name: riderId ? (pickupRiderNameById[riderId] || null) : null,
@@ -2055,6 +2156,140 @@ app.get('/api/distributor/inventory-report', verifyToken, async (req, res) => {
   }
 
   res.json(rows);
+});
+
+// Vegetable Chain Tracking: every batch of the distributor with its pickup from
+// the farmer, the orders that drew from it and its spoilage (lib/chainTracking.js).
+async function loadChainBatches(distributorId) {
+  await spoilExpiredBatches();
+  const { data: batchRows, error } = await supabaseAdmin.from('products').select('*').eq('distributor_id', distributorId);
+  if (error) return { error };
+  const batches = batchRows || [];
+  const batchIds = batches.map((b) => b.id);
+  const pickupIds = [...new Set(batches.map((b) => b.pickup_request_id).filter(Boolean))];
+  const pickupBase = 'id, requested_at, received_at, delivery_personnel_id, proof_photo_url, pod';
+
+  const [pickupsResult, itemsResult, spoilageResult] = await Promise.all([
+    (async () => {
+      if (!pickupIds.length) return { data: [] };
+      const run = (columns) => supabaseAdmin.from('pickup_requests').select(columns).in('id', pickupIds);
+      const result = await run(`${pickupBase}, ${PICKUP_PRICING_COLUMNS}`);
+      return needsMigration(result.error) ? run(pickupBase) : result;
+    })(),
+    batchIds.length ? supabaseAdmin.from('order_items').select('product_id, order_id, quantity_kg, price_at_order').in('product_id', batchIds) : { data: [] },
+    (async () => {
+      if (!batchIds.length) return { data: [] };
+      const result = await supabaseAdmin.from('stock_spoilage').select('id, product_id, quantity_kg, reason, recorded_at').in('product_id', batchIds);
+      return needsMigration(result.error) ? { data: [] } : result;
+    })(),
+  ]);
+  const failed = [pickupsResult, itemsResult, spoilageResult].find((r) => r.error);
+  if (failed) return { error: failed.error };
+
+  const items = itemsResult.data || [];
+  const orderIds = [...new Set(items.map((i) => i.order_id))];
+  let orders = [], deliveries = [], payments = [];
+  if (orderIds.length) {
+    const results = await Promise.all([
+      supabaseAdmin.from('orders').select('id, retailer_id, delivery_personnel_id, status, created_at, delivered_at, stock_committed_at').in('id', orderIds),
+      supabaseAdmin.from('deliveries').select('order_id, delivered_at, proof_photo_url, pod').in('order_id', orderIds),
+      supabaseAdmin.from('payments').select('order_id').in('order_id', orderIds),
+    ]);
+    const orderFailure = results.find((r) => r.error);
+    if (orderFailure) return { error: orderFailure.error };
+    [orders, deliveries, payments] = results.map((r) => r.data || []);
+  }
+  const pickups = pickupsResult.data || [];
+  const peopleById = await usersById([
+    ...batches.map((b) => b.farmer_id), ...pickups.map((p) => p.delivery_personnel_id),
+    ...orders.flatMap((o) => [o.retailer_id, o.delivery_personnel_id]),
+  ], 'full_name');
+  return {
+    batches: buildChainBatches({
+      batches, farmersById: peopleById, peopleById, items,
+      pickupsById: Object.fromEntries(pickups.map((p) => [p.id, p])),
+      ordersById: Object.fromEntries(orders.map((o) => [o.id, o])),
+      deliveriesByOrderId: Object.fromEntries(deliveries.map((d) => [d.order_id, d])),
+      paidOrderIds: new Set(payments.map((p) => p.order_id)),
+      spoilage: spoilageResult.data || [],
+    }),
+  };
+}
+
+app.get('/api/distributor/chain-tracking', verifyToken, async (req, res) => {
+  if (req.user.role !== 'distributor') {
+    return res.status(403).json({ error: 'Only distributors can view Vegetable Chain Tracking' });
+  }
+  const { batches, error } = await loadChainBatches(req.user.userId);
+  if (error) return sendDbError(res, error);
+  res.json({ batches });
+});
+
+// Transaction history report: stock received, sales delivered and spoilage dated
+// within ?from=YYYY-MM-DD&to=YYYY-MM-DD (Philippine days, inclusive).
+app.get('/api/distributor/chain-report', verifyToken, async (req, res) => {
+  if (req.user.role !== 'distributor') {
+    return res.status(403).json({ error: 'Only distributors can view reports' });
+  }
+  const from = req.query.from ? batchDate(String(req.query.from)) : null;
+  const to = req.query.to ? batchDate(String(req.query.to)) : null;
+  if ((req.query.from && !from) || (req.query.to && !to)) {
+    return res.status(400).json({ error: 'Select valid report dates.', field: from ? 'to' : 'from' });
+  }
+  if (from && to && from.day > to.day) {
+    return res.status(400).json({ error: 'The start date cannot be after the end date.', field: 'from' });
+  }
+  const { batches, error } = await loadChainBatches(req.user.userId);
+  if (error) return sendDbError(res, error);
+  const events = chainEvents(batches, { from: from?.day, to: to?.day });
+  res.json({ from: from?.day || null, to: to?.day || null, summary: reportSummary(events), events });
+});
+
+// Spoiled Products: stock no longer sellable, newest first, with this week's total.
+app.get('/api/distributor/spoilage', verifyToken, async (req, res) => {
+  if (req.user.role !== 'distributor') {
+    return res.status(403).json({ error: 'Only distributors can view Spoiled Products' });
+  }
+  const { batches, error } = await loadChainBatches(req.user.userId);
+  if (error) return sendDbError(res, error);
+  const records = batches.flatMap((batch) => batch.spoilage.map((record) => ({
+    ...record, batch_id: batch.batch_id, vegetable_name: batch.vegetable_name, farmer_name: batch.farmer_name,
+    harvest_date: batch.harvest_date, batch_status: batch.status,
+  }))).sort((a, b) => String(b.recorded_at).localeCompare(String(a.recorded_at)));
+  const week = manilaWeek();
+  const thisWeek = chainEvents(batches, week).filter((event) => event.type === 'spoiled');
+  res.json({ this_week: { ...week, kg: reportSummary(thisWeek).spoiled_kg }, records });
+});
+
+// Batches on their last sellable day (day 7 in stock) that still have stock. Each
+// batch is announced once in Notifications; the list itself is current state.
+app.get('/api/distributor/stock-alerts', verifyToken, async (req, res) => {
+  if (req.user.role !== 'distributor') {
+    return res.status(403).json({ error: 'Only distributors can view stock alerts' });
+  }
+  await spoilExpiredBatches();
+  const { data, error } = await supabaseAdmin.from('products').select('*').eq('distributor_id', req.user.userId);
+  if (error) return sendDbError(res, error);
+  const alerts = (data || []).filter((batch) => needsStockAlert(batch)).sort(compareFifo).map((batch) => {
+    const days = daysInStock(batch);
+    const harvested = batch.harvest_date ? ` Harvested on ${philippineDate(batch.harvest_date)} and has` : ' It has';
+    return {
+      batch_id: batch.id, vegetable_name: batch.vegetable_name, remaining_kg: Number(batch.stock_kg),
+      harvest_date: batch.harvest_date || null, in_stock_since: stockSince(batch), days_in_stock: days,
+      status: batchStatus(batch), price_per_kg: batch.price_per_kg,
+      message: `${batch.vegetable_name} has ${Number(batch.stock_kg)} kg remaining in stock.${harvested} been in stock for ${days} days.`,
+    };
+  });
+  if (alerts.length) {
+    const { data: sent } = await supabaseAdmin.from('notifications').select('item_id')
+      .eq('user_id', req.user.userId).eq('type', 'stock_alert').in('item_id', alerts.map((a) => a.batch_id));
+    const notified = new Set((sent || []).map((n) => n.item_id));
+    for (const alert of alerts.filter((a) => !notified.has(a.batch_id))) {
+      await createNotification(req.user.userId, 'Stock Alert',
+        `${alert.message} Sell it today, change its price or discard it.`, 'stock_alert', alert.batch_id);
+    }
+  }
+  res.json(alerts);
 });
 
 app.put('/api/users/:id', verifyToken, async (req, res) => {
@@ -2151,7 +2386,7 @@ app.post('/api/delivery/update-location', verifyToken, async (req, res) => {
   } catch (error) { console.error('Location update failed:', error.message); return res.status(500).json({ error: 'Location update failed' }); }
 });
 // DELIVERY TRACKING
-app.get('/api/delivery/tracking/:orderId', verifyToken, createTrackingHandler({ db: supabaseAdmin }));
+app.get('/api/delivery/tracking/:orderId', verifyToken, createTrackingHandler({ db: supabaseAdmin, routes: routeService }));
 // DELIVERY ADDRESSES CRUD
 
 app.get('/api/addresses', verifyToken, async (req, res) => {

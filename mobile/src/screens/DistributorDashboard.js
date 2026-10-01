@@ -1,7 +1,6 @@
 import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
 import useLatestRequest from '../hooks/useLatestRequest';
 import useRequestLock from '../hooks/useRequestLock';
-import UserAvatar from '../components/UserAvatar';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { SharedScreenTransition } from '../lib/motion';
@@ -36,22 +35,11 @@ import { localizeVegetableName } from '../lib/vegetableNames';
 import { useAutoSync } from '../sync/SyncProvider';
 import RemoteImage from '../components/RemoteImage';
 import { statusLabel } from '../i18n/translate';
+import PickupRequestsPanel from '../components/distributor/PickupRequestsPanel';
+import StockAlertsCard from '../components/distributor/StockAlertsCard';
 
 const PRIMARY = colors.leaf700;
 
-// Pickup requests embed the harvest + (optionally) the farmer. Be defensive
-// about the exact relation key the backend returns.
-function harvestOf(req) {
-  return req.harvests || req.harvest || null;
-}
-function farmerNameOf(req) {
-  return (
-    req.farmer_name ||
-    req.farmer?.full_name ||
-    req.users?.full_name ||
-    `Farmer ${shortId(req.farmer_id)}`
-  );
-}
 
 export default function DistributorDashboard({ navigation, route }) {
   const navSpace = useBottomNavSpace();
@@ -110,10 +98,6 @@ export default function DistributorDashboard({ navigation, route }) {
   }, [route.params]);
 
   const [pickupRequests, setPickupRequests] = useState([]);
-  const [receiveReq, setReceiveReq] = useState(null); // request currently in the modal
-  const [selectedRiderForPickup, setSelectedRiderForPickup] = useState(null);
-  const [priceInput, setPriceInput] = useState('');   // optional price per kg
-  const [receiveBusyId, setReceiveBusyId] = useState(null);
 
   const [orders, setOrders] = useState([]);
   // Orders that are approved or in delivery.
@@ -318,44 +302,6 @@ export default function DistributorDashboard({ navigation, route }) {
     }
   };
 
-  const openReceive = (req) => {
-    setReceiveReq(req);
-    setPriceInput('');
-    setSelectedRiderForPickup(null);
-  };
-
-  // Approve & receive: assigns rider (PUT /api/pickup-requests/:id/assign), then refreshes lists.
-  const confirmReceive = async () => {
-    const req = receiveReq;
-    if (!req) return;
-    const price = parseFloat(priceInput);
-    if (priceInput && (isNaN(price) || price < 0)) {
-      showAlert(t('common.error'), t('dashboards.distributor.enterValidPickupPrice'));
-      return;
-    }
-    if (!selectedRiderForPickup) {
-      showAlert(t('common.error'), t('dashboards.distributor.selectRider'));
-      return;
-    }
-    if (!requestLock.acquire('ReceiveBusyId')) return;
-    setReceiveBusyId(req.id);
-    try {
-      await api.put(`/api/pickup-requests/${req.id}/assign`, {
-        delivery_personnel_id: selectedRiderForPickup,
-        price_per_kg: priceInput ? price : null
-      });
-      setReceiveReq(null);
-      // Refresh so the request leaves the list.
-      await loadPickupRequests();
-      showAlert(t('dashboards.distributor.riderAssignedTitle'), t('dashboards.distributor.riderAssignedMessage'));
-    } catch (err) {
-      showAlert(t('common.error'), t('dashboards.distributor.riderAssignFailed', { message: err.message }));
-    } finally {
-      requestLock.release('ReceiveBusyId');
-      setReceiveBusyId(null);
-    }
-  };
-
   // Outstanding pickup requests still awaiting the distributor.
   const pendingReceiveCount = pickupRequests.filter((p) => p.status === 'requested').length;
 
@@ -390,6 +336,7 @@ export default function DistributorDashboard({ navigation, route }) {
 
           {tab === 'home' && (
             <HomeTab
+              navigation={navigation}
               refreshProducts={refreshProducts}
               pendingOrderCount={orders.length}
               pendingPickupCount={pendingReceiveCount}
@@ -418,11 +365,12 @@ export default function DistributorDashboard({ navigation, route }) {
           )}
 
           {tab === 'pickups' && (
-            <PickupRequestsTab
+            <PickupRequestsPanel
               loading={loadingOrders}
               requests={pickupRequests}
-              busyId={receiveBusyId}
-              onApprove={openReceive}
+              personnel={personnel}
+              onChanged={loadPickupRequests}
+              onViewProof={setProofUri}
             />
           )}
 
@@ -451,63 +399,6 @@ export default function DistributorDashboard({ navigation, route }) {
         onClose={() => setProofUri(null)}
       />
 
-      {/* Approve & Assign modal — set a selling price and assign a rider (PUT /api/pickup-requests/:id/assign). */}
-      <CustomModal
-        visible={!!receiveReq}
-        title={t('dashboards.distributor.approveAndAssignModalTitle')}
-        confirmLabel={receiveBusyId === receiveReq?.id ? t('dashboards.distributor.saving') : t('common.confirm')}
-        onConfirm={confirmReceive}
-        cancelLabel={t('common.cancel')}
-        onCancel={() => setReceiveReq(null)}
-        busy={receiveBusyId === receiveReq?.id}
-      >
-        {receiveReq ? (
-          <>
-            <Text style={styles.modalLine}>
-              {harvestOf(receiveReq)?.vegetable_name ? localizeVegetableName(harvestOf(receiveReq).vegetable_name, language) : t('dashboards.distributor.unknownHarvest')}
-              {harvestOf(receiveReq)?.quantity_kg != null
-                ? ` — ${harvestOf(receiveReq).quantity_kg} kg`
-                : ''}
-            </Text>
-            <Text style={styles.modalHint}>
-              {t('dashboards.distributor.pickupPriceHint')}
-            </Text>
-            <Text style={styles.fieldLabel}>{t('dashboards.distributor.pricePerKgLabel')}</Text>
-            <TextInput
-              style={styles.input}
-              value={priceInput}
-              onChangeText={setPriceInput}
-              keyboardType="numeric"
-              placeholder={t('dashboards.distributor.pricePlaceholder')} placeholderTextColor={colors.placeholder}
-              editable={receiveBusyId !== receiveReq.id}
-            />
-
-            <Text style={[styles.fieldLabel, { marginTop: 15 }]}>{t('dashboards.distributor.assignPersonnelLabel')}</Text>
-            {personnel.length === 0 ? (
-              <Text style={styles.modalHint}>{t('dashboards.distributor.noPersonnelAvailable')}</Text>
-            ) : (
-              <View style={styles.personnelWrap}>
-                {personnel.map((dp) => {
-                  const selected = selectedRiderForPickup === dp.id;
-                  return (
-                    <TouchableOpacity
-                      key={dp.id}
-                      style={[styles.personChip, selected && styles.personChipActive]}
-                      onPress={() => setSelectedRiderForPickup(dp.id)}
-                      disabled={receiveBusyId === receiveReq.id}
-                    >
-                      <Text style={[styles.personChipText, selected && styles.personChipTextActive]}>
-                        {dp.full_name || shortId(dp.id)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </>
-        ) : null}
-      </CustomModal>
-
       {!isFullScreen && (
         <BottomNavBar
           tabs={DISTRIBUTOR_TABS}
@@ -519,60 +410,8 @@ export default function DistributorDashboard({ navigation, route }) {
   );
 }
 
-function PickupRequestsTab({ loading, requests, busyId, onApprove }) {
-  const { t, language } = useTranslation();
-  if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
-
-  // Only requests still awaiting receipt are actionable.
-  const pending = (requests || []).filter((r) => r.status === 'requested');
-
-  return (
-    <View>
-      {pending.length === 0 ? (
-        <EmptyState
-          iconElement={<MaterialCommunityIcons name="tractor" size={rf(44)} color={colors.inkFaint} />}
-          title={t('dashboards.distributor.noPendingPickups')}
-          message={t('dashboards.distributor.noPendingPickupsMessage')}
-        />
-      ) : (
-        pending.map((req) => {
-          const harvest = harvestOf(req);
-          const busy = busyId != null;
-          return (
-            <View key={req.id} style={styles.pickupCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <UserAvatar user={{ full_name: farmerNameOf(req), avatar_url: req.farmer_avatar_url }} size={28} />
-                <Text style={styles.pickupFarmer}>{farmerNameOf(req)}</Text>
-              </View>
-              <Text style={styles.pickupHarvest}>
-                {harvest?.vegetable_name ? localizeVegetableName(harvest.vegetable_name, language) : t('dashboards.distributor.unknownHarvest')}
-                {harvest?.quantity_kg != null ? ` — ${harvest.quantity_kg} kg` : ''}
-              </Text>
-              {req.note ? <Text style={styles.pickupNote}>{t('dashboards.distributor.noteLabel', { note: req.note })}</Text> : null}
-              <Text style={styles.pickupMeta}>
-                {t('dashboards.distributor.statusLabel', { status: req.status })}
-                {req.created_at ? t('dashboards.distributor.requestedOn', { date: new Date(req.created_at).toLocaleDateString() }) : ''}
-              </Text>
-
-              <TouchableOpacity
-                style={[styles.primaryBtn, { marginTop: 12, marginBottom: 0 }, busy && styles.buttonDisabled]}
-                onPress={() => onApprove(req)}
-                disabled={busy}
-              >
-                {busy
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.primaryBtnText}>{t('dashboards.distributor.approveAndAssign')}</Text>}
-              </TouchableOpacity>
-            </View>
-          );
-        })
-      )}
-    </View>
-  );
-}
-
 function HomeTab({
-  refreshProducts,
+  navigation, refreshProducts,
   pendingOrderCount, pendingPickupCount, unpaidCount,
   onViewPickups, onViewPayments, onManageAccounts,
 }) {
@@ -596,6 +435,9 @@ function HomeTab({
           <Text style={styles.homeStatLabel}>{t('dashboards.distributor.unpaid')}</Text>
         </View>
       </View>
+
+      {/* Batches on their last sellable day (7-day stock rule). */}
+      <StockAlertsCard navigation={navigation} onChanged={() => refreshProducts.current?.()} />
 
       <Text style={styles.sectionTitle}>{t('dashboards.distributor.quickActions')}</Text>
       <View style={styles.quickActionGrid}>

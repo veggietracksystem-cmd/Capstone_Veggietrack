@@ -15,7 +15,6 @@ import { kvGet, kvSet } from '../offline/db';
 import ScreenHeader from '../components/ScreenHeader';
 import HomeHeaderActions from '../components/HomeHeaderActions';
 import OfflineBanner from '../components/OfflineBanner';
-import DeliveryMapModal from '../components/DeliveryMapModal';
 import ProofPreviewModal from '../components/ProofPreviewModal';
 import EmptyState from '../components/EmptyState';
 import CustomModal from '../components/CustomModal';
@@ -111,8 +110,8 @@ export default function DeliveryDashboard({ navigation, route }) {
   const [orders, setOrders] = useState([]);
   const [pickups, setPickups] = useState([]);
   // Publish the rider's position while a pickup is outstanding, since pickups are
-  // handled on this screen rather than RiderNavigationScreen. No delivery_id is
-  // sent because the position belongs to a pickup, not an order.
+  // confirmed on this screen (PickupNavigationScreen publishes while it is open).
+  // No delivery_id is sent because the position belongs to a pickup, not an order.
   const hasOutstandingPickup = pickups.some((p) => p.status === 'assigned' || p.status === 'otw');
   useRiderLocation(null, hasOutstandingPickup);
   // 'deliveries' | 'pickups' — only relevant on the Tasks & History tabs.
@@ -120,8 +119,6 @@ export default function DeliveryDashboard({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
-  const [mapAddress, setMapAddress] = useState(null); // address shown in the map modal (Farmer Pickups mode)
-  const [mapCoords, setMapCoords] = useState(null); // coordinates shown in the map modal (Farmer Pickups mode)
   const [activeBottomTab, setActiveBottomTab] = useState('home');
   const [historyPickup, setHistoryPickup] = useState(null);
 
@@ -416,10 +413,10 @@ export default function DeliveryDashboard({ navigation, route }) {
         <Text style={styles.rowMeta}>{harvest ? `${localizeVegetableName(harvest.vegetable_name, language)} · ${harvest.quantity_kg} kg` : t('dashboards.delivery.vegetablesFallback')}</Text>
         {!!pickup.farmer_address && <Text style={styles.rowMeta}>{pickup.farmer_address}</Text>}
         <View style={styles.buttonRow}>
-          {!!pickup.farmer_address && <TouchableOpacity style={styles.routeBtn} onPress={() => {
-            setMapAddress(pickup.farmer_address);
-            setMapCoords(pickup.farmer_coords);
-          }}><Text style={styles.routeBtnText}>{t('dashboards.delivery.viewRoute')}</Text></TouchableOpacity>}
+          {actionable && <TouchableOpacity style={styles.routeBtn} activeOpacity={0.8}
+            onPress={() => navigation.navigate('PickupNavigation', { pickupId: pickup.id, pickup })}>
+            <Text style={styles.routeBtnText}>{t('dashboards.delivery.navigateBtn')}</Text>
+          </TouchableOpacity>}
           {actionable && pickup.status === 'assigned' && <TouchableOpacity style={styles.detailsBtn} disabled={busyId != null} onPress={() => handleStartPickup(pickup.id)}>
             {busyId === pickup.id ? <ActivityIndicator color={PRIMARY} /> : <Text style={styles.detailsBtnText}>{t('dashboards.delivery.startPickupBtn')}</Text>}
           </TouchableOpacity>}
@@ -588,16 +585,6 @@ export default function DeliveryDashboard({ navigation, route }) {
           );
         })()}
       </CustomModal>
-
-      <DeliveryMapModal
-        visible={!!mapAddress}
-        address={mapAddress}
-        coords={mapCoords}
-        onClose={() => {
-          setMapAddress(null);
-          setMapCoords(null);
-        }}
-      />
 
       <ProofPreviewModal
         visible={pickupProofVisible}
