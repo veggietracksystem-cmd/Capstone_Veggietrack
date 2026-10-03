@@ -122,9 +122,11 @@ test('English and Tagalog spellings of a vegetable share one key and one display
 });
 
 test('FIFO plan draws the oldest harvest first, then the earliest-added batch on the same day', () => {
+  // Entered stock today (within the 7-day limit); the order comes from harvest and creation dates.
+  const pickup_date = new Date().toISOString();
   const batches = [
-    { id: 'b', status: 'listed', stock_kg: 13, harvest_date: '2026-09-19T04:00:00Z', created_at: '2026-09-19T05:00:00Z' },
-    { id: 'a', status: 'listed', stock_kg: 26, harvest_date: '2026-09-18T04:00:00Z', created_at: '2026-09-20T05:00:00Z' },
+    { id: 'b', status: 'listed', stock_kg: 13, harvest_date: '2026-09-19T04:00:00Z', created_at: '2026-09-19T05:00:00Z', pickup_date },
+    { id: 'a', status: 'listed', stock_kg: 26, harvest_date: '2026-09-18T04:00:00Z', created_at: '2026-09-20T05:00:00Z', pickup_date },
     { id: 'sold', status: 'sold_out', stock_kg: 0, harvest_date: '2026-09-01T04:00:00Z' },
   ];
   const { available, draws } = planFifoDraw(batches, 30);
@@ -132,8 +134,8 @@ test('FIFO plan draws the oldest harvest first, then the earliest-added batch on
   assert.deepEqual(draws.map(d => [d.batch.id, d.quantity_kg]), [['a', 26], ['b', 4]]);
   assert.equal(planFifoDraw(batches, 40).draws, null);
   const sameDay = [
-    { id: 'z', status: 'listed', stock_kg: 5, harvest_date: '2026-09-18T04:00:00Z', created_at: '2026-09-18T09:00:00Z' },
-    { id: 'y', status: 'listed', stock_kg: 5, harvest_date: '2026-09-18T04:00:00Z', created_at: '2026-09-18T08:00:00Z' },
+    { id: 'z', status: 'listed', stock_kg: 5, harvest_date: '2026-09-18T04:00:00Z', created_at: '2026-09-18T09:00:00Z', pickup_date },
+    { id: 'y', status: 'listed', stock_kg: 5, harvest_date: '2026-09-18T04:00:00Z', created_at: '2026-09-18T08:00:00Z', pickup_date },
   ];
   assert.equal(planFifoDraw(sameDay, 5).draws[0].batch.id, 'y');
 });

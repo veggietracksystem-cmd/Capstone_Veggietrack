@@ -14,10 +14,16 @@ export default function DeliveryMapFrame({ data, onEvent }) {
   useEffect(() => {
     if (ready) ref.current?.injectJavaScript(`window.updateDeliveryMap && window.updateDeliveryMap(${scriptJson(mapPayload(data, sent.current))});true;`);
   }, [data, ready]);
-  // Android ends the whole app when a WebView's renderer process dies (memory
-  // pressure) unless this is handled; report it so the screen can reload the map.
-  const gone = () => { setReady(false); onEvent({ type: 'error', message: tr('misc.mapUnavailable') }); };
+  // Android can kill the WebView's renderer under memory pressure (for example
+  // while another app or a chat head is in front). The WebView is then dead and
+  // stays blank, so the screen is told to mount a new one (`gone`).
+  const gone = () => { setReady(false); onEvent({ type: 'error', gone: true, message: tr('misc.mapUnavailable') }); };
+  // Android's WebView zooms the whole page on a pinch by default (built-in zoom,
+  // scalesPageToFit). That competes with the map's own pinch and drag, so page
+  // zoom is off and Leaflet handles every gesture.
   return <WebView ref={ref} source={source} style={{ flex: 1 }} javaScriptEnabled cacheEnabled
+    setBuiltInZoomControls={false} setDisplayZoomControls={false} scalesPageToFit={false}
+    overScrollMode="never" bounces={false}
     originWhitelist={['*']} applicationNameForUserAgent="VeggieTrack/1.0" setSupportMultipleWindows={false}
     onShouldStartLoadWithRequest={request => {
       if (isMapPageLoad(request.url)) return true;

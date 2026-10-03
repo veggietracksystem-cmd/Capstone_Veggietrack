@@ -77,7 +77,7 @@ function harness() {
     'expo-sharing': { isAvailableAsync: async () => false },
     '@react-native-async-storage/async-storage': { getItem: async key => storage.get(key) || null, setItem: async (key, value) => storage.set(key, value) },
   };
-  const real = /^(hooks\/useStockAlerts|screens\/(StocksScreen|DistributorDashboard|RetailerDashboard|DistributorInventoryReportScreen|ApplicationStatusScreen|ChainReportScreen|SpoiledProductsScreen|FarmerDashboard)|components\/(AuthForm|CustomModal|RiderNavigationView|distributor\/)|i18n\/|lib\/(vegetableNames|vegetables|cartStore|orderStatus|reportPdf|pickupForm|pickupStatus|reportPeriods|trackingGeometry|turnGuidance|formatEta)|theme\/appTheme)/;
+  const real = /^(hooks\/useStockAlerts|screens\/(StocksScreen|DistributorDashboard|RetailerDashboard|DistributorInventoryReportScreen|ApplicationStatusScreen|ChainReportScreen|SpoiledProductsScreen|FarmerDashboard)|components\/(AuthForm|CustomModal|RiderNavigationView|ui\/SelectField|distributor\/)|i18n\/|lib\/(vegetableNames|vegetables|cartStore|orderStatus|reportPdf|pickupForm|pickupStatus|reportPeriods|trackingGeometry|turnGuidance|formatEta)|theme\/appTheme)/;
   function load(relative) {
     const file = relative.endsWith('.js') || relative.endsWith('.json') ? relative : `${relative}.js`;
     if (modules.has(file)) return modules.get(file);
@@ -192,7 +192,7 @@ test('Vegetable Chain Tracking lists batches in a compact table by status; View 
     }),
     chainBatch('b', 'Carrot', 'sold_out', { totals: { received: 10, remaining: 0, sold: 10, on_order: 0, not_delivered: 0, spoiled: 0, adjusted: 0 } }),
     chainBatch('c', 'Okra', 'archived', { totals: { received: 10, remaining: 0, sold: 10, on_order: 0, not_delivered: 0, spoiled: 0, adjusted: 0 } }),
-    chainBatch('d', 'Squash', 'received'),
+    chainBatch('d', 'Squash', 'received', { past_limit: true, days_in_stock: 9 }),
     chainBatch('e', 'Pechay', 'rejected'),
     chainBatch('f', 'Cabbage', 'spoiled', { totals: { received: 8, remaining: 0, sold: 0, on_order: 0, not_delivered: 0, spoiled: 8, adjusted: 0 },
       spoilage: [{ id: 's2', quantity_kg: 8, reason: 'past_limit', recorded_at: '2026-09-29T16:05:00Z' }] }),
@@ -210,7 +210,7 @@ test('Vegetable Chain Tracking lists batches in a compact table by status; View 
   assert.deepEqual(navigated.map(n => n[0]), ['ChainReport', 'SpoiledProducts']);
   assert.ok(texts(headerOf()).includes('View Reports') && texts(headerOf()).includes('Spoiled Products'));
   const tabs = () => named(headerOf(), 'SegmentedTabs')[0];
-  assert.deepEqual([...tabs().props.options.map(o => o.label)], ['Active', 'Sold out', 'Spoiled']);
+  assert.deepEqual([...tabs().props.options.map(o => o.label)], ['Active', 'Sold out'], 'no separate Spoiled tab');
   assert.deepEqual(texts(headerOf()).slice(-5), ['Vegetable / Batch', 'Received (kg)', 'Sold (kg)', 'Left (kg)', 'Status'], 'compact table columns on a phone');
   assert.deepEqual([...list().props.data.map(b => b.batch_id)], [tomato, 'd'], 'one row per batch, even with two orders');
 
@@ -238,12 +238,15 @@ test('Vegetable Chain Tracking lists batches in a compact table by status; View 
   assert.deepEqual([...list().props.data.map(b => b.batch_id)], ['b', 'c', 'e'], 'past batches stay available');
   const okra = list().props.renderItem({ item: list().props.data[1], index: 1 });
   assert.equal(named(okra, 'StatusBadge')[0].props.label, 'Sold out', 'a removed sold-out batch reads as Sold out, never Archived');
-  tabs().props.onChange('spoiled');
-  assert.deepEqual([...list().props.data.map(b => b.batch_id)], ['f']);
-  list().props.renderItem({ item: list().props.data[0], index: 0 }).props.onPress();
-  const cabbage = named(render(), 'CustomModal')[0];
-  assert.ok(texts(cabbage).includes('Not sold to any retailer yet.'), 'no retailer is shown for a batch that was never sold');
-  assert.deepEqual(named(cabbage, 'StatusBadge').map(n => n.props.label), ['Spoiled', 'Past Spoilage Limit']);
+  // The spoiled Cabbage batch is in Spoiled Products (button above), not in a tab.
+  for (const tab of ['active', 'sold_out']) {
+    tabs().props.onChange(tab);
+    assert.ok(!list().props.data.some(b => b.batch_id === 'f'), tab);
+  }
+  // An active batch past the 7-day limit waits for the distributor: "Needs Review".
+  tabs().props.onChange('active');
+  const squash = list().props.data.find(b => b.batch_id === 'd');
+  assert.equal(named(list().props.renderItem({ item: squash, index: 1 }), 'StatusBadge')[0].props.label, 'Needs Review');
 });
 
 test('Stocks excludes sold-out, archived, rejected and inactive stock; Add Product takes an optional typed farmer name and both dates', async () => {
@@ -579,7 +582,8 @@ test('Stocks from Stock Alert shows only the alerted batches, marked, until each
 
   named(card('b1'), 'TouchableOpacity').find(node => texts(node).includes('Discard')).props.onPress();
   const confirm = named(render(), 'CustomModal').find(node => node.props.danger);
-  assert.ok(texts(confirm).includes('Discard the remaining 18 kg of Tomato? This stock will no longer be available for sale.'));
+  assert.equal(confirm.props.title, 'Discard this product?');
+  assert.ok(texts(confirm).includes('Discard the remaining 18 kg of Tomato? It will be moved to Spoiled Products and can no longer be sold.'));
   h.data['/api/products'] = h.data['/api/products'].map(batch => batch.id === 'b1' ? { ...batch, stock_kg: 0, status: 'spoiled' } : batch);
   h.data['/api/distributor/stock-alerts'] = [stockAlert('b2', 'Squash', 5)];
   await confirm.props.onConfirm(); await flush();
@@ -657,10 +661,10 @@ test('View Reports: periods change the queried dates and totals; custom dates ar
   assert.ok(texts(list.props.renderItem({ item: list.props.data[1], index: 1 })).includes('To Store One'));
   await named(list.props.ListFooterComponent, 'TouchableOpacity')[1].props.onPress();
   assert.match(h.prints.at(-1).frame, /VeggieTrack — Transaction Report/);
-  named(list.props.ListHeaderComponent, 'SegmentedTabs')[0].props.onChange('month');
+  named(list.props.ListHeaderComponent, 'SelectField').find(n => n.props.label === 'Date Range').props.onChange('month');
   render(); await flush(); list = named(render(), 'FlatList')[0];
   assert.ok(texts(list.props.ListHeaderComponent).includes('100 kg'), 'This Month shows its own totals');
-  named(list.props.ListHeaderComponent, 'SegmentedTabs')[0].props.onChange('custom');
+  named(list.props.ListHeaderComponent, 'SelectField').find(n => n.props.label === 'Date Range').props.onChange('custom');
   list = named(render(), 'FlatList')[0];
   const [from, to] = named(list.props.ListHeaderComponent, 'BatchDateField');
   from.props.onChange('2026-10-05'); named(named(render(), 'FlatList')[0].props.ListHeaderComponent, 'BatchDateField')[1].props.onChange('2026-10-01');
@@ -668,7 +672,31 @@ test('View Reports: periods change the queried dates and totals; custom dates ar
   assert.equal(typeof to.props.onChange, 'function');
 });
 
-test('Transaction Reports vegetable filter: All Vegetables by default, chips from the report, totals and rows per vegetable with any period', async () => {
+test('Stocks: a batch past the spoilage limit waits for review — only Discard, even if Keep Selling was chosen on day 7', async () => {
+  const h = harness();
+  h.data['/api/products'] = [{ ...alertBatch('old', 'Tomato', 'listed', 9, 37), past_limit: true },
+    { ...alertBatch('new', 'Okra', 'received', 9, 6), past_limit: true }, alertBatch('fresh', 'Squash', 'listed', 2)];
+  h.data['/api/distributor/stock-alerts'] = [{ ...stockAlert('old', 'Tomato', 37), days_in_stock: 9, past_limit: true },
+    { ...stockAlert('new', 'Okra', 6), days_in_stock: 9, past_limit: true }];
+  h.storage.set('stock_alerts_keep_selling', ['old']);
+  const screen = h.load('screens/StocksScreen').default;
+  const render = () => h.render(screen, { navigation: { setParams() {} }, route: { params: { showStockAlerts: true } } });
+  render(); await flush();
+  const list = named(render(), 'FlatList')[0];
+  same(list.props.data.map(b => b.id), ['old', 'new'], 'an earlier Keep Selling does not hide a batch past the limit');
+  for (const batch of list.props.data) {
+    const card = list.props.renderItem({ item: batch });
+    const shown = texts(card);
+    assert.ok(shown.includes('Past spoilage limit – needs review'), `${batch.id} is marked for review`);
+    assert.equal(named(card, 'StatusBadge')[0].props.label, 'Needs Review');
+    assert.ok(shown.includes('Discard'));
+    assert.ok(!shown.includes('Keep Selling'), 'it can no longer be sold');
+    assert.ok(!shown.includes('Add to Product List'));
+  }
+  assert.ok(texts(list.props.renderItem({ item: list.props.data[0] })).includes('37 kg'), 'stock is kept, not zeroed');
+});
+
+test('Transaction Reports vegetable filter: All Vegetables by default, options from the report, totals and rows per vegetable with any period', async () => {
   const h = harness(); await flush();
   const { periodRange } = h.load('lib/reportPeriods');
   const route = (range, vegetable) => `/api/distributor/chain-report?from=${range.from}&to=${range.to}${vegetable ? `&vegetable=${vegetable}` : ''}`;
@@ -686,7 +714,8 @@ test('Transaction Reports vegetable filter: All Vegetables by default, chips fro
   const render = () => h.render(screen, { navigation: { goBack() {} } });
   const list = () => named(render(), 'FlatList')[0];
   const header = () => texts(list().props.ListHeaderComponent);
-  const chips = () => named(list().props.ListHeaderComponent, 'FilterChips')[0];
+  const chips = () => named(list().props.ListHeaderComponent, 'SelectField').find(n => n.props.label === 'Vegetable');
+  const dates = () => named(list().props.ListHeaderComponent, 'SelectField').find(n => n.props.label === 'Date Range');
   const pick = async (name) => { chips().props.onChange(name); render(); await flush(); };
   render(); await flush();
 
@@ -708,12 +737,12 @@ test('Transaction Reports vegetable filter: All Vegetables by default, chips fro
   assert.equal(list().props.ListEmptyComponent.props.title, 'No transactions found for this vegetable.');
 
   await pick('Tomato');
-  named(list().props.ListHeaderComponent, 'SegmentedTabs')[0].props.onChange('month');
+  dates().props.onChange('month');
   render(); await flush();
   assert.ok(header().includes('160 kg') && header().includes('3 · ₱3500.00'), 'This Month + Tomato');
   assert.equal(chips().props.value, 'Tomato', 'the vegetable stays selected when the period changes');
 
-  named(list().props.ListHeaderComponent, 'SegmentedTabs')[0].props.onChange('custom');
+  dates().props.onChange('custom');
   render();
   named(list().props.ListHeaderComponent, 'BatchDateField')[0].props.onChange(custom.from);
   render();
@@ -727,7 +756,7 @@ test('Transaction Reports vegetable filter: All Vegetables by default, chips fro
   assert.equal(list().props.ListEmptyComponent.props.title, 'No transactions', 'All Vegetables uses the general empty message');
 });
 
-test('Transaction Reports: many vegetables use a dropdown list instead of chips', async () => {
+test('Transaction Reports: Date Range and Vegetable are two separate dropdowns that open a list and highlight the choice', async () => {
   const h = harness(); await flush();
   const { periodRange } = h.load('lib/reportPeriods');
   const week = periodRange('week');
@@ -738,20 +767,29 @@ test('Transaction Reports: many vegetables use a dropdown list instead of chips'
   const screen = h.load('screens/ChainReportScreen').default;
   const render = () => h.render(screen, { navigation: { goBack() {} } });
   const headerTree = () => named(render(), 'FlatList')[0].props.ListHeaderComponent;
-  const picker = () => named(render(), 'CustomModal').find(node => node.props.title === 'Vegetable');
+  const field = label => named(headerTree(), 'SelectField').find(node => node.props.label === label);
   render(); await flush();
-  assert.equal(named(headerTree(), 'FilterChips').length, 0);
-  const select = named(headerTree(), 'TouchableOpacity').find(node => node.props.accessibilityLabel === 'Vegetable: All Vegetables');
-  select.props.onPress();
-  assert.equal(picker().props.visible, true);
-  const options = named(picker(), 'TouchableOpacity');
+  assert.equal(named(headerTree(), 'SegmentedTabs').length + named(headerTree(), 'FilterChips').length, 0, 'no button rows');
+  same(named(headerTree(), 'SelectField').map(node => node.props.label), ['Date Range', 'Vegetable']);
+  same(field('Date Range').props.options.map(o => o.label), ['This Week', 'This Month', 'This Year', 'Custom']);
+  assert.equal(field('Date Range').props.value, 'week');
+  // The real dropdown: the field shows the choice; tapping opens the list with it highlighted.
+  const vegetable = field('Vegetable');
+  const open = () => h.render(vegetable.type, vegetable.props);
+  let tree = open();
+  assert.equal(named(tree, 'TouchableOpacity')[0].props.accessibilityLabel, 'Vegetable: All Vegetables');
+  named(tree, 'TouchableOpacity')[0].props.onPress();
+  tree = open();
+  const list = named(tree, 'CustomModal')[0];
+  assert.equal(list.props.visible, true); assert.equal(list.props.title, 'Vegetable');
+  const options = named(list, 'TouchableOpacity');
   same(options.map(node => texts(node)[0]), ['All Vegetables', ...vegetables]);
   assert.equal(options[0].props.accessibilityState.selected, true);
   options.find(node => texts(node)[0] === 'Okra').props.onPress();
+  assert.equal(named(open(), 'CustomModal')[0].props.visible, false, 'choosing closes the list');
   render(); await flush();
-  assert.equal(picker().props.visible, false);
-  assert.ok(named(headerTree(), 'TouchableOpacity').some(node => node.props.accessibilityLabel === 'Vegetable: Okra'));
-  assert.ok(texts(headerTree()).includes('7 kg'));
+  assert.equal(field('Vegetable').props.value, 'Okra');
+  assert.ok(texts(headerTree()).includes('7 kg'), 'totals for the chosen vegetable');
 });
 
 test("Spoiled Products: this week's spoilage total and both reasons, traced to the batch", async () => {

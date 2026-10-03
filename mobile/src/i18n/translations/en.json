@@ -615,6 +615,8 @@
     "emptyMessageFiltered": "Try a different category filter."
   },
   "stocks": {
+    "pastLimit": "Past spoilage limit – needs review",
+    "statusNeedsReview": "Needs Review",
     "daysInStock": "Days in stock",
     "daysOfSeven": "{days} of 7 days",
     "lastDayToSell": "Day 7: last day to sell",
@@ -1532,7 +1534,12 @@
     "toRetailer": "Heading to the retailer",
     "onRoute": "On the way",
     "findingLocation": "Finding your location…",
-    "gpsTimeout": "Unable to get your current location. Please check GPS and try again.",
+    "gpsTimeout": "Unable to get your current location. Check that GPS is turned on and try again.",
+    "gpsOff": "Location is turned off on your phone. Turn on GPS and try again.",
+    "gpsInaccurate": "Your GPS signal is still inaccurate. Please wait a moment or reload GPS.",
+    "reloadGps": "Reload GPS",
+    "reloadingGps": "Getting your location…",
+    "approximate": "Showing your last known location while GPS updates…",
     "waitingRoute": "Getting your route…",
     "offRoute": "You’re off the route. Finding a new route…",
     "routeUnavailable": "Route is temporarily unavailable. Live location is still available.",
@@ -1730,8 +1737,9 @@
     "pickupProof": "Proof of pickup"
   },
   "stockAlerts": {
+    "pastLimitTitle": "Past spoilage limit – needs review",
     "title": "Stock alert",
-    "subtitle": "These batches reach the 7-day limit today. Unsold stock moves to Spoiled Products tomorrow.",
+    "subtitle": "Day 7 is the last day to sell. From day 8 a batch is no longer sold and waits for you to discard it.",
     "message": "{name} has {kg} kg remaining in stock. Harvested on {date} and has been in stock for {days} days.",
     "messageNoHarvest": "{name} has {kg} kg remaining in stock and has been in stock for {days} days.",
     "keepSelling": "Keep Selling",
@@ -1742,11 +1750,11 @@
   },
   "discard": {
     "button": "Discard",
-    "title": "Discard Stock",
-    "confirm": "Discard the remaining {kg} kg of {name}? This stock will no longer be available for sale.",
+    "title": "Discard this product?",
+    "confirm": "Discard the remaining {kg} kg of {name}? It will be moved to Spoiled Products and can no longer be sold.",
     "doneTitle": "Stock discarded",
     "doneMessage": "The stock was moved to Spoiled Products.",
-    "pastLimitMessage": "This batch passed the 7-day limit and is now in Spoiled Products."
+    "pastLimitMessage": "This batch was past its spoilage limit. Its remaining stock is now in Spoiled Products."
   },
   "chain": {
     "title": "Vegetable Chain Tracking",
@@ -1837,6 +1845,7 @@
     "emptyTitle": "No transactions",
     "emptyMessage": "Nothing was received, sold or spoiled in this period.",
     "exportTitle": "VeggieTrack — Transaction Report",
+    "dateRange": "Date Range",
     "vegetable": "Vegetable",
     "allVegetables": "All Vegetables",
     "emptyVegetableTitle": "No transactions found for this vegetable.",

@@ -1,18 +1,21 @@
 import { MAP_ZOOM_CSS } from './mapZoomStyle';
 // One persistent Leaflet document for WebView (Android/iOS) and iframe (web).
+// The rider's pulse ring runs three times, not forever: an endless CSS animation
+// repaints the WebView every frame, which is costly on Android phones.
 // Data updates move layers in place, preserving zoom, tile cache, and open controls.
 export function buildDeliveryTrackingHtml() {
   return `<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
 html,body,#map{height:100%;margin:0;background:#e8efe6;font-family:system-ui,sans-serif}
+html,body{overflow:hidden;overscroll-behavior:none;touch-action:none}
 ${MAP_ZOOM_CSS}
 .marker{background:transparent;border:0}.pin{position:relative;display:grid;place-items:center;width:38px;height:38px;border:3px solid white;border-radius:50%;background:#244d36;box-shadow:0 2px 8px #0005;font-size:23px}
 .pin.rider{background:#218258}.pin.hub{background:#31598a}.pin.shop{background:#b8702b}.pin.viewer{background:#6654af}
 .pin svg{width:19px;height:19px;fill:#fff;display:block}
-.pin.pulse:before{content:'';position:absolute;inset:-9px;border:2px solid #218258;border-radius:50%;animation:radar 2s ease-out infinite}
+.pin.pulse:before{content:'';position:absolute;inset:-9px;border:2px solid #218258;border-radius:50%;animation:radar 2s ease-out 3}
 @keyframes radar{from{transform:scale(.7);opacity:.85}to{transform:scale(1.7);opacity:0}}
 @media(prefers-reduced-motion:reduce){.pin.pulse:before{animation:none}}
 .leaflet-popup-content{max-width:220px;white-space:pre-line;overflow-wrap:anywhere}.leaflet-control-attribution{font-size:10px}

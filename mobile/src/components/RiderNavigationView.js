@@ -1,5 +1,5 @@
 import { rf } from '../lib/responsive';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -46,7 +46,7 @@ function instruction(t, g) {
  */
 export default function RiderNavigationView({
   tracking, loading, trackingError, onRetryRoute,
-  position, gpsError, onRetryGps,
+  position, gpsError, onReloadGps, reloadingGps,
   target, targetKind, destinationLabel, arrivedHint, onBack, children,
 }) {
   const safe = useSafeAreaInsets();
@@ -71,6 +71,8 @@ export default function RiderNavigationView({
     [progressIndex, progressPoint?.latitude, progressPoint?.longitude]);
   const waitingForRoute = !!current && !!tracking && !!coordinate(target) && !onRoute && guidance.status !== 'off-route'
     && !nav.navigation_error?.includes('unavailable') && !(trackingError && !nav.full_route);
+  // Reload GPS: a fresh fix, then the route for it (same action on the map and the banner).
+  const reloadGps = useCallback(() => Promise.resolve(onReloadGps?.()).then(() => onRetryRoute?.(), () => {}), [onReloadGps, onRetryRoute]);
   const [routeSlow, setRouteSlow] = useState(false);
   useEffect(() => {
     if (!waitingForRoute) { setRouteSlow(false); return undefined; }
@@ -79,7 +81,9 @@ export default function RiderNavigationView({
   }, [waitingForRoute]);
 
   let banner = null, retry = null, icon = 'navigation-variant';
-  if (gpsError && !current) { banner = { primary: gpsError }; retry = onRetryGps; icon = 'map-marker-off'; }
+  let retryLabel = t('nav.retry');
+  if (reloadingGps && !current) banner = { primary: t('nav.reloadingGps') };
+  else if (gpsError && !current) { banner = { primary: gpsError }; retry = reloadGps; retryLabel = t('nav.reloadGps'); icon = 'map-marker-off'; }
   else if (!current) banner = { primary: t('nav.findingLocation') };
   else if (tracking && !coordinate(target)) { banner = { primary: t('nav.noDestination') }; icon = 'map-marker-question'; }
   else if (guidance.status === 'ok' || guidance.status === 'arrived') {
@@ -103,6 +107,7 @@ export default function RiderNavigationView({
     <TrackingErrorBoundary onBack={onBack}>
       <View style={styles.body}>
         <RiderNavMap tracking={tracking} position={current} route={points} progress={progress}
+          onReloadGps={onReloadGps ? reloadGps : undefined} reloadingGps={reloadingGps}
           target={target} targetKind={targetKind} targetName={destinationLabel}
           insets={{ top: bannerBottom, bottom: panelHeight }} />
 
@@ -115,13 +120,14 @@ export default function RiderNavigationView({
               <Text style={styles.primary} numberOfLines={3}>{banner.primary}</Text>
               {!!banner.secondary && <Text style={styles.secondary} numberOfLines={2}>{banner.secondary}</Text>}
             </View>
-            {!!retry && <TouchableOpacity accessibilityRole="button" onPress={retry} style={styles.retry}><Text style={styles.retryText}>{t('nav.retry')}</Text></TouchableOpacity>}
+            {!!retry && <TouchableOpacity accessibilityRole="button" onPress={retry} style={styles.retry}><Text style={styles.retryText}>{retryLabel}</Text></TouchableOpacity>}
           </View>
           {!!gpsError && !!current && (
-            <TouchableOpacity accessibilityRole="button" activeOpacity={0.85} onPress={onRetryGps} disabled={!onRetryGps}>
-              <Text style={styles.notice}>{t('nav.shareProblem')} <Text style={styles.noticeAction}>{t('nav.retry')}</Text></Text>
+            <TouchableOpacity accessibilityRole="button" activeOpacity={0.85} onPress={reloadGps} disabled={!onReloadGps || reloadingGps}>
+              <Text style={styles.notice}>{gpsError} <Text style={styles.noticeAction}>{t('nav.reloadGps')}</Text></Text>
             </TouchableOpacity>
           )}
+          {!gpsError && !!position?.approximate && <Text style={styles.notice}>{t('nav.approximate')}</Text>}
         </View>
 
         <View style={[styles.panel, { paddingBottom: 12 + safe.bottom }]} onLayout={event => setPanelHeight(Math.ceil(event.nativeEvent.layout.height))}>

@@ -7,9 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
 import BatchDateField from '../components/BatchDateField';
-import CustomModal from '../components/CustomModal';
 import ScreenHeader from '../components/ScreenHeader';
-import { FilterChips, SegmentedTabs } from '../components/ui/SegmentedTabs';
+import SelectField from '../components/ui/SelectField';
 import StatusBadge from '../components/ui/StatusBadge';
 import { exportReportPdf, printReport } from '../lib/reportPdf';
 import { showAlert, peso } from '../lib/ui';
@@ -21,8 +20,6 @@ import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
 const TYPE_TONES = { received: 'received', sold: 'delivered', spoiled: 'spoiled' };
-// Up to this many vegetables fit a chip row; more use a dropdown list.
-const VEGETABLE_CHIP_LIMIT = 8;
 const kg = (value) => (value != null ? `${Number(value)} kg` : '—');
 const shortDate = (value) => (value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' }) : '—');
 
@@ -54,7 +51,6 @@ export default function ChainReportScreen({ navigation }) {
   // '' is All Vegetables. Options come from the report (every vegetable stocked).
   const [vegetable, setVegetable] = useState('');
   const [vegetableOptions, setVegetableOptions] = useState([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -92,7 +88,6 @@ export default function ChainReportScreen({ navigation }) {
   const vegetableLabel = (name) => (name ? localizeVegetableName(name, language) : t('reports.allVegetables'));
   // A chosen vegetable stays listed even if the options no longer include it.
   const vegetableChoices = vegetable && !vegetableOptions.includes(vegetable) ? [...vegetableOptions, vegetable] : vegetableOptions;
-  const chooseVegetable = (name) => { setVegetable(name); setPickerOpen(false); };
   const statusText = (event) => (event.type === 'spoiled' ? t(`spoilage.reason.${event.status}`) : t(`reports.status.${event.type}`));
 
   const handleExport = async (doPrint) => {
@@ -125,8 +120,13 @@ export default function ChainReportScreen({ navigation }) {
 
   const header = (
     <View>
-      <SegmentedTabs scroll inset={spacing.lg} style={styles.tabsBleed} value={period} onChange={setPeriod}
-        options={REPORT_PERIODS.map((p) => ({ value: p, label: t(`reports.period.${p}`) }))} />
+      {/* Two separate dropdowns; both filter the whole report, totals included. */}
+      <View style={styles.filters}>
+        <SelectField style={styles.filter} label={t('reports.dateRange')} value={period} onChange={setPeriod}
+          options={REPORT_PERIODS.map((p) => ({ value: p, label: t(`reports.period.${p}`) }))} />
+        <SelectField style={styles.filter} label={t('reports.vegetable')} value={vegetable} onChange={setVegetable}
+          options={['', ...vegetableChoices].map((name) => ({ value: name, label: vegetableLabel(name) }))} />
+      </View>
       {period === 'custom' && (
         <View style={styles.customRow}>
           <View style={styles.customField}>
@@ -140,21 +140,6 @@ export default function ChainReportScreen({ navigation }) {
         </View>
       )}
       {!!customError && (customFrom || customTo) && <Text style={styles.error}>{t(customError)}</Text>}
-      {vegetableChoices.length > 0 && (
-        <View>
-          <Text style={styles.fieldLabel}>{t('reports.vegetable')}</Text>
-          {vegetableChoices.length <= VEGETABLE_CHIP_LIMIT ? (
-            <FilterChips value={vegetable} onChange={setVegetable} inset={spacing.lg} style={styles.chipsBleed}
-              options={['', ...vegetableChoices].map((name) => ({ value: name, label: vegetableLabel(name) }))} />
-          ) : (
-            <TouchableOpacity style={[styles.select, !!vegetable && styles.selectActive]} onPress={() => setPickerOpen(true)}
-              accessibilityRole="button" accessibilityLabel={`${t('reports.vegetable')}: ${vegetableLabel(vegetable)}`}>
-              <Text style={[styles.selectText, !!vegetable && styles.selectTextActive]} numberOfLines={1}>{vegetableLabel(vegetable)}</Text>
-              <Ionicons name="chevron-down" size={rf(16)} color={vegetable ? '#fff' : PRIMARY} />
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
       {!!range && <Text style={styles.rangeText}>{rangeLabel(range)}</Text>}
       {!!summary && (
         <View style={styles.stats}>
@@ -223,19 +208,6 @@ export default function ChainReportScreen({ navigation }) {
           </View>
         ) : null}
       />
-
-      <CustomModal visible={pickerOpen} title={t('reports.vegetable')} onCancel={() => setPickerOpen(false)}>
-        {['', ...vegetableChoices].map((name) => {
-          const selected = name === vegetable;
-          return (
-            <TouchableOpacity key={name || 'all'} style={[styles.option, selected && styles.optionSelected]} onPress={() => chooseVegetable(name)}
-              accessibilityRole="button" accessibilityState={{ selected }}>
-              <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{vegetableLabel(name)}</Text>
-              {selected && <Ionicons name="checkmark" size={rf(18)} color="#fff" />}
-            </TouchableOpacity>
-          );
-        })}
-      </CustomModal>
     </SafeAreaView>
   );
 }
@@ -243,27 +215,13 @@ export default function ChainReportScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
-  tabsBleed: { marginHorizontal: -spacing.lg, marginBottom: spacing.md },
-  chipsBleed: { marginHorizontal: -spacing.lg },
+  // Side by side when both fit (about 150 wide each), otherwise stacked.
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: spacing.md },
+  filter: { flexGrow: 1, flexBasis: 150 },
   customRow: { flexDirection: 'row', gap: 10, marginBottom: spacing.sm },
   customField: { flex: 1, minWidth: 0 },
   fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginBottom: 4 },
   error: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.danger, marginBottom: spacing.sm },
-  select: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: control.heightSm,
-    paddingHorizontal: control.paddingH, borderRadius: control.heightSm / 2, borderWidth: 1, borderColor: PRIMARY,
-    backgroundColor: colors.card, marginBottom: spacing.md,
-  },
-  selectActive: { backgroundColor: PRIMARY },
-  selectText: { flex: 1, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
-  selectTextActive: { color: '#fff' },
-  option: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: control.height,
-    paddingHorizontal: 14, borderRadius: radius.ctrl, marginBottom: 6, borderWidth: 1, borderColor: colors.border,
-  },
-  optionSelected: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  optionText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
-  optionTextSelected: { color: '#fff' },
   rangeText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: spacing.sm },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md },
   stat: { flexGrow: 1, flexBasis: '45%', paddingVertical: 10, paddingHorizontal: 12, borderRadius: radius.ctrl, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },

@@ -11,7 +11,7 @@ const { isVegetable, VEGETABLE_VALIDATION_MESSAGE, canonicalVegetableName } = re
 const {
   COMPLETED_STATUSES, roundKg, hasStockPrecision, isActiveBatch, isReceivedBatch, isSellableBatch,
   compareFifo, sameVegetableAs, retailerProducts, distributorListings, batchStatus, batchDate, manilaToday,
-  daysInStock, needsStockAlert, stockSince, STOCK_ALERT_DAYS,
+  daysInStock, needsStockAlert, isPastSpoilageLimit, stockSince, STOCK_ALERT_DAYS,
 } = require('./lib/batches');
 const { OPEN_PICKUP_STATUSES, harvestAvailability, estimatedTotal, pickupInputError, requestedKg } = require('./lib/pickups');
 const { buildChainBatches, chainEvents, reportSummary, reportVegetables, manilaWeek } = require('./lib/chainTracking');
@@ -54,17 +54,9 @@ async function markOverdueOrdersUnsuccessful() {
   if (error) console.error('Could not update overdue orders:', error.message);
 }
 
-// 7-day stock rule (sql/pickup_pricing_and_spoilage.sql): moves unsold stock past
-// the limit to Spoiled Products before stock is read. The database runs the same
-// rule on checkout and order approval, so expired stock is never sold.
-let spoilageRuleWarned = false;
-async function spoilExpiredBatches() {
-  const { error } = await supabaseAdmin.rpc('spoil_expired_batches');
-  if (error && !spoilageRuleWarned) {
-    spoilageRuleWarned = true;
-    console.warn('7-day stock rule is not active; apply sql/pickup_pricing_and_spoilage.sql:', error.message);
-  }
-}
+// Stock past the 7-day limit is no longer moved to Spoiled Products by the app
+// (sql/manual_spoilage.sql): it stays in its batch for the distributor to review,
+// and lib/batches.js and the checkout/approval functions keep it out of sale.
 
 // A missing database function or column means sql/pickup_pricing_and_spoilage.sql
 // has not been applied yet.
@@ -805,7 +797,6 @@ app.get('/api/products', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view their products' });
   }
-  await spoilExpiredBatches();
   const { data: rows, error } = await supabaseAdmin
     .from('products')
     .select('*')
@@ -838,6 +829,7 @@ app.get('/api/products', verifyToken, async (req, res) => {
     pickup_date: pickupDateById[p.pickup_request_id] || p.pickup_date || null,
     // 7-day stock rule: day 7 is the last day the batch can be sold.
     days_in_stock: daysInStock(p),
+    past_limit: isPastSpoilageLimit(p),
   }));
   res.json(list);
 });
@@ -852,7 +844,6 @@ app.put('/api/products/:id/list', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can list products' });
   }
-  await spoilExpiredBatches();
 
   const { data: batch, error: fetchError } = await supabaseAdmin
     .from('products')
@@ -1062,7 +1053,7 @@ app.post('/api/products/:id/discard', verifyToken, async (req, res) => {
   });
   if (error) return sendWorkflowError(res, error);
   const message = spoilage?.reason === 'past_limit'
-    ? 'This batch passed the 7-day limit and is now in Spoiled Products.'
+    ? 'This batch was past its spoilage limit. Its remaining stock is now in Spoiled Products.'
     : 'Stock discarded and moved to Spoiled Products.';
   res.json({ message, spoilage });
 });
@@ -1105,7 +1096,6 @@ app.get('/api/products/listings', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view their product list' });
   }
-  await spoilExpiredBatches();
   const { data, error } = await supabaseAdmin
     .from('products')
     .select('*')
@@ -1120,7 +1110,6 @@ app.get('/api/products/listings', verifyToken, async (req, res) => {
 // farmer details. Sold-out batches are not available stock; FIFO batch selection
 // happens when the order is approved.
 app.get('/api/products/available', async (req, res) => {
-  await spoilExpiredBatches();
   const { data, error } = await supabaseAdmin
     .from('products')
     .select('*')
@@ -2165,7 +2154,6 @@ app.get('/api/distributor/inventory-report', verifyToken, async (req, res) => {
 // Vegetable Chain Tracking: every batch of the distributor with its pickup from
 // the farmer, the orders that drew from it and its spoilage (lib/chainTracking.js).
 async function loadChainBatches(distributorId) {
-  await spoilExpiredBatches();
   const { data: batchRows, error } = await supabaseAdmin.from('products').select('*').eq('distributor_id', distributorId);
   if (error) return { error };
   const batches = batchRows || [];
@@ -2276,7 +2264,6 @@ app.get('/api/distributor/stock-alerts', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view stock alerts' });
   }
-  await spoilExpiredBatches();
   const { data, error } = await supabaseAdmin.from('products').select('*').eq('distributor_id', req.user.userId);
   if (error) return sendDbError(res, error);
   const alerts = (data || []).filter((batch) => needsStockAlert(batch)).sort(compareFifo).map((batch) => {
@@ -2286,6 +2273,8 @@ app.get('/api/distributor/stock-alerts', verifyToken, async (req, res) => {
       batch_id: batch.id, vegetable_name: batch.vegetable_name, remaining_kg: Number(batch.stock_kg),
       harvest_date: batch.harvest_date || null, in_stock_since: stockSince(batch), days_in_stock: days,
       status: batchStatus(batch), price_per_kg: batch.price_per_kg,
+      // Day 8 and later: past the spoilage limit, waiting for the distributor to discard it.
+      past_limit: isPastSpoilageLimit(batch),
       message: `${batch.vegetable_name} has ${Number(batch.stock_kg)} kg remaining in stock.${harvested} been in stock for ${days} days.`,
     };
   });

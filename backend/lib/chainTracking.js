@@ -1,7 +1,7 @@
 // Vegetable Chain Tracking: the history of each stock batch from the farmer to a
 // retailer or to Spoiled Products, built only from stored rows (products,
 // pickup_requests, order_items, orders, deliveries, payments, stock_spoilage).
-const { roundKg, batchStatus, compareFifo, daysInStock, stockSince } = require('./batches');
+const { roundKg, batchStatus, compareFifo, daysInStock, stockSince, isPastSpoilageLimit } = require('./batches');
 const { estimatedTotal } = require('./pickups');
 const { canonicalVegetableName, vegetableKey } = require('./vegetables');
 
@@ -82,6 +82,8 @@ function buildChainBatches({ batches = [], farmersById = {}, pickupsById = {}, p
       price_per_kg: batch.price_per_kg != null ? num(batch.price_per_kg) : null,
       in_stock_since: stockSince(batch) || (pickup?.received_at ?? null),
       days_in_stock: ['received', 'listed'].includes(batchStatus(batch)) ? daysInStock(batch, now) : null,
+      // Still active, but past the 7-day limit and waiting for the distributor's decision.
+      past_limit: isPastSpoilageLimit(batch, now),
       pickup: pickup ? {
         id: pickup.id,
         requested_at: pickup.requested_at || null,

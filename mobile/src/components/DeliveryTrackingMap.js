@@ -38,7 +38,7 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
   const [gpsBusy, setGpsBusy] = useState(false), [gpsFeedback, setGpsFeedback] = useState('');
   const [mapError, setMapError] = useState(''), [mapReady, setMapReady] = useState(false), [retry, setRetry] = useState(0);
   const [now, setNow] = useState(Date.now());
-  const mounted = useRef(true), acquiring = useRef(false), acquisitionGeneration = useRef(0);
+  const mounted = useRef(true), acquiring = useRef(false), acquisitionGeneration = useRef(0), rebuilds = useRef(0);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(id); }, []);
   useEffect(() => {
@@ -107,6 +107,8 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
     <View style={styles.map}>
       <DeliveryMapFrame key={retry} data={data} onEvent={event => {
         if (event.type === 'ready') { setMapReady(true); setMapError(''); }
+        // A killed WebView renderer leaves a dead map: mount a new one (twice at most).
+        if (event.type === 'error' && event.gone && rebuilds.current < 2) { rebuilds.current += 1; setMapReady(false); setRetry(v => v + 1); return; }
         if (event.type === 'error') { setMapReady(true); setMapError(event.message); }
         if (event.type === 'manual-pan') setAutoRecenter(false);
       }} />

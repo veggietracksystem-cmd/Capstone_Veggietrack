@@ -1,4 +1,4 @@
-const { planFifoDraw, sameVegetableAs, roundKg, isActiveBatch, daysInStock, STOCK_ALERT_DAYS } = require('../lib/batches');
+const { planFifoDraw, sameVegetableAs, roundKg, isActiveBatch, isPastSpoilageLimit } = require('../lib/batches');
 const { vegetableKey } = require('../lib/vegetables');
 
 // Route integration uses a stateful API stub; inventoryTransactionsSql exercises real SQL.
@@ -17,7 +17,6 @@ function syncOrderStock(data, before, order) {
   const items = (data.order_items || []).filter(i => i.order_id === order.id);
   order.stock_committed_at = before.stock_committed_at ?? null;
   if (holdsStock(order.status) && !order.stock_committed_at) {
-    spoilExpired(data);
     const byKey = new Map();
     for (const item of items) byKey.set(vegetableKey(item.vegetable_name), [...(byKey.get(vegetableKey(item.vegetable_name)) || []), item]);
     const plans = [];
@@ -47,19 +46,6 @@ function syncOrderStock(data, before, order) {
   return null;
 }
 
-// In-memory sql/pickup_pricing_and_spoilage.sql: the 7-day rule and discards
-// record spoilage and empty the batch; nothing is deleted.
-function spoilExpired(data) {
-  let moved = 0;
-  for (const batch of data.products || []) {
-    if (isActiveBatch(batch) && (daysInStock(batch) ?? 0) > STOCK_ALERT_DAYS) {
-      (data.stock_spoilage ||= []).push({ id: `spoil-${data.stock_spoilage.length + 1}`, product_id: batch.id,
-        distributor_id: batch.distributor_id, quantity_kg: batch.stock_kg, reason: 'past_limit', recorded_at: new Date().toISOString() });
-      batch.stock_kg = 0; batch.status = 'spoiled'; moved += 1;
-    }
-  }
-  return moved;
-}
 const OPEN_PICKUPS = ['requested', 'approved', 'assigned', 'otw'];
 function syncHarvest(data, harvest) {
   const requests = (data.pickup_requests || []).filter(r => r.harvest_id === harvest.id);
@@ -73,15 +59,17 @@ function inventoryRpcStub(data, name, args, nextId) {
   const products = data.products || [];
   const failed = message => ({ data: null, error: fail(message) });
   const invalid = message => ({ data: null, error: { code: '22023', message } });
-  if (name === 'spoil_expired_batches') return { data: spoilExpired(data), error: null };
+  // In-memory sql/manual_spoilage.sql: nothing is spoiled automatically; stock past the
+  // limit stays in its batch (and out of sale, see isSellableBatch) until the distributor discards it.
+  if (name === 'spoil_expired_batches') return { data: 0, error: null };
   if (name === 'discard_product_stock') {
-    spoilExpired(data);
     const batch = products.find(p => p.id === args.p_product_id && p.distributor_id === args.p_distributor_id);
     if (!batch) return { data: null, error: { code: 'P0002', message: 'Batch not found or not owned by you' } };
     if (batch.status === 'spoiled') return { data: [...(data.stock_spoilage || [])].reverse().find(s => s.product_id === batch.id), error: null };
     if (!isActiveBatch(batch)) return failed('This batch has no stock left to discard.');
     const record = { id: `spoil-${(data.stock_spoilage ||= []).length + 1}`, product_id: batch.id, distributor_id: batch.distributor_id,
-      quantity_kg: batch.stock_kg, reason: 'discarded', recorded_by: args.p_distributor_id, recorded_at: new Date().toISOString() };
+      quantity_kg: batch.stock_kg, reason: isPastSpoilageLimit(batch) ? 'past_limit' : 'discarded',
+      recorded_by: args.p_distributor_id, recorded_at: new Date().toISOString() };
     data.stock_spoilage.push(record);
     batch.stock_kg = 0; batch.status = 'spoiled';
     return { data: { ...record }, error: null };
@@ -116,7 +104,6 @@ function inventoryRpcStub(data, name, args, nextId) {
     return { data: { ...request }, error: null };
   }
   if (name === 'place_inventory_order') {
-    spoilExpired(data);
     // A pending order is quoted from listed stock but draws nothing.
     const draws = [];
     for (const item of args.p_items) {
@@ -164,4 +151,4 @@ function inventoryRpcStub(data, name, args, nextId) {
   return null;
 }
 
-module.exports = { inventoryRpcStub, syncOrderStock, syncHarvest, spoilExpired };
+module.exports = { inventoryRpcStub, syncOrderStock, syncHarvest };

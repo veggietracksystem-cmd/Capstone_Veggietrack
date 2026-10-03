@@ -20,7 +20,7 @@ export default function PickupNavigationScreen({ route, navigation }) {
   const { data, loading, error, refresh } = usePickupTracking(pickupId);
   const isAssigned = isDeliveryPersonnel(user) && data?.delivery_personnel_id === user?.id && ['assigned', 'otw'].includes(data?.status);
   // Pickups are not orders, so the position is shared without a delivery_id.
-  const { position, error: gpsError, refreshLocation } = useRiderLocation(null, isAssigned, { onFirstShare: refresh });
+  const { position, error: gpsError, reloadGps, refreshing: reloadingGps } = useRiderLocation(null, isAssigned, { onFirstShare: refresh });
   const target = data?.rider_view?.navigation_target;
   const harvest = pickup?.harvests;
   const summary = [pickup?.farmer_name, harvest && `${localizeVegetableName(harvest.vegetable_name, language)} · ${harvest.quantity_kg} kg`].filter(Boolean).join(' · ');
@@ -29,7 +29,7 @@ export default function PickupNavigationScreen({ route, navigation }) {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScreenHeader title={t('nav.pickupTitle')} onBack={() => navigation.goBack()} />
       <RiderNavigationView tracking={data} loading={loading} trackingError={error} onRetryRoute={refresh}
-        position={position} gpsError={gpsError} onRetryGps={() => refreshLocation().catch(() => {})}
+        position={position} gpsError={gpsError} onReloadGps={reloadGps} reloadingGps={reloadingGps}
         target={target} targetKind="farm" destinationLabel={t('nav.toFarm')} arrivedHint={t('nav.arrivedPickupHint')}
         onBack={() => navigation.goBack()}>
         {({ arrived }) => (

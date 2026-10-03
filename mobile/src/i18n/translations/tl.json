@@ -615,6 +615,8 @@
     "emptyMessageFiltered": "Subukan ang ibang category filter."
   },
   "stocks": {
+    "pastLimit": "Lampas na sa limitasyon ng pagkasira – kailangang suriin",
+    "statusNeedsReview": "Kailangang Suriin",
     "daysInStock": "Araw sa stock",
     "daysOfSeven": "{days} sa 7 araw",
     "lastDayToSell": "Ika-7 araw: huling araw ng benta",
@@ -1532,7 +1534,12 @@
     "toRetailer": "Papunta sa retailer",
     "onRoute": "Nasa daan",
     "findingLocation": "Hinahanap ang iyong lokasyon…",
-    "gpsTimeout": "Hindi makuha ang iyong kasalukuyang lokasyon. Pakisuri ang GPS at subukang muli.",
+    "gpsTimeout": "Hindi makuha ang iyong kasalukuyang lokasyon. Tiyaking naka-on ang GPS at subukang muli.",
+    "gpsOff": "Naka-off ang lokasyon sa iyong telepono. I-on ang GPS at subukang muli.",
+    "gpsInaccurate": "Hindi pa malinaw ang signal ng GPS. Maghintay sandali o i-reload ang GPS.",
+    "reloadGps": "I-reload ang GPS",
+    "reloadingGps": "Kinukuha ang iyong lokasyon…",
+    "approximate": "Ipinapakita ang huling alam na lokasyon habang nag-a-update ang GPS…",
     "waitingRoute": "Kinukuha ang iyong ruta…",
     "offRoute": "Lumihis ka sa ruta. Naghahanap ng bagong ruta…",
     "routeUnavailable": "Pansamantalang hindi available ang ruta. Available pa rin ang live na lokasyon.",
@@ -1730,8 +1737,9 @@
     "pickupProof": "Patunay ng pickup"
   },
   "stockAlerts": {
+    "pastLimitTitle": "Lampas na sa limitasyon ng pagkasira – kailangang suriin",
     "title": "Babala sa stock",
-    "subtitle": "Ika-7 araw na ngayon ng mga batch na ito. Bukas, ililipat sa Spoiled Products ang hindi nabenta.",
+    "subtitle": "Ika-7 araw ang huling araw ng benta. Mula ika-8 araw, hindi na ito ibinebenta at hinihintay kang itapon ito.",
     "message": "May natitirang {kg} kg ng {name} sa stock. Inani noong {date} at {days} araw na sa stock.",
     "messageNoHarvest": "May natitirang {kg} kg ng {name} sa stock at {days} araw na sa stock.",
     "keepSelling": "Ituloy ang Benta",
@@ -1742,11 +1750,11 @@
   },
   "discard": {
     "button": "Itapon",
-    "title": "Itapon ang Stock",
-    "confirm": "Itapon ang natitirang {kg} kg ng {name}? Hindi na ito maibebenta.",
+    "title": "Itapon ang produktong ito?",
+    "confirm": "Itapon ang natitirang {kg} kg ng {name}? Ililipat ito sa Spoiled Products at hindi na maibebenta.",
     "doneTitle": "Naitapon ang stock",
     "doneMessage": "Inilipat ang stock sa Spoiled Products.",
-    "pastLimitMessage": "Lumampas na sa 7 araw ang batch na ito at nasa Spoiled Products na."
+    "pastLimitMessage": "Lumampas na sa limitasyon ng pagkasira ang batch na ito. Nasa Spoiled Products na ang natitirang stock nito."
   },
   "chain": {
     "title": "Vegetable Chain Tracking",
@@ -1837,6 +1845,7 @@
     "emptyTitle": "Walang transaksyon",
     "emptyMessage": "Walang natanggap, naibenta o nasira sa panahong ito.",
     "exportTitle": "VeggieTrack — Ulat ng Transaksyon",
+    "dateRange": "Saklaw ng Petsa",
     "vegetable": "Gulay",
     "allVegetables": "Lahat ng Gulay",
     "emptyVegetableTitle": "Walang transaksyon para sa gulay na ito.",

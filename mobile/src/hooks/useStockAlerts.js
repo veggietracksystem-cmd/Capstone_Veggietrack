@@ -35,5 +35,6 @@ export default function useStockAlerts() {
     await kvSet(KEEP_SELLING_KEY, next).catch(() => {});
   }, [alerts, keepSelling]);
 
-  return { alerts: alerts.filter((alert) => !keepSelling.includes(alert.batch_id)), loaded, reload, keep };
+  // Keep Selling hides a day-7 alert; a batch past the limit always needs a decision.
+  return { alerts: alerts.filter((alert) => alert.past_limit || !keepSelling.includes(alert.batch_id)), loaded, reload, keep };
 }

@@ -20,7 +20,7 @@ export default function RiderNavigationScreen({ route, navigation }) {
   const { data, loading, error, refresh } = useDeliveryTracking(orderId);
   const isAssigned = isDeliveryPersonnel(user) && data?.delivery_personnel_id === user?.id && !isClosedOrderStatus(data?.status);
   // Live location is watched automatically and sent to the server; the rider never has to refresh it by hand.
-  const { position, error: gpsError, refreshLocation } = useRiderLocation(orderId, isAssigned, { onFirstShare: refresh });
+  const { position, error: gpsError, reloadGps, refreshing: reloadingGps } = useRiderLocation(orderId, isAssigned, { onFirstShare: refresh });
   const [actionError, setActionError] = useState(''), [opening, setOpening] = useState(false);
 
   const nav = data?.rider_view || {};
@@ -41,7 +41,7 @@ export default function RiderNavigationScreen({ route, navigation }) {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScreenHeader title={t('cmp.riderNav')} onBack={() => navigation.goBack()} />
       <RiderNavigationView tracking={data} loading={loading} trackingError={error} onRetryRoute={refresh}
-        position={position} gpsError={gpsError} onRetryGps={() => refreshLocation().catch(() => {})}
+        position={position} gpsError={gpsError} onReloadGps={reloadGps} reloadingGps={reloadingGps}
         target={target} targetKind={toWarehouse ? 'hub' : 'shop'}
         destinationLabel={t(toWarehouse ? 'nav.toWarehouse' : 'nav.toRetailer')} arrivedHint={t('nav.arrivedHint')}
         onBack={() => navigation.goBack()}>

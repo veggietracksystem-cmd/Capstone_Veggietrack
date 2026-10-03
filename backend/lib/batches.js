@@ -26,8 +26,10 @@ function isActiveBatch(batch) {
 function isReceivedBatch(batch) {
   return isActiveBatch(batch) && batch.status !== 'listed';
 }
+// Listed stock within the 7-day limit. Stock past the limit waits for the
+// distributor (see isPastSpoilageLimit) and is never offered or sold.
 function isSellableBatch(batch) {
-  return batch.status === 'listed' && stockOf(batch) > 0;
+  return batch.status === 'listed' && stockOf(batch) > 0 && !isPastSpoilageLimit(batch);
 }
 // On the Product List: listed, or listed until it sold out.
 function isOnProductList(batch) {
@@ -126,10 +128,11 @@ function batchDate(value) {
 }
 const manilaToday = (now = Date.now()) => new Date(now + 8 * 3600000).toISOString().slice(0, 10);
 
-// 7-day stock rule, the same as sql/pickup_pricing_and_spoilage.sql: days are
-// Philippine calendar days since the batch entered distributor stock. A batch is
-// sellable through day 7, when the distributor is alerted; from day 8 the
-// database moves its unsold stock to Spoiled Products ('past_limit').
+// 7-day stock rule, the same as sql/manual_spoilage.sql: days are Philippine
+// calendar days since the batch entered distributor stock. A batch is sellable
+// through day 7, when the distributor is alerted. From day 8 it is past the
+// spoilage limit: still in stock, not sold, and waiting for the distributor, who
+// alone decides to discard it (only then is it in Spoiled Products).
 const STOCK_ALERT_DAYS = 7;
 const manilaDayNumber = (time) => Math.floor((time + 8 * 3600000) / 86400000);
 const stockSince = (batch) => batch?.pickup_date || batch?.created_at || null;
@@ -137,6 +140,11 @@ function daysInStock(batch, now = Date.now()) {
   const since = stockSince(batch);
   const time = since == null ? NaN : new Date(since).getTime();
   return Number.isFinite(time) ? manilaDayNumber(now) - manilaDayNumber(time) : null;
+}
+// Active stock from day 8: needs review, never moved to Spoiled Products by itself.
+function isPastSpoilageLimit(batch, now = Date.now()) {
+  const days = daysInStock(batch, now);
+  return isActiveBatch(batch) && days != null && days > STOCK_ALERT_DAYS;
 }
 // Unsold stock that has reached the limit day and needs the distributor's decision.
 function needsStockAlert(batch, now = Date.now()) {
@@ -147,5 +155,5 @@ function needsStockAlert(batch, now = Date.now()) {
 module.exports = {
   COMPLETED_STATUSES, roundKg, hasStockPrecision, isActiveBatch, isReceivedBatch, isSellableBatch, isOnProductList,
   compareFifo, sameVegetableAs, planFifoDraw, retailerProducts, distributorListings, batchStatus,
-  batchDate, manilaToday, STOCK_ALERT_DAYS, stockSince, daysInStock, needsStockAlert,
+  batchDate, manilaToday, STOCK_ALERT_DAYS, stockSince, daysInStock, needsStockAlert, isPastSpoilageLimit,
 };

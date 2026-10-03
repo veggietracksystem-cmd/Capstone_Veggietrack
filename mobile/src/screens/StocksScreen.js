@@ -297,6 +297,8 @@ export default function StocksScreen({ navigation, route }) {
   };
 
   const renderBadge = (b) => {
+    // Past the 7-day limit: kept in stock, not sold, waiting for the distributor.
+    if (b.past_limit) return <StatusBadge status="pending" label={t('stocks.statusNeedsReview')} />;
     if (isListable(b.status)) {
       return <StatusBadge status={b.batch_photo_url ? 'completed' : 'pending'} label={b.batch_photo_url ? t('stocks.photoCaptured') : t('stocks.photoMissing')} />;
     }
@@ -342,7 +344,7 @@ export default function StocksScreen({ navigation, route }) {
         <View style={styles.row}>
           <Text style={styles.label}>{t('stocks.daysInStock')}</Text>
           <Text style={[styles.value, b.days_in_stock >= 7 && styles.valueWarning]}>
-            {b.days_in_stock >= 7 ? t('stocks.lastDayToSell') : t('stocks.daysOfSeven', { days: b.days_in_stock })}
+            {b.past_limit ? t('stocks.pastLimit') : b.days_in_stock >= 7 ? t('stocks.lastDayToSell') : t('stocks.daysOfSeven', { days: b.days_in_stock })}
           </Text>
         </View>
       )}
@@ -363,7 +365,7 @@ export default function StocksScreen({ navigation, route }) {
         {!!alert && (
           <View style={styles.alertStrip}>
             <Ionicons name="alert-circle" size={rf(16)} color={colors.gold700} />
-            <Text style={styles.alertStripText}>{t('stockAlerts.title')}</Text>
+            <Text style={styles.alertStripText}>{alert.past_limit ? t('stockAlerts.pastLimitTitle') : t('stockAlerts.title')}</Text>
           </View>
         )}
         <View style={styles.cardHeader}>
@@ -374,7 +376,7 @@ export default function StocksScreen({ navigation, route }) {
 
         {renderDetails(b)}
 
-        {isListable(b.status) && (
+        {isListable(b.status) && !b.past_limit && (
           <TouchableOpacity
             style={[styles.addBtn, busy && styles.addBtnDisabled]}
             onPress={() => onAddToProductList(b)}
@@ -394,7 +396,8 @@ export default function StocksScreen({ navigation, route }) {
             <Text style={styles.discardBtnText}>{t('discard.button')}</Text>
           </TouchableOpacity>
         </View>
-        {!!alert && (
+        {/* Keep Selling is for the last sellable day; past the limit only Discard remains. */}
+        {!!alert && !alert.past_limit && (
           <TouchableOpacity style={styles.keepBtn} onPress={() => stockAlerts.keep(b.id)} disabled={busy} accessibilityRole="button">
             <Text style={styles.keepBtnText}>{t('stockAlerts.keepSelling')}</Text>
           </TouchableOpacity>

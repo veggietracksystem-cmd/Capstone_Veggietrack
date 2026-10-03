@@ -45,12 +45,12 @@ export function formatDate(dateStr) {
 }
 
 // Vegetable Chain Tracking filters over the batch lifecycle (backend/lib/batches.js):
-// Active batches still have stock, Spoiled batches had stock moved to Spoiled
-// Products, and every other batch finished by selling out.
+// Active batches still have stock, and every other batch finished by selling out.
+// Batches whose stock was discarded are reached through the Spoiled Products
+// button above the tabs, so there is no separate Spoiled tab.
 const FILTERS = [
   { value: 'active', labelKey: 'status.active' },
   { value: 'sold_out', labelKey: 'status.sold_out' },
-  { value: 'spoiled', labelKey: 'status.spoiled' },
 ];
 export const filterGroupOf = (batch) => (['received', 'listed'].includes(batch.status) ? 'active'
   : batch.status === 'spoiled' ? 'spoiled' : 'sold_out');
@@ -181,7 +181,10 @@ export default function DistributorInventoryReportScreen({ navigation }) {
     }
   };
 
-  const renderStatus = (status) => <StatusBadge status={displayStatus(status)} label={statusLabel(displayStatus(status), t)} />;
+  // An active batch past the 7-day limit reads "Needs review" until the distributor discards it.
+  const renderStatus = (status, pastLimit) => (pastLimit
+    ? <StatusBadge status="pending" label={t('stocks.statusNeedsReview')} />
+    : <StatusBadge status={displayStatus(status)} label={statusLabel(displayStatus(status), t)} />);
   const cell = (value) => (num(value) != null ? String(num(value)) : '—');
 
   const header = (
@@ -235,7 +238,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
         <Text style={[styles.cellNum, styles.colKg]}>{cell(b.totals?.sold)}</Text>
         {wide && <Text style={[styles.cellNum, styles.colKg]}>{cell(b.totals?.spoiled)}</Text>}
         <Text style={[styles.cellNum, styles.colKg, styles.cellStrong]}>{cell(b.totals?.remaining)}</Text>
-        <View style={[styles.colStatus, styles.statusCell]}>{renderStatus(b.status)}</View>
+        <View style={[styles.colStatus, styles.statusCell]}>{renderStatus(b.status, b.past_limit)}</View>
       </TouchableOpacity>
     );
   };
@@ -282,7 +285,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
           <>
             <View style={styles.detailStatusRow}>
               <Text style={styles.detailLabel}>{t('chain.col.status')}</Text>
-              {renderStatus(detail.status)}
+              {renderStatus(detail.status, detail.past_limit)}
             </View>
             {detail.batch_photo_url
               ? <RemoteImage uri={detail.batch_photo_url} style={styles.detailPhoto} resizeMode="cover" accessibilityLabel={t('inventoryReport.colPhoto')} />

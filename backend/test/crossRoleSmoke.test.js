@@ -258,13 +258,31 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
   }
   assert.equal(data.notifications.filter(n => n.type === 'stock_alert' && n.item_id === tomato.id).length, 1);
   assert.equal((await call('get /api/products/available', 'retailer')).find(p => p.vegetable_name === 'Tomato').available_kg, 18);
-  // Day 8: past the limit, so it moves to Spoiled Products on its own and stops being sold.
-  data.products.find(p => p.id === tomato.id).pickup_date = `${daysAgo(8)}T04:00:00.000Z`;
-  assert.equal((await call('get /api/products/available', 'retailer')).some(p => p.vegetable_name === 'Tomato'), false);
-  assert.deepEqual([data.products.find(p => p.id === tomato.id).status, data.products.find(p => p.id === tomato.id).stock_kg], ['spoiled', 0]);
-  assert.deepEqual(await call('get /api/distributor/stock-alerts', 'hub'), []);
-  const spoiledNow = await call('get /api/distributor/spoilage', 'hub');
+  // Day 8: past the spoilage limit. Only a warning: no longer offered to retailers,
+  // but the 18 kg stay in the batch for the distributor to review. Not spoiled.
+  const tomatoBatch = () => data.products.find(p => p.id === tomato.id);
+  tomatoBatch().pickup_date = `${daysAgo(8)}T04:00:00.000Z`;
+  for (let refresh = 0; refresh < 2; refresh += 1) {
+    assert.equal((await call('get /api/products/available', 'retailer')).some(p => p.vegetable_name === 'Tomato'), false);
+    assert.deepEqual([tomatoBatch().status, tomatoBatch().stock_kg], ['listed', 18]);
+    assert.deepEqual((await call('get /api/distributor/stock-alerts', 'hub')).map(a => [a.batch_id, a.remaining_kg, a.past_limit]), [[tomato.id, 18, true]]);
+  }
+  const waiting = (await call('get /api/products', 'hub')).find(p => p.id === tomato.id);
+  assert.deepEqual([waiting.stock_kg, waiting.past_limit], [18, true], 'still in Stocks, marked for review');
+  let spoiledNow = await call('get /api/distributor/spoilage', 'hub');
+  assert.deepEqual(spoiledNow.records.map(r => [r.vegetable_name, r.quantity_kg, r.reason]), [['Carrot', 2, 'discarded']]);
+  assert.equal(spoiledNow.this_week.kg, 2, 'the 18 kg are not counted as spoiled before a discard');
+  const reportBefore = await call('get /api/distributor/chain-report', 'hub');
+  assert.equal(reportBefore.summary.spoiled_kg, 2);
+  // Only the distributor's discard moves it to Spoiled Products, once.
+  const tomatoDiscard = await call('post /api/products/:id/discard', 'hub', {}, tomato.id);
+  assert.deepEqual([tomatoDiscard.spoilage.reason, tomatoDiscard.spoilage.quantity_kg, tomatoDiscard.spoilage.recorded_by], ['past_limit', 18, 'hub']);
+  await call('post /api/products/:id/discard', 'hub', {}, tomato.id);
+  assert.deepEqual([tomatoBatch().status, tomatoBatch().stock_kg], ['spoiled', 0]);
+  spoiledNow = await call('get /api/distributor/spoilage', 'hub');
   assert.deepEqual(spoiledNow.records.map(r => [r.vegetable_name, r.quantity_kg, r.reason]), [['Tomato', 18, 'past_limit'], ['Carrot', 2, 'discarded']]);
   assert.equal(spoiledNow.this_week.kg, 20);
+  assert.equal((await call('get /api/distributor/chain-report', 'hub')).summary.spoiled_kg, 20, 'report counts it after the discard');
+  assert.deepEqual(await call('get /api/distributor/stock-alerts', 'hub'), []);
   assert.deepEqual((await call('get /api/products', 'hub')).map(p => p.vegetable_name), ['Okra']);
 });
