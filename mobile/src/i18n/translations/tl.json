@@ -1532,6 +1532,7 @@
     "toRetailer": "Papunta sa retailer",
     "onRoute": "Nasa daan",
     "findingLocation": "Hinahanap ang iyong lokasyon…",
+    "gpsTimeout": "Hindi makuha ang iyong kasalukuyang lokasyon. Pakisuri ang GPS at subukang muli.",
     "waitingRoute": "Kinukuha ang iyong ruta…",
     "offRoute": "Lumihis ka sa ruta. Naghahanap ng bagong ruta…",
     "routeUnavailable": "Pansamantalang hindi available ang ruta. Available pa rin ang live na lokasyon.",

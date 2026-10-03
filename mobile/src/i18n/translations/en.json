@@ -1532,6 +1532,7 @@
     "toRetailer": "Heading to the retailer",
     "onRoute": "On the way",
     "findingLocation": "Finding your location…",
+    "gpsTimeout": "Unable to get your current location. Please check GPS and try again.",
     "waitingRoute": "Getting your route…",
     "offRoute": "You’re off the route. Finding a new route…",
     "routeUnavailable": "Route is temporarily unavailable. Live location is still available.",

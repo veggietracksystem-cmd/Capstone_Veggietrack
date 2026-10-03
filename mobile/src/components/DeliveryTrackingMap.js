@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import DeliveryMapFrame from './DeliveryMapFrame';
 import { formatEta } from '../lib/formatEta';
-import { coordinate, routePoints, routeLength, routeProgress, positionAlong } from '../lib/trackingGeometry';
+import { coordinate, routeKey, routePoints, routeLength, routeProgress, positionAlong } from '../lib/trackingGeometry';
 import { acquireDevicePosition } from '../lib/deviceLocation';
 import { activeJourney, isLivePosition, liveEtaSeconds } from '../lib/trackingJourney';
 import { isClosedOrderStatus } from '../lib/orderStatus';
@@ -29,7 +29,8 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
   const actualPosition = coordinate(riderPosition) ? riderPosition : coordinate(rider) ? rider : nav.current_location;
   const actualRider = coordinate(actualPosition);
   const geometry = journey.route || (mode === 'tracking' ? journey.estimatedRoute : null);
-  const points = useMemo(() => routePoints(geometry), [geometry]);
+  // Keyed by content: a poll returning the same road line keeps the same points, so it is not redrawn.
+  const points = useMemo(() => routePoints(geometry), [routeKey(geometry)]);
   const length = useMemo(() => routeLength(points), [points]);
   const [demo, setDemo] = useState(false), [demoMetres, setDemoMetres] = useState(0);
   const [autoRecenter, setAutoRecenter] = useState(true), [fitToken, setFitToken] = useState(0);
@@ -72,7 +73,7 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
   useEffect(() => { onMetrics?.({ distanceKm: remainingKm, etaSeconds, demo, offRoute, live }); }, [remainingKm, etaSeconds, demo, offRoute, live, onMetrics]);
   const data = {
     origin, destination, rider: { ...shownRider, name: rider.name || t('cmp.deliveryRider'), live: live || demo, label, accuracy },
-    viewer, viewerToken, route: points, completed: offRoute ? [] : progress.completed,
+    viewer, viewerToken, route: points, progress: offRoute || !progress.point ? null : { index: progress.index, point: progress.point },
     // After pickup, the customer map shows only the rider-to-destination leg.
     focusPoints: mode === 'navigation' ? [shownRider, navigationTarget] : phase === 'delivery' ? [shownRider, destination] : undefined,
     autoRecenter, fitToken, tileConfig: trackingData?.map_config,

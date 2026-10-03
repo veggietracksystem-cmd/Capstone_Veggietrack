@@ -17,6 +17,14 @@ function routePoints(geometry) {
   const points = geometry.coordinates.map(p => Array.isArray(p) ? coordinate({ longitude: p[0], latitude: p[1] }) : null);
   return points.every(Boolean) ? points : [];
 }
+// Identifies a road line by its content. Polls return a new geometry object
+// every time; equal keys mean the same line, so it need not be rebuilt or redrawn.
+function routeKey(geometry) {
+  const c = geometry?.type === 'LineString' && Array.isArray(geometry.coordinates) ? geometry.coordinates : null;
+  if (!c?.length) return '';
+  const at = i => (Array.isArray(c[i]) ? c[i].join(',') : '');
+  return `${c.length}|${at(0)}|${at(c.length >> 1)}|${at(c.length - 1)}`;
+}
 function routeLength(points) {
   return points.slice(1).reduce((sum, p, i) => sum + distanceBetween(points[i], p), 0);
 }
@@ -36,7 +44,7 @@ function positionAlong(points, metres) {
 }
 function routeProgress(points, rider) {
   const total = routeLength(points);
-  if (points.length < 2 || !rider) return { total, travelled: 0, remaining: total, offRoute: null, completed: [] };
+  if (points.length < 2 || !rider) return { total, travelled: 0, remaining: total, offRoute: null, completed: [], index: 0, point: null };
   let best = { distance: Infinity, travelled: 0, index: 0, point: points[0] }, accumulated = 0;
   const scale = Math.cos(rider.latitude * Math.PI / 180);
   for (let i = 1; i < points.length; i++) {
@@ -49,9 +57,10 @@ function routeProgress(points, rider) {
     if (distance < best.distance) best = { distance, travelled: accumulated + t * segmentLength, index: i, point };
     accumulated += segmentLength;
   }
+  // completed is points[0..index) plus point; the map is sent only index and point.
   return { total, travelled: best.travelled, remaining: Math.max(0, total - best.travelled),
-    offRoute: best.distance, completed: [...points.slice(0, best.index), best.point] };
+    offRoute: best.distance, completed: [...points.slice(0, best.index), best.point], index: best.index, point: best.point };
 }
 // Escaping '<' prevents user-supplied addresses from terminating inline scripts.
 function scriptJson(value) { return JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'); }
-module.exports = { coordinate, distanceBetween, routePoints, routeLength, positionAlong, routeProgress, scriptJson };
+module.exports = { coordinate, distanceBetween, routePoints, routeKey, routeLength, positionAlong, routeProgress, scriptJson };

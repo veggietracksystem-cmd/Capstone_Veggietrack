@@ -20,7 +20,7 @@ export default function PickupNavigationScreen({ route, navigation }) {
   const { data, loading, error, refresh } = usePickupTracking(pickupId);
   const isAssigned = isDeliveryPersonnel(user) && data?.delivery_personnel_id === user?.id && ['assigned', 'otw'].includes(data?.status);
   // Pickups are not orders, so the position is shared without a delivery_id.
-  const { position, error: gpsError, refreshLocation } = useRiderLocation(null, isAssigned);
+  const { position, error: gpsError, refreshLocation } = useRiderLocation(null, isAssigned, { onFirstShare: refresh });
   const target = data?.rider_view?.navigation_target;
   const harvest = pickup?.harvests;
   const summary = [pickup?.farmer_name, harvest && `${localizeVegetableName(harvest.vegetable_name, language)} · ${harvest.quantity_kg} kg`].filter(Boolean).join(' · ');

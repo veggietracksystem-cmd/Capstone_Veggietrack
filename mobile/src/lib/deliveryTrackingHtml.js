@@ -27,15 +27,20 @@ function fail(message){var el=document.getElementById('load-error');el.textConte
 if(window.L){
 var map=L.map('map',{zoomControl:true,attributionControl:true}).setView([14.0683,121.3256],13);
 var tiles=null,tileUrl=null,markers={},accuracy=null,route=null,progress=null,lastFit=0,lastToken=null,initialFit=false,riderFrame=null;
+// Last drawn road line and greyed-out part; updates without a route keep them.
+var routePts=[],routeStyle=null,doneKey=null,followKey=null;
 // Rider navigation camera: 'overview' fits the whole route, 'follow' keeps the
 // rider centred, 'free' leaves the camera wherever the rider moved it.
 var navMode=false,camera='overview',cameraToken=null,commandToken=null,riderFitted=false,routeFitted=false,insetKey='';
 function latLng(p){return [p.latitude,p.longitude];}
 function valid(p){return p&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude);}
 function moveRider(marker,target){
+ // Same fix again (poll or repeated GPS sample): leave the marker where it is or is going.
+ if(marker._vtTarget&&marker._vtTarget[0]===target[0]&&marker._vtTarget[1]===target[1])return;
+ marker._vtTarget=target;
  if(riderFrame)cancelAnimationFrame(riderFrame);
  var from=marker.getLatLng(),started=performance.now();
- if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){marker.setLatLng(target);return;}
+ if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){marker.setLatLng(target);if(accuracy)accuracy.setLatLng(target);return;}
  function tick(time){var part=Math.min(1,(time-started)/450);
   var next=[from.lat+(target[0]-from.lat)*part,from.lng+(target[1]-from.lng)*part];
   marker.setLatLng(next);if(accuracy)accuracy.setLatLng(next);
@@ -51,13 +56,19 @@ var GLYPHS={
  viewer:'<svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7zm0 9.5A2.5 2.5 0 1 0 12 6.5a2.5 2.5 0 0 0 0 5z"/></svg>',
  farm:'<svg viewBox="0 0 24 24"><path d="M12 2 2 8v14h7v-7h6v7h7V8L12 2zm-2 8h4v3h-4v-3z"/></svg>'
 };
+function popupText(text){var el=document.createElement('div');el.textContent=text;return el;}
+// Markers are created once and then only moved. Their icon and popup are rebuilt
+// only when they change: setIcon replaces the element, which would restart the
+// rider's pulse ring on every update and look like endless loading.
 function putMarker(key,p,glyphKey,title,details,pulse){
  var emoji=GLYPHS[glyphKey]||GLYPHS.viewer;
  if(!valid(p)){if(key==='rider'&&riderFrame){cancelAnimationFrame(riderFrame);riderFrame=null;}if(markers[key]){map.removeLayer(markers[key]);delete markers[key];}return;}
- var icon=L.divIcon({className:'marker',html:'<div class="pin '+key+(pulse?' pulse':'')+'">'+emoji+'</div>',iconSize:[44,44],iconAnchor:[22,22]});
- if(!markers[key])markers[key]=L.marker(latLng(p),{icon:icon,title:title}).addTo(map);
- else {markers[key].setIcon(icon);if(key==='rider')moveRider(markers[key],latLng(p));else markers[key].setLatLng(latLng(p));}
- var text=document.createElement('div');text.textContent=title+'\\n'+(details||'');markers[key].bindPopup(text);
+ var html='<div class="pin '+key+(pulse?' pulse':'')+'">'+emoji+'</div>',text=title+'\\n'+(details||''),m=markers[key];
+ var icon=function(){return L.divIcon({className:'marker',html:html,iconSize:[44,44],iconAnchor:[22,22]});};
+ if(!m){m=markers[key]=L.marker(latLng(p),{icon:icon(),title:title}).addTo(map);m._vtHtml=html;m._vtTarget=latLng(p);m._vtText=text;m.bindPopup(popupText(text));return;}
+ if(m._vtHtml!==html){m.setIcon(icon());m._vtHtml=html;}
+ if(key==='rider')moveRider(m,latLng(p));else m.setLatLng(latLng(p));
+ if(m._vtText!==text){m._vtText=text;m.setPopupContent(popupText(text));}
 }
 function update(data){
  var cfg=data.tileConfig||{},url=cfg.url||'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -70,14 +81,28 @@ function update(data){
  putMarker('shop',data.destination,data.destination.glyph==='farm'?'farm':'shop',data.destination.name,[data.destination.address,data.destination.contact].filter(Boolean).join('\\n'),false);
  putMarker('rider',data.rider,'rider',data.rider.name||'Delivery rider',data.rider.label,data.rider.live);
  putMarker('viewer',data.viewer,'viewer','Your device',data.viewer?data.viewer.latitude.toFixed(5)+', '+data.viewer.longitude.toFixed(5):'',false);
- if(accuracy){map.removeLayer(accuracy);accuracy=null;}
- if(valid(data.rider)&&Number.isFinite(data.rider.accuracy)&&data.rider.accuracy>0)accuracy=L.circle(latLng(data.rider),{radius:data.rider.accuracy,color:'#218258',weight:1,fillOpacity:.12}).addTo(map);
- var pts=(data.route||[]).map(latLng),done=(data.completed||[]).map(latLng);
+ // GPS accuracy ring: resized in place; it follows the rider marker as it moves.
+ var radius=valid(data.rider)&&Number.isFinite(data.rider.accuracy)&&data.rider.accuracy>0?data.rider.accuracy:null;
+ if(radius==null){if(accuracy){map.removeLayer(accuracy);accuracy=null;}}
+ else if(!accuracy)accuracy=L.circle(markers.rider?markers.rider.getLatLng():latLng(data.rider),{radius:radius,color:'#218258',weight:1,fillOpacity:.12}).addTo(map);
+ else if(accuracy.getRadius()!==radius)accuracy.setRadius(radius);
  // Navigation mode: a bold green road line, with the part already driven greyed out.
  if(!route)route=L.polyline([],{color:'#4a7295',weight:6,opacity:.65}).addTo(map);
- route.setStyle(data.nav?{color:'#198656',weight:8,opacity:.95}:{color:'#4a7295',weight:6,opacity:.65});route.setLatLngs(pts);
  if(!progress)progress=L.polyline([],{color:'#198656',weight:6}).addTo(map);
- progress.setStyle(data.nav?{color:'#9aa79f',weight:8,opacity:.9}:{color:'#198656',weight:6});progress.setLatLngs(done);
+ var style=data.nav?'nav':'track';
+ if(style!==routeStyle){routeStyle=style;
+  route.setStyle(data.nav?{color:'#198656',weight:8,opacity:.95}:{color:'#4a7295',weight:6,opacity:.65});
+  progress.setStyle(data.nav?{color:'#9aa79f',weight:8,opacity:.9}:{color:'#198656',weight:6});
+ }
+ // An update without a route means the line is unchanged (see mapPayload).
+ var newRoute=data.route!==undefined;
+ if(newRoute){routePts=(data.route||[]).map(latLng);route.setLatLngs(routePts);}
+ var pts=routePts,mark=data.progress;
+ // progress {index, point}: the driven part is the route up to index, then point.
+ var key=mark===undefined?null:mark&&valid(mark.point)?mark.index+','+mark.point.latitude+','+mark.point.longitude:'';
+ if(mark===undefined)progress.setLatLngs((data.completed||[]).map(latLng));
+ else if(newRoute||key!==doneKey)progress.setLatLngs(key?pts.slice(0,mark.index).concat([latLng(mark.point)]):[]);
+ doneKey=key;
  if(data.nav){navigationCamera(data,pts);return;}
  var bounds=(data.focusPoints||[data.origin,data.destination,data.rider]).filter(valid).map(latLng);
  var force=data.fitToken!==lastToken;lastToken=data.fitToken;
@@ -86,7 +111,7 @@ function update(data){
 }
 // Screen overlays (instruction banner, map buttons, bottom panel) in CSS pixels.
 function insetsOf(data){var i=data.insets||{};return{top:+i.top||0,right:+i.right||0,bottom:+i.bottom||0,left:+i.left||0};}
-function setCamera(mode){if(camera!==mode){camera=mode;post({type:'camera',mode:mode});}}
+function setCamera(mode){if(camera!==mode){camera=mode;followKey=null;post({type:'camera',mode:mode});}}
 // Centres a point in the part of the map that no overlay covers.
 function centreOn(point,zoom,i,animate){
  var z=zoom==null?map.getZoom():zoom,shift=L.point((i.right-i.left)/2,(i.bottom-i.top)/2);
@@ -100,6 +125,7 @@ function fitOverview(data,pts,i,animate){
 }
 // True when the point sits behind an overlay or off screen.
 function hidden(point,i){var c=map.latLngToContainerPoint(L.latLng(point)),size=map.getSize();return c.x<i.left||c.y<i.top||c.x>size.x-i.right||c.y>size.y-i.bottom;}
+function anyHidden(data,i){return [data.rider,data.origin,data.destination].some(function(p){return valid(p)&&hidden(latLng(p),i);});}
 function navigationCamera(data,pts){
  var i=insetsOf(data),animate=initialFit,key=[i.top,i.right,i.bottom,i.left].join(',');
  if(!navMode){navMode=true;if(map.zoomControl){map.removeControl(map.zoomControl);map.zoomControl=null;}}
@@ -115,12 +141,15 @@ function navigationCamera(data,pts){
  var insetsChanged=key!==insetKey;insetKey=key;
  var hasRider=valid(data.rider),hasTarget=valid(data.origin)||valid(data.destination);
  if(camera==='follow'){
-  if(hasRider){centreOn(latLng(data.rider),forced?(data.followZoom||17):null,i,animate);initialFit=true;}
+  // Re-centre only when the rider moved, the overlays changed or Recenter was pressed.
+  var next=hasRider?data.rider.latitude+','+data.rider.longitude+'|'+key:null;
+  if(hasRider&&(forced||next!==followKey)){centreOn(latLng(data.rider),forced?(data.followZoom||17):null,i,animate);initialFit=true;followKey=next;}
  }else if(camera==='overview'){
   // Fit once the stop is known, again when the rider and then the road route
-  // first appear, when the overlays change size, or when the rider leaves the
-  // visible area. Otherwise the view stays put.
-  var refit=forced||!initialFit||insetsChanged||(hasRider&&!riderFitted)||(pts.length>1&&!routeFitted)||(hasRider&&hidden(latLng(data.rider),i));
+  // first appear, when a resized overlay now covers a marker, or when the rider
+  // leaves the visible area. Otherwise the view stays put (banner text changing
+  // height must not move the map).
+  var refit=forced||!initialFit||(insetsChanged&&anyHidden(data,i))||(hasRider&&!riderFitted)||(pts.length>1&&!routeFitted)||(hasRider&&hidden(latLng(data.rider),i));
   if(refit&&(hasRider||hasTarget||pts.length)){fitOverview(data,pts,i,animate);initialFit=true;riderFitted=riderFitted||hasRider;routeFitted=routeFitted||pts.length>1;}
  }
 }

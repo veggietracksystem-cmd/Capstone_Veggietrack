@@ -149,6 +149,18 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
   assert.equal(data.harvests.find(h => h.id === harvest.id).status, 'available');
   const completed = (await call('get /api/pickup-requests', 'hub')).find(p => p.id === pickup.id);
   assert.deepEqual([completed.status, completed.batch_id, completed.rider_name], ['picked_up', batch.id, 'Rider']);
+  // Farmer, rider and distributor read the same pickup row, so all see it picked up.
+  for (const role of ['farmer', 'rider']) assert.equal((await call('get /api/pickup-requests', role)).find(p => p.id === pickup.id).status, 'picked_up', role);
+  // A retried completion (lost response, double tap) changes nothing: no second batch or notification.
+  const noticesBefore = data.notifications.length;
+  global.fetch = async () => ({ ok: true, headers: new Headers({ 'content-type': 'image/jpeg' }) });
+  try {
+    const again = await call('post /api/pickup-requests/:id/pickup', 'rider', {
+      proof_photo_url: pickupProofPhoto, latitude: 14.1, longitude: 121.2, accuracy: 10, captured_at: new Date().toISOString(),
+    }, pickup.id);
+    assert.equal(again.message, 'Pickup already completed');
+  } finally { global.fetch = realFetch; }
+  assert.deepEqual([data.products.length, data.notifications.length], [1, noticesBefore]);
   // The farmer requests the rest; the distributor declines it with a reason.
   const rest = (await call('post /api/pickup-requests', 'farmer', { harvest_id: harvest.id, quantity_kg: 2, price_per_kg: 40 })).request;
   assert.equal((await raw('put /api/pickup-requests/:id/decline', 'hub', { reason: '  ' }, rest.id)).statusCode, 400);

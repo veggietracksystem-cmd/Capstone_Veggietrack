@@ -48,13 +48,27 @@ function distanceLabel(metres) {
   return `${(metres / 1000).toFixed(1)} km`;
 }
 
+// Where along the route each manoeuvre happens (never going backwards). Depends
+// only on the route, so screens compute it once per route, not per GPS update.
+function stepOffsets(steps, points) {
+  if (!Array.isArray(steps) || !Array.isArray(points) || points.length < 2) return [];
+  let last = 0;
+  return steps.map(step => {
+    const p = stepPoint(step);
+    const travelled = p ? routeProgress(points, p).travelled : last;
+    last = Math.max(last, travelled);
+    return last;
+  });
+}
+
 /**
  * @param steps     route steps from the backend (type, modifier, location, distance, duration, instruction)
  * @param points    route geometry as [{latitude, longitude}] (see routePoints)
  * @param position  rider's current position
+ * @param offsets   optional stepOffsets(steps, points), precomputed for the route
  * @returns {{status, ...}} status is one of: no-route, no-position, off-route, arrived, ok
  */
-function guide({ steps, points, position }) {
+function guide({ steps, points, position, offsets }) {
   if (!Array.isArray(steps) || !steps.length || !Array.isArray(points) || points.length < 2) return { status: 'no-route' };
   const rider = coordinate(position);
   if (!rider) return { status: 'no-position' };
@@ -62,14 +76,7 @@ function guide({ steps, points, position }) {
   const remainingMeters = progress.remaining;
   if (progress.offRoute != null && progress.offRoute > OFF_ROUTE_METERS) return { status: 'off-route', remainingMeters: null, etaSeconds: null, offRouteMeters: progress.offRoute };
 
-  // Where along the route each manoeuvre happens (never going backwards).
-  let last = 0;
-  const at = steps.map(step => {
-    const p = stepPoint(step);
-    const travelled = p ? routeProgress(points, p).travelled : last;
-    last = Math.max(last, travelled);
-    return last;
-  });
+  const at = offsets?.length === steps.length ? offsets : stepOffsets(steps, points);
 
   const isCandidate = (step, i) => steps.length === 1 || !(i === 0 && step.type === 'depart');
   let upcoming = steps.findIndex((step, i) => isCandidate(step, i) && at[i] - progress.travelled > PASSED_METERS);
@@ -96,8 +103,8 @@ function guide({ steps, points, position }) {
     remainingMeters, etaSeconds: Number.isFinite(etaSeconds) ? etaSeconds : null,
     stepIndex: upcoming, offRouteMeters: progress.offRoute,
     // The route line split at the rider so the part already driven can be greyed out.
-    completed: progress.completed,
+    completed: progress.completed, progressIndex: progress.index, progressPoint: progress.point,
   };
 }
 
-module.exports = { guide, maneuverKind, distanceLabel, roadName, PASSED_METERS, ARRIVAL_METERS, OFF_ROUTE_METERS, FAR_METERS };
+module.exports = { guide, stepOffsets, maneuverKind, distanceLabel, roadName, PASSED_METERS, ARRIVAL_METERS, OFF_ROUTE_METERS, FAR_METERS };

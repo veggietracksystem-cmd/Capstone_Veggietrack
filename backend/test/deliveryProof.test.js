@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const { validateSchedule, scheduleInstant, validateProof, distanceMeters, proofImageUrl, ensureProofImage } = require('../lib/deliveryProof');
 const { loadDestination, destinationFor, coordinate, missingColumn } = require('../lib/deliveryTracking');
 const { STALE_LOCATION_SECONDS } = require('../lib/locationPolicy');
-const { deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection } = require('../lib/proofGuards');
+const { deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection, oneAtATime } = require('../lib/proofGuards');
 const now = Date.parse('2026-09-05T22:00:00+08:00');
 const destination = { latitude: 7.1, longitude: 125.6 };
 const proof = { ...destination, accuracy: 10, captured_at: new Date(now).toISOString() };
@@ -90,7 +90,7 @@ function handler(path, endMarker, deps = {}) {
     app: { get: (_, auth, cb) => { callback = cb; }, post: (_, auth, cb) => { callback = cb; }, put: (_, auth, cb) => { callback = cb; } },
     verifyToken() {}, validateSchedule, validateProof, proofImageUrl: (url, pod) => proofImageUrl(url, pod, 'demo'),
     ensureProofImage: async () => {}, createNotification: async () => {}, loadDestination, destinationFor, coordinate, missingColumn, STALE_LOCATION_SECONDS, Date, console,
-    deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection,
+    deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection, oneAtATime,
     markOverdueOrdersUnsuccessful: async () => {}, ...deps,
   });
   return callback;
@@ -198,4 +198,74 @@ test('GPS publishes use an atomic timestamp filter and do not append ignored old
     assert.equal(res.statusCode, 200); assert.equal(res.body.ignored, captured_at === older ? true : undefined);
   }
   assert.equal(current.last_location_update, newer); assert.equal(history.length, 0);
+});
+
+// Duplicate-action protection: a double tap or retry never repeats the update or its notifications.
+test('two simultaneous delivery completions save once and notify retailer and distributor once', async () => {
+  const state = { status: 'in_transit' }, rpcCalls = [], notices = [];
+  const db = { from(table) { const q = { select() { return q; }, eq() { return q; }, async single() {
+    return { data: table === 'deliveries' ? { id: 'd', order_id: 'order-1', status: state.status, pod: state.pod } :
+      { id: 'order-1', status: state.status, delivery_latitude: destination.latitude, delivery_longitude: destination.longitude, retailer_id: 'retailer', distributor_id: 'distributor' } };
+  } }; return q; },
+  async rpc(name, args) {
+    rpcCalls.push(name);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    state.status = 'delivered'; state.pod = args.p_pod;
+    return { error: null };
+  } };
+  const cb = handler("put('/api/deliveries/:id/complete'", '// Distributor weekly report', {
+    supabaseAdmin: db, createNotification: async (user, title) => { notices.push([user, title]); } });
+  const [first, second] = [response(), response()];
+  await Promise.all([cb(request(), first), cb(request(), second)]);
+  assert.deepEqual([first.statusCode, second.statusCode], [200, 200]);
+  assert.equal(second.body.message, 'Delivery already completed');
+  assert.deepEqual(rpcCalls, ['complete_delivery_with_proof']);
+  assert.deepEqual(notices, [['retailer', 'Order Delivered'], ['distributor', 'Order Completed']]);
+});
+
+test('repeating the saved delivery status neither updates again nor notifies the retailer again', async () => {
+  const state = { status: 'assigned' }, rpcCalls = [], notices = [];
+  const db = { from(table) { const q = { select() { return q; }, eq() { return q; }, async single() {
+    return { data: table === 'deliveries' ? { id: 'd', order_id: 'order-1', status: state.status } : { retailer_id: 'retailer' } };
+  } }; return q; },
+  async rpc(name, args) { rpcCalls.push(args.p_status); state.status = args.p_status; return { error: null }; } };
+  const cb = handler("put('/api/deliveries/:id/status'", '// Riders may decline', {
+    supabaseAdmin: db, createNotification: async (user) => { notices.push(user); } });
+  const rider = { params: { id: 'd' }, user: { role: 'delivery_personnel', userId: 'rider' } };
+  for (const status of ['picked_up', 'picked_up', 'in_transit', 'in_transit']) {
+    const res = response(); await cb({ ...rider, body: { status } }, res);
+    assert.equal(res.statusCode, 200);
+  }
+  assert.deepEqual(rpcCalls, ['picked_up', 'in_transit']);
+  assert.equal(notices.length, 2);
+  const backwards = response(); await cb({ ...rider, body: { status: 'picked_up' } }, backwards);
+  assert.equal(backwards.statusCode, 409, 'a delivery in transit cannot go back to picked up');
+});
+
+test('a double-tapped reject releases the delivery and notifies the distributor once', async () => {
+  const state = { status: 'assigned', rider: 'rider' }, notices = [];
+  const db = { from(table) {
+    if (table === 'orders') {
+      const q = { update() { return q; }, select() { return q; }, eq() { return q; },
+        async single() { return { data: { distributor_id: 'distributor' } }; }, then(resolve) { resolve({ error: null }); } };
+      return q;
+    }
+    let changes = null; const filters = {};
+    const q = { update(value) { changes = value; return q; }, select() { return q; },
+      eq(column, value) { filters[column] = value; return q; },
+      async single() { return { data: { id: 'd', order_id: 'order-1', status: 'assigned' } }; },
+      then(resolve) {
+        const matches = state.status === filters.status && state.rider === filters.delivery_personnel_id;
+        if (changes && matches) { state.status = changes.status; state.rider = changes.delivery_personnel_id; }
+        resolve({ data: changes && matches ? [{ id: 'd' }] : [], error: null });
+      } };
+    return q;
+  } };
+  const cb = handler("put('/api/deliveries/:id/reject'", "app.post('/api/deliveries/:id/complete/check'", {
+    supabaseAdmin: db, createNotification: async (user) => { notices.push(user); }, sendDbError: (res) => res.status(500).json({}) });
+  const tap = () => { const res = response(); return cb({ params: { id: 'd' }, user: { role: 'delivery_personnel', userId: 'rider' }, body: { reason: 'Flat tyre' } }, res).then(() => res); };
+  const [first, second] = await Promise.all([tap(), tap()]);
+  assert.deepEqual([first.statusCode, second.statusCode].sort(), [200, 409]);
+  assert.deepEqual(notices, ['distributor']);
+  assert.deepEqual(state, { status: 'pending', rider: null });
 });

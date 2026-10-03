@@ -66,7 +66,7 @@ function harness() {
     react,
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     'react-native': native,
-    'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView' },
+    'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) },
     '@expo/vector-icons': { Ionicons: 'Ionicons', MaterialCommunityIcons: 'MaterialCommunityIcons' },
     // expo-print on web ignores `html` and prints the app screen; any call here is recorded as such.
     'expo-print': {
@@ -77,7 +77,7 @@ function harness() {
     'expo-sharing': { isAvailableAsync: async () => false },
     '@react-native-async-storage/async-storage': { getItem: async key => storage.get(key) || null, setItem: async (key, value) => storage.set(key, value) },
   };
-  const real = /^(hooks\/useStockAlerts|screens\/(StocksScreen|DistributorDashboard|RetailerDashboard|DistributorInventoryReportScreen|ApplicationStatusScreen|ChainReportScreen|SpoiledProductsScreen|FarmerDashboard)|components\/(AuthForm|CustomModal|distributor\/)|i18n\/|lib\/(vegetableNames|vegetables|cartStore|orderStatus|reportPdf|pickupForm|pickupStatus|reportPeriods)|theme\/appTheme)/;
+  const real = /^(hooks\/useStockAlerts|screens\/(StocksScreen|DistributorDashboard|RetailerDashboard|DistributorInventoryReportScreen|ApplicationStatusScreen|ChainReportScreen|SpoiledProductsScreen|FarmerDashboard)|components\/(AuthForm|CustomModal|RiderNavigationView|distributor\/)|i18n\/|lib\/(vegetableNames|vegetables|cartStore|orderStatus|reportPdf|pickupForm|pickupStatus|reportPeriods|trackingGeometry|turnGuidance|formatEta)|theme\/appTheme)/;
   function load(relative) {
     const file = relative.endsWith('.js') || relative.endsWith('.json') ? relative : `${relative}.js`;
     if (modules.has(file)) return modules.get(file);
@@ -88,8 +88,10 @@ function harness() {
       configFile: false, babelrc: false,
       plugins: [[require.resolve('../node_modules/@babel/plugin-transform-react-jsx'), { runtime: 'automatic' }], require.resolve('../node_modules/@babel/plugin-transform-modules-commonjs')],
     }).code;
+    // Some lib files use module.exports; their exports are copied onto `exported`.
+    const module = { exports: exported };
     vm.runInNewContext(code, {
-      exports: exported, console, Date, setTimeout, clearTimeout, document: webDocument,
+      exports: exported, module, console, Date, setTimeout, clearTimeout, document: webDocument,
       require(name) {
         if (exact[name]) return exact[name];
         const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), name));
@@ -116,6 +118,7 @@ function harness() {
         throw new Error(`Unexpected dependency ${target}`);
       },
     }, { filename: file });
+    if (module.exports !== exported) Object.assign(exported, module.exports);
     return exported;
   }
   function render(component, props = {}) {
@@ -597,6 +600,40 @@ test('Stocks from Stock Alert shows only the alerted batches, marked, until each
   assert.equal(products.props.data.map(batch => batch.id).join(','), 'b2,b3');
   assert.ok(texts(products.props.renderItem({ item: products.props.data[0] })).includes('Stock alert'));
   assert.ok(!texts(products.props.renderItem({ item: products.props.data[1] })).includes('Stock alert'));
+});
+
+test('Rider navigation: a poll returning the same road line keeps the map route; ETA and distance come from the road route', async () => {
+  const h = harness(); await flush();
+  const view = h.load('components/RiderNavigationView').default;
+  // Rider heads north 1 km, then turns right; ~111 m per 0.001 degree of latitude.
+  const coordinates = [[121.0, 14.0], [121.0, 14.009], [121.005, 14.009]];
+  const steps = [
+    { type: 'depart', modifier: 'north', location: [121.0, 14.0], distance: 1000, duration: 120 },
+    { type: 'turn', modifier: 'right', location: [121.0, 14.009], distance: 540, duration: 80 },
+    { type: 'arrive', location: [121.005, 14.009], distance: 0, duration: 0 },
+  ];
+  // Each poll is a fresh JSON response, as from the server every 5 s.
+  const poll = () => JSON.parse(JSON.stringify({ status: 'otw', rider_view: { full_route: { type: 'LineString', coordinates }, route_steps: steps,
+    navigation_target: { latitude: 14.009, longitude: 121.005, address: 'Farm Road' }, navigation_phase: 'farm' } }));
+  const props = (tracking, position) => ({ tracking, loading: false, position, target: tracking.rider_view.navigation_target,
+    targetKind: 'farm', destinationLabel: 'To the farm', arrivedHint: '', onRetryRoute() {}, onRetryGps() {}, children: null });
+  const position = { latitude: 14.0, longitude: 121.0, accuracy: 8 };
+  const mapOf = tree => named(tree, 'RiderNavMap')[0].props;
+  const first = mapOf(h.render(view, props(poll(), position)));
+  const second = mapOf(h.render(view, props(poll(), { ...position })));
+  assert.equal(second.route, first.route, 'same road line, same array: not re-sent to the map');
+  assert.equal(second.progress, first.progress, 'rider has not moved: driven part unchanged');
+  assert.equal(first.route.length, 3);
+  const tree = h.render(view, props(poll(), { latitude: 14.0045, longitude: 121.0, accuracy: 8 }));
+  const shown = texts(tree);
+  // Half way up the first road: ~500 m + 540 m left, 60 s + 80 s of the routed time.
+  assert.ok(shown.includes('1.0 km'), `remaining distance from the road route: ${shown}`);
+  assert.ok(shown.some(text => text.startsWith('3 min')), `ETA from route step durations: ${shown}`);
+  assert.ok(shown.includes('To the farm · Farm Road'), 'destination and its address are shown');
+  assert.notEqual(mapOf(tree).progress, first.progress, 'moving updates the driven part');
+  assert.equal(mapOf(tree).route, first.route);
+  const changed = poll(); changed.rider_view.full_route.coordinates.push([121.006, 14.009]);
+  assert.notEqual(mapOf(h.render(view, props(changed, position))).route, first.route, 'a new road line is sent');
 });
 
 test('View Reports: periods change the queried dates and totals; custom dates are checked; export prints the table', async () => {

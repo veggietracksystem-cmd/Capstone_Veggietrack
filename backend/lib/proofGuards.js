@@ -75,4 +75,16 @@ async function pickupProximityRejection(db, request, pod) {
     code: 'PICKUP_TOO_FAR', distance_meters: Math.round(distance) } };
 }
 
-module.exports = { deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection };
+// Runs completions of the same record one after another. A second request that
+// arrives while the first is still saving (double tap, network retry) waits for
+// it and then finds the record already completed (`done`), so it never repeats
+// the notifications. One server process; the database functions stay authoritative.
+const running = new Map();
+function oneAtATime(key, task) {
+  const current = (running.get(key) || Promise.resolve()).catch(() => {}).then(task);
+  running.set(key, current);
+  current.catch(() => {}).finally(() => { if (running.get(key) === current) running.delete(key); });
+  return current;
+}
+
+module.exports = { deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection, oneAtATime };

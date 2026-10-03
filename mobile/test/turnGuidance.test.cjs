@@ -81,3 +81,41 @@ test('manoeuvre kinds and distance labels', () => {
   assert.equal(distanceLabel(1240), '1.2 km');
   assert.equal(distanceLabel(NaN), null);
 });
+
+// Android performance: work tied to the route is done once per route, and an
+// unchanged route is neither rebuilt nor re-sent to the map on every poll.
+const { stepOffsets } = require('../src/lib/turnGuidance');
+const { routeKey, routeProgress } = require('../src/lib/trackingGeometry');
+const { mapPayload } = require('../src/lib/mapPayload');
+
+test('precomputed step offsets give exactly the same guidance', () => {
+  const offsets = stepOffsets(steps, points);
+  for (const position of [at(0), at(4 * dLat), at(8.5 * dLat), at(9 * dLat, 2 * dLng), at(9 * dLat, 5 * dLng), at(12 * dLat, 5 * dLng)]) {
+    assert.deepEqual(guide({ steps, points, position, offsets }), guide({ steps, points, position }));
+  }
+  assert.deepEqual(stepOffsets(steps, []), []);
+});
+
+test('route key matches equal road lines from separate polls and changes with the line', () => {
+  const copy = JSON.parse(JSON.stringify(geometry));
+  assert.equal(routeKey(copy), routeKey(geometry));
+  assert.notEqual(routeKey({ ...geometry, coordinates: [...path, [lng0 + 6 * dLng, lat0 + 12 * dLat]] }), routeKey(geometry));
+  assert.notEqual(routeKey({ ...geometry, coordinates: path.map(([x, y], i) => (i === path.length - 1 ? [x + dLng, y] : [x, y])) }), routeKey(geometry));
+  assert.equal(routeKey(null), '');
+  assert.equal(routeKey({ type: 'LineString', coordinates: [] }), '');
+});
+
+test('the driven part is described by an index and a split point', () => {
+  const progress = routeProgress(points, at(9 * dLat, 2 * dLng));
+  assert.deepEqual([...points.slice(0, progress.index), progress.point], progress.completed);
+  assert.equal(guide({ steps, points, position: at(9 * dLat, 2 * dLng) }).progressIndex, progress.index);
+});
+
+test('the map is sent a route only when it changed', () => {
+  const sent = {}, route = points, data = { rider: at(0), route };
+  assert.equal(mapPayload(data, sent).route, route, 'first update carries the route');
+  assert.equal('route' in mapPayload({ ...data, rider: at(dLat) }, sent), false, 'same route is left out');
+  const next = [...points];
+  assert.equal(mapPayload({ ...data, route: next }, sent).route, next, 'a new route is sent');
+  assert.equal(mapPayload({ ...data, route: next }, {}).route, next, 'a reloaded page (fresh state) gets the route again');
+});

@@ -9,14 +9,24 @@ import { acquireDevicePosition } from '../lib/deviceLocation';
 import { tr } from '../i18n/translate';
 
 const LOCATION_FALLBACK = 'We can’t find your location. Please check that location access is turned on.';
+// Without a first fix by then, say so and offer Try again instead of spinning.
+const FIRST_FIX_TIMEOUT_MS = 20000;
+// Fixes are requested on a timer, not on movement: the server treats a rider
+// location older than 60 s as not live and then stops returning the route, so a
+// rider who has stopped (traffic, at the farm) must keep reporting.
+const WATCH_OPTIONS = { timeInterval: 5000, distanceInterval: 0 };
 
-export default function useRiderLocation(orderId, enabled) {
+// onFirstShare runs after the first location is saved on the server, so the
+// screen can fetch the route at once instead of waiting for its next poll.
+export default function useRiderLocation(orderId, enabled, { onFirstShare } = {}) {
   const focused = useIsFocused();
   const [active, setActive] = useState(AppState.currentState !== 'background');
   const [position, setPosition] = useState(null), [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const lastSent = useRef(0), sending = useRef(null), alive = useRef(true);
   const generation = useRef(0), latestSample = useRef(null), refreshPromise = useRef(null);
+  const shared = useRef(false), firstShare = useRef(onFirstShare);
+  firstShare.current = onFirstShare;
   // A watch that stopped (permission denied, unsupported) is restarted by the next
   // successful manual refresh, so live updates resume once location is allowed.
   const watchStopped = useRef(false), [watchRun, setWatchRun] = useState(0);
@@ -28,7 +38,7 @@ export default function useRiderLocation(orderId, enabled) {
   useEffect(() => {
     generation.current++;
     setPosition(null); setError(''); setRefreshing(false); lastSent.current = 0; latestSample.current = null;
-    refreshPromise.current = null;
+    refreshPromise.current = null; shared.current = false;
     return () => { generation.current++; sending.current?.controller.abort(); sending.current = null; };
   }, [orderId, enabled, focused, active]);
   const publish = useCallback(async (next, force = false) => {
@@ -37,6 +47,8 @@ export default function useRiderLocation(orderId, enabled) {
     if (latestSample.current && sample.timestamp < latestSample.current.timestamp) return false;
     latestSample.current = sample;
     setPosition(sample);
+    // A late first fix clears the "unable to get your location" message.
+    setError(current => (current === tr('nav.gpsTimeout') ? '' : current));
     const version = generation.current;
     if (sending.current) return false;
     if (!force && Date.now() - lastSent.current < 5000) return false;
@@ -48,7 +60,10 @@ export default function useRiderLocation(orderId, enabled) {
       request.promise = api.post('/api/delivery/update-location', { latitude: sample.latitude, longitude: sample.longitude,
         accuracy: sample.accuracy, captured_at: new Date(sample.timestamp).toISOString(), delivery_id: orderId }, { signal: controller.signal });
       await request.promise;
-      if (alive.current && version === generation.current) setError('');
+      if (alive.current && version === generation.current) {
+        setError('');
+        if (!shared.current) { shared.current = true; firstShare.current?.(); }
+      }
       return true;
     } catch (err) {
       if (controller.signal.aborted || version !== generation.current) return false;
@@ -107,12 +122,19 @@ export default function useRiderLocation(orderId, enabled) {
           const permission = await Location.requestForegroundPermissionsAsync();
           if (cancelled) return;
           if (permission.status !== 'granted') throw new Error(tr('nav.locationOff'));
-          subscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 5 }, receive);
+          subscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, ...WATCH_OPTIONS }, receive);
           if (cancelled) subscription.remove();
         }
       } catch (err) { fail(err); }
     })();
-    return () => { cancelled = true; subscription?.remove(); if (browserWatch != null) navigator.geolocation.clearWatch(browserWatch); };
+    // The watch keeps running; this only replaces "Finding your location" with a retry.
+    const firstFix = setTimeout(() => {
+      if (!cancelled && !latestSample.current) setError(tr('nav.gpsTimeout'));
+    }, FIRST_FIX_TIMEOUT_MS);
+    return () => {
+      cancelled = true; clearTimeout(firstFix);
+      subscription?.remove(); if (browserWatch != null) navigator.geolocation.clearWatch(browserWatch);
+    };
   }, [enabled, focused, active, publish, watchRun]);
   return { position, error, publish, refreshLocation, refreshing };
 }

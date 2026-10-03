@@ -8,6 +8,8 @@ import { rf } from '../lib/responsive';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 
 const FOLLOW_ZOOM = 17;
+// One shared empty route, so "no route yet" is not re-sent to the map on every update.
+const NO_ROUTE = [];
 const BUTTON = 44, GAP = 8, EDGE = 12;
 const COLUMN_HEIGHT = 4 * BUTTON + 3 * GAP;
 
@@ -17,7 +19,7 @@ const COLUMN_HEIGHT = 4 * BUTTON + 3 * GAP;
 // tapped. `insets` are the screen overlays (banner on top, panel at the bottom)
 // so markers and the route are never placed underneath them.
 // targetKind picks the stop's marker: 'hub' (warehouse), 'shop' (retailer) or 'farm'.
-export default function RiderNavMap({ tracking, position, route, completed, target, targetKind, targetName, insets }) {
+export default function RiderNavMap({ tracking, position, route, progress, target, targetKind, targetName, insets }) {
   const { t } = useTranslation();
   const [camera, setCamera] = useState({ mode: 'overview', token: 0 });
   const [command, setCommand] = useState({ type: null, token: 0 });
@@ -38,11 +40,11 @@ export default function RiderNavMap({ tracking, position, route, completed, targ
     origin: atHub ? targetPoint : idle,
     destination: atHub ? idle : targetPoint,
     rider: rider ? { ...rider, name: t('cmp.deliveryRider'), live: true, label: '', accuracy: position?.accuracy } : { name: '' },
-    route: route || [], completed: completed || [],
+    route: route || NO_ROUTE, progress: progress || null,
     nav: true, followZoom: FOLLOW_ZOOM, camera, command,
     insets: { top, bottom, left: 0, right: controlsWidth },
     tileConfig: { url: tileUrl, attribution: tileAttribution },
-  }), [tileUrl, tileAttribution, rider?.latitude, rider?.longitude, position?.accuracy, route, completed, atHub, targetKind,
+  }), [tileUrl, tileAttribution, rider?.latitude, rider?.longitude, position?.accuracy, route, progress, atHub, targetKind,
     targetPoint.latitude, targetPoint.longitude, targetPoint.name, targetPoint.address, camera, command, top, bottom, controlsWidth, t]);
   const onEvent = event => {
     if (event.type === 'ready') { setReady(true); setMapError(''); }

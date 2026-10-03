@@ -185,8 +185,10 @@ test('Leaflet bridge updates existing markers, preserves text, and handles missi
   const layer = (point, options) => ({ point, options,
     addTo() { layers.push(this); return this; }, on() { return this; },
     setLatLng(p) { this.point = p; return this; }, getLatLng() { return { lat: this.point[0], lng: this.point[1] }; },
-    setIcon(icon) { this.icon = icon; return this; }, bindPopup(text) { this.popup = text; return this; },
-    setLatLngs(points) { this.points = points; return this; }, setStyle(style) { this.style = style; return this; },
+    setIcon(icon) { this.icon = icon; this.iconSets = (this.iconSets || 0) + 1; return this; }, bindPopup(text) { this.popup = text; return this; },
+    setPopupContent(text) { this.popup = text; return this; },
+    getRadius() { return this.options.radius; }, setRadius(radius) { this.options.radius = radius; return this; },
+    setLatLngs(points) { this.points = points; this.drawn = (this.drawn || 0) + 1; return this; }, setStyle(style) { this.style = style; return this; },
   });
   const map = { setView() { return this; }, removeLayer(item) { layers.splice(layers.indexOf(item), 1); },
     fitBounds() {}, panTo() {}, on() {}, invalidateSize() {}, attributionControl: { addAttribution() {} } };
@@ -212,6 +214,22 @@ test('Leaflet bridge updates existing markers, preserves text, and handles missi
   for (const callback of [...frames.values()]) callback(450);
   assert.equal(layers.length, count);
   assert.equal(rider.point[0], 14.0683);
+  // Updates move markers and resize the accuracy ring in place; icons (and the
+  // rider's pulse) are not rebuilt unless they change, and an update without a
+  // route keeps the drawn line instead of redrawing it.
+  assert.equal(rider.iconSets, undefined, 'unchanged rider icon is never rebuilt');
+  const ring = layers.find(item => item.options?.radius === 8);
+  const line = layers.find(item => item.points && item.points.length === 0 && item.options?.color === '#4a7295');
+  const road = [{ latitude: 14.068, longitude: 121.325 }, { latitude: 14.069, longitude: 121.326 }];
+  context.updateDeliveryMap({ ...data, route: road, rider: { ...data.rider, latitude: 14.0683, accuracy: 12 } });
+  const drawn = line.drawn;
+  const { route, ...withoutRoute } = data;
+  context.updateDeliveryMap({ ...withoutRoute, rider: { ...data.rider, latitude: 14.0683, accuracy: 12 } });
+  assert.equal(line.drawn, drawn, 'an update without a route does not redraw the line');
+  assert.equal(line.points.length, 2);
+  assert.ok(layers.includes(ring) && ring.options.radius === 12, 'accuracy ring resized in place');
+  context.updateDeliveryMap({ ...data, destination: { ...destination, address: 'New Road' } });
+  assert.ok(store.popup.textContent.includes('New Road'), 'changed popup text is updated');
   context.updateDeliveryMap({ ...data, rider: {}, origin: {}, destination: {} });
   assert.ok(!layers.includes(rider));
 });
@@ -333,4 +351,19 @@ test('rider navigation map opens on the whole route, respects overlays and never
   calls.length = 0;
   context.updateDeliveryMap({ ...base, camera: { mode: 'overview', token: 2 }, command: { type: 'zoom-in', token: 3 } });
   assert.equal(calls.at(-1)[0], 'fitBounds');
+  // The banner and panel change height as their text changes; with nothing
+  // hidden behind them, route overview stays where it is.
+  calls.length = 0;
+  for (const top of [104, 100, 132]) {
+    context.updateDeliveryMap({ ...base, camera: { mode: 'overview', token: 2 }, command: { type: 'zoom-in', token: 3 }, insets: { ...base.insets, top } });
+  }
+  assert.deepEqual(calls, [], 'overlay height changes alone do not refit');
+  // Following re-centres when the rider moves, not on every poll with the same position.
+  const follow = { ...base, camera: { mode: 'follow', token: 3 }, command: { type: 'zoom-in', token: 3 } };
+  context.updateDeliveryMap(follow);
+  calls.length = 0;
+  for (let poll = 0; poll < 3; poll++) context.updateDeliveryMap(follow);
+  assert.deepEqual(calls, [], 'polls with an unchanged rider position do not move the camera');
+  context.updateDeliveryMap({ ...follow, rider: { ...base.rider, latitude: 14.07 } });
+  assert.equal(calls.at(-1)[0], 'setView', 'a real move is followed');
 });

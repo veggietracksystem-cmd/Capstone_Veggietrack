@@ -18,7 +18,7 @@ const { buildChainBatches, chainEvents, reportSummary, reportVegetables, manilaW
 const { coordinate, destinationFor, createRouteService, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
 const { createPickupTrackingHandler } = require('./lib/pickupTracking');
 const { STALE_LOCATION_SECONDS } = require('./lib/locationPolicy');
-const { deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection } = require('./lib/proofGuards');
+const { deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection, oneAtATime } = require('./lib/proofGuards');
 const { sendDbError } = require('./lib/errors');
 const { isPositiveQuantity, isNonNegativeQuantity } = require('./lib/validation');
 
@@ -620,7 +620,7 @@ app.post('/api/pickup-requests/:id/pickup/check', verifyToken, async (req, res) 
   res.json({ ok: true, completed: false });
 });
 
-app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
+app.post('/api/pickup-requests/:id/pickup', verifyToken, (req, res) => oneAtATime(`pickup:${req.params.id}`, async () => {
   if (req.user.role !== 'delivery_personnel') {
     return res.status(403).json({ error: 'Only riders can mark pickups as completed' });
   }
@@ -665,7 +665,7 @@ app.post('/api/pickup-requests/:id/pickup', verifyToken, async (req, res) => {
     message: 'Pickup completed successfully and inventory updated',
     request: updated,
   });
-});
+}));
 
 // Rider marks a pickup as on the way before arriving at the farm.
 app.put('/api/pickup-requests/:id/status', verifyToken, async (req, res) => {
@@ -1874,7 +1874,10 @@ app.put('/api/deliveries/:id/status', verifyToken, async (req, res) => {
     return res.status(404).json({ error: 'Delivery not found or not assigned to you' });
   }
 
-  if (!(delivery.status === status || (delivery.status === 'assigned' && status === 'picked_up') || (delivery.status === 'picked_up' && status === 'in_transit'))) return res.status(409).json({ error: 'Invalid delivery status transition. Refresh and retry.' });
+  // A repeated tap or retry for the status already saved is answered without a
+  // second update or a second retailer notification.
+  if (delivery.status === status) return res.json({ message: `Delivery marked ${status}`, unchanged: true });
+  if (!((delivery.status === 'assigned' && status === 'picked_up') || (delivery.status === 'picked_up' && status === 'in_transit'))) return res.status(409).json({ error: 'Invalid delivery status transition. Refresh and retry.' });
   const { error: progressError } = await supabaseAdmin.rpc('advance_delivery_status', { p_delivery_id: id, p_rider_id: req.user.userId, p_status: status });
   if (progressError) return res.status(progressError.code === '22023' ? 409 : 500).json({ error: 'Unable to update delivery status. Refresh and retry.' });
   const { data: order } = await supabaseAdmin
@@ -1918,21 +1921,22 @@ app.put('/api/deliveries/:id/reject', verifyToken, async (req, res) => {
   }
 
   const handBack = { delivery_personnel_id: null, status: 'pending' };
-  let { error: rejectError } = await supabaseAdmin
-    .from('deliveries')
-    .update({
-      ...handBack,
-      rejection_reason: reason.trim().slice(0, 500),
-      rejected_at: new Date().toISOString(),
-    })
-    .eq('id', id);
+  // Conditional on 'assigned' so a double tap releases the delivery and notifies the distributor once.
+  const release = (changes) => supabaseAdmin.from('deliveries').update(changes)
+    .eq('id', id).eq('delivery_personnel_id', req.user.userId).eq('status', 'assigned').select('id');
+  let { data: released, error: rejectError } = await release({
+    ...handBack,
+    rejection_reason: reason.trim().slice(0, 500),
+    rejected_at: new Date().toISOString(),
+  });
   // Retry without the audit columns if sql/delivery_reject.sql has not been applied.
   if (missingColumn(rejectError, ['rejection_reason', 'rejected_at'])) {
     console.warn('deliveries.rejection_reason/rejected_at missing — apply sql/delivery_reject.sql to record reject reasons.');
-    ({ error: rejectError } = await supabaseAdmin.from('deliveries').update(handBack).eq('id', id));
+    ({ data: released, error: rejectError } = await release(handBack));
   }
   // Stop if the delivery was not released so the order is never unassigned on its own.
   if (rejectError) return sendDbError(res, rejectError, 'The delivery could not be rejected. Please try again.');
+  if (!released?.length) return res.status(409).json({ error: 'This delivery was already updated. Please refresh.' });
 
   const { error: orderError } = await supabaseAdmin
     .from('orders')
@@ -1966,7 +1970,7 @@ app.post('/api/deliveries/:id/complete/check', verifyToken, async (req, res) => 
   res.json({ ok: true, completed: false, location_status: guard.pod.location_status });
 });
 
-app.put('/api/deliveries/:id/complete', verifyToken, async (req, res) => {
+app.put('/api/deliveries/:id/complete', verifyToken, (req, res) => oneAtATime(`delivery:${req.params.id}`, async () => {
   const { id } = req.params;
   const { proof_photo_url } = req.body || {};
   const deliveryPersonId = req.user.userId;
@@ -1996,7 +2000,7 @@ app.put('/api/deliveries/:id/complete', verifyToken, async (req, res) => {
   await createNotification(order.distributor_id, 'Order Completed', `Order ${orderIdShort} was delivered successfully.`, 'delivery', delivery.order_id);
 
   res.json({ message: 'Delivery marked as completed' });
-});
+}));
 
 // Distributor weekly report (last 7 days of orders and products)
 app.get('/api/distributor/weekly-report', verifyToken, async (req, res) => {

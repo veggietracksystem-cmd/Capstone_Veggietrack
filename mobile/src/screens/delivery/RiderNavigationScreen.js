@@ -20,7 +20,7 @@ export default function RiderNavigationScreen({ route, navigation }) {
   const { data, loading, error, refresh } = useDeliveryTracking(orderId);
   const isAssigned = isDeliveryPersonnel(user) && data?.delivery_personnel_id === user?.id && !isClosedOrderStatus(data?.status);
   // Live location is watched automatically and sent to the server; the rider never has to refresh it by hand.
-  const { position, error: gpsError, refreshLocation } = useRiderLocation(orderId, isAssigned);
+  const { position, error: gpsError, refreshLocation } = useRiderLocation(orderId, isAssigned, { onFirstShare: refresh });
   const [actionError, setActionError] = useState(''), [opening, setOpening] = useState(false);
 
   const nav = data?.rider_view || {};

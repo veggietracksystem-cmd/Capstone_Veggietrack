@@ -1,13 +1,13 @@
 import { rf } from '../lib/responsive';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from '../i18n/useTranslation';
 import RiderNavMap from './RiderNavMap';
 import TrackingErrorBoundary from './TrackingErrorBoundary';
-import { coordinate, routePoints } from '../lib/trackingGeometry';
-import { guide, distanceLabel } from '../lib/turnGuidance';
+import { coordinate, routeKey, routePoints } from '../lib/trackingGeometry';
+import { guide, stepOffsets, distanceLabel } from '../lib/turnGuidance';
 import { formatEta } from '../lib/formatEta';
 import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
 
@@ -19,6 +19,9 @@ const ICONS = {
   'fork-left': 'arrow-top-left', 'fork-right': 'arrow-top-right',
   'arrive-left': 'flag-checkered', 'arrive-right': 'flag-checkered', arrive: 'flag-checkered',
 };
+
+// "Getting your route" longer than this becomes "Route unavailable" with Try again.
+const ROUTE_WAIT_MS = 30000;
 
 function arrivalClock(seconds) {
   try { return new Date(Date.now() + seconds * 1000).toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' }); }
@@ -51,11 +54,29 @@ export default function RiderNavigationView({
   // Measured overlay sizes; the map keeps markers and the route clear of them.
   const [bannerBottom, setBannerBottom] = useState(0), [panelHeight, setPanelHeight] = useState(0);
   const nav = tracking?.rider_view || {};
-  const points = useMemo(() => routePoints(nav.full_route), [nav.full_route]);
+  // Every 5 s poll returns new objects for the same route. Keyed by content, the
+  // route, its steps and their offsets are rebuilt only when the road line changes,
+  // so GPS updates do not re-project every turn and the map is not redrawn.
+  const key = `${routeKey(nav.full_route)}#${nav.route_steps?.length || 0}`;
+  const points = useMemo(() => routePoints(nav.full_route), [key]);
+  const steps = useMemo(() => nav.route_steps, [key]);
+  const offsets = useMemo(() => stepOffsets(steps, points), [steps, points]);
   const current = coordinate(position) || (nav.current_location?.live ? coordinate(nav.current_location) : null);
-  const guidance = useMemo(() => guide({ steps: nav.route_steps, points, position: current }),
-    [nav.route_steps, points, current?.latitude, current?.longitude]);
-  const completed = guidance.status === 'ok' || guidance.status === 'arrived' ? guidance.completed : undefined;
+  const guidance = useMemo(() => guide({ steps, points, position: current, offsets }),
+    [steps, points, offsets, current?.latitude, current?.longitude]);
+  const onRoute = guidance.status === 'ok' || guidance.status === 'arrived';
+  const progressIndex = onRoute ? guidance.progressIndex : null;
+  const progressPoint = onRoute ? guidance.progressPoint : null;
+  const progress = useMemo(() => (progressPoint ? { index: progressIndex, point: progressPoint } : null),
+    [progressIndex, progressPoint?.latitude, progressPoint?.longitude]);
+  const waitingForRoute = !!current && !!tracking && !!coordinate(target) && !onRoute && guidance.status !== 'off-route'
+    && !nav.navigation_error?.includes('unavailable') && !(trackingError && !nav.full_route);
+  const [routeSlow, setRouteSlow] = useState(false);
+  useEffect(() => {
+    if (!waitingForRoute) { setRouteSlow(false); return undefined; }
+    const timer = setTimeout(() => setRouteSlow(true), ROUTE_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [waitingForRoute]);
 
   let banner = null, retry = null, icon = 'navigation-variant';
   if (gpsError && !current) { banner = { primary: gpsError }; retry = onRetryGps; icon = 'map-marker-off'; }
@@ -67,6 +88,7 @@ export default function RiderNavigationView({
     icon = ICONS[g.status === 'arrived' ? 'arrive' : g.kind] || 'arrow-up';
   } else if (guidance.status === 'off-route') banner = { primary: t('nav.offRoute') };
   else if (nav.navigation_error?.includes('unavailable') || (trackingError && !nav.full_route)) { banner = { primary: t('nav.routeUnavailable') }; retry = onRetryRoute; icon = 'map-marker-alert'; }
+  else if (routeSlow) { banner = { primary: t('nav.routeUnavailable') }; retry = onRetryRoute; icon = 'map-marker-alert'; }
   else banner = { primary: t('nav.waitingRoute') };
 
   const arrived = guidance.status === 'arrived';
@@ -80,7 +102,7 @@ export default function RiderNavigationView({
   return (
     <TrackingErrorBoundary onBack={onBack}>
       <View style={styles.body}>
-        <RiderNavMap tracking={tracking} position={current} route={points} completed={completed}
+        <RiderNavMap tracking={tracking} position={current} route={points} progress={progress}
           target={target} targetKind={targetKind} targetName={destinationLabel}
           insets={{ top: bannerBottom, bottom: panelHeight }} />
 
