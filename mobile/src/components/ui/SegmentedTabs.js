@@ -58,13 +58,14 @@ export function SegmentedTabs({ options, value, onChange, scroll = false, inset 
   return <View style={[styles.track, style]}>{tabs}</View>;
 }
 
-export function FilterChips({ options, value, onChange, disabled = false, style }) {
+// inset pads the scrolled content so a row can run to the screen edges.
+export function FilterChips({ options, value, onChange, disabled = false, style, inset = 0 }) {
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       style={[styles.chipRow, style]}
-      contentContainerStyle={styles.chipRowContent}
+      contentContainerStyle={[styles.chipRowContent, inset ? { paddingHorizontal: inset } : null]}
       keyboardShouldPersistTaps="handled"
     >
       {options.map((option) => {

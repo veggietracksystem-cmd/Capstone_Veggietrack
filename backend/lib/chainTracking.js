@@ -3,6 +3,7 @@
 // pickup_requests, order_items, orders, deliveries, payments, stock_spoilage).
 const { roundKg, batchStatus, compareFifo, daysInStock, stockSince } = require('./batches');
 const { estimatedTotal } = require('./pickups');
+const { canonicalVegetableName, vegetableKey } = require('./vegetables');
 
 const num = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 const manilaDay = (value) => {
@@ -103,13 +104,17 @@ function buildChainBatches({ batches = [], farmersById = {}, pickupsById = {}, p
 // Dated transactions of the given batches: stock received, sale delivered to a
 // retailer, stock spoiled. `from` and `to` are Philippine calendar days
 // (YYYY-MM-DD, inclusive); either may be omitted.
-function chainEvents(chainBatches, { from, to } = {}) {
+// `vegetable` keeps one vegetable's batches, matched by vegetableKey so English
+// and Tagalog batch names ("Squash", "Kalabasa") count as the same vegetable.
+function chainEvents(chainBatches, { from, to, vegetable } = {}) {
   const inRange = (date) => {
     const day = manilaDay(date);
     return !!day && (!from || day >= from) && (!to || day <= to);
   };
+  const key = vegetable ? vegetableKey(vegetable) : null;
   const events = [];
   for (const batch of chainBatches) {
+    if (key && vegetableKey(batch.vegetable_name) !== key) continue;
     const base = { batch_id: batch.batch_id, vegetable_name: batch.vegetable_name, farmer_name: batch.farmer_name, harvest_date: batch.harvest_date };
     if (inRange(batch.in_stock_since)) {
       events.push({ ...base, type: 'received', date: batch.in_stock_since, quantity_kg: batch.totals.received, party: batch.farmer_name, status: batch.status, amount: batch.pickup?.estimated_total ?? null });
@@ -142,6 +147,17 @@ function reportSummary(events) {
   };
 }
 
+// Report filter options: each vegetable the distributor has stocked, once, by
+// its display name.
+function reportVegetables(chainBatches) {
+  const names = new Map();
+  for (const batch of chainBatches) {
+    const key = vegetableKey(batch.vegetable_name);
+    if (key && !names.has(key)) names.set(key, canonicalVegetableName(batch.vegetable_name));
+  }
+  return [...names.values()].sort((a, b) => a.localeCompare(b));
+}
+
 // Monday-to-Sunday Philippine week containing `now`, as YYYY-MM-DD days.
 function manilaWeek(now = Date.now()) {
   const today = new Date(now + 8 * 3600000);
@@ -151,4 +167,4 @@ function manilaWeek(now = Date.now()) {
   return { from: start, to: end };
 }
 
-module.exports = { saleStage, buildChainBatches, chainEvents, reportSummary, manilaDay, manilaWeek };
+module.exports = { saleStage, buildChainBatches, chainEvents, reportSummary, reportVegetables, manilaDay, manilaWeek };

@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { SharedScreenTransition } from '../lib/motion';
 import {
   Text, View, ScrollView, TouchableOpacity, Pressable, Modal, ActivityIndicator, StyleSheet, RefreshControl, KeyboardAvoidingView, Platform,
-  BackHandler,
+  BackHandler, useWindowDimensions,
 } from 'react-native';
 import TextInput from '../components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,7 +36,7 @@ import { useAutoSync } from '../sync/SyncProvider';
 import RemoteImage from '../components/RemoteImage';
 import { statusLabel } from '../i18n/translate';
 import PickupRequestsPanel from '../components/distributor/PickupRequestsPanel';
-import StockAlertsCard from '../components/distributor/StockAlertsCard';
+import useStockAlerts from '../hooks/useStockAlerts';
 
 const PRIMARY = colors.leaf700;
 
@@ -46,6 +46,7 @@ export default function DistributorDashboard({ navigation, route }) {
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
   const refreshProducts = useRef(null);
+  const stockAlerts = useStockAlerts();
   const { t, language } = useTranslation();
 
   const DISTRIBUTOR_TABS = [
@@ -170,8 +171,8 @@ export default function DistributorDashboard({ navigation, route }) {
   }, []);
 
   const { syncState } = useAutoSync('distributor-dashboard', useCallback(async () => {
-    await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPayments(), loadPickupRequests(), refreshProducts.current?.()]);
-  }, [loadOrders, loadActiveOrders, loadPersonnel, loadPayments, loadPickupRequests]));
+    await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPayments(), loadPickupRequests(), refreshProducts.current?.(), stockAlerts.reload()]);
+  }, [loadOrders, loadActiveOrders, loadPersonnel, loadPayments, loadPickupRequests, stockAlerts.reload]));
 
   useEffect(() => {
     (async () => {
@@ -202,7 +203,7 @@ export default function DistributorDashboard({ navigation, route }) {
       if (tab === 'orders') await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPickupRequests()]);
       else if (tab === 'pickups') await loadPickupRequests();
       else if (tab === 'payments') await loadPayments();
-      else await Promise.all([loadOrders(), loadActiveOrders(), loadPickupRequests(), loadPayments(), refreshProducts.current?.()]);
+      else await Promise.all([loadOrders(), loadActiveOrders(), loadPickupRequests(), loadPayments(), refreshProducts.current?.(), stockAlerts.reload()]);
     } catch (err) {
       showAlert(t('common.error'), friendlyError(err));
     } finally {
@@ -250,6 +251,7 @@ export default function DistributorDashboard({ navigation, route }) {
       );
       // Approval is when stock leaves the batches, so the product list changes now.
       refreshProducts.current?.();
+      stockAlerts.reload();
       if (personnel.length === 0) await loadPersonnel();
       showAlert(t('dashboards.distributor.orderApprovedTitle'), t('dashboards.distributor.orderApprovedMessage', { id: shortId(order.id) }));
     } catch (err) {
@@ -338,6 +340,8 @@ export default function DistributorDashboard({ navigation, route }) {
             <HomeTab
               navigation={navigation}
               refreshProducts={refreshProducts}
+              stockAlertCount={stockAlerts.alerts.length}
+              onStockChanged={stockAlerts.reload}
               pendingOrderCount={orders.length}
               pendingPickupCount={pendingReceiveCount}
               unpaidCount={unpaidOrders.length}
@@ -411,11 +415,15 @@ export default function DistributorDashboard({ navigation, route }) {
 }
 
 function HomeTab({
-  navigation, refreshProducts,
+  navigation, refreshProducts, stockAlertCount, onStockChanged,
   pendingOrderCount, pendingPickupCount, unpaidCount,
   onViewPickups, onViewPayments, onManageAccounts,
 }) {
   const { t, tc } = useTranslation();
+  // Four shortcuts share one row when each tile fits "Account Management" (about 96 wide);
+  // phones get two rows of two.
+  const { width } = useWindowDimensions();
+  const quickActionBasis = { flexBasis: (width - 32 - 30) / 4 >= 96 ? '20%' : '40%' };
   return (
     <View>
       {/* One display-only summary card (not tappable); navigation lives in Quick Actions below. */}
@@ -436,25 +444,26 @@ function HomeTab({
         </View>
       </View>
 
-      {/* Batches on their last sellable day (7-day stock rule). */}
-      <StockAlertsCard navigation={navigation} onChanged={() => refreshProducts.current?.()} />
-
       <Text style={styles.sectionTitle}>{t('dashboards.distributor.quickActions')}</Text>
       <View style={styles.quickActionGrid}>
-        <QuickAction icon="checkmark-circle-outline" label={t('dashboards.distributor.pickupRequests')} onPress={onViewPickups} />
-        <QuickAction icon="people-outline" label={t('dashboards.distributor.accountManagement')} onPress={onManageAccounts} />
-        <QuickAction icon="wallet-outline" label={t('dashboards.distributor.paymentAction')} onPress={onViewPayments} />
+        <QuickAction icon="checkmark-circle-outline" label={t('dashboards.distributor.pickupRequests')} onPress={onViewPickups} style={quickActionBasis} />
+        {/* Batches on their last sellable day (7-day stock rule); Stocks opens filtered to them. */}
+        <QuickAction icon="alert-circle-outline" label={t('dashboards.distributor.stockAlertAction')} badge={stockAlertCount}
+          badgeLabel={tc('stockAlerts.needAttention', stockAlertCount)}
+          onPress={() => navigation.navigate('Stocks', { showStockAlerts: stockAlertCount > 0 })} style={quickActionBasis} />
+        <QuickAction icon="people-outline" label={t('dashboards.distributor.accountManagement')} onPress={onManageAccounts} style={quickActionBasis} />
+        <QuickAction icon="wallet-outline" label={t('dashboards.distributor.paymentAction')} onPress={onViewPayments} style={quickActionBasis} />
       </View>
 
       <Text style={[styles.sectionTitle, { marginTop: 4 }]}>{t('productList.title')}</Text>
-      <ProductListSection refreshProducts={refreshProducts} />
+      <ProductListSection refreshProducts={refreshProducts} onStockChanged={onStockChanged} />
     </View>
   );
 }
 
 // Aggregated product listings on the Home tab. Each card's Edit button opens a
 // modal for quantity and price edits and removal.
-function ProductListSection({ refreshProducts }) {
+function ProductListSection({ refreshProducts, onStockChanged }) {
   const { t, language } = useTranslation();
   const requestLock = useRequestLock();
   const beginRead = useLatestRequest();
@@ -545,6 +554,7 @@ function ProductListSection({ refreshProducts }) {
     try {
       await api.put(`/api/products/${activeListing.id}/reduce-quantity`, { new_total_kg: qtyNum });
       await loadListings();
+      onStockChanged?.();
     } catch (err) {
       showAlert(t('common.error'), friendlyError(err));
     } finally {
@@ -569,6 +579,7 @@ function ProductListSection({ refreshProducts }) {
         try {
           await api.put(`/api/products/${target.id}/unlist`);
           await loadListings();
+          onStockChanged?.();
         } catch (err) {
           showAlert(t('common.error'), friendlyError(err, t('productList.removeFailed')));
         } finally {
@@ -719,16 +730,22 @@ function getProofUrl(order) {
   return getDelivery(order)?.proof_photo_url || null;
 }
 
-function QuickAction({ icon, label, onPress }) {
+// `badge` shows a red count on the icon only when it is above zero.
+function QuickAction({ icon, label, onPress, badge = 0, badgeLabel, style }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => [styles.quickAction, pressed && styles.quickActionPressed]}
+      accessibilityLabel={badge > 0 && badgeLabel ? `${label}, ${badgeLabel}` : label}
+      style={({ pressed }) => [styles.quickAction, style, pressed && styles.quickActionPressed]}
     >
       <View style={styles.quickActionIcon}>
         <Ionicons name={icon} size={rf(20)} color={PRIMARY} />
+        {badge > 0 && (
+          <View style={styles.quickActionBadge}>
+            <Text style={styles.quickActionBadgeText}>{badge > 9 ? '9+' : badge}</Text>
+          </View>
+        )}
       </View>
       <Text style={styles.quickActionLabel} numberOfLines={2}>{label}</Text>
       <Ionicons name="chevron-forward" size={rf(13)} color={colors.leaf500} style={styles.quickActionChevron} />
@@ -1128,15 +1145,21 @@ const styles = StyleSheet.create({
   homeStatValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: PRIMARY },
   homeStatLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginTop: 4, textAlign: 'center' },
 
-  quickActionGrid: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  quickActionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   quickAction: {
-    flex: 1, minHeight: 104, alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexGrow: 1, minHeight: 104, alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.surface, borderWidth: 1.4, borderColor: colors.leaf500, borderRadius: radius.card,
     paddingVertical: 14, paddingHorizontal: 6, ...shadowCard,
   },
   quickActionPressed: { backgroundColor: colors.leaf100, borderColor: colors.leaf700, transform: [{ scale: 0.97 }] },
   quickActionIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.leaf100, alignItems: 'center', justifyContent: 'center' },
   quickActionChevron: { position: 'absolute', top: 8, right: 8 },
+  // Same red count badge as the notification and message icons.
+  quickActionBadge: {
+    position: 'absolute', top: -5, right: -7, minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
+  },
+  quickActionBadgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(11) },
   quickActionLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.ink, textAlign: 'center' },
 
   primaryBtn: { backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 14, alignItems: 'center', marginBottom: 14, justifyContent: 'center', minHeight: control.height },

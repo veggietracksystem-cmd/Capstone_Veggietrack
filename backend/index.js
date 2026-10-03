@@ -7,14 +7,14 @@ const dotenv = require('dotenv');
 const { createClient } = require('@supabase/supabase-js');
 const { verifyToken, configureAuth } = require('./lib/auth');
 const { mountAccountRoutes } = require('./lib/accountRoutes');
-const { isVegetable, VEGETABLE_VALIDATION_MESSAGE } = require('./lib/vegetables');
+const { isVegetable, VEGETABLE_VALIDATION_MESSAGE, canonicalVegetableName } = require('./lib/vegetables');
 const {
   COMPLETED_STATUSES, roundKg, hasStockPrecision, isActiveBatch, isReceivedBatch, isSellableBatch,
   compareFifo, sameVegetableAs, retailerProducts, distributorListings, batchStatus, batchDate, manilaToday,
   daysInStock, needsStockAlert, stockSince, STOCK_ALERT_DAYS,
 } = require('./lib/batches');
 const { OPEN_PICKUP_STATUSES, harvestAvailability, estimatedTotal, pickupInputError, requestedKg } = require('./lib/pickups');
-const { buildChainBatches, chainEvents, reportSummary, manilaWeek } = require('./lib/chainTracking');
+const { buildChainBatches, chainEvents, reportSummary, reportVegetables, manilaWeek } = require('./lib/chainTracking');
 const { coordinate, destinationFor, createRouteService, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
 const { createPickupTrackingHandler } = require('./lib/pickupTracking');
 const { STALE_LOCATION_SECONDS } = require('./lib/locationPolicy');
@@ -2226,7 +2226,8 @@ app.get('/api/distributor/chain-tracking', verifyToken, async (req, res) => {
 });
 
 // Transaction history report: stock received, sales delivered and spoilage dated
-// within ?from=YYYY-MM-DD&to=YYYY-MM-DD (Philippine days, inclusive).
+// within ?from=YYYY-MM-DD&to=YYYY-MM-DD (Philippine days, inclusive), optionally
+// for one ?vegetable=. `vegetables` lists every vegetable the filter can choose.
 app.get('/api/distributor/chain-report', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view reports' });
@@ -2241,8 +2242,12 @@ app.get('/api/distributor/chain-report', verifyToken, async (req, res) => {
   }
   const { batches, error } = await loadChainBatches(req.user.userId);
   if (error) return sendDbError(res, error);
-  const events = chainEvents(batches, { from: from?.day, to: to?.day });
-  res.json({ from: from?.day || null, to: to?.day || null, summary: reportSummary(events), events });
+  const vegetable = String(req.query.vegetable || '').trim().slice(0, 80) || null;
+  const events = chainEvents(batches, { from: from?.day, to: to?.day, vegetable });
+  res.json({
+    from: from?.day || null, to: to?.day || null, vegetable: vegetable && canonicalVegetableName(vegetable),
+    vegetables: reportVegetables(batches), summary: reportSummary(events), events,
+  });
 });
 
 // Spoiled Products: stock no longer sellable, newest first, with this week's total.

@@ -222,6 +222,11 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
   const todayOnly = await raw('get /api/distributor/chain-report', 'hub', {}, undefined, { from: today, to: today });
   assert.deepEqual(todayOnly.body.events.map(e => e.type).sort(), ['received', 'sold', 'spoiled']);
   assert.equal((await raw('get /api/distributor/chain-report', 'hub', {}, undefined, { from: today, to: '2025-01-01' })).statusCode, 400);
+  assert.deepEqual(report.vegetables, ['Carrot']);
+  const carrot = await raw('get /api/distributor/chain-report', 'hub', {}, undefined, { from: today, to: today, vegetable: 'Carrot' });
+  assert.deepEqual([carrot.body.vegetable, carrot.body.summary, carrot.body.events.length], ['Carrot', report.summary, 3]);
+  const noTomato = await raw('get /api/distributor/chain-report', 'hub', {}, undefined, { vegetable: 'Tomato' });
+  assert.deepEqual([noTomato.body.events.length, noTomato.body.summary.received_kg, noTomato.body.vegetables], [0, 0, ['Carrot']]);
 
   // 7-day rule. Stock picked up more than 7 days ago cannot be added at all.
   const daysAgo = d => new Date(Date.now() + 8 * 3600000 - d * 86400000).toISOString().slice(0, 10);

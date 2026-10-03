@@ -1,6 +1,7 @@
 import useLatestRequest from '../hooks/useLatestRequest';
 import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
 import useRequestLock from '../hooks/useRequestLock';
+import useStockAlerts from '../hooks/useStockAlerts';
 import { rf } from '../lib/responsive';
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -20,7 +21,7 @@ import { showAlert, confirmAction, peso } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnDanger, actionBtnText } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { localizeVegetableName, vegetableKey } from '../lib/vegetableNames';
 import { isVegetable } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
@@ -42,7 +43,7 @@ export default function StocksScreen({ navigation, route }) {
   const navSpace = useBottomNavSpace();
   const beginRead = useLatestRequest();
   const requestLock = useRequestLock();
-  const { t, language } = useTranslation();
+  const { t, tc, language } = useTranslation();
   const DISTRIBUTOR_TABS = DISTRIBUTOR_TABS_KEYS.map((tab) => ({ ...tab, label: t(tab.labelKey) }));
   const handleBottomTabPress = (tab) => {
     if (tab.id === 'stocks') return;
@@ -52,6 +53,10 @@ export default function StocksScreen({ navigation, route }) {
     else if (tab.id === 'home') navigation.navigate('DistributorDashboard', { tab: 'home' });
   };
   const [seg, setSeg] = useState('batches');
+  const stockAlerts = useStockAlerts();
+  const alertFor = (b) => stockAlerts.alerts.find((alert) => alert.batch_id === b.id);
+  // Home's Stock Alert shortcut opens Stocks showing only the alerted batches.
+  const [alertsOnly, setAlertsOnly] = useState(false);
   const [batches, setBatches] = useState([]);
   // Batch waiting for the Discard confirmation.
   const [discarding, setDiscarding] = useState(null);
@@ -104,7 +109,7 @@ export default function StocksScreen({ navigation, route }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadBatches();
+    await Promise.all([loadBatches(), stockAlerts.reload()]);
     setRefreshing(false);
   };
 
@@ -159,16 +164,12 @@ export default function StocksScreen({ navigation, route }) {
     setEditPriceInput(batch.price_per_kg != null ? String(batch.price_per_kg) : '');
   };
 
-  // A Home stock alert's "Change price" opens the edit form of its batch.
-  const editBatchId = route?.params?.editBatchId;
+  const showStockAlerts = route?.params?.showStockAlerts;
   useEffect(() => {
-    if (!editBatchId || loading) return;
-    const batch = batches.find((b) => b.id === editBatchId);
-    navigation.setParams?.({ editBatchId: undefined });
-    if (!batch) return;
-    setSeg(isListable(batch.status) ? 'batches' : 'products');
-    openEdit(batch);
-  }, [editBatchId, loading, batches]);
+    if (!showStockAlerts) return;
+    setAlertsOnly(true);
+    navigation.setParams?.({ showStockAlerts: undefined });
+  }, [showStockAlerts]);
 
   // Discard: all remaining stock of the batch goes to Spoiled Products. It is no
   // longer sold and does not return to Stocks.
@@ -178,7 +179,7 @@ export default function StocksScreen({ navigation, route }) {
     try {
       const result = await api.post(`/api/products/${discarding.id}/discard`);
       setDiscarding(null);
-      await loadBatches();
+      await Promise.all([loadBatches(), stockAlerts.reload()]);
       showAlert(t('discard.doneTitle'), result?.spoilage?.reason === 'past_limit' ? t('discard.pastLimitMessage') : t('discard.doneMessage'));
     } catch (err) {
       showAlert(t('common.error'), friendlyError(err));
@@ -356,8 +357,15 @@ export default function StocksScreen({ navigation, route }) {
 
   const renderItem = ({ item: b }) => {
     const busy = busyId != null;
+    const alert = alertFor(b);
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, alert && styles.cardAlert]}>
+        {!!alert && (
+          <View style={styles.alertStrip}>
+            <Ionicons name="alert-circle" size={rf(16)} color={colors.gold700} />
+            <Text style={styles.alertStripText}>{t('stockAlerts.title')}</Text>
+          </View>
+        )}
         <View style={styles.cardHeader}>
           {renderTile(b)}
           <Text style={[styles.product, { flex: 1 }]} numberOfLines={1}>{localizeVegetableName(b.vegetable_name, language)}</Text>
@@ -386,9 +394,24 @@ export default function StocksScreen({ navigation, route }) {
             <Text style={styles.discardBtnText}>{t('discard.button')}</Text>
           </TouchableOpacity>
         </View>
+        {!!alert && (
+          <TouchableOpacity style={styles.keepBtn} onPress={() => stockAlerts.keep(b.id)} disabled={busy} accessibilityRole="button">
+            <Text style={styles.keepBtnText}>{t('stockAlerts.keepSelling')}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
+
+  // The filter ends by itself once every alerted batch is resolved.
+  const alertedBatches = batches.filter((b) => hasStock(b) && alertFor(b));
+  const filteringAlerts = alertsOnly && (!stockAlerts.loaded || alertedBatches.length > 0);
+  const listData = filteringAlerts
+    ? alertedBatches
+    : batches.filter((b) => hasStock(b) && (seg === 'batches' ? isListable(b.status) : b.status === 'listed'));
+  useEffect(() => {
+    if (alertsOnly && stockAlerts.loaded && !loading && alertedBatches.length === 0) setAlertsOnly(false);
+  }, [alertsOnly, stockAlerts.loaded, loading, alertedBatches.length]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -407,23 +430,36 @@ export default function StocksScreen({ navigation, route }) {
         }
       />
 
-      <SegmentedTabs
-        style={styles.segmented}
-        value={seg}
-        onChange={setSeg}
-        options={[
-          { value: 'batches', label: t('stocks.batchesSegLabel') },
-          { value: 'products', label: t('stocks.productsSegLabel') },
-        ]}
-      />
+      {filteringAlerts ? (
+        <View style={styles.alertBanner} accessibilityRole="summary">
+          <View style={styles.alertBannerHead}>
+            <Ionicons name="alert-circle-outline" size={rf(20)} color={colors.gold700} />
+            <Text style={styles.alertBannerTitle}>{tc('stockAlerts.needAttention', alertedBatches.length)}</Text>
+          </View>
+          <Text style={styles.alertBannerText}>{t('stockAlerts.subtitle')}</Text>
+          <TouchableOpacity onPress={() => setAlertsOnly(false)} accessibilityRole="button" style={styles.showAllBtn}>
+            <Text style={styles.showAllText}>{t('stockAlerts.showAll')}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <SegmentedTabs
+          style={styles.segmented}
+          value={seg}
+          onChange={setSeg}
+          options={[
+            { value: 'batches', label: t('stocks.batchesSegLabel') },
+            { value: 'products', label: t('stocks.productsSegLabel') },
+          ]}
+        />
+      )}
 
-      {loading ? (
+      {loading || (filteringAlerts && !stockAlerts.loaded) ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={PRIMARY} />
         </View>
       ) : (
         <FlatList
-          data={batches.filter((b) => hasStock(b) && (seg === 'batches' ? isListable(b.status) : b.status === 'listed'))}
+          data={listData}
           keyExtractor={(b) => String(b.id)}
           renderItem={renderItem}
           contentContainerStyle={[styles.content, { paddingBottom: navSpace }]}
@@ -599,6 +635,21 @@ const styles = StyleSheet.create({
   discardBtn: { ...actionBtn, ...actionBtnDanger, marginTop: 8 },
   discardBtnText: { ...actionBtnText, color: colors.danger },
   valueWarning: { color: colors.gold700, fontFamily: fonts.bodyBold },
+
+  cardAlert: { borderColor: colors.gold500, borderWidth: 1.5, backgroundColor: colors.gold100 },
+  alertStrip: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  alertStripText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), color: colors.gold700 },
+  keepBtn: { ...actionBtn, ...actionBtnOutline, marginTop: 8 },
+  keepBtnText: { ...actionBtnText, color: PRIMARY },
+  alertBanner: {
+    marginHorizontal: spacing.lg, marginTop: spacing.lg, padding: 14, borderRadius: radius.card,
+    backgroundColor: colors.gold100, borderWidth: 1, borderColor: colors.gold500,
+  },
+  alertBannerHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  alertBannerTitle: { flex: 1, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
+  alertBannerText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 4 },
+  showAllBtn: { alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, minHeight: control.heightSm, justifyContent: 'center' },
+  showAllText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
 
   modalHint: { fontSize: rf(fontSize.sm), color: colors.inkFaint, marginBottom: 10 },
   discardText: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink, lineHeight: rf(21) },

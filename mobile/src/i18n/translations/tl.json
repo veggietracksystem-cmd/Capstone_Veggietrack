@@ -434,6 +434,7 @@
       "quickActions": "Mabilisang Aksyon",
       "accountManagement": "Pamamahala ng Account",
       "paymentAction": "Bayad",
+      "stockAlertAction": "Babala sa Stock",
       "pickupRequests": "Mga Kahilingan sa Pickup",
       "noPendingPickups": "Walang nakabinbing kahilingan sa pickup",
       "noPendingPickupsMessage": "Kapag humiling ng pickup ang mga magsasaka, lalabas ito dito para sa pag-apruba.",
@@ -1733,7 +1734,10 @@
     "message": "May natitirang {kg} kg ng {name} sa stock. Inani noong {date} at {days} araw na sa stock.",
     "messageNoHarvest": "May natitirang {kg} kg ng {name} sa stock at {days} araw na sa stock.",
     "keepSelling": "Ituloy ang Benta",
-    "changePrice": "Palitan ang Presyo"
+    "changePrice": "Palitan ang Presyo",
+    "needAttention_one": "{count} batch ang kailangang asikasuhin",
+    "needAttention_other": "{count} batch ang kailangang asikasuhin",
+    "showAll": "Ipakita ang lahat ng stock"
   },
   "discard": {
     "button": "Itapon",
@@ -1831,7 +1835,11 @@
     "toRetailer": "Para kay {name}",
     "emptyTitle": "Walang transaksyon",
     "emptyMessage": "Walang natanggap, naibenta o nasira sa panahong ito.",
-    "exportTitle": "VeggieTrack — Ulat ng Transaksyon"
+    "exportTitle": "VeggieTrack — Ulat ng Transaksyon",
+    "vegetable": "Gulay",
+    "allVegetables": "Lahat ng Gulay",
+    "emptyVegetableTitle": "Walang transaksyon para sa gulay na ito.",
+    "emptyVegetableMessage": "Walang natanggap, nabenta o nasira na ganitong gulay sa panahong ito."
   },
   "spoilage": {
     "thisWeek": "Nasira Ngayong Linggo",

@@ -41,6 +41,7 @@ function harness() {
       });
     },
     useCallback(fn, deps) { return react.useMemo(() => fn, deps); },
+    useRef(initial) { return react.useState(() => ({ current: initial }))[0]; },
     useMemo(fn, deps) {
       const index = cursor++;
       if (changed(activeSlots[index]?.deps, deps)) activeSlots[index] = { deps, value: fn() };
@@ -53,7 +54,7 @@ function harness() {
     if (type?.context) type.context.value = props.value;
     return { type, props };
   };
-  const native = new Proxy({ StyleSheet: { create: value => value, absoluteFill: {} }, Platform: { OS: 'web' }, Animated: { View: 'AnimatedView' } }, {
+  const native = new Proxy({ StyleSheet: { create: value => value, absoluteFill: {} }, Platform: { OS: 'web' }, Animated: { View: 'AnimatedView' }, BackHandler: { addEventListener: () => ({ remove() {} }) }, useWindowDimensions: () => ({ width: 400, height: 800 }) }, {
     get: (target, name) => target[name] || name,
   });
   const api = {
@@ -76,7 +77,7 @@ function harness() {
     'expo-sharing': { isAvailableAsync: async () => false },
     '@react-native-async-storage/async-storage': { getItem: async key => storage.get(key) || null, setItem: async (key, value) => storage.set(key, value) },
   };
-  const real = /^(screens\/(StocksScreen|RetailerDashboard|DistributorInventoryReportScreen|ApplicationStatusScreen|ChainReportScreen|SpoiledProductsScreen|FarmerDashboard)|components\/(AuthForm|CustomModal|distributor\/)|i18n\/|lib\/(vegetableNames|vegetables|cartStore|orderStatus|reportPdf|pickupForm|pickupStatus|reportPeriods)|theme\/appTheme)/;
+  const real = /^(hooks\/useStockAlerts|screens\/(StocksScreen|DistributorDashboard|RetailerDashboard|DistributorInventoryReportScreen|ApplicationStatusScreen|ChainReportScreen|SpoiledProductsScreen|FarmerDashboard)|components\/(AuthForm|CustomModal|distributor\/)|i18n\/|lib\/(vegetableNames|vegetables|cartStore|orderStatus|reportPdf|pickupForm|pickupStatus|reportPeriods)|theme\/appTheme)/;
   function load(relative) {
     const file = relative.endsWith('.js') || relative.endsWith('.json') ? relative : `${relative}.js`;
     if (modules.has(file)) return modules.get(file);
@@ -108,7 +109,7 @@ function harness() {
         if (target === 'screens/FarmerProfileTab') return 'FarmerProfileTab';
         if (real.test(target)) return load(target);
         if (target === 'components/BottomNavBar') return { __esModule: true, default: 'BottomNavBar', useBottomNavSpace: () => 80, useBottomNavHeight: () => 64 };
-        if (target === 'components/ui/SegmentedTabs') return { SegmentedTabs: 'SegmentedTabs' };
+        if (target === 'components/ui/SegmentedTabs') return { SegmentedTabs: 'SegmentedTabs', FilterChips: 'FilterChips' };
         if (target.startsWith('components/')) return path.posix.basename(target);
         if (target === 'lib/textFormat') return { titleCaseWords: value => value };
         if (target === 'lib/errorMessages') return { friendlyError: error => error.message };
@@ -130,7 +131,7 @@ function harness() {
     provider.useLanguageContext().setLanguage(next);
     render(provider.LanguageProvider);
   }
-  return { load, render, data, calls, alerts, prints, language, translation: () => provider.useLanguageContext() };
+  return { load, render, data, calls, alerts, prints, storage, language, translation: () => provider.useLanguageContext() };
 }
 
 // One Vegetable Chain Tracking batch as returned by GET /api/distributor/chain-tracking.
@@ -502,27 +503,100 @@ test('Pickup Requests: price and quantity before approval, then approve, assign,
   assert.ok(changed >= 3, 'the list reloads after each action');
 });
 
-test('Home stock alert: day 7 message, Keep Selling hides it, Change Price opens Stocks, Discard asks first', async () => {
+const alertBatch = (id, vegetable_name, status, days_in_stock, stock_kg = 12) => ({ id, vegetable_name, status, days_in_stock, stock_kg, batch_photo_url: 'https://example.test/b.jpg' });
+const stockAlert = (batch_id, vegetable_name, remaining_kg) => ({ batch_id, vegetable_name, remaining_kg, harvest_date: null, days_in_stock: 7 });
+
+test('Home Stock Alert shortcut: badge only with alerts, real count that follows stock changes, opens Stocks filtered', async () => {
   const h = harness();
-  h.data['/api/distributor/stock-alerts'] = [{ batch_id: 'b1', vegetable_name: 'Tomato', remaining_kg: 18, harvest_date: '2026-09-20T04:00:00Z', days_in_stock: 7 },
-    { batch_id: 'b2', vegetable_name: 'Squash', remaining_kg: 5, harvest_date: null, days_in_stock: 7 }];
-  const card = h.load('components/distributor/StockAlertsCard').default;
+  h.data['/api/distributor/stock-alerts'] = [];
   const navigated = [];
-  const render = () => h.render(card, { navigation: { navigate: (...args) => navigated.push(args) }, onChanged() {} });
+  const navigation = { navigate: (...args) => navigated.push(args), addListener: () => () => {} };
+  const dashboard = h.load('screens/DistributorDashboard').default;
+  const home = () => {
+    const node = named(h.render(dashboard, { navigation, route: { params: {} } }), 'HomeTab')[0];
+    return { node, tree: h.render(node.type, node.props) };
+  };
+  home(); await flush();
+  const shortcuts = () => named(home().tree, 'QuickAction');
+  const stockShortcut = () => shortcuts().find(node => node.props.label === 'Stock Alert');
+  const rendered = () => h.render(stockShortcut().type, stockShortcut().props);
+  const badgeText = () => texts(rendered()).filter(text => /^(\d+|9\+)$/.test(text));
+  assert.equal(shortcuts().map(node => node.props.label).join(' | '), 'Pickup Requests | Stock Alert | Account Management | Payment');
+  assert.ok(!texts(home().tree).some(text => text.startsWith('Stock alert') || text.includes('7-day limit')), 'no separate alert section on Home');
+  same(badgeText(), [], 'no alert → no badge');
+
+  const refresh = async () => { await home().node.props.onStockChanged(); await flush(); };
+  h.data['/api/distributor/stock-alerts'] = [stockAlert('b1', 'Tomato', 18)];
+  await refresh();
+  same(badgeText(), ['1']);
+  assert.equal(rendered().props.accessibilityLabel, 'Stock Alert, 1 batch needs attention');
+
+  h.data['/api/distributor/stock-alerts'] = [stockAlert('b1', 'Tomato', 18), stockAlert('b2', 'Squash', 5), stockAlert('b3', 'Okra', 2)];
+  await refresh();
+  same(badgeText(), ['3']);
+  h.storage.set('stock_alerts_keep_selling', ['b3']);
+  await refresh();
+  same(badgeText(), ['2'], 'batches kept on sale are not counted');
+
+  stockShortcut().props.onPress();
+  same(navigated.at(-1), ['Stocks', { showStockAlerts: true }]);
+
+  h.data['/api/distributor/stock-alerts'] = [];
+  await refresh();
+  same(badgeText(), [], 'resolved → badge disappears');
+  stockShortcut().props.onPress();
+  same(navigated.at(-1), ['Stocks', { showStockAlerts: false }]);
+});
+
+test('Stocks from Stock Alert shows only the alerted batches, marked, until each is kept on sale or discarded', async () => {
+  const h = harness();
+  h.data['/api/products'] = [alertBatch('b1', 'Tomato', 'received', 7, 18), alertBatch('b2', 'Squash', 'listed', 7, 5),
+    alertBatch('b3', 'Carrot', 'listed', 2), alertBatch('b4', 'Okra', 'received', 3)];
+  h.data['/api/distributor/stock-alerts'] = [stockAlert('b1', 'Tomato', 18), stockAlert('b2', 'Squash', 5)];
+  const screen = h.load('screens/StocksScreen').default;
+  const render = () => h.render(screen, { navigation: { setParams() {} }, route: { params: { showStockAlerts: true } } });
   render(); await flush();
-  let tree = render();
-  assert.ok(texts(tree).includes('Tomato has 18 kg remaining in stock. Harvested on September 20, 2026 and has been in stock for 7 days.'));
-  assert.ok(texts(tree).includes('Squash has 5 kg remaining in stock and has been in stock for 7 days.'));
-  named(tree, 'TouchableOpacity').filter(n => texts(n).includes('Change Price'))[0].props.onPress();
-  same(navigated[0], ['Stocks', { editBatchId: 'b1' }]);
-  named(tree, 'TouchableOpacity').filter(n => texts(n).includes('Discard'))[0].props.onPress();
-  const confirm = named(render(), 'CustomModal')[0];
-  assert.equal(confirm.props.visible, true); assert.equal(confirm.props.danger, true);
+  const listed = () => named(render(), 'FlatList')[0].props.data.map(batch => batch.id).join(',');
+  const card = id => {
+    const list = named(render(), 'FlatList')[0];
+    return list.props.renderItem({ item: list.props.data.find(batch => batch.id === id) });
+  };
+  assert.equal(listed(), 'b1,b2', 'both alerted batches, from either segment');
+  assert.equal(named(render(), 'SegmentedTabs').length, 0);
+  assert.ok(texts(render()).includes('2 batches need attention'));
+  for (const id of ['b1', 'b2']) {
+    assert.ok(texts(card(id)).includes('Stock alert'));
+    assert.ok(texts(card(id)).includes('Keep Selling'));
+  }
+
+  await named(card('b2'), 'TouchableOpacity').find(node => texts(node).includes('Keep Selling')).props.onPress();
+  await flush();
+  assert.equal(listed(), 'b1');
+  assert.ok(texts(render()).includes('1 batch needs attention'));
+
+  named(card('b1'), 'TouchableOpacity').find(node => texts(node).includes('Discard')).props.onPress();
+  const confirm = named(render(), 'CustomModal').find(node => node.props.danger);
   assert.ok(texts(confirm).includes('Discard the remaining 18 kg of Tomato? This stock will no longer be available for sale.'));
-  await confirm.props.onConfirm();
+  h.data['/api/products'] = h.data['/api/products'].map(batch => batch.id === 'b1' ? { ...batch, stock_kg: 0, status: 'spoiled' } : batch);
+  h.data['/api/distributor/stock-alerts'] = [stockAlert('b2', 'Squash', 5)];
+  await confirm.props.onConfirm(); await flush();
   assert.equal(h.calls.at(-1).route, '/api/products/b1/discard');
-  await named(render(), 'TouchableOpacity').filter(n => texts(n).includes('Keep Selling'))[1].props.onPress();
-  assert.ok(!texts(render()).some(t => t.startsWith('Squash has')), 'kept batches are not shown again');
+  render();
+  assert.equal(named(render(), 'SegmentedTabs').length, 1, 'filter ends once every alert is resolved');
+  assert.equal(listed(), 'b4');
+
+  // Opened normally, an alerted batch is still marked in its segment.
+  const plain = harness();
+  plain.data['/api/products'] = h.data['/api/products'];
+  plain.data['/api/distributor/stock-alerts'] = [stockAlert('b2', 'Squash', 5)];
+  const plainScreen = plain.load('screens/StocksScreen').default;
+  const renderPlain = () => plain.render(plainScreen, { navigation: {}, route: { params: {} } });
+  renderPlain(); await flush();
+  named(renderPlain(), 'SegmentedTabs')[0].props.onChange('products');
+  const products = named(renderPlain(), 'FlatList')[0];
+  assert.equal(products.props.data.map(batch => batch.id).join(','), 'b2,b3');
+  assert.ok(texts(products.props.renderItem({ item: products.props.data[0] })).includes('Stock alert'));
+  assert.ok(!texts(products.props.renderItem({ item: products.props.data[1] })).includes('Stock alert'));
 });
 
 test('View Reports: periods change the queried dates and totals; custom dates are checked; export prints the table', async () => {
@@ -555,6 +629,92 @@ test('View Reports: periods change the queried dates and totals; custom dates ar
   from.props.onChange('2026-10-05'); named(named(render(), 'FlatList')[0].props.ListHeaderComponent, 'BatchDateField')[1].props.onChange('2026-10-01');
   assert.ok(texts(named(render(), 'FlatList')[0].props.ListHeaderComponent).includes('The start date cannot be after the end date.'));
   assert.equal(typeof to.props.onChange, 'function');
+});
+
+test('Transaction Reports vegetable filter: All Vegetables by default, chips from the report, totals and rows per vegetable with any period', async () => {
+  const h = harness(); await flush();
+  const { periodRange } = h.load('lib/reportPeriods');
+  const route = (range, vegetable) => `/api/distributor/chain-report?from=${range.from}&to=${range.to}${vegetable ? `&vegetable=${vegetable}` : ''}`;
+  const week = periodRange('week'), month = periodRange('month'), custom = { from: '2026-09-01', to: '2026-09-15' };
+  const vegetables = ['Cucumber', 'Squash', 'Tomato'];
+  const summary = (received_kg, sold_kg, spoiled_kg, completed_transactions, sales_total) => ({ received_kg, sold_kg, spoiled_kg, completed_transactions, sales_total, batches: 1 });
+  const event = (type, vegetable_name, quantity_kg, extra = {}) => ({ type, date: '2026-09-24T04:00:00Z', batch_id: `${vegetable_name}-1`, vegetable_name, farmer_name: 'Ana', party: 'Store One', quantity_kg, ...extra });
+  h.data[route(week)] = { vegetables, summary: summary(90, 40, 18, 2, 2600), events: [
+    event('sold', 'Tomato', 40, { amount: 2000, order_id: 'o1' }), event('received', 'Cucumber', 30), event('sold', 'Cucumber', 12, { amount: 600, order_id: 'o2' })] };
+  h.data[route(week, 'Tomato')] = { vegetables, summary: summary(60, 40, 18, 1, 2000), events: [event('sold', 'Tomato', 40, { amount: 2000, order_id: 'o1' })] };
+  h.data[route(week, 'Squash')] = { vegetables, summary: summary(0, 0, 0, 0, 0), events: [] };
+  h.data[route(month, 'Tomato')] = { vegetables, summary: summary(160, 70, 18, 3, 3500), events: [event('received', 'Tomato', 160)] };
+  h.data[route(custom, 'Tomato')] = { vegetables, summary: summary(25, 0, 0, 0, 0), events: [event('received', 'Tomato', 25)] };
+  const screen = h.load('screens/ChainReportScreen').default;
+  const render = () => h.render(screen, { navigation: { goBack() {} } });
+  const list = () => named(render(), 'FlatList')[0];
+  const header = () => texts(list().props.ListHeaderComponent);
+  const chips = () => named(list().props.ListHeaderComponent, 'FilterChips')[0];
+  const pick = async (name) => { chips().props.onChange(name); render(); await flush(); };
+  render(); await flush();
+
+  same(chips().props.options.map(o => o.label), ['All Vegetables', 'Cucumber', 'Squash', 'Tomato']);
+  assert.equal(chips().props.value, '', 'All Vegetables is selected by default');
+  assert.ok(header().includes('90 kg') && header().includes('2 · ₱2600.00'));
+  assert.equal(list().props.data.length, 3, 'All Vegetables shows every transaction');
+
+  await pick('Tomato');
+  assert.equal(chips().props.value, 'Tomato');
+  same(list().props.data.map(e => e.vegetable_name), ['Tomato']);
+  for (const value of ['60 kg', '40 kg', '18 kg', '1 · ₱2000.00']) assert.ok(header().includes(value), `Tomato summary shows ${value}`);
+  await named(list().props.ListFooterComponent, 'TouchableOpacity')[1].props.onPress();
+  assert.match(h.prints.at(-1).frame, /Tomato/, 'the export names the vegetable');
+
+  await pick('Squash');
+  same(list().props.data, [], 'another vegetable replaces the rows');
+  assert.ok(header().includes('0 kg'));
+  assert.equal(list().props.ListEmptyComponent.props.title, 'No transactions found for this vegetable.');
+
+  await pick('Tomato');
+  named(list().props.ListHeaderComponent, 'SegmentedTabs')[0].props.onChange('month');
+  render(); await flush();
+  assert.ok(header().includes('160 kg') && header().includes('3 · ₱3500.00'), 'This Month + Tomato');
+  assert.equal(chips().props.value, 'Tomato', 'the vegetable stays selected when the period changes');
+
+  named(list().props.ListHeaderComponent, 'SegmentedTabs')[0].props.onChange('custom');
+  render();
+  named(list().props.ListHeaderComponent, 'BatchDateField')[0].props.onChange(custom.from);
+  render();
+  named(list().props.ListHeaderComponent, 'BatchDateField')[1].props.onChange(custom.to);
+  render(); await flush();
+  assert.ok(header().includes('25 kg'), 'Custom dates + Tomato');
+  same(list().props.data.map(e => [e.type, e.quantity_kg]), [['received', 25]]);
+
+  await pick('');
+  assert.equal(h.translation().t('reports.allVegetables'), 'All Vegetables');
+  assert.equal(list().props.ListEmptyComponent.props.title, 'No transactions', 'All Vegetables uses the general empty message');
+});
+
+test('Transaction Reports: many vegetables use a dropdown list instead of chips', async () => {
+  const h = harness(); await flush();
+  const { periodRange } = h.load('lib/reportPeriods');
+  const week = periodRange('week');
+  const base = `/api/distributor/chain-report?from=${week.from}&to=${week.to}`;
+  const vegetables = ['Cabbage', 'Carrot', 'Cucumber', 'Eggplant', 'Okra', 'Onion', 'Potato', 'Squash', 'Tomato'];
+  h.data[base] = { vegetables, summary: { received_kg: 1, sold_kg: 0, spoiled_kg: 0, completed_transactions: 0, sales_total: 0 }, events: [] };
+  h.data[`${base}&vegetable=Okra`] = { vegetables, summary: { received_kg: 7, sold_kg: 0, spoiled_kg: 0, completed_transactions: 0, sales_total: 0 }, events: [] };
+  const screen = h.load('screens/ChainReportScreen').default;
+  const render = () => h.render(screen, { navigation: { goBack() {} } });
+  const headerTree = () => named(render(), 'FlatList')[0].props.ListHeaderComponent;
+  const picker = () => named(render(), 'CustomModal').find(node => node.props.title === 'Vegetable');
+  render(); await flush();
+  assert.equal(named(headerTree(), 'FilterChips').length, 0);
+  const select = named(headerTree(), 'TouchableOpacity').find(node => node.props.accessibilityLabel === 'Vegetable: All Vegetables');
+  select.props.onPress();
+  assert.equal(picker().props.visible, true);
+  const options = named(picker(), 'TouchableOpacity');
+  same(options.map(node => texts(node)[0]), ['All Vegetables', ...vegetables]);
+  assert.equal(options[0].props.accessibilityState.selected, true);
+  options.find(node => texts(node)[0] === 'Okra').props.onPress();
+  render(); await flush();
+  assert.equal(picker().props.visible, false);
+  assert.ok(named(headerTree(), 'TouchableOpacity').some(node => node.props.accessibilityLabel === 'Vegetable: Okra'));
+  assert.ok(texts(headerTree()).includes('7 kg'));
 });
 
 test("Spoiled Products: this week's spoilage total and both reasons, traced to the batch", async () => {

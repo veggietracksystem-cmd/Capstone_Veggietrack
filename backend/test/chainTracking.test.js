@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { daysInStock, needsStockAlert, STOCK_ALERT_DAYS } = require('../lib/batches');
 const { harvestAvailability, pickupInputError, estimatedTotal } = require('../lib/pickups');
-const { saleStage, buildChainBatches, chainEvents, reportSummary, manilaWeek } = require('../lib/chainTracking');
+const { saleStage, buildChainBatches, chainEvents, reportSummary, reportVegetables, manilaWeek } = require('../lib/chainTracking');
 
 test('days in stock are Philippine calendar days from the stock entry date', () => {
   const now = Date.parse('2026-09-27T16:00:00Z'); // 12:00 am, September 28 in Manila
@@ -97,6 +97,19 @@ test('chain tracking counts every received kilogram exactly once across sales an
   assert.deepEqual(chainEvents([batch, unsold], { from: '2026-09-21', to: '2026-09-28' }).map(e => e.type), ['received', 'sold']);
   assert.deepEqual(chainEvents([batch, unsold], { from: '2026-09-29', to: '2026-09-29' }).map(e => e.type), ['spoiled']);
   assert.deepEqual(chainEvents([batch, unsold], { from: '2026-10-01' }), []);
+
+  // Vegetable filter: one vegetable's batches under English or Tagalog names, combined with the dates.
+  const kamatis = { ...unsold, batch_id: 'b3', vegetable_name: 'Kamatis' };
+  const tomato = chainEvents([batch, unsold, kamatis], { vegetable: 'Tomato' });
+  assert.deepEqual(tomato.map(e => [e.type, e.batch_id]), [['spoiled', 'b1'], ['received', 'b3'], ['sold', 'b1'], ['received', 'b1']]);
+  assert.deepEqual(reportSummary(tomato), { received_kg: 105, sold_kg: 40, spoiled_kg: 15, sales_total: 2000, completed_transactions: 1, batches: 2 });
+  assert.deepEqual(chainEvents([batch, unsold, kamatis], { vegetable: 'kamatis' }), tomato);
+  assert.deepEqual(chainEvents([batch, unsold, kamatis], { vegetable: 'Okra' }).map(e => [e.type, e.batch_id]), [['received', 'b2']]);
+  assert.deepEqual(chainEvents([batch, unsold, kamatis], { vegetable: 'Tomato', from: '2026-09-21', to: '2026-09-28' }).map(e => [e.type, e.batch_id]),
+    [['received', 'b3'], ['sold', 'b1']]);
+  assert.deepEqual(chainEvents([batch, unsold, kamatis], { vegetable: 'Carrot' }), []);
+  assert.deepEqual(chainEvents([batch, unsold, kamatis], { vegetable: '' }).length, 5, 'no vegetable means all');
+  assert.deepEqual(reportVegetables([batch, unsold, kamatis]), ['Okra', 'Tomato'], 'each vegetable once, by display name');
 });
 
 test('this week runs Monday to Sunday in the Philippines', () => {

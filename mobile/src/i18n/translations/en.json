@@ -434,6 +434,7 @@
       "quickActions": "Quick Actions",
       "accountManagement": "Account Management",
       "paymentAction": "Payment",
+      "stockAlertAction": "Stock Alert",
       "pickupRequests": "Pickup Requests",
       "noPendingPickups": "No pending pickup requests",
       "noPendingPickupsMessage": "When farmers request a pickup, it will appear here for approval.",
@@ -1733,7 +1734,10 @@
     "message": "{name} has {kg} kg remaining in stock. Harvested on {date} and has been in stock for {days} days.",
     "messageNoHarvest": "{name} has {kg} kg remaining in stock and has been in stock for {days} days.",
     "keepSelling": "Keep Selling",
-    "changePrice": "Change Price"
+    "changePrice": "Change Price",
+    "needAttention_one": "{count} batch needs attention",
+    "needAttention_other": "{count} batches need attention",
+    "showAll": "Show all stocks"
   },
   "discard": {
     "button": "Discard",
@@ -1831,7 +1835,11 @@
     "toRetailer": "To {name}",
     "emptyTitle": "No transactions",
     "emptyMessage": "Nothing was received, sold or spoiled in this period.",
-    "exportTitle": "VeggieTrack — Transaction Report"
+    "exportTitle": "VeggieTrack — Transaction Report",
+    "vegetable": "Vegetable",
+    "allVegetables": "All Vegetables",
+    "emptyVegetableTitle": "No transactions found for this vegetable.",
+    "emptyVegetableMessage": "Nothing was received, sold or spoiled for this vegetable in this period."
   },
   "spoilage": {
     "thisWeek": "This Week's Spoilage",
