@@ -1536,6 +1536,7 @@
     "findingLocation": "Finding your location…",
     "gpsTimeout": "Unable to get your current location. Check that GPS is turned on and try again.",
     "gpsOff": "Location is turned off on your phone. Turn on GPS and try again.",
+    "preciseOff": "VeggieTrack only has your approximate location. Turn on “Use precise location” for VeggieTrack in your phone’s settings.",
     "gpsInaccurate": "Your GPS signal is still inaccurate. Please wait a moment or reload GPS.",
     "reloadGps": "Reload GPS",
     "reloadingGps": "Getting your location…",

@@ -5,7 +5,7 @@ import { useIsFocused } from '@react-navigation/native';
 import api from '../api/client';
 import { friendlyError } from '../lib/errorMessages';
 import { locationSample, isRecentSample } from '../lib/locationSamples';
-import { acquireDevicePosition } from '../lib/deviceLocation';
+import { acquireDevicePosition, ensureLocationPermission, isPermissionGranted, isApproximateOnly } from '../lib/deviceLocation';
 import { tr } from '../i18n/translate';
 
 // Without a first fix by then, say so and offer Reload GPS instead of spinning.
@@ -43,6 +43,10 @@ export default function useRiderLocation(orderId, enabled, { onFirstShare } = {}
   firstShare.current = onFirstShare;
   // Bumping watchRun replaces the watch (the effect removes the old one first).
   const [watchRun, setWatchRun] = useState(0);
+  // The permission prompt is shown automatically at most once per screen visit.
+  // Its own pause/resume re-runs the watch effect, which then only checks; after a
+  // denial only Reload GPS asks again.
+  const askedPermission = useRef(false);
   useEffect(() => {
     alive.current = true;
     const sub = AppState.addEventListener('change', state => setActive(state === 'active'));
@@ -79,7 +83,8 @@ export default function useRiderLocation(orderId, enabled, { onFirstShare } = {}
         accuracy: sample.accuracy, captured_at: new Date(sample.timestamp).toISOString(), delivery_id: orderId }, { signal: controller.signal });
       await request.promise;
       if (alive.current && version === generation.current) {
-        setError('');
+        // The approximate-location warning stays until the setting is changed.
+        setError(current => (current === tr('nav.preciseOff') ? current : ''));
         if (!shared.current) { shared.current = true; firstShare.current?.(); }
       }
       return true;
@@ -116,6 +121,7 @@ export default function useRiderLocation(orderId, enabled, { onFirstShare } = {}
   }, [publish]);
   // Reload GPS: replace the watch (in case it stalled) and ask for one fresh fix.
   const reloadGps = useCallback(() => {
+    askedPermission.current = false;
     setWatchRun(run => run + 1);
     return refreshLocation();
   }, [refreshLocation]);
@@ -138,9 +144,13 @@ export default function useRiderLocation(orderId, enabled, { onFirstShare } = {}
             { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
           return;
         }
-        const permission = await Location.requestForegroundPermissionsAsync();
+        const ask = !askedPermission.current;
+        askedPermission.current = true;
+        const permission = await ensureLocationPermission({ ask });
         if (cancelled) return;
-        if (permission.status !== 'granted') throw Object.assign(new Error(tr('nav.locationOff')), { code: 'LOCATION_PERMISSION_DENIED' });
+        if (!isPermissionGranted(permission)) throw Object.assign(new Error(tr('nav.locationOff')), { code: 'LOCATION_PERMISSION_DENIED' });
+        // Approximate-only access gives rare fixes kilometres wide: say how to fix it, keep watching.
+        if (isApproximateOnly(permission)) setError(tr('nav.preciseOff'));
         if (!await Location.hasServicesEnabledAsync()) throw Object.assign(new Error(tr('nav.gpsOff')), { code: 'LOCATION_SERVICES_DISABLED' });
         if (cancelled) return;
         if (!latestSample.current) {

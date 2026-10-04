@@ -11,7 +11,7 @@ const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve()
 // Runs the real useRiderLocation hook with a minimal React (state, refs, effects
 // with cleanup), a fake expo-location and controllable timers, so watcher
 // creation, cleanup and timeouts can be counted exactly.
-function harness({ focused = true, servicesOn = true, lastKnown = null, freshFix = null } = {}) {
+function harness({ focused = true, servicesOn = true, lastKnown = null, freshFix = null, permission = { status: 'granted', granted: true, canAskAgain: true }, grantOnAsk = true } = {}) {
   const watches = [], posts = [], timers = new Map();
   let timerId = 0, slots = [], cursor = 0, pendingEffects = [];
   const changed = (a, b) => !a || !b || a.length !== b.length || a.some((v, i) => v !== b[i]);
@@ -34,10 +34,19 @@ function harness({ focused = true, servicesOn = true, lastKnown = null, freshFix
       if (changed(slot.deps, deps)) pendingEffects.push(() => { slot.cleanup?.(); slot.deps = deps; slot.cleanup = fn(); });
     },
   };
-  const state = { focused, appState: 'active', servicesOn, lastKnown, freshFix, acquires: 0 };
+  const state = { focused, appState: 'active', servicesOn, lastKnown, freshFix, acquires: 0, permission, grantOnAsk, requests: 0, appStateListeners: [] };
   const Location = {
     Accuracy: { High: 4, Highest: 6 },
-    requestForegroundPermissionsAsync: async () => ({ status: 'granted', granted: true }),
+    getForegroundPermissionsAsync: async () => state.permission,
+    // Like Android: asking always opens the system permission screen, which pauses
+    // and later resumes the app (see pauseResume), whether or not access is granted.
+    requestForegroundPermissionsAsync: async () => {
+      state.requests++;
+      state.pendingPauseResume = true;
+      if (state.grantOnAsk) state.permission = { status: 'granted', granted: true, canAskAgain: true, android: state.permission.android };
+      else state.permission = { status: 'denied', granted: false, canAskAgain: true };
+      return state.permission;
+    },
     hasServicesEnabledAsync: async () => state.servicesOn,
     getLastKnownPositionAsync: async () => state.lastKnown,
     watchPositionAsync: async (options, callback, onError) => {
@@ -48,7 +57,7 @@ function harness({ focused = true, servicesOn = true, lastKnown = null, freshFix
   };
   const modules = {
     react,
-    'react-native': { AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) }, Platform: { OS: 'android' } },
+    'react-native': { AppState: { currentState: 'active', addEventListener: (_, listener) => { state.appStateListeners.push(listener); return { remove() {} }; } }, Platform: { OS: 'android' } },
     'expo-location': Location,
     '@react-navigation/native': { useIsFocused: () => state.focused },
   };
@@ -71,7 +80,8 @@ function harness({ focused = true, servicesOn = true, lastKnown = null, freshFix
         if (target === 'api/client') return { post: async (route, body) => { posts.push(body); return { success: true }; } };
         if (target === 'lib/errorMessages') return { friendlyError: (err, fallback) => err?.message || fallback };
         // One fresh fix for Reload GPS: a sample, or an error with a code.
-        if (target === 'lib/deviceLocation') return { acquireDevicePosition: async () => {
+        // The real permission helpers; only the one-fix GPS request is stubbed.
+        if (target === 'lib/deviceLocation') return { ...load('lib/deviceLocation.js'), acquireDevicePosition: async () => {
           state.acquires++;
           const next = typeof state.freshFix === 'function' ? state.freshFix() : state.freshFix;
           if (next instanceof Error) throw next;
@@ -99,8 +109,13 @@ function harness({ focused = true, servicesOn = true, lastKnown = null, freshFix
   const runTimers = ms => { for (const [id, timer] of [...timers]) if (timer.ms === ms) { timers.delete(id); timer.fn(); } };
   const fix = (overrides = {}) => ({ coords: { latitude: 14.07, longitude: 121.32, accuracy: 8, ...overrides }, timestamp: Date.now() });
   const active = () => watches.filter(watch => !watch.removed);
+  // The app goes to the background and back (permission screen, another app, a chat head).
+  const pauseResume = async () => {
+    state.appStateListeners.forEach(listener => listener('background')); render(); await flush();
+    state.appStateListeners.forEach(listener => listener('active')); render(); await flush(); render(); await flush();
+  };
   const sample = (overrides = {}) => ({ latitude: 14.07, longitude: 121.32, accuracy: 8, timestamp: Date.now(), ...overrides });
-  return { render, unmount, state, watches, active, posts, runTimers, fix, sample, get result() { return result; } };
+  return { render, unmount, state, watches, active, posts, runTimers, fix, sample, pauseResume, get result() { return result; } };
 }
 
 test('one GPS watch, on a 5 s timer even when the rider is not moving', async () => {
@@ -210,4 +225,44 @@ test('a watch that fails later shows the GPS message instead of silently stoppin
   h.render('order-1', true); await flush(); h.render();
   h.watches[0].onError('Location services were turned off'); h.render();
   assert.equal(h.result.error, 'T:nav.gpsTimeout');
+});
+
+// Seen on a Redmi phone (Android 15) with location already allowed: asking again on
+// every resume opened Android's permission screen 413 times in 40 s, the GPS watch
+// never survived, and Android closed the app for "rapid activity launch".
+test('location already allowed: never opens the permission screen, on open or on any resume, and keeps one watch', async () => {
+  const h = harness();
+  h.render('order-1', true); await flush(); h.render(); await flush();
+  for (let n = 0; n < 6; n++) await h.pauseResume();
+  assert.equal(h.state.requests, 0, 'no permission screen while access is granted');
+  assert.equal(h.active().length, 1);
+  h.watches.at(-1).callback(h.fix()); await flush(); h.render();
+  assert.equal(h.result.position.latitude, 14.07, 'the rider appears');
+});
+
+test('not allowed yet: asks once; its own pause and resume never ask again; Reload GPS asks again', async () => {
+  const h = harness({ permission: { status: 'undetermined', granted: false, canAskAgain: true }, grantOnAsk: false });
+  h.render('order-1', true); await flush(); h.render();
+  assert.equal(h.state.requests, 1);
+  for (let n = 0; n < 5; n++) await h.pauseResume();
+  assert.equal(h.state.requests, 1, 'no loop after a denial');
+  assert.equal(h.result.error, 'T:nav.locationOff');
+  assert.equal(h.active().length, 0);
+  // The rider allows it from the prompt that Reload GPS shows.
+  h.state.grantOnAsk = true;
+  h.result.reloadGps().catch(() => {}); h.render(); await flush(); h.render(); await flush(); h.render(); await flush();
+  assert.equal(h.state.requests, 2, 'Reload GPS asked once more');
+  await h.pauseResume();
+  assert.equal(h.state.requests, 2);
+  assert.equal(h.active().length, 1, 'tracking starts once allowed');
+});
+
+test('approximate-only access says how to fix it and still tracks', async () => {
+  const h = harness({ permission: { status: 'granted', granted: true, canAskAgain: true, android: { accuracy: 'coarse' } } });
+  h.render('order-1', true); await flush(); h.render();
+  assert.equal(h.result.error, 'T:nav.preciseOff');
+  assert.equal(h.active().length, 1);
+  h.watches[0].callback(h.fix({ accuracy: 1500 })); await flush(); h.render();
+  assert.equal(h.result.error, 'T:nav.preciseOff', 'the warning stays after an upload');
+  assert.equal(h.state.requests, 0);
 });

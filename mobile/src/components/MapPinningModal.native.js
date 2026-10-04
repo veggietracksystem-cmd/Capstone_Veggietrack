@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
+import { ensureLocationPermission, isPermissionGranted } from '../lib/deviceLocation';
 import { rf } from '../lib/responsive';
 import PlaceAutocomplete from './PlaceAutocomplete';
 import { buildPinningMapHtml } from '../lib/leafletMapHtml';
@@ -81,8 +82,8 @@ export default function MapPinningModal({ visible, onConfirm, onClose, initialCo
   const handleDetectLocation = async () => {
     setDetectingLocation(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
+      // Checks before asking: asking when already allowed reopens Android's permission screen.
+      if (isPermissionGranted(await ensureLocationPermission())) {
         const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
         const coords = {
           latitude: pos.coords.latitude,

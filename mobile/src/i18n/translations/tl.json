@@ -1536,6 +1536,7 @@
     "findingLocation": "Hinahanap ang iyong lokasyon…",
     "gpsTimeout": "Hindi makuha ang iyong kasalukuyang lokasyon. Tiyaking naka-on ang GPS at subukang muli.",
     "gpsOff": "Naka-off ang lokasyon sa iyong telepono. I-on ang GPS at subukang muli.",
+    "preciseOff": "Tinatayang lokasyon lang ang nakikita ng VeggieTrack. I-on ang “Use precise location” para sa VeggieTrack sa settings ng iyong telepono.",
     "gpsInaccurate": "Hindi pa malinaw ang signal ng GPS. Maghintay sandali o i-reload ang GPS.",
     "reloadGps": "I-reload ang GPS",
     "reloadingGps": "Kinukuha ang iyong lokasyon…",

@@ -33,13 +33,23 @@ function loadModule(file, mocks = {}, globals = {}) {
 }
 const t = key => key;
 const position = () => ({ coords: { latitude: 7.1, longitude: 125.6, accuracy: 10 }, timestamp: Date.now() });
-function location(overrides = {}) { return { Accuracy: { Highest: 6 }, requestForegroundPermissionsAsync: async () => ({ granted: true }), hasServicesEnabledAsync: async () => true, getCurrentPositionAsync: async () => position(), ...overrides }; }
+// getForegroundPermissionsAsync reports "not asked yet", so these cases go through the prompt.
+function location(overrides = {}) { return { Accuracy: { Highest: 6 }, getForegroundPermissionsAsync: async () => ({ granted: false, status: 'undetermined', canAskAgain: true }),
+  requestForegroundPermissionsAsync: async () => ({ granted: true }), hasServicesEnabledAsync: async () => true, getCurrentPositionAsync: async () => position(), ...overrides }; }
 test('device location capture requests fresh high accuracy GPS and attaches timestamp', async () => {
   let options;
   const api = location({ getCurrentPositionAsync: async value => { options = value; return position(); } });
   const result = await loadModule('lib/podCapture.js', { 'expo-location': api }).currentProofLocation(t);
   assert.equal(result.latitude, 7.1); assert.equal(result.accuracy, 10); assert.ok(Date.parse(result.captured_at));
   assert.equal(options.maximumAge, 0); assert.equal(options.accuracy, 6);
+});
+test('location already allowed: proof GPS never opens the Android permission screen', async () => {
+  // Opening it pauses and resumes the app; done repeatedly it made Android close VeggieTrack.
+  let asked = 0;
+  const api = location({ getForegroundPermissionsAsync: async () => ({ granted: true, status: 'granted' }), requestForegroundPermissionsAsync: async () => { asked += 1; return { granted: true }; } });
+  const result = await loadModule('lib/podCapture.js', { 'expo-location': api }).currentProofLocation(t);
+  assert.equal(result.latitude, 7.1);
+  assert.equal(asked, 0);
 });
 for (const [name, overrides, message] of [
   ['denied permission', { requestForegroundPermissionsAsync: async () => ({ granted: false }) }, 'permission'],

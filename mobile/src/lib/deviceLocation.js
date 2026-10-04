@@ -3,6 +3,21 @@ import * as Location from 'expo-location';
 import { refineLocation, locationError, withDeadline, GPS_REFINEMENT_TIMEOUT_MS } from './locationSamples';
 import { tr } from '../i18n/translate';
 
+// On Android, requestForegroundPermissionsAsync always opens the system permission
+// screen, even when access is already granted (it closes at once). That pauses and
+// resumes the app, so calling it from code that runs on resume loops: on a phone
+// with permission already allowed, the rider map opened it ~6 times a second until
+// Android closed VeggieTrack for "rapid activity launch". So: check first, and ask
+// only when access is missing, the caller allows it, and Android can still ask.
+export async function ensureLocationPermission({ ask = true } = {}) {
+  const current = await Location.getForegroundPermissionsAsync();
+  if (current.granted || current.status === 'granted' || !ask || current.canAskAgain === false) return current;
+  return Location.requestForegroundPermissionsAsync();
+}
+export const isPermissionGranted = (permission) => !!(permission?.granted || permission?.status === 'granted');
+// Android 12+: the rider allowed only approximate location ("Use precise location" off).
+export const isApproximateOnly = (permission) => permission?.android?.accuracy === 'coarse';
+
 // High accuracy and maximumAge: 0 explicitly ask the OS/browser for fresh fixes.
 // Permission/services checks have their own deadline, then refinement is bounded.
 export async function acquireDevicePosition(options = {}) {
@@ -17,8 +32,8 @@ export async function acquireDevicePosition(options = {}) {
     )), options);
   }
   await withDeadline(async () => {
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (!(permission.granted || permission.status === 'granted')) throw locationError('LOCATION_PERMISSION_DENIED', 'Location access is turned off. Please allow it in your phone’s settings.');
+    const permission = await ensureLocationPermission({ ask: options.askPermission !== false });
+    if (!isPermissionGranted(permission)) throw locationError('LOCATION_PERMISSION_DENIED', 'Location access is turned off. Please allow it in your phone’s settings.');
     if (!await Location.hasServicesEnabledAsync()) throw locationError('LOCATION_SERVICES_DISABLED', 'Location is turned off on your phone. Please turn it on in your phone’s settings.');
   }, timeoutMs);
   // refineLocation needs two distinct fixes. The first comes from
