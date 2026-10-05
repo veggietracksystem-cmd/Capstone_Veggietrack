@@ -14,7 +14,7 @@ test('farmer 8 kg harvest -> assigned pickup -> received batch -> listed menu ->
   const data = { users: [
     { id: 'farmer', role: 'farmer', full_name: 'Farmer' },
     { id: 'hub', role: 'distributor', full_name: 'Distributor' },
-    { id: 'rider', role: 'delivery_personnel', full_name: 'Rider' },
+    { id: 'rider', role: 'delivery_personnel', full_name: 'Rider', account_status: 'active', is_available_for_delivery: true },
     { id: 'retailer', role: 'retailer', full_name: 'Retailer' },
   ] };
   const db = { from(table) {

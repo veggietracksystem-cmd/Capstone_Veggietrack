@@ -148,7 +148,22 @@ export default function DistributorDashboard({ navigation, route }) {
     setPickupRequests(list);
   }, []);
 
-  // Delivery personnel: cached so the assign picker has names offline.
+  // Accounts waiting for approval — the Account Management badge. Same list the
+  // Account Management screen shows; a failed read keeps the last count.
+  const [pendingAccountCount, setPendingAccountCount] = useState(0);
+  const loadPendingAccounts = useCallback(async () => {
+    const isCurrent = beginRead('loadPendingAccounts');
+    try {
+      const rows = await api.get('/api/accounts?status=pending_approval');
+      if (isCurrent()) setPendingAccountCount(Array.isArray(rows) ? rows.length : 0);
+    } catch {
+      // The badge is optional; the screen itself reports its own errors.
+    }
+  }, []);
+
+  // Delivery personnel: only riders who are Available for Deliveries (the server
+  // filters). Cached so the assign picker has names offline; the server still
+  // refuses a rider who has since turned availability off.
   const loadPersonnel = useCallback(async () => {
     const isCurrent = beginRead('loadPersonnel');
     const { list } = await readThrough('personnel_cache', () =>
@@ -171,21 +186,21 @@ export default function DistributorDashboard({ navigation, route }) {
   }, []);
 
   const { syncState } = useAutoSync('distributor-dashboard', useCallback(async () => {
-    await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPayments(), loadPickupRequests(), refreshProducts.current?.(), stockAlerts.reload()]);
-  }, [loadOrders, loadActiveOrders, loadPersonnel, loadPayments, loadPickupRequests, stockAlerts.reload]));
+    await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPayments(), loadPickupRequests(), loadPendingAccounts(), refreshProducts.current?.(), stockAlerts.reload()]);
+  }, [loadOrders, loadActiveOrders, loadPersonnel, loadPayments, loadPickupRequests, loadPendingAccounts, stockAlerts.reload]));
 
   useEffect(() => {
     (async () => {
       setLoadingOrders(true);
       setLoadingPayments(true);
-      await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPayments(), loadPickupRequests()]);
+      await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPayments(), loadPickupRequests(), loadPendingAccounts()]);
       setLoadingOrders(false);
       setLoadingPayments(false);
     })();
-  }, [loadOrders, loadActiveOrders, loadPersonnel, loadPayments, loadPickupRequests]);
+  }, [loadOrders, loadActiveOrders, loadPersonnel, loadPayments, loadPickupRequests, loadPendingAccounts]);
 
   // Refresh pickup requests whenever this screen regains focus (e.g.
-  // returning from Stocks after listing a batch).
+  // returning from Stocks after listing a batch, or from Account Management).
   useEffect(() => {
     if (!navigation?.addListener) return undefined;
     return navigation.addListener('focus', () => {
@@ -193,17 +208,26 @@ export default function DistributorDashboard({ navigation, route }) {
       loadOrders();
       loadActiveOrders();
       loadPayments();
+      loadPendingAccounts();
+      loadPersonnel().catch(() => {});
     });
-  }, [navigation, loadPickupRequests, loadOrders, loadActiveOrders, loadPayments]);
+  }, [navigation, loadPickupRequests, loadOrders, loadActiveOrders, loadPayments, loadPendingAccounts, loadPersonnel]);
+
+  // Riders change their availability at any time, so the list is re-read when a
+  // rider picker is about to be used.
+  const refreshPersonnel = useCallback(() => loadPersonnel().catch(() => {}), [loadPersonnel]);
+  useEffect(() => {
+    if (tab === 'orders' || tab === 'pickups') refreshPersonnel();
+  }, [tab, refreshPersonnel]);
 
   const onRefresh = async () => {
     if (!requestLock.acquire('refresh')) return;
     setRefreshing(true);
     try {
       if (tab === 'orders') await Promise.all([loadOrders(), loadActiveOrders(), loadPersonnel(), loadPickupRequests()]);
-      else if (tab === 'pickups') await loadPickupRequests();
+      else if (tab === 'pickups') await Promise.all([loadPickupRequests(), loadPersonnel()]);
       else if (tab === 'payments') await loadPayments();
-      else await Promise.all([loadOrders(), loadActiveOrders(), loadPickupRequests(), loadPayments(), refreshProducts.current?.(), stockAlerts.reload()]);
+      else await Promise.all([loadOrders(), loadActiveOrders(), loadPickupRequests(), loadPayments(), loadPendingAccounts(), refreshProducts.current?.(), stockAlerts.reload()]);
     } catch (err) {
       showAlert(t('common.error'), friendlyError(err));
     } finally {
@@ -252,7 +276,9 @@ export default function DistributorDashboard({ navigation, route }) {
       // Approval is when stock leaves the batches, so the product list changes now.
       refreshProducts.current?.();
       stockAlerts.reload();
-      if (personnel.length === 0) await loadPersonnel();
+      // An approved order is now awaiting payment (Payment badge).
+      loadPayments().catch(() => {});
+      await refreshPersonnel();
       showAlert(t('dashboards.distributor.orderApprovedTitle'), t('dashboards.distributor.orderApprovedMessage', { id: shortId(order.id) }));
     } catch (err) {
       showAlert(t('common.error'), friendlyError(err));
@@ -297,6 +323,11 @@ export default function DistributorDashboard({ navigation, route }) {
       await loadActiveOrders();
       showAlert(t('dashboards.distributor.deliveryAssignedTitle'), t('dashboards.distributor.deliveryAssignedMessage', { id: shortId(order.id) }));
     } catch (err) {
+      // The rider turned availability off after the list was loaded.
+      if (err?.code === 'RIDER_UNAVAILABLE') {
+        setSelectedPersonnel((prev) => ({ ...prev, [order.id]: undefined }));
+        refreshPersonnel();
+      }
       showAlert(t('common.error'), friendlyError(err));
     } finally {
       requestLock.release('BusyOrderId');
@@ -306,6 +337,9 @@ export default function DistributorDashboard({ navigation, route }) {
 
   // Outstanding pickup requests still awaiting the distributor.
   const pendingReceiveCount = pickupRequests.filter((p) => p.status === 'requested').length;
+  // Pickup Requests badge: requests the distributor still has to act on — new
+  // ones to approve or decline, and approved ones still waiting for a rider.
+  const pickupActionCount = pickupRequests.filter((p) => p.status === 'requested' || p.status === 'approved').length;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -344,6 +378,8 @@ export default function DistributorDashboard({ navigation, route }) {
               onStockChanged={stockAlerts.reload}
               pendingOrderCount={orders.length}
               pendingPickupCount={pendingReceiveCount}
+              pickupActionCount={pickupActionCount}
+              pendingAccountCount={pendingAccountCount}
               unpaidCount={unpaidOrders.length}
               onViewPickups={() => setTab('pickups')}
               onViewPayments={() => setTab('payments')}
@@ -374,6 +410,7 @@ export default function DistributorDashboard({ navigation, route }) {
               requests={pickupRequests}
               personnel={personnel}
               onChanged={loadPickupRequests}
+              onOpenRiderPicker={refreshPersonnel}
               onViewProof={setProofUri}
             />
           )}
@@ -416,7 +453,7 @@ export default function DistributorDashboard({ navigation, route }) {
 
 function HomeTab({
   navigation, refreshProducts, stockAlertCount, onStockChanged,
-  pendingOrderCount, pendingPickupCount, unpaidCount,
+  pendingOrderCount, pendingPickupCount, pickupActionCount, pendingAccountCount, unpaidCount,
   onViewPickups, onViewPayments, onManageAccounts,
 }) {
   const { t, tc } = useTranslation();
@@ -446,13 +483,20 @@ function HomeTab({
 
       <Text style={styles.sectionTitle}>{t('dashboards.distributor.quickActions')}</Text>
       <View style={styles.quickActionGrid}>
-        <QuickAction icon="checkmark-circle-outline" label={t('dashboards.distributor.pickupRequests')} onPress={onViewPickups} style={quickActionBasis} />
+        <QuickAction icon="checkmark-circle-outline" label={t('dashboards.distributor.pickupRequests')} badge={pickupActionCount}
+          badgeLabel={t('dashboards.distributor.needsActionBadge', { count: pickupActionCount })}
+          onPress={onViewPickups} style={quickActionBasis} />
         {/* Batches on their last sellable day (7-day stock rule); Stocks opens filtered to them. */}
         <QuickAction icon="alert-circle-outline" label={t('dashboards.distributor.stockAlertAction')} badge={stockAlertCount}
           badgeLabel={tc('stockAlerts.needAttention', stockAlertCount)}
           onPress={() => navigation.navigate('Stocks', { showStockAlerts: stockAlertCount > 0 })} style={quickActionBasis} />
-        <QuickAction icon="people-outline" label={t('dashboards.distributor.accountManagement')} onPress={onManageAccounts} style={quickActionBasis} />
-        <QuickAction icon="wallet-outline" label={t('dashboards.distributor.paymentAction')} onPress={onViewPayments} style={quickActionBasis} />
+        <QuickAction icon="people-outline" label={t('dashboards.distributor.accountManagement')} badge={pendingAccountCount}
+          badgeLabel={t('dashboards.distributor.needsActionBadge', { count: pendingAccountCount })}
+          onPress={onManageAccounts} style={quickActionBasis} />
+        {/* Unpaid orders, the same list as the Unpaid tab on Payment. */}
+        <QuickAction icon="wallet-outline" label={t('dashboards.distributor.paymentAction')} badge={unpaidCount}
+          badgeLabel={t('dashboards.distributor.needsActionBadge', { count: unpaidCount })}
+          onPress={onViewPayments} style={quickActionBasis} />
       </View>
 
       <Text style={[styles.sectionTitle, { marginTop: 4 }]}>{t('productList.title')}</Text>

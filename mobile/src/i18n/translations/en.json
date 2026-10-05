@@ -204,6 +204,14 @@
       "farmerPickups": "Farmer Pickups",
       "noAssignedPickupsTitle": "No assigned pickups",
       "noAssignedPickupsMessage": "Farmer pickups assigned to you will appear here.",
+      "availabilityTitle": "Available for Deliveries",
+      "availabilityOn": "You are available",
+      "availabilityOff": "You are not available",
+      "availabilityUnknown": "Checking your status…",
+      "availabilityOnHint": "The distributor can assign you new deliveries and pickups.",
+      "availabilityOffHint": "You will not get new deliveries or pickups. Deliveries already assigned to you stay with you.",
+      "availabilityLoadFailed": "We couldn’t load your status. Pull down to refresh.",
+      "availabilityFailed": "We couldn’t update your status. Please try again.",
       "pickupNumber": "Pickup #{id}",
       "farmerDetails": "Farmer Details:",
       "farmerFallback": "Farmer",
@@ -447,7 +455,8 @@
       "pickupPriceHint": "Set a selling price per kilo. Leave it blank to price it later in Products.",
       "pricePerKgLabel": "Price per kg (₱)",
       "assignPersonnelLabel": "Assign Delivery Personnel",
-      "noPersonnelAvailable": "No delivery personnel available.",
+      "noPersonnelAvailable": "No riders are currently available.",
+      "needsActionBadge": "{count} need your action",
       "addProduct": "+ Add Product",
       "editProductTitle": "Edit Product",
       "addProductTitle": "Add Product",
@@ -1194,7 +1203,16 @@
     "pwShort": "Please use a password with at least 8 characters.",
     "pwMismatch": "Passwords do not match.",
     "linkExpired": "Your reset link has expired. Please ask for a new one.",
-    "openLink": "Open the link we emailed you on this phone to continue.",
+    "openLink": "Please ask for a verification code on the Forgot Password screen first.",
+    "resetIntro": "Enter the email address of your account. We will send you a verification code.",
+    "sendCode": "Send code",
+    "resetCodeSent": "We sent a verification code to {email}. Enter it below.",
+    "useDifferentEmail": "Use a different email",
+    "accountNotFound": "Account not found.",
+    "codeInvalid": "Verification code is invalid or expired.",
+    "passwordUpdated": "Password updated successfully.",
+    "passwordUpdatedMsg": "Please log in with your new password.",
+    "resetFailed": "Something went wrong. Please try again.",
     "chooseNew": "Choose a new password, then sign in again.",
     "newPassword": "New password",
     "confirmNewPassword": "Confirm new password",
@@ -1270,7 +1288,8 @@
     "needsPin": "This address needs a map pin. Please open Manage Addresses and set it on the map.",
     "outOfStock": "Some items just ran out of stock. Please check your cart and try again.",
     "timeGone": "That delivery time is no longer available. Please pick another one.",
-    "orderFailed": "We couldn’t place your order. Please try again."
+    "orderFailed": "We couldn’t place your order. Please try again.",
+    "orderUnconfirmed": "We could not confirm your order. Please check My Orders before placing it again."
   },
   "status": {
     "unverified": "Not confirmed",
@@ -1815,7 +1834,8 @@
       "week": "This Week",
       "month": "This Month",
       "year": "This Year",
-      "custom": "Custom"
+      "custom": "Custom",
+      "all": "All Dates"
     },
     "from": "From",
     "to": "To",
@@ -1863,6 +1883,11 @@
     "harvested": "Harvested {date}",
     "moved": "Moved {date}",
     "emptyTitle": "No spoiled products",
-    "emptyMessage": "Discarded stock and stock past the 7-day limit will appear here."
+    "emptyMessage": "Discarded stock and stock past the 7-day limit will appear here.",
+    "shown_one": "{count} record · {kg}",
+    "shown_other": "{count} records · {kg}",
+    "showAll": "Show All Records",
+    "emptyFilteredTitle": "No matching records",
+    "emptyFilteredMessage": "No spoiled products match these filters."
   }
 }

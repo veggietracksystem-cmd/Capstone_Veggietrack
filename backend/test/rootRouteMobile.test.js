@@ -53,3 +53,11 @@ test('the other branches keep their own entry points', () => {
   assert.equal(rootInitialRoute({ recoveryMode: false, session, roleScreen, initialRoute: 'Landing' }), 'DistributorDashboard');
   assert.equal(rootInitialRoute({ recoveryMode: false, session: null, roleScreen: null, initialRoute: 'Login' }), 'Login');
 });
+
+test('leaving password recovery starts the signed-out stack fresh at Log in', () => {
+  // The signed-out branch also declares ResetPassword. Without a per-branch key the
+  // navigator kept that route after recovery ended, with no screen to go back to.
+  assert.match(appSource, /<Stack\.Navigator[\s\S]*?key=\{branch\}/);
+  assert.equal(rootBranch({ recoveryMode: true, session, roleScreen: null }), 'recovery');
+  assert.equal(rootInitialRoute({ recoveryMode: false, session: null, roleScreen: null, initialRoute: 'Login' }), 'Login');
+});

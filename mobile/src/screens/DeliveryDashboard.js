@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { SharedScreenTransition } from '../lib/motion';
 import {
   Text, View, ScrollView, TouchableOpacity, Platform,
-  ActivityIndicator, StyleSheet, RefreshControl,
+  ActivityIndicator, StyleSheet, RefreshControl, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -148,17 +148,52 @@ export default function DeliveryDashboard({ navigation, route }) {
     setOrders(list);
   }, []);
 
+  // Available for Deliveries, saved on the rider's account; null until loaded.
+  const [available, setAvailable] = useState(null);
+  const [savingAvailability, setSavingAvailability] = useState(false);
+  const [availabilityFailed, setAvailabilityFailed] = useState(false);
+  const loadAvailability = useCallback(async () => {
+    const isCurrent = beginRead('loadAvailability');
+    try {
+      const data = await api.get('/api/delivery/availability');
+      if (!isCurrent()) return;
+      setAvailable(data?.available === true);
+      setAvailabilityFailed(false);
+    } catch (err) {
+      if (isCurrent()) setAvailabilityFailed(true);
+      throw err;
+    }
+  }, []);
+
+  const changeAvailability = async (next) => {
+    if (!requestLock.acquire('availability')) return;
+    setSavingAvailability(true);
+    // A refresh that started before this change must not overwrite it.
+    beginRead('loadAvailability');
+    try {
+      const data = await api.put('/api/delivery/availability', { available: next });
+      setAvailable(data?.available === true);
+    } catch (err) {
+      showAlert(t('common.error'), friendlyError(err, t('dashboards.delivery.availabilityFailed')));
+    } finally {
+      requestLock.release('availability');
+      setSavingAvailability(false);
+    }
+  };
+
   // Only the first load shows the spinner; later refreshes update the lists in place.
   const hasLoaded = useRef(false);
   const loadAll = useCallback(async ({ silent = hasLoaded.current } = {}) => {
     if (!silent) setLoading(true);
+    // The status is shown on its own card, so failing to read it never blocks the lists.
+    loadAvailability().catch(() => {});
     try { await Promise.all([loadOrders(), loadPickups()]); }
     catch (err) { if (!silent) showAlert(t('common.error'), friendlyError(err)); }
     finally {
       hasLoaded.current = true;
       setLoading(false);
     }
-  }, [loadOrders, loadPickups]);
+  }, [loadOrders, loadPickups, loadAvailability]);
 
   const { syncState } = useAutoSync('delivery-dashboard', () => loadAll({ silent: true }));
 
@@ -179,7 +214,7 @@ export default function DeliveryDashboard({ navigation, route }) {
     if (!requestLock.acquire('refresh')) return;
     setRefreshing(true);
     try {
-      await Promise.all([loadOrders(), loadPickups()]);
+      await Promise.all([loadOrders(), loadPickups(), loadAvailability()]);
     } catch (err) {
       showAlert(t('common.error'), friendlyError(err));
     } finally {
@@ -477,6 +512,34 @@ export default function DeliveryDashboard({ navigation, route }) {
               activeOrders.slice(0, 3).map(renderOrderCard)
             )}
 
+            <Text style={[styles.sectionTitle, { marginTop: 8 }]}>{t('dashboards.delivery.availabilityTitle')}</Text>
+            <View style={styles.availabilityCard}>
+              <View style={styles.availabilityText}>
+                <Text style={styles.availabilityStatus}>
+                  {available == null ? t('dashboards.delivery.availabilityUnknown')
+                    : available ? t('dashboards.delivery.availabilityOn') : t('dashboards.delivery.availabilityOff')}
+                </Text>
+                <Text style={styles.rowMeta}>
+                  {available == null ? (availabilityFailed ? t('dashboards.delivery.availabilityLoadFailed') : '')
+                    : available ? t('dashboards.delivery.availabilityOnHint') : t('dashboards.delivery.availabilityOffHint')}
+                </Text>
+              </View>
+              {available == null ? (
+                availabilityFailed ? null : <ActivityIndicator color={PRIMARY} />
+              ) : savingAvailability ? (
+                <ActivityIndicator color={PRIMARY} />
+              ) : (
+                <Switch
+                  value={available}
+                  onValueChange={changeAvailability}
+                  trackColor={{ false: colors.border, true: colors.leaf500 }}
+                  thumbColor={available ? PRIMARY : colors.surface}
+                  ios_backgroundColor={colors.border}
+                  accessibilityLabel={t('dashboards.delivery.availabilityTitle')}
+                />
+              )}
+            </View>
+
             <View style={[styles.sectionHead, { marginTop: 8 }]}>
               <Text style={styles.sectionTitle}>{tc('plural.pendingPickups', activePickups.length)}</Text>
               {activePickups.length > 3 && (
@@ -622,6 +685,9 @@ const styles = StyleSheet.create({
   emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
   orderCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
+  availabilityCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
+  availabilityText: { flex: 1, minWidth: 0 },
+  availabilityStatus: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   historyCard: { backgroundColor: colors.surface, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   historyDetailsBtn: { ...actionBtn, ...actionBtnOutline, marginTop: spacing.md },
   detailStatusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border },

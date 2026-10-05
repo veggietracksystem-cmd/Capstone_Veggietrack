@@ -55,12 +55,12 @@ export function AuthProvider({ children }) {
     setBlockedHandler(()=>{setUser(null);void refreshProfile();});
     if(authConfigured) void refreshProfile(); else setLoading(false);
     // Password reset links use PKCE on native: exchange the code before entering recovery mode.
+    // Read the link with a pattern: React Native's URL only parses http(s) links, so
+    // Linking.parse() gives no path for veggietrack://reset-password?code=… .
     const recoverFromUrl=async(url)=>{
-      const parsed=Linking.parse(url);
-      if(parsed.path!=='reset-password') return;
-      const code=parsed.queryParams?.code;
+      const code=String(url||'').match(/^[^?#]*reset-password\/?\?(?:[^#]*&)?code=([^&#]+)/)?.[1];
       if(!code) return;
-      const {error}=await supabase.auth.exchangeCodeForSession(String(code));
+      const {error}=await supabase.auth.exchangeCodeForSession(decodeURIComponent(code));
       if(!error && alive.current){setRecoveryMode(true);void refreshProfile();}
     };
     void Linking.getInitialURL().then(url=>{if(url) void recoverFromUrl(url);});
@@ -90,6 +90,18 @@ export function AuthProvider({ children }) {
       if(otpError)throw otpError;
     } finally { challenge.current=false; }
   };
-  return <AuthContext.Provider value={{user,session,token:session?.access_token,loading,initialRoute,statusError,recoveryMode,signInWithEmail,signOut,refreshProfile,updateUser:refreshProfile}}>{children}</AuthContext.Provider>;
+  // Forgot Password: the emailed code opens a session that may only set a new
+  // password. Recovery mode is on before the session is published, so the app
+  // shows Reset Password and never the signed-in screens.
+  const verifyRecoveryCode=async(email,token)=>{
+    challenge.current=true;
+    try {
+      const {error}=await supabase.auth.verifyOtp({email,token,type:'email'});
+      if(error)throw error;
+      if(alive.current)setRecoveryMode(true);
+    } finally { challenge.current=false; }
+    void refreshProfile();
+  };
+  return <AuthContext.Provider value={{user,session,token:session?.access_token,loading,initialRoute,statusError,recoveryMode,signInWithEmail,verifyRecoveryCode,signOut,refreshProfile,updateUser:refreshProfile}}>{children}</AuthContext.Provider>;
 }
 export function useAuth(){return useContext(AuthContext);}

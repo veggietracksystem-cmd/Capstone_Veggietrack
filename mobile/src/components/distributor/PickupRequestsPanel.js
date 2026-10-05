@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import TextInput from '../AppTextInput';
@@ -48,7 +48,9 @@ function DetailRow({ label, value, children }) {
  * Ready for Pickup -> In Progress -> Picked Up, or to Declined. Completed and
  * declined requests stay as history. `onChanged` reloads the list after an action.
  */
-export default function PickupRequestsPanel({ loading, requests = [], personnel = [], onChanged, onViewProof }) {
+// `personnel` holds only riders who are Available for Deliveries; `onOpenRiderPicker`
+// re-reads that list when the approve/assign dialog opens.
+export default function PickupRequestsPanel({ loading, requests = [], personnel = [], onChanged, onOpenRiderPicker, onViewProof }) {
   const { t, language } = useTranslation();
   const requestLock = useRequestLock();
   const [tab, setTab] = useState('pending');
@@ -58,6 +60,11 @@ export default function PickupRequestsPanel({ loading, requests = [], personnel 
   const [reason, setReason] = useState('');
   const [detail, setDetail] = useState(null);
   const [busy, setBusy] = useState(false);
+  // A rider who turned availability off disappears from a reloaded list; drop
+  // them from the selection too.
+  useEffect(() => {
+    if (riderId && !personnel.some((person) => person.id === riderId)) setRiderId(null);
+  }, [personnel, riderId]);
 
   if (loading) return <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />;
 
@@ -76,6 +83,8 @@ export default function PickupRequestsPanel({ loading, requests = [], personnel 
       return true;
     } catch (err) {
       showAlert(t('common.error'), friendlyError(err));
+      // The chosen rider turned availability off after the list was loaded.
+      if (err?.code === 'RIDER_UNAVAILABLE') { setRiderId(null); onOpenRiderPicker?.(); }
       await onChanged?.();
       return false;
     } finally {
@@ -125,7 +134,7 @@ export default function PickupRequestsPanel({ loading, requests = [], personnel 
         {r.status === 'requested' && (
           <>
             <TouchableOpacity style={[styles.btn, styles.btnPrimary, busy && styles.disabled]} disabled={busy}
-              onPress={() => { setApproving({ request: r, mode: 'approve' }); setRiderId(null); }}>
+              onPress={() => { setApproving({ request: r, mode: 'approve' }); setRiderId(null); onOpenRiderPicker?.(); }}>
               <Text style={styles.btnPrimaryText}>{t('dashboards.distributor.approve')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btn, styles.btnDanger, busy && styles.disabled]} disabled={busy}
@@ -137,7 +146,7 @@ export default function PickupRequestsPanel({ loading, requests = [], personnel 
         {r.status === 'approved' && (
           <>
             <TouchableOpacity style={[styles.btn, styles.btnPrimary, busy && styles.disabled]} disabled={busy}
-              onPress={() => { setApproving({ request: r, mode: 'assign' }); setRiderId(null); }}>
+              onPress={() => { setApproving({ request: r, mode: 'assign' }); setRiderId(null); onOpenRiderPicker?.(); }}>
               <Text style={styles.btnPrimaryText}>{t('pickupPanel.assignRider')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btn, styles.btnDanger, busy && styles.disabled]} disabled={busy}

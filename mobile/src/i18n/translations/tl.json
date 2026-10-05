@@ -204,6 +204,14 @@
       "farmerPickups": "Pickup ng Magsasaka",
       "noAssignedPickupsTitle": "Walang naka-assign na pickup",
       "noAssignedPickupsMessage": "Lalabas dito ang mga pickup ng magsasaka na naka-assign sa iyo.",
+      "availabilityTitle": "Available para sa Delivery",
+      "availabilityOn": "Available ka",
+      "availabilityOff": "Hindi ka available",
+      "availabilityUnknown": "Tinitingnan ang iyong status…",
+      "availabilityOnHint": "Puwede kang i-assign ng distributor sa mga bagong delivery at pickup.",
+      "availabilityOffHint": "Hindi ka makakatanggap ng bagong delivery o pickup. Mananatili sa iyo ang mga delivery na naka-assign na.",
+      "availabilityLoadFailed": "Hindi ma-load ang iyong status. Hilahin pababa para i-refresh.",
+      "availabilityFailed": "Hindi ma-update ang iyong status. Pakisubukan muli.",
       "pickupNumber": "Pickup #{id}",
       "farmerDetails": "Detalye ng Magsasaka:",
       "farmerFallback": "Magsasaka",
@@ -447,7 +455,8 @@
       "pickupPriceHint": "Maglagay ng presyo kada kilo. Iwanang blangko para presyuhan mamaya sa Products.",
       "pricePerKgLabel": "Presyo bawat kilo (₱)",
       "assignPersonnelLabel": "Mag-assign ng Delivery Personnel",
-      "noPersonnelAvailable": "Walang available na delivery personnel.",
+      "noPersonnelAvailable": "Walang rider na available sa ngayon.",
+      "needsActionBadge": "{count} ang kailangang asikasuhin",
       "addProduct": "+ Magdagdag ng Produkto",
       "editProductTitle": "I-edit ang Produkto",
       "addProductTitle": "Magdagdag ng Produkto",
@@ -1194,7 +1203,16 @@
     "pwShort": "Gumamit ng password na hindi bababa sa 8 karakter.",
     "pwMismatch": "Hindi magkatugma ang mga password.",
     "linkExpired": "Nag-expire na ang iyong reset link. Humingi ng bago.",
-    "openLink": "Buksan sa teleponong ito ang link na ipinadala namin sa iyong email para magpatuloy.",
+    "openLink": "Humingi muna ng verification code sa screen na Forgot Password.",
+    "resetIntro": "Ilagay ang email address ng iyong account. Magpapadala kami ng verification code.",
+    "sendCode": "Ipadala ang code",
+    "resetCodeSent": "Nagpadala kami ng verification code sa {email}. Ilagay ito sa ibaba.",
+    "useDifferentEmail": "Gumamit ng ibang email",
+    "accountNotFound": "Hindi makita ang account.",
+    "codeInvalid": "Mali o expired na ang verification code.",
+    "passwordUpdated": "Matagumpay na na-update ang password.",
+    "passwordUpdatedMsg": "Mag-log in gamit ang iyong bagong password.",
+    "resetFailed": "May nangyaring mali. Pakisubukan muli.",
     "chooseNew": "Pumili ng bagong password, pagkatapos ay mag-sign in muli.",
     "newPassword": "Bagong password",
     "confirmNewPassword": "Kumpirmahin ang bagong password",
@@ -1270,7 +1288,8 @@
     "needsPin": "Kailangan ng pin sa mapa ang address na ito. Buksan ang Pamahalaan ang mga Address at itakda ito sa mapa.",
     "outOfStock": "May mga item na naubusan ng stock. Suriin ang iyong cart at subukan muli.",
     "timeGone": "Hindi na available ang oras ng delivery na iyon. Pumili ng iba.",
-    "orderFailed": "Hindi namin nailagay ang iyong order. Pakisubukan muli."
+    "orderFailed": "Hindi namin nailagay ang iyong order. Pakisubukan muli.",
+    "orderUnconfirmed": "Hindi namin makumpirma ang iyong order. Tingnan muna ang Mga Order Ko bago umorder muli."
   },
   "status": {
     "unverified": "Hindi pa kumpirmado",
@@ -1815,7 +1834,8 @@
       "week": "Ngayong Linggo",
       "month": "Ngayong Buwan",
       "year": "Ngayong Taon",
-      "custom": "Pumili"
+      "custom": "Pumili",
+      "all": "Lahat ng Petsa"
     },
     "from": "Mula",
     "to": "Hanggang",
@@ -1863,6 +1883,11 @@
     "harvested": "Inani {date}",
     "moved": "Inilipat {date}",
     "emptyTitle": "Walang nasirang produkto",
-    "emptyMessage": "Dito lalabas ang itinapong stock at ang stock na lampas na sa 7 araw."
+    "emptyMessage": "Dito lalabas ang itinapong stock at ang stock na lampas na sa 7 araw.",
+    "shown_one": "{count} record · {kg}",
+    "shown_other": "{count} record · {kg}",
+    "showAll": "Ipakita Lahat ng Record",
+    "emptyFilteredTitle": "Walang tugmang record",
+    "emptyFilteredMessage": "Walang nasirang produkto na tugma sa mga filter na ito."
   }
 }

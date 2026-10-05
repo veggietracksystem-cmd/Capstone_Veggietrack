@@ -88,6 +88,10 @@ function RootNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator
+        // A new branch starts fresh at its own initial screen. Without this, leaving
+        // password recovery kept the user on ResetPassword (also in the signed-out
+        // branch) with no screen to go back to.
+        key={branch}
         screenOptions={{
           headerShown: false,
           cardStyle: { flex: 1, backgroundColor: '#fff' },

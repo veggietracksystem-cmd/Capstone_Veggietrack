@@ -14,7 +14,7 @@ const {
   daysInStock, needsStockAlert, isPastSpoilageLimit, stockSince, STOCK_ALERT_DAYS,
 } = require('./lib/batches');
 const { OPEN_PICKUP_STATUSES, harvestAvailability, estimatedTotal, pickupInputError, requestedKg } = require('./lib/pickups');
-const { buildChainBatches, chainEvents, reportSummary, reportVegetables, manilaWeek } = require('./lib/chainTracking');
+const { buildChainBatches, reportFilter, chainEvents, reportSummary, reportVegetables, manilaWeek } = require('./lib/chainTracking');
 const { coordinate, destinationFor, createRouteService, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
 const { createPickupTrackingHandler } = require('./lib/pickupTracking');
 const { STALE_LOCATION_SECONDS } = require('./lib/locationPolicy');
@@ -552,10 +552,6 @@ app.put('/api/pickup-requests/:id/assign', verifyToken, async (req, res) => {
   if (!delivery_personnel_id) {
     return res.status(400).json({ error: 'Select a rider for this pickup.', field: 'delivery_personnel_id' });
   }
-  const { data: rider } = await supabaseAdmin.from('users').select('id, role').eq('id', delivery_personnel_id).maybeSingle();
-  if (!rider || rider.role !== 'delivery_personnel') {
-    return res.status(400).json({ error: 'Select a valid rider for this pickup.', field: 'delivery_personnel_id' });
-  }
 
   const { data: request, error: fetchErr } = await supabaseAdmin
     .from('pickup_requests')
@@ -567,6 +563,8 @@ app.put('/api/pickup-requests/:id/assign', verifyToken, async (req, res) => {
   if (!['requested', 'approved'].includes(request.status)) {
     return res.status(400).json({ error: `Pickup request is already ${request.status}` });
   }
+  const riderError = await riderAssignmentError(delivery_personnel_id);
+  if (riderError) return res.status(riderError.status).json(riderError.body);
 
   // Conditional update: only one concurrent assignment can succeed.
   const updates = { status: 'assigned', delivery_personnel_id, received_by: req.user.userId };
@@ -1470,18 +1468,70 @@ app.put('/api/orders/:id/approve', verifyToken, async (req, res) => {
   res.json({ message: 'Order approved successfully', order: updatedOrder });
 });
 
+// Riders the distributor can choose for a new order or pickup: active accounts
+// whose rider turned on Available for Deliveries (sql/rider_availability.sql).
+// Before that update there is no availability column, so every active rider is listed.
 app.get('/api/delivery-personnel', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can access delivery personnel list' });
   }
-  const { data, error } = await supabaseAdmin
+  const riders = () => supabaseAdmin
     .from('users')
     .select('id, full_name, phone, service_area')
     .eq('role', 'delivery_personnel')
     .eq('account_status', 'active');
+  let { data, error } = await riders().eq('is_available_for_delivery', true);
+  if (needsMigration(error)) ({ data, error } = await riders());
 
   if (error) return sendDbError(res, error);
   res.json(data);
+});
+
+// Checks that a new assignment may go to this rider: an active rider account with
+// Available for Deliveries on. Returns the error to send, or null.
+async function riderAssignmentError(riderId) {
+  const read = (columns) => supabaseAdmin.from('users').select(columns).eq('id', riderId).maybeSingle();
+  let { data: rider, error } = await read('id, role, account_status, is_available_for_delivery');
+  if (needsMigration(error)) ({ data: rider, error } = await read('id, role, account_status'));
+  if (error) return { status: 500, body: { error: 'Could not check the rider. Please try again.' } };
+  if (!rider || rider.role !== 'delivery_personnel' || rider.account_status !== 'active') {
+    return { status: 400, body: { error: 'Select a valid rider.', field: 'delivery_personnel_id' } };
+  }
+  if (rider.is_available_for_delivery === false) {
+    return { status: 409, body: { error: 'This rider is not available for new deliveries. Please choose another rider.', code: 'RIDER_UNAVAILABLE', field: 'delivery_personnel_id' } };
+  }
+  return null;
+}
+
+// Rider's own Available for Deliveries status (Rider Home). Only new assignments
+// depend on it; deliveries and pickups already assigned stay with the rider.
+app.get('/api/delivery/availability', verifyToken, async (req, res) => {
+  if (req.user.role !== 'delivery_personnel') {
+    return res.status(403).json({ error: 'Only riders have a delivery availability status' });
+  }
+  const { data, error } = await supabaseAdmin.from('users')
+    .select('is_available_for_delivery').eq('id', req.user.userId).maybeSingle();
+  if (needsMigration(error)) return sendMigrationRequired(res);
+  if (error) return sendDbError(res, error);
+  res.json({ available: data?.is_available_for_delivery === true });
+});
+
+app.put('/api/delivery/availability', verifyToken, async (req, res) => {
+  if (req.user.role !== 'delivery_personnel') {
+    return res.status(403).json({ error: 'Only riders can change delivery availability' });
+  }
+  const available = req.body?.available;
+  if (typeof available !== 'boolean') {
+    return res.status(400).json({ error: 'Choose whether you are available for deliveries.', field: 'available' });
+  }
+  const { data, error } = await supabaseAdmin.from('users')
+    .update({ is_available_for_delivery: available })
+    .eq('id', req.user.userId).eq('role', 'delivery_personnel')
+    .select('is_available_for_delivery').maybeSingle();
+  if (needsMigration(error)) return sendMigrationRequired(res);
+  if (error) return sendDbError(res, error);
+  if (!data) return res.status(404).json({ error: 'Rider account not found' });
+  res.json({ available: data.is_available_for_delivery === true });
 });
 
 app.put('/api/orders/:id/assign', verifyToken, async (req, res) => {
@@ -1517,6 +1567,8 @@ app.put('/api/orders/:id/assign', verifyToken, async (req, res) => {
     }
     return res.status(409).json({ error: 'This order has already been assigned to a rider.' });
   }
+  const riderError = await riderAssignmentError(delivery_personnel_id);
+  if (riderError) return res.status(riderError.status).json(riderError.body);
 
   // Conditional update: only one concurrent assignment can succeed.
   const { data: claimed, error: updateOrderError } = await supabaseAdmin
@@ -2220,42 +2272,67 @@ app.get('/api/distributor/chain-tracking', verifyToken, async (req, res) => {
 // Transaction history report: stock received, sales delivered and spoilage dated
 // within ?from=YYYY-MM-DD&to=YYYY-MM-DD (Philippine days, inclusive), optionally
 // for one ?vegetable=. `vegetables` lists every vegetable the filter can choose.
+// Report filters from ?from=YYYY-MM-DD&to=YYYY-MM-DD (Philippine days, inclusive,
+// either optional) and ?vegetable=. Sends a 400 and returns null when the dates are invalid.
+function reportFilters(req, res) {
+  const from = req.query.from ? batchDate(String(req.query.from)) : null;
+  const to = req.query.to ? batchDate(String(req.query.to)) : null;
+  if ((req.query.from && !from) || (req.query.to && !to)) {
+    res.status(400).json({ error: 'Select valid report dates.', field: from ? 'to' : 'from' });
+    return null;
+  }
+  if (from && to && from.day > to.day) {
+    res.status(400).json({ error: 'The start date cannot be after the end date.', field: 'from' });
+    return null;
+  }
+  return { from: from?.day, to: to?.day, vegetable: String(req.query.vegetable || '').trim().slice(0, 80) || null };
+}
+
 app.get('/api/distributor/chain-report', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view reports' });
   }
-  const from = req.query.from ? batchDate(String(req.query.from)) : null;
-  const to = req.query.to ? batchDate(String(req.query.to)) : null;
-  if ((req.query.from && !from) || (req.query.to && !to)) {
-    return res.status(400).json({ error: 'Select valid report dates.', field: from ? 'to' : 'from' });
-  }
-  if (from && to && from.day > to.day) {
-    return res.status(400).json({ error: 'The start date cannot be after the end date.', field: 'from' });
-  }
+  const filters = reportFilters(req, res);
+  if (!filters) return;
   const { batches, error } = await loadChainBatches(req.user.userId);
   if (error) return sendDbError(res, error);
-  const vegetable = String(req.query.vegetable || '').trim().slice(0, 80) || null;
-  const events = chainEvents(batches, { from: from?.day, to: to?.day, vegetable });
+  const { from, to, vegetable } = filters;
+  const events = chainEvents(batches, filters);
   res.json({
-    from: from?.day || null, to: to?.day || null, vegetable: vegetable && canonicalVegetableName(vegetable),
+    from: from || null, to: to || null, vegetable: vegetable && canonicalVegetableName(vegetable),
     vegetables: reportVegetables(batches), summary: reportSummary(events), events,
   });
 });
 
 // Spoiled Products: stock no longer sellable, newest first, with this week's total.
+// Takes the same ?from, ?to and ?vegetable filters as the chain report; without
+// them every record is listed. `vegetables` lists each vegetable with a record.
 app.get('/api/distributor/spoilage', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view Spoiled Products' });
   }
+  const filters = reportFilters(req, res);
+  if (!filters) return;
   const { batches, error } = await loadChainBatches(req.user.userId);
   if (error) return sendDbError(res, error);
-  const records = batches.flatMap((batch) => batch.spoilage.map((record) => ({
-    ...record, batch_id: batch.batch_id, vegetable_name: batch.vegetable_name, farmer_name: batch.farmer_name,
-    harvest_date: batch.harvest_date, batch_status: batch.status,
-  }))).sort((a, b) => String(b.recorded_at).localeCompare(String(a.recorded_at)));
+  const { inRange, hasVegetable } = reportFilter(filters);
+  const spoiledBatches = batches.filter((batch) => batch.spoilage.length > 0);
+  const records = spoiledBatches.filter((batch) => hasVegetable(batch.vegetable_name)).flatMap((batch) => batch.spoilage
+    .filter((record) => inRange(record.recorded_at))
+    .map((record) => ({
+      ...record, batch_id: batch.batch_id, vegetable_name: batch.vegetable_name, farmer_name: batch.farmer_name,
+      harvest_date: batch.harvest_date, batch_status: batch.status,
+    }))).sort((a, b) => String(b.recorded_at).localeCompare(String(a.recorded_at)));
   const week = manilaWeek();
   const thisWeek = chainEvents(batches, week).filter((event) => event.type === 'spoiled');
-  res.json({ this_week: { ...week, kg: reportSummary(thisWeek).spoiled_kg }, records });
+  res.json({
+    this_week: { ...week, kg: reportSummary(thisWeek).spoiled_kg },
+    from: filters.from || null, to: filters.to || null,
+    vegetable: filters.vegetable && canonicalVegetableName(filters.vegetable),
+    vegetables: reportVegetables(spoiledBatches),
+    total_kg: roundKg(records.reduce((total, record) => total + Number(record.quantity_kg || 0), 0)),
+    records,
+  });
 });
 
 // Batches on their last sellable day (day 7 in stock) that still have stock. Each

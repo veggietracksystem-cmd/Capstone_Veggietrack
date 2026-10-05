@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert, peso } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
@@ -25,6 +26,7 @@ import { titleCaseWords } from '../lib/textFormat';
 const PRIMARY = colors.leaf700;
 
 export default function OrderConfirmationScreen({ navigation, route }) {
+  const { user } = useAuth();
   const requestLock = useRequestLock();
   const { t, language } = useTranslation();
   const { cart = [], totalItems = 0, totalAmount = 0 } = route.params || {};
@@ -100,25 +102,35 @@ export default function OrderConfirmationScreen({ navigation, route }) {
 
     setConfirming(true);
     try {
-      await api.post('/api/orders', payload);
-      await clearCheckedOutCart(user.id).catch(() => showAlert(t('common.error'), t('checkout.cartStorageError')));
-      setSuccess(true);
+      // Placing an order waits for stock checks, and a sleeping server can take
+      // longer than the default 30 s to answer.
+      await api.post('/api/orders', payload, { timeoutMs: 60000 });
     } catch (err) {
       const code = err?.code || err?.data?.code;
       const message = err?.status === 401
         ? t('errors.sessionEnded')
-        : !err?.status
-          ? (err?.message === 'insufficient stock' ? t('addr.outOfStock') : t('errors.connection'))
-          : code === 'ADDRESS_LOCATION_REQUIRED'
-            ? t('addr.needsPin')
-            : err?.data?.field === 'preferred_schedule'
-              ? t('addr.timeGone')
-              : friendlyError(err, t('addr.orderFailed'));
+        // No answer in time: the order may still have been saved, so the
+        // retailer checks My Orders instead of placing it a second time.
+        : code === 'REQUEST_TIMEOUT'
+          ? t('addr.orderUnconfirmed')
+          : !err?.status
+            ? (err?.message === 'insufficient stock' ? t('addr.outOfStock') : t('errors.connection'))
+            : code === 'ADDRESS_LOCATION_REQUIRED'
+              ? t('addr.needsPin')
+              : err?.data?.field === 'preferred_schedule'
+                ? t('addr.timeGone')
+                : friendlyError(err, t('addr.orderFailed'));
       showAlert(t('dashboards.retailer.orderFailedTitle'), message);
-    } finally {
       requestLock.release('Confirming');
       setConfirming(false);
+      return;
     }
+    // The order is saved. Clearing the cart is local only, so a failure there is
+    // reported on its own and never as a failed order.
+    setSuccess(true);
+    requestLock.release('Confirming');
+    setConfirming(false);
+    await clearCheckedOutCart(user?.id).catch(() => showAlert(t('common.error'), t('checkout.cartStorageError')));
   };
 
   const goHome = () => {
