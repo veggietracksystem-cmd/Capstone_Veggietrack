@@ -1,10 +1,11 @@
 import { View, Text } from 'react-native';
-import { colors, fonts } from '../theme/appTheme';
+import { colors, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
-export default function ProofDetails({ proof }) {
+// kind="pickup" words the location check against the farm instead of the delivery address.
+export default function ProofDetails({ proof, kind = 'delivery' }) {
   const { t } = useTranslation();
-  const style = { color: colors.ink, fontFamily: fonts.body, fontSize: 13, marginTop: 4 };
+  const style = { ...typography.meta, color: colors.ink, marginTop: 4 };
   const format = value => value ? new Date(value).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) + ' PHT' : '';
   return <View style={{ padding: 12, backgroundColor: colors.leaf50, borderRadius: 10 }}>
     {proof?.captured_at && <Text style={style}>{t('pod.captured')}: {format(proof.captured_at)}</Text>}
@@ -12,7 +13,9 @@ export default function ProofDetails({ proof }) {
     {proof?.address && <Text style={style}>{proof.address}</Text>}
     {Number.isFinite(proof?.latitude) && Number.isFinite(proof?.longitude) && <Text style={style}>{t('pod.coordinates')}: {proof.latitude.toFixed(6)}, {proof.longitude.toFixed(6)}</Text>}
     {/* Show a verification result only when one was computed (deliveries with a destination). */}
-    {!!proof?.location_status && <Text style={style}>{t(proof.location_status === 'verified' ? 'pod.verified' : 'pod.unverified')}</Text>}
-    {Number.isFinite(proof?.distance_meters) && <Text style={style}>{t('pod.distance')}: {Math.round(proof.distance_meters)} m</Text>}
+    {!!proof?.location_status && <Text style={style}>{t(kind === 'pickup'
+      ? (proof.location_status === 'verified' ? 'pod.pickupVerified' : 'pod.pickupUnverified')
+      : (proof.location_status === 'verified' ? 'pod.verified' : 'pod.unverified'))}</Text>}
+    {Number.isFinite(proof?.distance_meters) && <Text style={style}>{t(kind === 'pickup' ? 'pod.pickupDistance' : 'pod.distance')}: {Math.round(proof.distance_meters)} m</Text>}
   </View>;
 }

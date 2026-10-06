@@ -14,7 +14,7 @@ import { showAlert } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { REPORT_PERIODS, periodRange, customRangeError, rangeLabel } from '../lib/reportPeriods';
-import { colors, fontSize, fonts, radius, shadowCard, spacing } from '../theme/appTheme';
+import { colors, fontSize, fonts, radius, shadowCard, spacing, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
@@ -163,16 +163,16 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
   summary: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.border, ...shadowCard },
-  summaryLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft },
-  summaryValue: { fontFamily: fonts.heading, fontSize: rf(28), color: colors.danger, marginTop: 4 },
+  summaryLabel: { ...typography.statLabel, color: colors.inkSoft },
+  summaryValue: { ...typography.statValue, color: colors.danger, marginTop: 4 },
   summaryRange: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint, marginTop: 2 },
   // Filter layout from View Reports (ChainReportScreen).
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: spacing.md },
   filter: { flexGrow: 1, flexBasis: 150 },
   customRow: { flexDirection: 'row', gap: 10, marginBottom: spacing.sm },
   customField: { flex: 1, minWidth: 0 },
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginBottom: 4 },
-  error: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.danger, marginBottom: spacing.sm },
+  fieldLabel: { ...typography.label, color: colors.inkSoft, marginBottom: 4 },
+  error: { ...typography.error, color: colors.danger, marginBottom: spacing.sm },
   resultRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: spacing.sm },
   resultText: { flexShrink: 1, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft },
   resetText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },

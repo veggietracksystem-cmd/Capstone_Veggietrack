@@ -16,9 +16,7 @@ import { friendlyError } from '../../lib/errorMessages';
 import { localizeVegetableName } from '../../lib/vegetableNames';
 import { PICKUP_TABS, pickupTabOf, pickupBadge } from '../../lib/pickupStatus';
 import { useTranslation } from '../../i18n/useTranslation';
-import {
-  colors, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText,
-} from '../../theme/appTheme';
+import { colors, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText, typography } from '../../theme/appTheme';
 
 const PRIMARY = colors.leaf700;
 const formatDate = (value) => {
@@ -292,17 +290,17 @@ const styles = StyleSheet.create({
   detailsBtn: { ...actionBtn, ...actionBtnOutline, marginTop: 10 },
   detailsBtnText: { ...actionBtnText, color: PRIMARY },
   summary: { marginBottom: 12, borderRadius: radius.ctrl, backgroundColor: colors.bgScreen, paddingHorizontal: 12 },
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.ink, marginBottom: 6 },
+  fieldLabel: { ...typography.label, color: colors.ink, marginBottom: 6 },
   hint: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, padding: 10, minHeight: 80, textAlignVertical: 'top', fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink, backgroundColor: colors.card },
+  input: { ...typography.input, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, padding: 10, minHeight: 80, textAlignVertical: 'top', color: colors.ink, backgroundColor: colors.card },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgScreen },
   chipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  chipText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
+  chipText: { ...typography.chip, color: colors.inkSoft },
   chipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
   detailStatusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   detailRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border, alignItems: 'flex-start' },
-  detailLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint },
+  detailLabel: { ...typography.smallLabel, color: colors.inkFaint },
   detailValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 2 },
   proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
   proofThumb: { width: 56, height: 56, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 },

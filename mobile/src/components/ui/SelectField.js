@@ -3,7 +3,7 @@ import { Text, TouchableOpacity, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import CustomModal from '../CustomModal';
 import { rf } from '../../lib/responsive';
-import { colors, control, fonts, fontSize, radius } from '../../theme/appTheme';
+import { colors, control, fonts, fontSize, radius, typography } from '../../theme/appTheme';
 
 // Labelled dropdown: the field shows the chosen option; tapping it opens the
 // list in a modal, with the chosen option highlighted. Options are { value, label }.
@@ -36,18 +36,18 @@ export default function SelectField({ label, value, options, onChange, style }) 
 }
 
 const styles = StyleSheet.create({
-  label: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginBottom: 4 },
+  label: { ...typography.label, color: colors.inkSoft, marginBottom: 4 },
   field: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: control.heightSm,
     paddingHorizontal: control.paddingH, borderRadius: control.heightSm / 2, borderWidth: 1, borderColor: colors.leaf700,
     backgroundColor: colors.card,
   },
-  value: { flex: 1, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700 },
+  value: { ...typography.filter, flex: 1, color: colors.leaf700 },
   option: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: control.height,
     paddingHorizontal: 14, borderRadius: radius.ctrl, marginBottom: 6, borderWidth: 1, borderColor: colors.border,
   },
   optionChosen: { backgroundColor: colors.leaf700, borderColor: colors.leaf700 },
-  optionText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
+  optionText: { ...typography.listTitle, color: colors.ink },
   optionTextChosen: { color: '#fff' },
 });

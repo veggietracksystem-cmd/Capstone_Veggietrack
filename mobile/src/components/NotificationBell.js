@@ -12,10 +12,11 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import CustomModal from './CustomModal';
 import EmptyState from './EmptyState';
-import { colors, control, fonts, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
+import { colors, control, fonts, actionBtn, actionBtnOutline, actionBtnText, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { showAlert } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
+import CountBadge from './ui/CountBadge';
 
 const PRIMARY = colors.leaf700;
 const INACTIVE = colors.inkFaint;
@@ -190,11 +191,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
     <TouchableOpacity style={styles.tabItemBtn} onPress={onPress || openScreen} activeOpacity={0.7}>
       <View style={[styles.tabIconBadge, active && styles.tabIconBadgeActive]}>
         <Ionicons name="notifications-outline" size={rf(20)} color={active ? PRIMARY : INACTIVE} />
-        {unread > 0 && (
-          <View style={styles.tabBadge}>
-            <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
-          </View>
-        )}
+        <CountBadge count={unread} style={styles.tabBadge} />
       </View>
       <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>
         {t('notifications.screenTitle')}
@@ -209,11 +206,7 @@ export default function NotificationBell({ asTabItem = false, active = false, on
       accessibilityLabel={t('notifications.screenTitle')}
     >
       <Ionicons name="notifications-outline" size={rf(27)} color={colors.soil800} />
-      {unread > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
-        </View>
-      )}
+      <CountBadge count={unread} style={styles.badge} />
     </TouchableOpacity>
   );
 }
@@ -234,30 +227,24 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: 2,
   },
   tabIconBadgeActive: { backgroundColor: colors.leaf100 },
-  tabBadge: {
-    position: 'absolute', top: -2, right: 2, minWidth: 16, height: 16, borderRadius: 8,
-    backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
-  },
-  tabLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(11), color: colors.inkFaint },
+  // Placement only; the look comes from CountBadge.
+  tabBadge: { position: 'absolute', top: -4, right: 0 },
+  tabLabel: { ...typography.navLabel, color: colors.inkFaint },
   tabLabelActive: { color: PRIMARY },
 
-  badge: {
-    position: 'absolute', top: 3, right: -1, minWidth: 18, height: 18, borderRadius: 9,
-    backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
-  },
-  badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(11) },
+  badge: { position: 'absolute', top: 3, right: -1 },
 
   item: { flexDirection: 'row', alignItems: 'flex-start', padding: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, marginBottom: 10 },
   itemUnread: { backgroundColor: colors.leaf50, borderColor: colors.leaf100 },
   itemTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  itemTitle: { fontFamily: fonts.bodySemiBold, fontSize: rf(14.5), color: colors.ink, flex: 1, marginRight: 8 },
+  itemTitle: { ...typography.listTitle, color: colors.ink, flex: 1, marginRight: 8 },
   itemTitleUnread: { fontFamily: fonts.bodyBold, color: colors.ink },
-  itemTime: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkFaint },
-  itemMessage: { fontFamily: fonts.body, fontSize: rf(13.5), color: colors.inkSoft, marginTop: 2 },
+  itemTime: { ...typography.meta, color: colors.inkFaint },
+  itemMessage: { ...typography.body, color: colors.inkSoft, marginTop: 2 },
   // Fixed-width slot so the time never shifts, whether or not the dot is shown.
   unreadSlot: { width: 8, marginLeft: 8, marginTop: 6, alignItems: 'center' },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY },
 
-  detailMessage: { fontFamily: fonts.body, fontSize: rf(14.5), color: colors.ink, lineHeight: 21 },
+  detailMessage: { ...typography.body, color: colors.ink, lineHeight: 21 },
   detailTime: { fontFamily: fonts.body, fontSize: rf(12.5), color: colors.inkFaint, marginTop: 10 },
 });

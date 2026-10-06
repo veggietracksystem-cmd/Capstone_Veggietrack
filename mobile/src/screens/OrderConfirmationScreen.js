@@ -18,7 +18,7 @@ import VegetableImage from '../components/VegetableImage';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import DeliveryDateTimeFields from '../components/DeliveryDateTimeFields';
 import CustomModal from '../components/CustomModal';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard, typography } from '../theme/appTheme';
 import ScreenHeader from '../components/ScreenHeader';
 import StatusBadge from '../components/ui/StatusBadge';
 import { titleCaseWords } from '../lib/textFormat';
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadowCard,
   },
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 12 },
+  sectionTitle: { ...typography.cardHeading, color: colors.ink, marginBottom: 12 },
 
   addressOption: {
     flexDirection: 'row',
@@ -300,11 +300,10 @@ const styles = StyleSheet.create({
   manualAddressContainer: { marginTop: 8 },
   addressRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   input: {
+    ...typography.input,
     backgroundColor: '#fff',
     borderRadius: radius.ctrl,
     padding: 12,
-    fontFamily: fonts.body,
-    fontSize: rf(fontSize.md),
     color: colors.ink,
     borderWidth: 1.4,
     borderColor: colors.border,
@@ -335,7 +334,7 @@ const styles = StyleSheet.create({
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center' },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
+  buttonPrimaryText: { ...typography.buttonPrimary, color: '#fff' },
   buttonDisabled: { opacity: 0.6 },
 
   successBody: { alignItems: 'center', paddingVertical: 8 },

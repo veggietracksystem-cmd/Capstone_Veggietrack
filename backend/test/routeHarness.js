@@ -6,7 +6,7 @@ const { createRequire } = require('node:module');
 // Runs the real index.js route handlers against an in-memory table store, the
 // same way crossRoleSmoke.test.js does. `missingColumns` makes any query naming
 // one of those columns fail like PostgREST does before a migration (42703).
-function routeHarness(data, { missingColumns = [] } = {}) {
+function routeHarness(data, { missingColumns = [], rpc = null } = {}) {
   let sequence = 0;
   const missing = (text) => missingColumns.find((column) => new RegExp(`\\b${column}\\b`).test(text));
   const db = {
@@ -40,7 +40,8 @@ function routeHarness(data, { missingColumns = [] } = {}) {
       };
       return query;
     },
-    async rpc() { return { data: null, error: null }; },
+    // `rpc(name, args, data)` stands in for database functions a test needs.
+    async rpc(name, args) { return rpc ? rpc(name, args, data) : { data: null, error: null }; },
   };
   const handlers = new Map(); const app = { use() {}, listen() {} };
   for (const method of ['get', 'post', 'put', 'delete']) app[method] = (route, ...callbacks) => handlers.set(`${method} ${route}`, callbacks.at(-1));
@@ -53,7 +54,7 @@ function routeHarness(data, { missingColumns = [] } = {}) {
   return async function call(key, userId, { body = {}, id, query = {} } = {}) {
     const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(payload) { this.body = payload; return this; } };
     const user = (data.users || []).find((row) => row.id === userId);
-    await handlers.get(key)({ user: { userId, role: user?.role }, body, params: { id }, query }, res);
+    await handlers.get(key)({ user: { userId, role: user?.role }, authUser: { id: userId }, sessionId: 'test-session', body, params: { id }, query }, res);
     return res;
   };
 }

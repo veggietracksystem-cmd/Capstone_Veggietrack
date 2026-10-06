@@ -1,40 +1,35 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api/client';
-import { kvGet, kvSet } from '../offline/db';
 import useRefreshOnFocus from './useRefreshOnFocus';
 
-// Batches the distributor chose to keep selling; they are not alerted again.
-const KEEP_SELLING_KEY = 'stock_alerts_keep_selling';
-
 /**
- * Distributor stock alerts (7-day stock rule): batches on their 7th day in stock
- * that still have stock, from GET /api/distributor/stock-alerts. Home shows the
- * count on its Stock Alert shortcut; Stocks marks and filters the batches.
+ * Distributor stock alerts (7-day stock rule): batches with stock from day 7 in
+ * stock that still wait for a decision, from GET /api/distributor/stock-alerts.
+ * From day 8 an alert is "Needs Review" (past_limit). Alerts are warnings only:
+ * the stock stays on sale until the distributor discards it. Home shows the count
+ * on its Stock Alert shortcut; Stocks marks and filters the batches.
  * Reloads on focus, so resolving a batch in Stocks lowers the Home count.
  */
 export default function useStockAlerts() {
   const [alerts, setAlerts] = useState([]);
-  const [keepSelling, setKeepSelling] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
   const reload = useCallback(async () => {
     try {
-      const [list, kept] = await Promise.all([api.get('/api/distributor/stock-alerts'), kvGet(KEEP_SELLING_KEY).catch(() => null)]);
+      const list = await api.get('/api/distributor/stock-alerts');
       setAlerts(Array.isArray(list) ? list : []);
-      setKeepSelling(Array.isArray(kept) ? kept : []);
     } catch { /* The screen stays usable when alerts cannot load. */ }
     finally { setLoaded(true); }
   }, []);
   useEffect(() => { reload(); }, [reload]);
   useRefreshOnFocus(reload);
 
+  // Keep/Sell: saved on the server, so every screen and device stops alerting.
+  // The stock stays in the batch and on sale. Throws when the save fails.
   const keep = useCallback(async (batchId) => {
-    // Only batches still alerted are remembered, so the list never grows.
-    const next = [...keepSelling.filter((id) => id !== batchId && alerts.some((a) => a.batch_id === id)), batchId];
-    setKeepSelling(next);
-    await kvSet(KEEP_SELLING_KEY, next).catch(() => {});
-  }, [alerts, keepSelling]);
+    await api.post(`/api/products/${batchId}/keep`);
+    setAlerts((current) => current.filter((alert) => alert.batch_id !== batchId));
+  }, []);
 
-  // Keep Selling hides a day-7 alert; a batch past the limit always needs a decision.
-  return { alerts: alerts.filter((alert) => alert.past_limit || !keepSelling.includes(alert.batch_id)), loaded, reload, keep };
+  return { alerts, loaded, reload, keep };
 }

@@ -1,23 +1,24 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { rf } from '../../lib/responsive';
 import { colors, control, fonts, fontSize, spacing } from '../../theme/appTheme';
+import CountBadge, { BADGE_OVERHANG, floatingBadge } from './CountBadge';
 
 // Shared filter-row components. Selected and unselected tabs are the same size;
 // only the colours change, so selecting a tab never shifts the row.
 
-// Count pill shared by every filter tab and chip. Hidden when the count is 0.
-function CountBadge({ count }) {
-  const n = Number(count) || 0;
-  if (n <= 0) return null;
-  return (
-    <View style={styles.badge} accessibilityLabel={`${n} new`}>
-      <Text style={styles.badgeText}>{n > 9 ? '9+' : n}</Text>
-    </View>
-  );
-}
+// A tab's count floats over its own top-right corner, outside the label. Rows
+// that can show counts reserve the badge's overhang so it is never clipped and
+// the row height does not change when a count appears or reaches 0.
+const hasCounts = (options) => options.some((option) => option.count !== undefined);
+// Scrolled rows: the end padding must also hold the last tab's badge.
+const scrollRoom = (inset) => ({ paddingTop: BADGE_OVERHANG.top, paddingRight: Math.max(inset || spacing.xs, BADGE_OVERHANG.right + spacing.xs) });
+const TabCount = ({ count }) => (
+  <CountBadge count={count} style={floatingBadge} accessibilityLabel={`${Number(count)} new`} />
+);
 
 // Options use { value, label, count? }; scroll lets long labels retain their width.
 export function SegmentedTabs({ options, value, onChange, scroll = false, inset = 0, style, disabled = false }) {
+  const counted = hasCounts(options);
   const tabs = options.map((option) => {
     const selected = option.value === value;
     return (
@@ -30,15 +31,10 @@ export function SegmentedTabs({ options, value, onChange, scroll = false, inset 
         accessibilityRole="tab"
         accessibilityState={{ selected, disabled }}
       >
-        <View style={[styles.labelRow, scroll && Number(option.count) > 0 && styles.labelRowBadge]}>
-          <Text
-            style={[styles.tabText, selected && styles.tabTextSelected, styles.labelShrink]}
-            numberOfLines={scroll ? 1 : 2}
-          >
-            {option.label}
-          </Text>
-          <CountBadge count={option.count} />
-        </View>
+        <Text style={[styles.tabText, selected && styles.tabTextSelected]} numberOfLines={scroll ? 1 : 2}>
+          {option.label}
+        </Text>
+        <TabCount count={option.count} />
       </TouchableOpacity>
     );
   });
@@ -49,23 +45,24 @@ export function SegmentedTabs({ options, value, onChange, scroll = false, inset 
         horizontal
         showsHorizontalScrollIndicator={false}
         style={[styles.track, styles.trackScroll, style]}
-        contentContainerStyle={[styles.trackScrollContent, inset ? { paddingHorizontal: inset } : null]}
+        contentContainerStyle={[styles.trackScrollContent, inset ? { paddingHorizontal: inset } : null, counted && scrollRoom(inset)]}
       >
         {tabs}
       </ScrollView>
     );
   }
-  return <View style={[styles.track, style]}>{tabs}</View>;
+  return <View style={[styles.track, counted && styles.roomForBadge, style]}>{tabs}</View>;
 }
 
 // inset pads the scrolled content so a row can run to the screen edges.
 export function FilterChips({ options, value, onChange, disabled = false, style, inset = 0 }) {
+  const counted = hasCounts(options);
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       style={[styles.chipRow, style]}
-      contentContainerStyle={[styles.chipRowContent, inset ? { paddingHorizontal: inset } : null]}
+      contentContainerStyle={[styles.chipRowContent, inset ? { paddingHorizontal: inset } : null, counted && scrollRoom(inset)]}
       keyboardShouldPersistTaps="handled"
     >
       {options.map((option) => {
@@ -80,12 +77,10 @@ export function FilterChips({ options, value, onChange, disabled = false, style,
             accessibilityRole="tab"
             accessibilityState={{ selected, disabled }}
           >
-            <View style={[styles.labelRow, Number(option.count) > 0 && styles.labelRowBadge]}>
-              <Text style={[styles.chipText, selected && styles.chipTextSelected]} numberOfLines={1}>
-                {option.label}
-              </Text>
-              <CountBadge count={option.count} />
-            </View>
+            <Text style={[styles.chipText, selected && styles.chipTextSelected]} numberOfLines={1}>
+              {option.label}
+            </Text>
+            <TabCount count={option.count} />
           </TouchableOpacity>
         );
       })}
@@ -126,16 +121,8 @@ const styles = StyleSheet.create({
   },
   tabTextSelected: { color: '#fff' },
 
-  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', maxWidth: '100%' },
-  // Content-sized tabs grow to fit the badge without moving the label.
-  labelRowBadge: { marginRight: 8 },
-  labelShrink: { flexShrink: 1 },
-  // Small red circle pinned to the label's top-right corner.
-  badge: {
-    position: 'absolute', top: -6, left: '100%', marginLeft: 2, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
-    backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center',
-  },
-  badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(11), lineHeight: rf(13), includeFontPadding: false },
+  // Room above the row for a floating count badge.
+  roomForBadge: { paddingTop: BADGE_OVERHANG.top },
 
   chipRow: { flexGrow: 0, marginBottom: spacing.md },
   chipRowContent: { gap: spacing.sm, alignItems: 'center', paddingRight: spacing.xs },

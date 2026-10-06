@@ -27,7 +27,7 @@ import { localizeVegetableName, vegetableKey } from '../lib/vegetableNames';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import { isClosedOrderStatus } from '../lib/orderStatus';
-import { colors, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
+import { colors, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { useAutoSync } from '../sync/SyncProvider';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
 
   content: { padding: 16, paddingBottom: 40 },
 
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 10 },
+  sectionTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: 10 },
   emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
   activeOrderSection: { marginTop: 20 },
@@ -691,7 +691,7 @@ const styles = StyleSheet.create({
 
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 16 },
   searchIcon: { fontSize: rf(fontSize.lg), marginRight: 8 },
-  searchInput: { flex: 1, paddingVertical: Platform.OS === 'ios' ? 12 : 8, fontFamily: fonts.body, fontSize: rf(fontSize.lg), color: colors.ink },
+  searchInput: { ...typography.input, flex: 1, paddingVertical: Platform.OS === 'ios' ? 12 : 8, color: colors.ink },
   searchClear: { fontSize: rf(fontSize.lg), color: colors.inkFaint, paddingLeft: 8 },
 
   rowCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, gap: 12, ...shadowCard },
@@ -743,12 +743,12 @@ const styles = StyleSheet.create({
   summaryLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg), color: colors.ink },
   summaryTotal: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: PRIMARY },
 
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.labelInk, marginTop: 10, marginBottom: 6 },
-  input: { backgroundColor: colors.card, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: rf(fontSize.lg), borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
+  fieldLabel: { ...typography.label, color: colors.labelInk, marginTop: 10, marginBottom: 6 },
+  input: { ...typography.input, backgroundColor: colors.card, borderRadius: radius.ctrl, padding: 12, borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center' },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
+  buttonPrimaryText: { ...typography.buttonPrimary, color: '#fff' },
   buttonDisabled: { opacity: 0.6 },
 
   orderCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
@@ -760,7 +760,7 @@ const styles = StyleSheet.create({
   cancelBtn: { ...actionBtnDanger },
   cancelBtnText: { ...actionBtnText, color: colors.danger },
   detailsBtn: { ...actionBtnOutline, minHeight: 44, paddingVertical: 10 },
-  detailsBtnText: { ...actionBtnText, fontSize: 14, color: PRIMARY },
+  detailsBtnText: { ...actionBtnText, color: PRIMARY },
 
   ordersHeaderTitle: { marginBottom: 10 },
   historyCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12, backgroundColor: colors.leaf50, borderRadius: radius.card, padding: 14, borderWidth: 1, borderColor: colors.leaf100 },

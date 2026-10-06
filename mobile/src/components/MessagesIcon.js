@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Image, Text, View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import api from '../api/client';
-import { colors, control, fonts } from '../theme/appTheme';
+import { colors, control } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
 import { useTranslation } from '../i18n/useTranslation';
+import CountBadge from './ui/CountBadge';
 
 const CHAT_ICON = require('../../assets/chat-icon.png');
 
@@ -44,11 +45,7 @@ export default function MessagesIcon() {
       accessibilityLabel={t('messages.title')}
     >
       <Image source={CHAT_ICON} style={styles.icon} resizeMode="contain" accessibilityIgnoresInvertColors />
-      {unread > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
-        </View>
-      )}
+      <CountBadge count={unread} style={styles.badge} />
     </TouchableOpacity>
   );
 }
@@ -56,9 +53,6 @@ export default function MessagesIcon() {
 const styles = StyleSheet.create({
   iconBtn: { width: 40, height: control.minTouch, alignItems: 'center', justifyContent: 'center' },
   icon: { width: rf(26), height: rf(26), tintColor: colors.soil800 },
-  badge: {
-    position: 'absolute', top: 3, right: -1, minWidth: 18, height: 18, borderRadius: 9,
-    backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
-  },
-  badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(11) },
+  // Placement only; the look comes from CountBadge (same spot as the notification bell).
+  badge: { position: 'absolute', top: 3, right: -1 },
 });

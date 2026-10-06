@@ -19,12 +19,15 @@ import ProofPreviewModal from '../components/ProofPreviewModal';
 import EmptyState from '../components/EmptyState';
 import CustomModal from '../components/CustomModal';
 import { SegmentedTabs } from '../components/ui/SegmentedTabs';
+import SelectField from '../components/ui/SelectField';
+import ProofDetails from '../components/ProofDetails';
 import StatusBadge from '../components/ui/StatusBadge';
 import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import { showAlert, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import { effectiveOrderStatus, isClosedOrderStatus } from '../lib/orderStatus';
-import { colors, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnText } from '../theme/appTheme';
+import { HISTORY_FILTERS, buildRiderHistory, isOpenPickup } from '../lib/riderHistory';
+import { colors, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnText, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { useAutoSync } from '../sync/SyncProvider';
@@ -121,6 +124,8 @@ export default function DeliveryDashboard({ navigation, route }) {
   const [busyId, setBusyId] = useState(null);
   const [activeBottomTab, setActiveBottomTab] = useState('home');
   const [historyPickup, setHistoryPickup] = useState(null);
+  // History dropdown: 'all' | 'pickups' | 'deliveries'.
+  const [historyFilter, setHistoryFilter] = useState('all');
 
   useEffect(() => {
     if (route.params?.filter) {
@@ -346,19 +351,13 @@ export default function DeliveryDashboard({ navigation, route }) {
     }
   };
 
-  // Deliveries: active (still open) vs history (delivered, cancelled or unsuccessful).
+  // Tasks hold the open records; History the finished ones, from the same lists.
   const activeOrders = orders.filter((o) => matchesFilter(o, 'active'));
-  const historyOrders = orders.filter((o) => isClosedOrderStatus(effectiveStatus(o)));
-  // Pickups: still actionable (assigned or on the way) vs already picked up (history).
-  const activePickups = pickups.filter((p) => p.status === 'assigned' || p.status === 'otw');
-  const pickupHistory = pickups.filter((p) => p.status !== 'assigned' && p.status !== 'otw');
-  // History tab shows both kinds in one list, most recent first (records
-  // without a timestamp keep their original order).
-  const historyTime = (r) => new Date(r.updated_at || r.created_at || 0).getTime() || 0;
-  const combinedHistory = [
-    ...historyOrders.map((record) => ({ kind: 'order', key: `o-${record.id}`, record })),
-    ...pickupHistory.map((record) => ({ kind: 'pickup', key: `p-${record.id}`, record })),
-  ].sort((a, b) => historyTime(b.record) - historyTime(a.record));
+  const activePickups = pickups.filter(isOpenPickup);
+  // Newest completion first; the dropdown narrows it to pickups or deliveries.
+  const combinedHistory = buildRiderHistory({ orders, pickups, filter: historyFilter });
+  const formatWhen = (value) => new Date(value).toLocaleString(language === 'tl' ? 'fil-PH' : 'en-PH', {
+    timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   const handleBottomTabPress = (tab) => {
     if (tab.id === 'profile') {
@@ -409,10 +408,10 @@ export default function DeliveryDashboard({ navigation, route }) {
   );
 };
 
-  // History card: number, status and View Details. Orders open DeliveryDetails;
-  // pickups open the details modal.
+  // History card: type and number, status, completion time and View Details.
+  // Deliveries open DeliveryDetails; pickups open the details modal.
   const renderHistoryCard = (item) => {
-    const isOrder = item.kind === 'order';
+    const isOrder = item.kind === 'delivery';
     const r = item.record;
     const status = isOrder ? effectiveStatus(r) : r.status;
     return (
@@ -420,11 +419,14 @@ export default function DeliveryDashboard({ navigation, route }) {
         <View style={styles.orderHeader}>
           <Text style={styles.orderId} numberOfLines={1}>
             {isOrder
-              ? t('dashboards.distributor.orderNumber', { id: shortId(r.id) })
+              ? t('dashboards.delivery.deliveryNumber', { id: shortId(r.id) })
               : t('dashboards.delivery.pickupNumber', { id: shortId(r.id) })}
           </Text>
           <StatusBadge status={status} label={formatStatus(status)} />
         </View>
+        {!!item.completedAt && (
+          <Text style={styles.historyWhen}>{t('dashboards.delivery.completedOn', { date: formatWhen(item.completedAt) })}</Text>
+        )}
         <TouchableOpacity
           style={styles.historyDetailsBtn}
           onPress={() => (isOrder ? navigation.navigate('DeliveryDetails', { order: r }) : setHistoryPickup(r))}
@@ -600,13 +602,20 @@ export default function DeliveryDashboard({ navigation, route }) {
 
         {activeBottomTab === 'history' && (
           <View>
+            <SelectField
+              style={styles.historyFilter}
+              label={t('dashboards.delivery.historyFilterLabel')}
+              value={historyFilter}
+              onChange={setHistoryFilter}
+              options={HISTORY_FILTERS.map((value) => ({ value, label: t(`dashboards.delivery.historyFilter.${value}`) }))}
+            />
             {loading ? (
               <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 40 }} />
             ) : combinedHistory.length === 0 ? (
               <EmptyState
                 iconElement={<MaterialCommunityIcons name="history" size={rf(44)} color={colors.inkFaint} />}
                 title={t('dashboards.delivery.noCombinedHistoryTitle')}
-                message={t('dashboards.delivery.noCombinedHistoryMessage')}
+                message={t(`dashboards.delivery.historyEmptyMessage.${historyFilter}`)}
               />
             ) : (
               combinedHistory.map(renderHistoryCard)
@@ -624,13 +633,15 @@ export default function DeliveryDashboard({ navigation, route }) {
       >
         {!!historyPickup && (() => {
           const harvest = historyPickup.harvests;
-          const when = historyPickup.updated_at || historyPickup.created_at;
           const rows = [
+            [t('dashboards.delivery.detailType'), t('dashboards.delivery.typePickup')],
             [t('dashboards.delivery.detailFarmer'), historyPickup.farmer_name || t('dashboards.delivery.farmerFallback')],
             [t('dashboards.delivery.detailProduce'), harvest ? localizeVegetableName(harvest.vegetable_name, language) : t('dashboards.delivery.vegetablesFallback')],
             harvest && [t('dashboards.delivery.detailQuantity'), `${harvest.quantity_kg} kg`],
             historyPickup.farmer_address && [t('dashboards.delivery.detailAddress'), historyPickup.farmer_address],
-            when && [t('dashboards.delivery.detailUpdated'), new Date(when).toLocaleString()],
+            historyPickup.distributor_name && [t('dashboards.delivery.detailDistributor'), historyPickup.distributor_name],
+            historyPickup.requested_at && [t('dashboards.delivery.detailRequested'), formatWhen(historyPickup.requested_at)],
+            historyPickup.completed_at && [t('dashboards.delivery.detailCompleted'), formatWhen(historyPickup.completed_at)],
           ].filter(Boolean);
           return (
             <>
@@ -644,6 +655,12 @@ export default function DeliveryDashboard({ navigation, route }) {
                   <Text style={styles.detailValue}>{value}</Text>
                 </View>
               ))}
+              {!!historyPickup.pod && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{t('dashboards.delivery.detailProof')}</Text>
+                  <ProofDetails proof={historyPickup.pod} kind="pickup" />
+                </View>
+              )}
             </>
           );
         })()}
@@ -680,7 +697,7 @@ const styles = StyleSheet.create({
 
   content: { padding: 16, paddingBottom: 40 },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 10 },
+  sectionTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: 10 },
   seeAllText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
   emptyText: { fontFamily: fonts.body, color: colors.inkFaint, fontStyle: 'italic', marginTop: 8 },
 
@@ -690,9 +707,11 @@ const styles = StyleSheet.create({
   availabilityStatus: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
   historyCard: { backgroundColor: colors.surface, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   historyDetailsBtn: { ...actionBtn, ...actionBtnOutline, marginTop: spacing.md },
+  historyWhen: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 4 },
+  historyFilter: { marginBottom: spacing.md },
   detailStatusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   detailRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
-  detailLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint },
+  detailLabel: { ...typography.smallLabel, color: colors.inkFaint },
   detailValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 2 },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   orderId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },
@@ -704,7 +723,7 @@ const styles = StyleSheet.create({
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 4 },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
+  buttonPrimaryText: { ...typography.buttonPrimary, color: '#fff' },
   buttonDisabled: { opacity: 0.6 },
 
   detailsBtn: { ...actionBtn, ...actionBtnOutline, flex: 1 },

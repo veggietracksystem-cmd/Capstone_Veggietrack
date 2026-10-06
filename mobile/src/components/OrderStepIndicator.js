@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, fonts } from '../theme/appTheme';
+import { colors, fonts, typography } from '../theme/appTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '../i18n/useTranslation';
 
@@ -86,6 +86,6 @@ const styles = StyleSheet.create({
   circleText: { fontFamily: fonts.bodyBold, fontSize: 11, lineHeight: 13, color: GREY_TEXT, textAlign: 'center', includeFontPadding: false },
   check: { width: CHECK_SIZE, height: CHECK_SIZE, lineHeight: CHECK_SIZE, textAlign: 'center' },
 
-  label: { fontFamily: fonts.body, fontSize: 10, color: GREY_TEXT, textAlign: 'center', marginTop: 4, lineHeight: 12 },
+  label: { ...typography.smallLabel, color: GREY_TEXT, textAlign: 'center', marginTop: 4, lineHeight: 12 },
   labelDone: { fontFamily: fonts.bodySemiBold, color: PRIMARY },
 });

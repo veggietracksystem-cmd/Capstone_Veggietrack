@@ -27,7 +27,7 @@ import ImageViewerModal from '../components/ImageViewerModal';
 import { showAlert, confirmAction, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import { effectiveOrderStatus } from '../lib/orderStatus';
-import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnText, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
@@ -37,6 +37,7 @@ import RemoteImage from '../components/RemoteImage';
 import { statusLabel } from '../i18n/translate';
 import PickupRequestsPanel from '../components/distributor/PickupRequestsPanel';
 import useStockAlerts from '../hooks/useStockAlerts';
+import CountBadge from '../components/ui/CountBadge';
 
 const PRIMARY = colors.leaf700;
 
@@ -665,6 +666,10 @@ function ProductListSection({ refreshProducts, onStockChanged }) {
                     ) : (
                       t('productList.kgInStock', { qty: l.available_kg })
                     )}
+                    {/* Stock past the 7-day limit is still on sale; it only waits for review in Stocks. */}
+                    {!isSoldOut && l.needs_review && (
+                      <Text style={{ color: colors.gold700, fontWeight: '700' }}>{` · ${t('stocks.statusNeedsReview')}`}</Text>
+                    )}
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -774,7 +779,7 @@ function getProofUrl(order) {
   return getDelivery(order)?.proof_photo_url || null;
 }
 
-// `badge` shows a red count on the icon only when it is above zero.
+// `badge` shows a red count on the icon's upper-right when it is above zero.
 function QuickAction({ icon, label, onPress, badge = 0, badgeLabel, style }) {
   return (
     <Pressable
@@ -785,11 +790,7 @@ function QuickAction({ icon, label, onPress, badge = 0, badgeLabel, style }) {
     >
       <View style={styles.quickActionIcon}>
         <Ionicons name={icon} size={rf(20)} color={PRIMARY} />
-        {badge > 0 && (
-          <View style={styles.quickActionBadge}>
-            <Text style={styles.quickActionBadgeText}>{badge > 9 ? '9+' : badge}</Text>
-          </View>
-        )}
+        <CountBadge count={badge} style={styles.quickActionBadge} />
       </View>
       <Text style={styles.quickActionLabel} numberOfLines={2}>{label}</Text>
       <Ionicons name="chevron-forward" size={rf(13)} color={colors.leaf500} style={styles.quickActionChevron} />
@@ -1170,8 +1171,8 @@ const styles = StyleSheet.create({
 
   summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   statTile: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14 },
-  statTileLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft },
-  statTileValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: colors.ink, marginTop: 4 },
+  statTileLabel: { ...typography.statLabel, color: colors.inkSoft },
+  statTileValue: { ...typography.statValue, color: colors.ink, marginTop: 4 },
 
   recordBox: { marginTop: 10, backgroundColor: colors.leaf50, borderRadius: radius.ctrl, padding: 10 },
   recordButtons: { flexDirection: 'row', gap: 10, marginTop: 12 },
@@ -1186,8 +1187,8 @@ const styles = StyleSheet.create({
   // Three equal-width columns (flex 1, minWidth 0) so long labels wrap instead of squeezing a neighbor.
   homeStatItem: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   homeStatDivider: { width: 1, backgroundColor: colors.border },
-  homeStatValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), color: PRIMARY },
-  homeStatLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginTop: 4, textAlign: 'center' },
+  homeStatValue: { ...typography.statValue, color: PRIMARY },
+  homeStatLabel: { ...typography.statLabel, color: colors.inkSoft, marginTop: 4, textAlign: 'center' },
 
   quickActionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   quickAction: {
@@ -1198,16 +1199,13 @@ const styles = StyleSheet.create({
   quickActionPressed: { backgroundColor: colors.leaf100, borderColor: colors.leaf700, transform: [{ scale: 0.97 }] },
   quickActionIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.leaf100, alignItems: 'center', justifyContent: 'center' },
   quickActionChevron: { position: 'absolute', top: 8, right: 8 },
-  // Same red count badge as the notification and message icons.
-  quickActionBadge: {
-    position: 'absolute', top: -5, right: -7, minWidth: 18, height: 18, borderRadius: 9,
-    backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
-  },
-  quickActionBadgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(11) },
+  // Quick Actions only: the shared red count badge sits on the icon circle's
+  // upper-right, overlapping it. Anchored by its right edge, so "9+" grows leftward.
+  quickActionBadge: { position: 'absolute', top: -5, right: -7 },
   quickActionLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.ink, textAlign: 'center' },
 
   primaryBtn: { backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 14, alignItems: 'center', marginBottom: 14, justifyContent: 'center', minHeight: control.height },
-  primaryBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg), textAlign: 'center' },
+  primaryBtnText: { ...typography.buttonPrimary, color: '#fff', textAlign: 'center' },
 
   list: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
   listRow: {
@@ -1221,7 +1219,7 @@ const styles = StyleSheet.create({
   productRowTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, textTransform: 'capitalize' },
   productRowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  priceInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 10, paddingVertical: 6, fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink },
+  priceInput: { ...typography.input, flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 10, paddingVertical: 6, color: colors.ink },
   deleteBtnText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.sm), textAlign: 'center' },
   btnDisabled: { opacity: 0.5 },
 
@@ -1235,29 +1233,29 @@ const styles = StyleSheet.create({
   modalTile: { width: 60, height: 60, borderRadius: 16, marginBottom: 10 },
   modalTileIcon: { width: 48, height: 48 },
   modalVegName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.xl), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
-  modalLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 12, marginBottom: 6 },
+  modalLabel: { ...typography.label, color: colors.inkSoft, marginTop: 12, marginBottom: 6 },
   modalInputDisabled: { opacity: 0.5 },
   removeBtnFull: { marginTop: 22, borderWidth: 1.4, borderColor: colors.danger, borderRadius: radius.ctrl, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
 
   formCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.border, ...shadowCard },
-  formTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 8 },
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.labelInk, marginTop: 8, marginBottom: 6 },
-  input: { backgroundColor: colors.bgScreen, borderRadius: radius.ctrl, padding: 12, fontFamily: fonts.body, fontSize: rf(fontSize.lg), borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
+  formTitle: { ...typography.modalTitle, color: colors.ink, marginBottom: 8 },
+  fieldLabel: { ...typography.label, color: colors.labelInk, marginTop: 8, marginBottom: 6 },
+  input: { ...typography.input, backgroundColor: colors.bgScreen, borderRadius: radius.ctrl, padding: 12, borderWidth: 1.4, borderColor: colors.border, color: colors.ink },
   inputDisabled: { backgroundColor: colors.soil300, color: colors.inkFaint },
   hint: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 4 },
   formButtons: { flexDirection: 'row', gap: 10, marginTop: 16 },
   button: { flex: 1, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center' },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
+  buttonPrimaryText: { ...typography.buttonPrimary, color: '#fff' },
   buttonOutline: { borderWidth: 1.4, borderColor: PRIMARY },
-  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.lg) },
+  buttonOutlineText: { ...typography.buttonPrimary, color: PRIMARY },
   buttonDanger: { borderWidth: 1.4, borderColor: colors.danger, backgroundColor: 'transparent' },
-  buttonDangerText: { fontFamily: fonts.bodySemiBold, color: colors.danger, fontSize: rf(fontSize.lg) },
+  buttonDangerText: { ...typography.buttonPrimary, color: colors.danger },
   buttonDisabled: { opacity: 0.6 },
   pendingActionsRow: { flexDirection: 'row', gap: 10 },
   pendingActionBtn: { flex: 1 },
 
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, marginBottom: 10, marginTop: 4 },
+  sectionTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: 10, marginTop: 4 },
 
   pickupCard: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
   pickupFarmer: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink },

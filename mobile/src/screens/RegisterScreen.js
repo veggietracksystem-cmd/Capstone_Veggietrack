@@ -12,7 +12,7 @@ import { useTranslation } from '../i18n/useTranslation';
 import { showAlert } from '../lib/ui';
 import MapPinningModal from '../components/MapPinningModal';
 import ScreenHeader from '../components/ScreenHeader';
-import { colors, control, fontSize, radius, spacing, actionBtn, actionBtnText, actionBtnOutline } from '../theme/appTheme';
+import { colors, control, fontSize, radius, spacing, actionBtn, actionBtnText, actionBtnOutline, typography } from '../theme/appTheme';
 import PasswordInput from '../components/PasswordInput';
 import { SegmentedTabs } from '../components/ui/SegmentedTabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -256,17 +256,16 @@ const styles = StyleSheet.create({
   innerTall: { minHeight: 760 },
   contentWrap: { flexGrow: 1, justifyContent: 'flex-start' },
   fieldGroup: { marginBottom: 14 },
-  fieldLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: rf(fontSize.sm), color: colors.labelInk, marginBottom: 6, marginTop: 0 },
-  matchText: { fontFamily: 'Poppins_400Regular', fontSize: rf(13), color: PRIMARY, marginTop: 4, marginBottom: 0 },
-  passwordError: { fontFamily: 'Poppins_400Regular', fontSize: rf(13), color: '#A32621', marginTop: 4, marginBottom: 0 },
+  fieldLabel: { ...typography.label, color: colors.labelInk, marginBottom: 6, marginTop: 0 },
+  matchText: { ...typography.helper, color: PRIMARY, marginTop: 4, marginBottom: 0 },
+  passwordError: { ...typography.error, color: '#A32621', marginTop: 4, marginBottom: 0 },
   input: {
+    ...typography.input,
     backgroundColor: colors.card,
     borderRadius: radius.ctrl,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     minHeight: control.height,
-    fontFamily: 'Poppins_400Regular',
-    fontSize: rf(13),
     color: colors.ink,
     borderWidth: 1,
     borderColor: colors.border,
@@ -276,11 +275,11 @@ const styles = StyleSheet.create({
   ctaBlock: { marginTop: 20 },
   button: { backgroundColor: PRIMARY, minHeight: 48, paddingHorizontal: control.paddingH, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: rf(fontSize.lg), textAlign: 'center' },
+  buttonText: { ...typography.buttonPrimary, color: '#fff', textAlign: 'center' },
   nextStep: { fontFamily: 'Poppins_400Regular', textAlign: 'center', color: '#687065', fontSize: rf(11), lineHeight: rf(16), marginTop: 14 },
   footerSpacer: { flexGrow: 1, minHeight: 10, marginTop: 22, marginBottom: 10 },
   footerSpacerTall: { minHeight: 28, maxHeight: 96 },
-  link: { fontFamily: 'Poppins_400Regular', textAlign: 'center', color: colors.inkSoft, fontSize: rf(15), marginBottom: 4 },
+  link: { ...typography.buttonBlock, textAlign: 'center', color: colors.inkSoft, marginBottom: 4 },
   linkAction: { fontFamily: 'Poppins_500Medium', color: PRIMARY, textDecorationLine: 'underline' },
   locationInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
   locationInput: { flex: 1, minWidth: 0, marginBottom: 0 },
@@ -288,6 +287,6 @@ const styles = StyleSheet.create({
   pinBtnText: { ...actionBtnText, color: colors.leaf700 },
   locationFeedback: { backgroundColor: '#edf5e9', borderRadius: 8, padding: 10, marginTop: 10 },
   coordsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  coordsLabel: { color: PRIMARY, fontFamily: 'Poppins_600SemiBold', fontSize: rf(13) },
-  addressLabel: { color: '#4f594d', fontFamily: 'Poppins_400Regular', fontSize: rf(13), marginTop: 2 },
+  coordsLabel: { ...typography.label, color: PRIMARY },
+  addressLabel: { ...typography.meta, color: '#4f594d', marginTop: 2 },
 });

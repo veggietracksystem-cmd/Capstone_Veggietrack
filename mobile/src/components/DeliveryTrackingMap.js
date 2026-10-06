@@ -7,6 +7,7 @@ import { acquireDevicePosition } from '../lib/deviceLocation';
 import { activeJourney, isLivePosition, liveEtaSeconds } from '../lib/trackingJourney';
 import { isClosedOrderStatus } from '../lib/orderStatus';
 import { useTranslation } from '../i18n/useTranslation';
+import { typography } from '../theme/appTheme';
 
 export { acquireDevicePosition } from '../lib/deviceLocation';
 
@@ -144,13 +145,13 @@ export default function DeliveryTrackingMap({ trackingData, riderPosition, onAcq
 const styles = StyleSheet.create({
   container: { flex: 1, minHeight: 390, backgroundColor: '#fff', borderRadius: 12, overflow: 'hidden' },
   status: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 10, backgroundColor: '#eff6ef' },
-  dot: { width: 8, height: 8, borderRadius: 4 }, riderName: { fontSize: 12, fontWeight: '700', color: '#234d35' },
-  detail: { fontSize: 11, color: '#4a6050', marginTop: 3 }, map: { flex: 1, minHeight: 220 },
+  dot: { width: 8, height: 8, borderRadius: 4 }, riderName: { ...typography.label, color: '#234d35' },
+  detail: { ...typography.smallLabel, color: '#4a6050', marginTop: 3 }, map: { flex: 1, minHeight: 220 },
   loading: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', backgroundColor: '#eff5ef' },
   metrics: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', paddingHorizontal: 10, paddingTop: 8, gap: 4 },
-  metric: { fontSize: 12, fontWeight: '700', color: '#234d35' }, hint: { fontSize: 10, color: '#627368', paddingHorizontal: 10, paddingVertical: 4 },
+  metric: { ...typography.label, color: '#234d35' }, hint: { ...typography.smallLabel, color: '#627368', paddingHorizontal: 10, paddingVertical: 4 },
   controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 8 },
   button: { paddingHorizontal: 9, paddingVertical: 10, borderRadius: 7, backgroundColor: '#e8f2e8' },
-  buttonText: { fontSize: 11, fontWeight: '600', color: '#245636' }, disabled: { opacity: .4 },
-  feedback: { padding: 8, fontSize: 11, color: '#245636' }, warning: { padding: 8, fontSize: 11, color: '#85530b', backgroundColor: '#fff5e5' },
+  buttonText: { ...typography.buttonCompact, color: '#245636' }, disabled: { opacity: .4 },
+  feedback: { ...typography.helper, padding: 8, color: '#245636' }, warning: { ...typography.helper, padding: 8, color: '#85530b', backgroundColor: '#fff5e5' },
 });

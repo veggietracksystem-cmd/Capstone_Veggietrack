@@ -3,7 +3,8 @@ import { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts } from '../theme/appTheme';
+import { colors, fonts, typography } from '../theme/appTheme';
+import CountBadge, { formatCount } from './ui/CountBadge';
 
 // Bar padding without a system inset; the device's bottom inset is added on top.
 const BASE_PADDING_BOTTOM = 10;
@@ -31,11 +32,13 @@ function TabBadge({ count }) {
     prevCount.current = count;
   }, [count, scale]);
 
-  if (!count) return null;
+  if (!formatCount(count)) return null;
   return (
-    <Animated.View style={[styles.badge, { transform: [{ scale }] }]}>
-      <Text style={styles.badgeText} numberOfLines={1}>{count > 99 ? '99+' : count}</Text>
-    </Animated.View>
+    <View style={styles.badge} pointerEvents="none">
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <CountBadge count={count} max={99} />
+      </Animated.View>
+    </View>
   );
 }
 
@@ -88,9 +91,11 @@ export default function BottomNavBar({ tabs, activeTab, onTabPress, onTabMeasure
               />
               {typeof tab.badge === 'number' && <TabBadge count={tab.badge} />}
             </View>
+            {/* A long label ("Chain Tracking") wraps to a second line at the same size
+                instead of being cut off on narrow phones. */}
             <Text
               style={[styles.label, isActive && styles.labelActive]}
-              numberOfLines={1}
+              numberOfLines={2}
               adjustsFontSizeToFit
               minimumFontScale={0.82}
             >
@@ -116,10 +121,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
+  // Top-aligned so every icon sits on the same line whether its label takes one
+  // line or two; paddingTop keeps one-line tabs where they were when centered.
   tabItem: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 6,
     gap: 3,
   },
   iconWrap: {
@@ -128,10 +136,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: rf(11),
+    ...typography.navLabel,
     color: colors.inkFaint,
-    lineHeight: 15,
+    lineHeight: 14,
     textAlign: 'center',
     maxWidth: '100%',
     paddingHorizontal: 2,
@@ -139,21 +146,15 @@ const styles = StyleSheet.create({
   labelActive: {
     color: colors.leaf700,
   },
+  // Placement over the tab icon; the look comes from CountBadge. The fixed width
+  // lets "12" or "99+" widen the badge: an absolute box at left 50% of the narrow
+  // icon would otherwise squeeze it to the icon's width.
   badge: {
     position: 'absolute',
-    top: -6,
-    right: -10,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    paddingHorizontal: 3,
-    backgroundColor: colors.danger,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: {
-    fontFamily: fonts.bodyBold,
-    fontSize: rf(9.5),
-    color: '#fff',
+    top: -8,
+    left: '50%',
+    marginLeft: 4,
+    width: 40,
+    alignItems: 'flex-start',
   },
 });

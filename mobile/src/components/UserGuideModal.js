@@ -3,7 +3,7 @@ import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Animated,
 } from 'react-native';
-import { colors, control, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fonts, radius, shadowCard, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { useAuth } from '../context/AuthContext';
 import ModalCloseButton from './ui/ModalCloseButton';
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   card: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, overflow: 'hidden', paddingBottom: 20, ...shadowCard },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
-  title: { flex: 1, fontFamily: fonts.heading, fontSize: rf(17), color: colors.ink },
+  title: { ...typography.modalTitle, flex: 1, color: colors.ink },
   closeBtn: { padding: 6, minWidth: control.minTouch, minHeight: control.minTouch, alignItems: 'center', justifyContent: 'center'  },
   content: { padding: 16 },
   sectionList: { gap: 20 },
@@ -83,10 +83,10 @@ const styles = StyleSheet.create({
   },
   stepContainer: { gap: 10 },
   stepCard: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.card, padding: 14, borderWidth: 1, borderColor: colors.border, alignItems: 'flex-start' },
-  stepNum: { width: 26, height: 26, borderRadius: 13, backgroundColor: PRIMARY, color: '#fff', textAlign: 'center', lineHeight: 26, fontWeight: 'bold', fontSize: rf(13), marginRight: 12 },
+  stepNum: { width: 26, height: 26, borderRadius: 13, backgroundColor: PRIMARY, color: '#fff', textAlign: 'center', lineHeight: 26, fontFamily: fonts.bodyBold, fontSize: typography.label.fontSize, marginRight: 12 },
   // Reference items get a dot instead of a step number.
   stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY, marginRight: 12, marginTop: 8 },
   stepInfo: { flex: 1 },
-  stepTitle: { fontFamily: fonts.bodyBold, fontSize: rf(14.5), color: colors.ink, marginBottom: 2 },
-  stepDesc: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, lineHeight: 18 },
+  stepTitle: { ...typography.listTitle, color: colors.ink, marginBottom: 2 },
+  stepDesc: { ...typography.meta, color: colors.inkSoft, lineHeight: 18 },
 });

@@ -2,7 +2,7 @@ import {Text,View,StyleSheet} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
 import {AuthPage,AuthButton,authStyles as s} from '../components/AuthForm';
-import {colors} from '../theme/appTheme';
+import {colors,radius,typography} from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
 const STATUS_ICONS = {
@@ -23,7 +23,14 @@ export default function ApplicationStatusScreen(){
   return <AuthPage title={statusError?t('authx.connectionProblem'):t('authx.accountStatus')}>
     <View style={[styles.iconWrap,{backgroundColor:icon.bg}]}><Ionicons name={icon.name} size={34} color={icon.color}/></View>
     <Text style={[s.note,styles.centerNote]}>{statusError || messages[user?.account_status] || t('authx.statusChecking')}</Text>
-    {!!user?.status_reason && <Text style={[s.note,styles.centerNote]}>{user.status_reason}</Text>}
+    {/* The distributor's reason, saved with the decline or disable (users.status_reason). */}
+    {!statusError && ['declined','disabled'].includes(user?.account_status) && !!user?.status_reason && (
+      <View style={styles.reasonBox}>
+        <Text style={styles.reasonLabel}>{t('authx.reasonLabel')}</Text>
+        <Text style={styles.reasonText} selectable>{user.status_reason}</Text>
+      </View>
+    )}
+    {!statusError && user?.account_status==='disabled' && <Text style={[s.note,styles.centerNote]}>{t('authx.contactDistributor')}</Text>}
     <AuthButton title={statusError?t('authx.tryAgain'):t('authx.refreshStatus')} onPress={refreshProfile}/>
     <AuthButton variant="danger" title={t('authx.logout')} onPress={()=>signOut({redirectToLogin:true})}/>
   </AuthPage>;
@@ -32,4 +39,7 @@ export default function ApplicationStatusScreen(){
 const styles=StyleSheet.create({
   iconWrap:{width:84,height:84,borderRadius:42,alignItems:'center',justifyContent:'center',alignSelf:'center',marginBottom:18},
   centerNote:{textAlign:'center'},
+  reasonBox:{padding:14,borderRadius:radius.ctrl,backgroundColor:colors.dangerSoft,marginBottom:16},
+  reasonLabel:{...typography.label,color:colors.danger},
+  reasonText:{...typography.body,color:colors.ink,marginTop:4},
 });

@@ -1,6 +1,6 @@
 import { rf } from '../lib/responsive';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, fonts, radius } from '../theme/appTheme';
+import { colors, fonts, radius, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
 // Local datetime string "YYYY-MM-DDTHH:mm" for the input's min (no past times).
@@ -25,7 +25,7 @@ export default function SchedulePicker({ value, onChange, disabled }) {
         style={{
           width: '100%',
           padding: 12,
-          fontSize: rf(15),
+          fontSize: typography.input.fontSize,
           fontFamily: 'Poppins_400Regular, sans-serif',
           borderRadius: radius.ctrl,
           border: `1.4px solid ${colors.border}`,
@@ -41,5 +41,5 @@ export default function SchedulePicker({ value, onChange, disabled }) {
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 4 },
-  hint: { fontFamily: fonts.body, fontSize: rf(12), color: colors.inkFaint, marginTop: 4 },
+  hint: { ...typography.helper, color: colors.inkFaint, marginTop: 4 },
 });

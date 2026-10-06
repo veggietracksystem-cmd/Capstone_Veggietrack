@@ -19,7 +19,7 @@ import { useTranslation } from '../i18n/useTranslation';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, fontSize, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnPrimary, actionBtnDanger, actionBtnText, typography } from '../theme/appTheme';
 import RemoteImage from '../components/RemoteImage';
 
 const PRIMARY = colors.leaf700;
@@ -239,10 +239,9 @@ const styles = StyleSheet.create({
   },
   searchIcon: { fontSize: rf(16), marginRight: 8 },
   searchInput: {
+    ...typography.input,
     flex: 1,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-    fontFamily: fonts.body,
-    fontSize: rf(fontSize.lg),
     color: colors.ink,
   },
   searchClear: { fontSize: rf(16), color: colors.inkFaint, paddingLeft: 8 },
@@ -274,8 +273,7 @@ const styles = StyleSheet.create({
   },
   tileIcon: { width: 72, height: 72 },
   cropTitle: {
-    fontFamily: fonts.bodyBold,
-    fontSize: rf(fontSize.lg),
+    ...typography.cardTitle,
     color: colors.ink,
     marginBottom: 4,
     textAlign: 'center',

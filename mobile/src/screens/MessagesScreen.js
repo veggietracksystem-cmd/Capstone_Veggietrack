@@ -14,9 +14,10 @@ import { useAuth } from '../context/AuthContext';
 import { roleLabel } from '../lib/roles';
 import { showAlert } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, fonts, fontSize, radius, shadowCard, spacing } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard, spacing, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import ScreenHeader from '../components/ScreenHeader';
+import CountBadge from '../components/ui/CountBadge';
 import { tr } from '../i18n/translate';
 
 // Use the device's local calendar for both separators and message times.
@@ -214,11 +215,7 @@ export default function MessagesScreen({ navigation, embedded }) {
                       <Text style={styles.contactRole} numberOfLines={1}>{roleLabel(c.role)}</Text>
                     </View>
                     <View style={styles.contactRight}>
-                      {c.unread_count > 0 && (
-                        <View style={styles.contactBadge}>
-                          <Text style={styles.contactBadgeText}>{c.unread_count > 9 ? '9+' : c.unread_count}</Text>
-                        </View>
-                      )}
+                      <CountBadge count={c.unread_count} />
                     </View>
                   </TouchableOpacity>
                 ))}
@@ -299,7 +296,7 @@ const styles = StyleSheet.create({
   scrollArea: { flex: 1, minHeight: 0 },
   content: { paddingTop: spacing.md, paddingBottom: spacing.lg },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, marginBottom: spacing.lg },
-  searchInput: { flex: 1, minWidth: 0, paddingVertical: 10, fontFamily: fonts.body, color: colors.ink, fontSize: rf(fontSize.md) },
+  searchInput: { ...typography.input, flex: 1, minWidth: 0, paddingVertical: 10, color: colors.ink },
 
   emptyContainer: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 24 },
   emptyIcon: { marginBottom: 12 },
@@ -332,16 +329,6 @@ const styles = StyleSheet.create({
   contactName: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
   contactRole: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 2, textTransform: 'capitalize' },
   contactRight: { alignItems: 'flex-end' },
-  contactBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.gold500,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-  },
-  contactBadgeText: { fontFamily: fonts.bodyBold, color: colors.soil800, fontSize: rf(fontSize.xs) },
 
   threadContent: { paddingTop: spacing.sm, paddingBottom: spacing.md, flexGrow: 1 },
   dateSeparator: { alignItems: 'center', marginTop: 12, marginBottom: 8 },
@@ -367,6 +354,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   input: {
+    ...typography.input,
     flex: 1,
     backgroundColor: colors.card,
     borderRadius: radius.ctrl,
@@ -374,8 +362,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingHorizontal: 14,
     paddingVertical: 11,
-    fontFamily: fonts.body,
-    fontSize: rf(fontSize.md),
     color: colors.ink,
   },
   sendBtn: {

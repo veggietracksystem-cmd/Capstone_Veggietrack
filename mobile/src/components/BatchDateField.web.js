@@ -1,5 +1,5 @@
 import { manilaDate } from '../lib/deliverySchedule';
-import { colors, radius } from '../theme/appTheme';
+import { colors, radius, typography } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
 
 // Web: native browser date picker. Future days are disabled, and `minDate`
@@ -22,7 +22,7 @@ export default function BatchDateField({ value, onChange, minDate, disabled }) {
 const inputStyle = {
   width: '100%',
   padding: 12,
-  fontSize: rf(15),
+  fontSize: typography.input.fontSize,
   fontFamily: 'Poppins_400Regular, sans-serif',
   borderRadius: radius.ctrl,
   border: `1.4px solid ${colors.border}`,

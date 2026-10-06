@@ -3,7 +3,7 @@ import { useState } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet,
 } from 'react-native';
-import { colors, control, fonts, radius } from '../theme/appTheme';
+import { colors, control, fonts, radius, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
 const PRIMARY = colors.leaf700;
@@ -123,25 +123,25 @@ const styles = StyleSheet.create({
   wrap: { marginBottom: 4 },
   trigger: { backgroundColor: colors.card, borderRadius: radius.ctrl, padding: 14, borderWidth: 1.4, borderColor: PRIMARY },
   triggerEmpty: { borderColor: colors.border },
-  triggerText: { fontFamily: fonts.bodySemiBold, fontSize: rf(15), color: colors.ink },
+  triggerText: { ...typography.input, color: colors.ink },
   triggerTextEmpty: { fontFamily: fonts.body, color: colors.inkFaint },
 
   backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingBottom: 28 },
-  sheetTitle: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, marginBottom: 12 },
+  sheetTitle: { ...typography.modalTitle, color: colors.ink, marginBottom: 12 },
   label: { fontFamily: fonts.bodySemiBold, fontSize: rf(12.5), color: colors.labelInk, marginTop: 10, marginBottom: 8 },
   chipRow: { gap: 8, paddingRight: 8 },
   timeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   chipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  chipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(13.5) },
+  chipText: { ...typography.chip, color: colors.inkSoft },
   chipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
 
   actions: { flexDirection: 'row', gap: 12, marginTop: 20 },
   btn: { flex: 1, paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center', minHeight: control.height },
   btnPrimary: { backgroundColor: PRIMARY },
-  btnPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15.5) },
+  btnPrimaryText: { ...typography.buttonPrimary, color: '#fff' },
   btnOutline: { borderWidth: 1.4, borderColor: PRIMARY },
-  btnOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15.5) },
+  btnOutlineText: { ...typography.buttonPrimary, color: PRIMARY },
   btnDisabled: { opacity: 0.5 },
 });

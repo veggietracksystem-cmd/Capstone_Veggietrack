@@ -2,7 +2,7 @@ import { ActivityIndicator, Keyboard, Linking, ScrollView, StyleSheet, Text, Tou
 import TextInput from './AppTextInput';
 import usePlaceAutocomplete from '../hooks/usePlaceAutocomplete';
 import { rf } from '../lib/responsive';
-import { colors, radius, actionBtn, actionBtnPrimary, actionBtnText } from '../theme/appTheme';
+import { colors, radius, actionBtn, actionBtnPrimary, actionBtnText, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
 export default function PlaceAutocomplete({ visible, onSelect }) {
@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
   container: { paddingHorizontal: 16, paddingTop: 12, marginBottom: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   field: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', minHeight: 44, backgroundColor: colors.card, borderWidth: 1.4, borderColor: colors.border, borderRadius: radius.ctrl, paddingLeft: 12, paddingRight: 4 },
-  input: { flex: 1, minWidth: 0, paddingVertical: 10, fontSize: rf(14), color: colors.ink, textAlignVertical: 'center' },
+  input: { ...typography.input, flex: 1, minWidth: 0, paddingVertical: 10, color: colors.ink, textAlignVertical: 'center' },
   clear: { width: 32, height: 40, alignItems: 'center', justifyContent: 'center' },
   clearText: { color: colors.inkSoft, fontSize: rf(18) },
   button: { ...actionBtn, ...actionBtnPrimary, flexShrink: 0 },
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   dropdown: { backgroundColor: colors.card, borderRadius: radius.ctrl, borderWidth: 1, borderColor: colors.border, marginTop: 8, overflow: 'hidden' },
   list: { maxHeight: 180 },
   result: { minHeight: 44, padding: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
-  resultText: { fontSize: rf(13), color: colors.ink },
-  note: { padding: 10, fontSize: rf(12), color: colors.inkSoft },
-  attribution: { alignSelf: 'flex-start', fontSize: 10, color: colors.inkFaint, marginTop: 6, textDecorationLine: 'underline' },
+  resultText: { ...typography.body, color: colors.ink },
+  note: { ...typography.helper, padding: 10, color: colors.inkSoft },
+  attribution: { ...typography.smallLabel, alignSelf: 'flex-start', color: colors.inkFaint, marginTop: 6, textDecorationLine: 'underline' },
 });

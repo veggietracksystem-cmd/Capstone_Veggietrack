@@ -19,7 +19,7 @@ import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { showAlert, confirmAction, peso } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnDanger, actionBtnText } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, spacing, actionBtn, actionBtnOutline, actionBtnDanger, actionBtnText, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { localizeVegetableName, vegetableKey } from '../lib/vegetableNames';
@@ -61,6 +61,8 @@ export default function StocksScreen({ navigation, route }) {
   // Batch waiting for the Discard confirmation.
   const [discarding, setDiscarding] = useState(null);
   const [discardBusy, setDiscardBusy] = useState(false);
+  // Batch whose Keep/Sell is being saved.
+  const [keepingId, setKeepingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
@@ -189,6 +191,21 @@ export default function StocksScreen({ navigation, route }) {
       setDiscardBusy(false);
     }
   };
+  // Keep/Sell: the stock stays in the batch and on sale; the alert or review clears.
+  const keepForSale = async (batch) => {
+    if (!requestLock.acquire('keep')) return;
+    setKeepingId(batch.id);
+    try {
+      await stockAlerts.keep(batch.id);
+      await loadBatches();
+    } catch (err) {
+      showAlert(t('common.error'), friendlyError(err));
+      await Promise.all([loadBatches(), stockAlerts.reload()]);
+    } finally {
+      requestLock.release('keep');
+      setKeepingId(null);
+    }
+  };
   const saveBatchPhoto = async () => {
     if (!batchPhotoUrl || batchPhotoState !== 'ready') {
       showAlert(t('common.error'), batchPhotoState === 'uploading' ? t('cmp2.photoWait') : t('cmp2.photoBeforeSave'));
@@ -297,8 +314,10 @@ export default function StocksScreen({ navigation, route }) {
   };
 
   const renderBadge = (b) => {
-    // Past the 7-day limit: kept in stock, not sold, waiting for the distributor.
-    if (b.past_limit) return <StatusBadge status="pending" label={t('stocks.statusNeedsReview')} />;
+    // Past the 7-day limit: still in stock and on sale while listed, waiting for the
+    // distributor's Keep/Sell or Discard.
+    if (b.needs_review) return <StatusBadge status="pending" label={t('stocks.statusNeedsReview')} />;
+    if (b.past_limit && b.kept_for_sale) return <StatusBadge status="active" label={t('stocks.statusKeptForSale')} />;
     if (isListable(b.status)) {
       return <StatusBadge status={b.batch_photo_url ? 'completed' : 'pending'} label={b.batch_photo_url ? t('stocks.photoCaptured') : t('stocks.photoMissing')} />;
     }
@@ -344,7 +363,9 @@ export default function StocksScreen({ navigation, route }) {
         <View style={styles.row}>
           <Text style={styles.label}>{t('stocks.daysInStock')}</Text>
           <Text style={[styles.value, b.days_in_stock >= 7 && styles.valueWarning]}>
-            {b.past_limit ? t('stocks.pastLimit') : b.days_in_stock >= 7 ? t('stocks.lastDayToSell') : t('stocks.daysOfSeven', { days: b.days_in_stock })}
+            {b.past_limit
+              ? (b.needs_review ? t('stocks.pastLimit') : t('stocks.pastLimitKept'))
+              : b.days_in_stock >= 7 ? t('stocks.lastDayToSell') : t('stocks.daysOfSeven', { days: b.days_in_stock })}
           </Text>
         </View>
       )}
@@ -358,7 +379,7 @@ export default function StocksScreen({ navigation, route }) {
   );
 
   const renderItem = ({ item: b }) => {
-    const busy = busyId != null;
+    const busy = busyId != null || keepingId != null;
     const alert = alertFor(b);
     return (
       <View style={[styles.card, alert && styles.cardAlert]}>
@@ -376,7 +397,7 @@ export default function StocksScreen({ navigation, route }) {
 
         {renderDetails(b)}
 
-        {isListable(b.status) && !b.past_limit && (
+        {isListable(b.status) && (
           <TouchableOpacity
             style={[styles.addBtn, busy && styles.addBtnDisabled]}
             onPress={() => onAddToProductList(b)}
@@ -396,10 +417,12 @@ export default function StocksScreen({ navigation, route }) {
             <Text style={styles.discardBtnText}>{t('discard.button')}</Text>
           </TouchableOpacity>
         </View>
-        {/* Keep Selling is for the last sellable day; past the limit only Discard remains. */}
-        {!!alert && !alert.past_limit && (
-          <TouchableOpacity style={styles.keepBtn} onPress={() => stockAlerts.keep(b.id)} disabled={busy} accessibilityRole="button">
-            <Text style={styles.keepBtnText}>{t('stockAlerts.keepSelling')}</Text>
+        {/* The distributor's decision on an alerted batch: Keep/Sell here, or Discard above. */}
+        {!!alert && (
+          <TouchableOpacity style={styles.keepBtn} onPress={() => keepForSale(b)} disabled={busy} accessibilityRole="button">
+            {keepingId === b.id
+              ? <ActivityIndicator color={PRIMARY} size="small" />
+              : <Text style={styles.keepBtnText}>{t('stockAlerts.keepSelling')}</Text>}
           </TouchableOpacity>
         )}
       </View>
@@ -622,10 +645,10 @@ const styles = StyleSheet.create({
   tileLg: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   tileIconLg: { width: 40, height: 40 },
   detailCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, padding: 12, marginBottom: 14 },
-  product: { fontSize: rf(fontSize.lg), fontFamily: fonts.bodySemiBold, color: colors.ink },
+  product: { ...typography.cardTitle, color: colors.ink },
 
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  label: { fontSize: rf(fontSize.sm), color: colors.inkFaint },
+  label: { ...typography.meta, color: colors.inkFaint },
   value: { fontSize: rf(fontSize.sm), color: colors.ink, fontFamily: fonts.bodySemiBold },
 
   addBtn: { marginTop: 10, backgroundColor: PRIMARY, borderRadius: radius.ctrl, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', minHeight: control.height  },
@@ -656,7 +679,7 @@ const styles = StyleSheet.create({
 
   modalHint: { fontSize: rf(fontSize.sm), color: colors.inkFaint, marginBottom: 10 },
   discardText: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink, lineHeight: rf(21) },
-  priceInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, fontSize: rf(fontSize.lg) },
+  priceInput: { ...typography.input, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10 },
   editPriceLabel: { fontFamily: fonts.bodySemiBold, color: colors.ink, marginTop: 14, marginBottom: 7 },
   inputLocked: { backgroundColor: colors.bgScreen, color: colors.inkSoft },
   fieldHint: { fontSize: rf(fontSize.sm), color: colors.inkFaint, marginTop: 6 },

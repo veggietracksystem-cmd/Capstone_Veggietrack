@@ -2,7 +2,7 @@ import ProofDetails from './ProofDetails';
 import { useTranslation } from '../i18n/useTranslation';
 import { rf } from '../lib/responsive';
 import { Modal, Text, Image, TouchableOpacity, ActivityIndicator, Animated, StyleSheet } from 'react-native';
-import { colors, control, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fonts, radius, shadowCard, typography } from '../theme/appTheme';
 import { useSharedModalMotion } from '../lib/motion';
 
 const PRIMARY = colors.leaf700;
@@ -63,20 +63,20 @@ export default function ProofPreviewModal({
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   card: { width: '100%', maxWidth: 360, backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
-  title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
-  subtitle: { fontFamily: fonts.body, fontSize: rf(13), color: colors.inkSoft, marginTop: 2, marginBottom: 14 },
+  title: { ...typography.modalTitle, color: colors.ink },
+  subtitle: { ...typography.helper, color: colors.inkSoft, marginTop: 2, marginBottom: 14 },
 
   preview: { width: '100%', height: 200, borderRadius: radius.ctrl, backgroundColor: colors.border },
-  retakeLink: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(14), textAlign: 'center', paddingVertical: 12 },
+  retakeLink: { ...typography.buttonBlock, color: PRIMARY, textAlign: 'center', paddingVertical: 12 },
 
   addPhotoBtn: { paddingVertical: 24, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1, borderColor: PRIMARY, borderStyle: 'dashed', marginBottom: 8, justifyContent: 'center', minHeight: control.height },
-  addPhotoText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15) },
-  optionalText: { fontFamily: fonts.body, color: colors.inkFaint, fontSize: rf(12), marginTop: 4 },
+  addPhotoText: { ...typography.buttonBlock, color: PRIMARY },
+  optionalText: { ...typography.helper, color: colors.inkFaint, marginTop: 4 },
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 10 },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15.5) },
+  buttonPrimaryText: { ...typography.buttonPrimary, color: '#fff' },
   buttonOutline: { borderWidth: 1.4, borderColor: PRIMARY },
-  buttonOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15.5) },
+  buttonOutlineText: { ...typography.buttonPrimary, color: PRIMARY },
   buttonDisabled: { opacity: 0.6 },
 });

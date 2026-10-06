@@ -15,7 +15,7 @@ import ContactUsModal from '../components/ContactUsModal';
 import CustomModal from '../components/CustomModal';
 import BottomNavBar, { useBottomNavSpace } from '../components/BottomNavBar';
 import ScreenHeader from '../components/ScreenHeader';
-import { colors, fonts, fontSize, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, shadowCard, typography } from '../theme/appTheme';
 
 // Bottom-tab sets per role (all roles except Farmer, whose profile is a dashboard
 // tab). They mirror each dashboard so the bar does not change when opening Profile.
@@ -199,8 +199,6 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  back: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: rf(15), width: 50 },
-  title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
   content: { padding: 16, paddingBottom: 100 },
 
   profileCard: {
@@ -248,8 +246,8 @@ export const styles = StyleSheet.create({
     width: 34, height: 34, borderRadius: 10, backgroundColor: colors.leaf50,
     alignItems: 'center', justifyContent: 'center',
   },
-  infoLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint },
-  infoValue: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 2 },
+  infoLabel: { ...typography.smallLabel, color: colors.inkFaint },
+  infoValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 2 },
 
   sectionCard: {
     backgroundColor: colors.surface,
@@ -260,7 +258,7 @@ export const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadowCard,
   },
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 12 },
+  sectionTitle: { ...typography.cardHeading, color: colors.ink, marginBottom: 12 },
 
   menuItem: {
     flexDirection: 'row',

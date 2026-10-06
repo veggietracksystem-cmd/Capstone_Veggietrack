@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { hub, retailer, a, b, migration, rpc, buy, approve, manilaDayStart, stock, setup } = require('./inventoryDb');
-const { retailerProducts, isPastSpoilageLimit } = require('../lib/batches');
+const { isPastSpoilageLimit } = require('../lib/batches');
 
 // Real PostgreSQL (PGlite) checks for sql/manual_spoilage.sql: passing the 7-day
 // limit is only a warning; stock moves to Spoiled Products when the distributor discards it.
@@ -34,9 +34,9 @@ test('past the limit is a warning: stock stays in the batch, is not sold and is 
     assert.deepEqual(await spoilage(db), [], 'no spoiled record without the distributor');
     assert.equal(await spoiledTotal(db), 0);
     assert.equal((await db.query('SELECT product_id FROM order_items WHERE order_id=$1', [order.id])).rows[0].product_id, b);
-    // The retailer menu offers only stock within the limit; the batch is flagged for review.
+    // The batch is flagged for review. keep_past_limit_stock.sql (keepPastLimitStockSql.test.js)
+    // puts it back on sale, as lib/batches.js already counts it.
     const rows = await stock(db);
-    assert.deepEqual(retailerProducts(rows).map(p => [p.vegetable_name, p.available_kg]), [['Tomato', 8]]);
     assert.equal(isPastSpoilageLimit(rows.find(row => row.id === a)), true);
     assert.equal(isPastSpoilageLimit(rows.find(row => row.id === b)), false);
     // Re-running the migration or the old rule later still leaves it for review.

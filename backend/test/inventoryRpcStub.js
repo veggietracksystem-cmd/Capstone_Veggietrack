@@ -59,8 +59,8 @@ function inventoryRpcStub(data, name, args, nextId) {
   const products = data.products || [];
   const failed = message => ({ data: null, error: fail(message) });
   const invalid = message => ({ data: null, error: { code: '22023', message } });
-  // In-memory sql/manual_spoilage.sql: nothing is spoiled automatically; stock past the
-  // limit stays in its batch (and out of sale, see isSellableBatch) until the distributor discards it.
+  // In-memory sql/keep_past_limit_stock.sql: nothing is spoiled automatically; stock past the
+  // limit stays in its batch and on sale (see isSellableBatch) until the distributor discards it.
   if (name === 'spoil_expired_batches') return { data: 0, error: null };
   if (name === 'discard_product_stock') {
     const batch = products.find(p => p.id === args.p_product_id && p.distributor_id === args.p_distributor_id);

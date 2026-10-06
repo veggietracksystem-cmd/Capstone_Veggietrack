@@ -16,7 +16,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import api from '../api/client';
 import { showAlert, confirmAction } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnDanger, actionBtnText } from '../theme/appTheme';
+import { colors, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnDanger, actionBtnText, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { rf } from '../lib/responsive';
 import MapPinningModal from '../components/MapPinningModal';
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   empty: { alignItems: 'center', marginTop: 60 },
   emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink },
+  emptyTitle: { ...typography.emptyTitle, color: colors.ink },
   emptyMessage: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, textAlign: 'center', marginTop: 8 },
   addressCard: {
     backgroundColor: colors.surface,
@@ -366,16 +366,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
-  addBtnText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg), textAlign: 'center' },
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.labelInk, marginTop: 10, marginBottom: 4 },
+  addBtnText: { ...typography.buttonPrimary, color: '#fff', textAlign: 'center' },
+  fieldLabel: { ...typography.label, color: colors.labelInk, marginTop: 10, marginBottom: 4 },
   input: {
+    ...typography.input,
     backgroundColor: colors.card,
     borderRadius: radius.ctrl,
     padding: 10,
     borderWidth: 1,
     borderColor: colors.border,
-    fontFamily: fonts.body,
-    fontSize: rf(fontSize.md),
     color: colors.ink,
   },
   addressInput: { minHeight: 50, textAlignVertical: 'top' },

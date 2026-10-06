@@ -1,3 +1,5 @@
+import { rf } from '../lib/responsive';
+
 export const colors = {
   bgScreen: '#FFFFFF',
   surface: '#FAFAF7',
@@ -69,6 +71,37 @@ export const fonts = {
   bodyBold: 'Poppins_700Bold',
 };
 
+// Text roles. Text with the same purpose uses the same role on every screen, so
+// sizes and weights stay consistent across Farmer, Distributor, Retailer, Rider
+// and the sign-in screens. Sizes are fontSize steps, scaled to the screen with rf.
+export const typography = {
+  screenTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title) },     // ScreenHeader
+  authTitle: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.h1) },      // sign-in pages
+  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl) },       // page sections ("Current Tasks")
+  modalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl) },
+  cardHeading: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg) },        // heading inside a card
+  cardTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg) },         // order/pickup id, product name
+  listTitle: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md) },     // list row, tile or option title
+  body: { fontFamily: fonts.body, fontSize: rf(fontSize.md) },
+  meta: { fontFamily: fonts.body, fontSize: rf(fontSize.sm) },                  // secondary details, dates
+  label: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm) },         // form field label
+  smallLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs) },            // label above a detail value
+  statLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs) },
+  statValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1) },
+  input: { fontFamily: fonts.body, fontSize: rf(fontSize.md) },
+  buttonPrimary: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.lg) }, // main action of a screen or modal
+  buttonBlock: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md) },   // full-width button inside a card
+  buttonCompact: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm) }, // small card actions (actionBtn)
+  chip: { fontFamily: fonts.body, fontSize: rf(fontSize.sm) },                  // selectable chip (date, reason)
+  filter: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm) },        // filter tab or dropdown value
+  badge: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs) },         // StatusBadge
+  navLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs) },
+  error: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm) },
+  helper: { fontFamily: fonts.body, fontSize: rf(fontSize.sm) },                // hints, instructions, banners
+  emptyTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg) },
+  emptyMessage: { fontFamily: fonts.body, fontSize: rf(fontSize.md) },
+};
+
 export const shadowCard = {
   boxShadow: '0 6px 20px rgba(30, 78, 9, 0.12)',
 };
@@ -85,7 +118,7 @@ export const actionBtn = {
 export const actionBtnOutline = { backgroundColor: colors.card, borderColor: colors.leaf700 };
 export const actionBtnPrimary = { backgroundColor: colors.leaf700, borderColor: colors.leaf700 };
 export const actionBtnDanger = { backgroundColor: colors.card, borderColor: colors.danger };
-export const actionBtnText = { fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, textAlign: 'center' };
+export const actionBtnText = { ...typography.buttonCompact, textAlign: 'center' };
 
 export const dangerButton = {
   backgroundColor: colors.danger,
@@ -96,4 +129,4 @@ export const dangerButton = {
   alignItems: 'center',
   justifyContent: 'center',
 };
-export const dangerButtonText = { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: 15, textAlign: 'center' };
+export const dangerButtonText = { ...typography.buttonPrimary, color: '#fff', textAlign: 'center' };

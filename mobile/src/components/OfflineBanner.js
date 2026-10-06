@@ -1,6 +1,6 @@
 import { rf } from '../lib/responsive';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, fonts, radius } from '../theme/appTheme';
+import { colors, fonts, radius, typography } from '../theme/appTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '../i18n/useTranslation';
 
@@ -28,5 +28,5 @@ const styles = StyleSheet.create({
   offline: { backgroundColor: colors.gold100, borderWidth: 1, borderColor: colors.gold500 },
   pending: { backgroundColor: colors.leaf100, borderWidth: 1, borderColor: colors.leaf500 },
   content: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  text: { flex: 1, fontFamily: fonts.body, fontSize: rf(13), color: colors.ink, lineHeight: 18 },
+  text: { ...typography.helper, flex: 1, color: colors.ink, lineHeight: 18 },
 });

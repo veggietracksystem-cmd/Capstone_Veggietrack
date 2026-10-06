@@ -2,6 +2,7 @@ import { rf } from '../lib/responsive';
 import { Component } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { tr } from '../i18n/translate';
+import { typography } from '../theme/appTheme';
 
 const PRIMARY = '#1E4E09';
 
@@ -52,8 +53,8 @@ export default class ErrorBoundary extends Component {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30, backgroundColor: '#FFFFFF' },
-  title: { fontSize: rf(24), fontWeight: 'bold', color: PRIMARY, marginBottom: 12, textAlign: 'center' },
+  title: { ...typography.screenTitle, color: PRIMARY, marginBottom: 12, textAlign: 'center' },
   message: { fontSize: rf(16), color: '#555', textAlign: 'center', marginBottom: 16 },
   button: { backgroundColor: PRIMARY, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 8, alignItems: 'center' },
-  buttonText: { color: '#fff', fontSize: rf(16), fontWeight: '600' },
+  buttonText: { ...typography.buttonPrimary, color: '#fff' },
 });

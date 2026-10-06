@@ -74,11 +74,11 @@ test('a Quick Action shows its red count only when there is something to do', as
   const tab = d.home();
   const quickAction = tab.type(tab.props).props.children.find((child) => child?.props?.children?.some?.((c) => c?.type?.name === 'QuickAction'));
   const QuickAction = quickAction.props.children.find((c) => c?.type?.name === 'QuickAction').type;
-  // The badge is the only element whose text is the count.
+  // The card hands its count to the shared CountBadge, which shows "9+" above 9 and
+  // nothing at 0 (mobile/test/inventoryLifecycle.test.cjs checks the badge itself).
   const shown = (badge) => JSON.stringify(QuickAction({ icon: 'x', label: 'Payment', badge, badgeLabel: 'n' }));
-  assert.ok(shown(3).includes('"children":3'));
-  assert.ok(shown(12).includes('"children":"9+"'));
-  assert.ok(!shown(0).includes('"children":0'), 'no badge at 0');
+  assert.ok(shown(3).includes('"count":3'));
+  assert.ok(shown(12).includes('"count":12'));
   assert.equal(shown(0), JSON.stringify(QuickAction({ icon: 'x', label: 'Payment', badgeLabel: 'n' })), 'at 0 it renders exactly like a card without a badge');
 });
 

@@ -64,7 +64,8 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: rf(fontSize.title + 2), marginTop: 4, marginBottom: 24 },
+  // Same title size as the other sign-in pages; only the spacing differs.
+  title: { marginTop: 4, marginBottom: 24 },
   continueGap: { height: 4 },
   optionsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 4, marginBottom: 4, minHeight: control.minTouch },
   keepRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },

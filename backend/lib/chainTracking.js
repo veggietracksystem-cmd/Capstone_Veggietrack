@@ -1,7 +1,7 @@
 // Vegetable Chain Tracking: the history of each stock batch from the farmer to a
 // retailer or to Spoiled Products, built only from stored rows (products,
 // pickup_requests, order_items, orders, deliveries, payments, stock_spoilage).
-const { roundKg, batchStatus, compareFifo, daysInStock, stockSince, isPastSpoilageLimit } = require('./batches');
+const { roundKg, batchStatus, compareFifo, daysInStock, stockSince, isPastSpoilageLimit, needsSpoilageReview } = require('./batches');
 const { estimatedTotal } = require('./pickups');
 const { canonicalVegetableName, vegetableKey } = require('./vegetables');
 
@@ -41,6 +41,8 @@ function buildChainBatches({ batches = [], farmersById = {}, pickupsById = {}, p
       const delivery = deliveriesByOrderId[item.order_id] || null;
       const quantity = num(item.quantity_kg), price = item.price_at_order != null ? num(item.price_at_order) : null;
       return {
+        // The order_items row: one batch can feed an order on more than one line.
+        item_id: item.id ?? null,
         order_id: item.order_id,
         stage: saleStage(order),
         retailer_name: name(order?.retailer_id),
@@ -82,8 +84,9 @@ function buildChainBatches({ batches = [], farmersById = {}, pickupsById = {}, p
       price_per_kg: batch.price_per_kg != null ? num(batch.price_per_kg) : null,
       in_stock_since: stockSince(batch) || (pickup?.received_at ?? null),
       days_in_stock: ['received', 'listed'].includes(batchStatus(batch)) ? daysInStock(batch, now) : null,
-      // Still active, but past the 7-day limit and waiting for the distributor's decision.
+      // Still active and past the 7-day limit; needs_review until the distributor decides.
       past_limit: isPastSpoilageLimit(batch, now),
+      needs_review: needsSpoilageReview(batch, now),
       pickup: pickup ? {
         id: pickup.id,
         requested_at: pickup.requested_at || null,
@@ -119,7 +122,9 @@ function reportFilter({ from, to, vegetable } = {}) {
 }
 
 // Dated transactions of the given batches: stock received, sale delivered to a
-// retailer, stock spoiled, filtered as in reportFilter.
+// retailer, stock spoiled, filtered as in reportFilter. `id` names the stored
+// record behind each row (the batch, the order_items row or the stock_spoilage
+// row), so View Details opens exactly that record.
 function chainEvents(chainBatches, filters = {}) {
   const { inRange, hasVegetable } = reportFilter(filters);
   const events = [];
@@ -127,17 +132,18 @@ function chainEvents(chainBatches, filters = {}) {
     if (!hasVegetable(batch.vegetable_name)) continue;
     const base = { batch_id: batch.batch_id, vegetable_name: batch.vegetable_name, farmer_name: batch.farmer_name, harvest_date: batch.harvest_date };
     if (inRange(batch.in_stock_since)) {
-      events.push({ ...base, type: 'received', date: batch.in_stock_since, quantity_kg: batch.totals.received, party: batch.farmer_name, status: batch.status, amount: batch.pickup?.estimated_total ?? null });
+      events.push({ ...base, id: `received:${batch.batch_id}`, type: 'received', date: batch.in_stock_since, quantity_kg: batch.totals.received, party: batch.farmer_name, status: batch.status, amount: batch.pickup?.estimated_total ?? null });
     }
-    for (const sale of batch.sales) {
+    batch.sales.forEach((sale, index) => {
       const date = sale.delivered_at || sale.ordered_at;
       if (sale.stage === 'sold' && inRange(date)) {
-        events.push({ ...base, type: 'sold', date, quantity_kg: sale.quantity_kg, party: sale.retailer_name, status: 'delivered', amount: sale.total_amount, order_id: sale.order_id });
+        events.push({ ...base, id: `sold:${sale.item_id || `${batch.batch_id}:${sale.order_id}:${index}`}`, type: 'sold', date,
+          quantity_kg: sale.quantity_kg, party: sale.retailer_name, status: 'delivered', amount: sale.total_amount, order_id: sale.order_id, item_id: sale.item_id });
       }
-    }
+    });
     for (const record of batch.spoilage) {
       if (inRange(record.recorded_at)) {
-        events.push({ ...base, type: 'spoiled', date: record.recorded_at, quantity_kg: record.quantity_kg, party: batch.farmer_name, status: record.reason, amount: null });
+        events.push({ ...base, id: `spoiled:${record.id}`, type: 'spoiled', date: record.recorded_at, quantity_kg: record.quantity_kg, party: batch.farmer_name, status: record.reason, amount: null, spoilage_id: record.id });
       }
     }
   }

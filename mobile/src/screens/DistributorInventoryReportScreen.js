@@ -22,7 +22,7 @@ import { exportReportPdf, printReport } from '../lib/reportPdf';
 import { showAlert, peso } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import { getVegetableTile } from '../lib/vegetableIcons';
-import { colors, control, fontSize, fonts, radius, spacing, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, spacing, actionBtn, actionBtnOutline, actionBtnText, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { statusLabel } from '../i18n/translate';
 import { localizeVegetableName } from '../lib/vegetableNames';
@@ -102,7 +102,8 @@ export function formatBatch(batch, language, t) {
   };
 }
 
-function DetailRow({ label, value, children }) {
+// One labelled value in a View Details modal; also used by Transaction Reports.
+export function DetailRow({ label, value, children }) {
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
@@ -182,7 +183,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
   };
 
   // An active batch past the 7-day limit reads "Needs review" until the distributor discards it.
-  const renderStatus = (status, pastLimit) => (pastLimit
+  const renderStatus = (status, needsReview) => (needsReview
     ? <StatusBadge status="pending" label={t('stocks.statusNeedsReview')} />
     : <StatusBadge status={displayStatus(status)} label={statusLabel(displayStatus(status), t)} />);
   const cell = (value) => (num(value) != null ? String(num(value)) : '—');
@@ -238,7 +239,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
         <Text style={[styles.cellNum, styles.colKg]}>{cell(b.totals?.sold)}</Text>
         {wide && <Text style={[styles.cellNum, styles.colKg]}>{cell(b.totals?.spoiled)}</Text>}
         <Text style={[styles.cellNum, styles.colKg, styles.cellStrong]}>{cell(b.totals?.remaining)}</Text>
-        <View style={[styles.colStatus, styles.statusCell]}>{renderStatus(b.status, b.past_limit)}</View>
+        <View style={[styles.colStatus, styles.statusCell]}>{renderStatus(b.status, b.needs_review)}</View>
       </TouchableOpacity>
     );
   };
@@ -285,7 +286,7 @@ export default function DistributorInventoryReportScreen({ navigation }) {
           <>
             <View style={styles.detailStatusRow}>
               <Text style={styles.detailLabel}>{t('chain.col.status')}</Text>
-              {renderStatus(detail.status, detail.past_limit)}
+              {renderStatus(detail.status, detail.needs_review)}
             </View>
             {detail.batch_photo_url
               ? <RemoteImage uri={detail.batch_photo_url} style={styles.detailPhoto} resizeMode="cover" accessibilityLabel={t('inventoryReport.colPhoto')} />
@@ -410,7 +411,7 @@ const styles = StyleSheet.create({
   detailStatusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   detailPhoto: { width: '100%', height: 180, borderRadius: radius.card, marginTop: 12, backgroundColor: colors.leaf50 },
   detailRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border, alignItems: 'flex-start' },
-  detailLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint },
+  detailLabel: { ...typography.smallLabel, color: colors.inkFaint },
   detailValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 2 },
   sectionHeading: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 18, marginBottom: 4 },
   block: { marginTop: 8, paddingHorizontal: 12, borderRadius: radius.ctrl, backgroundColor: colors.bgScreen },

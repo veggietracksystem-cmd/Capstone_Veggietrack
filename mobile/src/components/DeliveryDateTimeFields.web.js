@@ -2,7 +2,7 @@ import DeliveryTimeScroller from './DeliveryTimeScroller';
 import { useTranslation } from '../i18n/useTranslation';
 import { manilaDate } from '../lib/deliverySchedule';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, fonts, radius } from '../theme/appTheme';
+import { colors, fonts, radius, typography } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
 
 // Web: native browser date and time pickers. `date` defaults to today (set by
@@ -32,7 +32,7 @@ export default function DeliveryDateTimeFields({ date, onDateChange, time, onTim
 const inputStyle = {
   width: '100%',
   padding: 12,
-  fontSize: rf(15),
+  fontSize: typography.input.fontSize,
   fontFamily: 'Poppins_400Regular, sans-serif',
   borderRadius: radius.ctrl,
   border: `1.4px solid ${colors.border}`,

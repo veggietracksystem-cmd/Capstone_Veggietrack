@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Text, View, TouchableOpacity, StyleSheet } from 'react-native';
+import { TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
 import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
-import { colors, control, fonts } from '../theme/appTheme';
+import { colors, control } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
 import { useTranslation } from '../i18n/useTranslation';
+import CountBadge from './ui/CountBadge';
 
 const POLL_MS = 30000; // matches NotificationBell/MessagesIcon
 
@@ -49,20 +50,13 @@ export default function PendingAccountsIcon() {
       accessibilityLabel={pending > 0 ? t('misc.userMgmtPending', { n: pending }) : t('misc.userMgmt')}
     >
       <Ionicons name="people-outline" size={rf(24)} color={colors.soil800} />
-      {pending > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{pending > 9 ? '9+' : pending}</Text>
-        </View>
-      )}
+      <CountBadge count={pending} style={styles.badge} />
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   iconBtn: { width: control.minTouch, height: control.minTouch, alignItems: 'center', justifyContent: 'center' },
-  badge: {
-    position: 'absolute', top: 3, right: 2, minWidth: 18, height: 18, borderRadius: 9,
-    backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
-  },
-  badgeText: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: rf(11) },
+  // Placement only; the look comes from CountBadge.
+  badge: { position: 'absolute', top: 3, right: 2 },
 });

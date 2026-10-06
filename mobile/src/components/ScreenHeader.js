@@ -1,7 +1,7 @@
 import { rf } from '../lib/responsive';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, control, fonts, fontSize, spacing } from '../theme/appTheme';
+import { colors, control, fonts, fontSize, spacing, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 
 // Shared header for every screen. The title is left-aligned after the back arrow
@@ -82,11 +82,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
+    ...typography.screenTitle,
     flex: 1,
     minWidth: 0,
     textAlign: 'left',
-    fontFamily: fonts.heading,
-    fontSize: rf(fontSize.title),
     color: colors.ink,
   },
 });

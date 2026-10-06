@@ -17,7 +17,7 @@ import { showAlert } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import MapPinningModal from '../components/MapPinningModal';
 import ScreenHeader from '../components/ScreenHeader';
-import { colors, control, fonts, fontSize, radius, shadowCard, spacing, actionBtn, actionBtnText, actionBtnOutline } from '../theme/appTheme';
+import { colors, control, fonts, fontSize, radius, shadowCard, spacing, actionBtn, actionBtnText, actionBtnOutline, typography } from '../theme/appTheme';
 import { titleCaseWords } from '../lib/textFormat';
 
 export default function EditProfileScreen({ navigation }) {
@@ -201,16 +201,15 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadowCard,
   },
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: spacing.md },
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.labelInk, marginBottom: 6, marginTop: spacing.md },
+  sectionTitle: { ...typography.cardHeading, color: colors.ink, marginBottom: spacing.md },
+  fieldLabel: { ...typography.label, color: colors.labelInk, marginBottom: 6, marginTop: spacing.md },
   input: {
+    ...typography.input,
     backgroundColor: '#fff',
     borderRadius: radius.ctrl,
     paddingHorizontal: spacing.md,
     paddingVertical: 11,
     minHeight: control.height,
-    fontFamily: fonts.body,
-    fontSize: rf(fontSize.md),
     color: colors.ink,
     marginBottom: 4,
     borderWidth: 1.4,
@@ -221,7 +220,7 @@ const styles = StyleSheet.create({
   pinBtn: { ...actionBtn, ...actionBtnOutline, flexDirection: 'row', gap: 6, alignSelf: 'center', flexShrink: 0 },
   pinBtnText: { ...actionBtnText, color: colors.leaf700 },
   coordsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  coordsLabel: { fontFamily: fonts.body, color: colors.leaf700, fontSize: rf(fontSize.sm), fontWeight: '600', marginTop: 4, marginBottom: 4 },
+  coordsLabel: { ...typography.label, color: colors.leaf700, marginTop: 4, marginBottom: 4 },
 
   menuItem: {
     flexDirection: 'row',
@@ -238,6 +237,6 @@ const styles = StyleSheet.create({
 
   button: { minHeight: control.height, paddingVertical: 12, paddingHorizontal: control.paddingH, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   buttonPrimary: { backgroundColor: colors.leaf700, marginTop: spacing.md },
-  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.md), textAlign: 'center' },
+  buttonPrimaryText: { ...typography.buttonPrimary, color: '#fff', textAlign: 'center' },
   buttonDisabled: { opacity: 0.6 },
 });

@@ -2,7 +2,7 @@ import { rf } from '../lib/responsive';
 import { View, Text, TouchableOpacity, StyleSheet, Image, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from '../i18n/useTranslation';
-import { colors, control, fontSize, fonts, radius } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, typography } from '../theme/appTheme';
 
 export default function LandingScreen({ navigation }) {
   const { t } = useTranslation();
@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
   tagline: { fontFamily: fonts.body, fontSize: rf(fontSize.lg), color: colors.inkSoft, textAlign: 'center' },
   actions: { paddingHorizontal: 30, paddingBottom: 40, gap: 8 },
   primaryBtn: { backgroundColor: colors.leaf700, paddingVertical: 16, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center', minHeight: control.height },
-  primaryBtnText: { color: '#fff', fontFamily: fonts.bodyBold, fontSize: rf(fontSize.xl), textAlign: 'center' },
+  primaryBtnText: { ...typography.buttonPrimary, color: '#fff', textAlign: 'center' },
   link: { textAlign: 'center', marginTop: 16, color: colors.inkSoft, fontFamily: fonts.body, fontSize: rf(fontSize.md) },
   linkAction: { color: colors.leaf700, fontFamily: fonts.bodySemiBold, textDecorationLine: 'underline' },
 });

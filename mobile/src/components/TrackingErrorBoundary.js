@@ -1,6 +1,6 @@
 import { Component } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { colors, fonts, fontSize, radius } from '../theme/appTheme';
+import { colors, fonts, fontSize, radius, typography } from '../theme/appTheme';
 import { tr } from '../i18n/translate';
 
 // Contains rendering errors within the tracking screen, showing a message and a
@@ -42,7 +42,7 @@ export default class TrackingErrorBoundary extends Component {
 
 const styles = StyleSheet.create({
   box: { padding: 20, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
-  title: { fontFamily: fonts.bodyBold, fontSize: fontSize.md, color: colors.ink, textAlign: 'center' },
+  title: { ...typography.emptyTitle, color: colors.ink, textAlign: 'center' },
   message: { fontFamily: fonts.body, fontSize: fontSize.sm, color: colors.inkSoft, textAlign: 'center', marginTop: 6 },
   button: { marginTop: 14, paddingVertical: 10, paddingHorizontal: 20, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.leaf700 },
   buttonText: { fontFamily: fonts.bodySemiBold, color: colors.leaf700, fontSize: fontSize.sm },

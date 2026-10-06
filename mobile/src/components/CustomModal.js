@@ -4,7 +4,7 @@ import {
   KeyboardAvoidingView, ScrollView, Platform,
 } from 'react-native';
 import ModalCloseButton from './ui/ModalCloseButton';
-import { colors, fonts, radius, shadowCard, dangerButton, dangerButtonText } from '../theme/appTheme';
+import { colors, fonts, radius, shadowCard, dangerButton, dangerButtonText, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { useSharedModalMotion } from '../lib/motion';
 
@@ -94,17 +94,17 @@ const styles = StyleSheet.create({
   backdropDismiss: { pointerEvents: 'auto' },
   card: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 },
-  title: { flex: 1, fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink },
+  title: { ...typography.modalTitle, flex: 1, color: colors.ink },
   bodyScroll: { flexGrow: 0, flexShrink: 1 },
   body: { marginBottom: 6 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   btn: { flex: 1, minWidth: 0, minHeight: 48, paddingHorizontal: 8, paddingVertical: 13, borderRadius: radius.ctrl, alignItems: 'center', justifyContent: 'center' },
   btnPrimary: { backgroundColor: PRIMARY },
   btnDanger: { ...dangerButton },
-  btnDangerText: { ...dangerButtonText, fontSize: rf(dangerButtonText.fontSize) },
-  btnPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(15), textAlign: 'center' },
+  btnDangerText: { ...dangerButtonText },
+  btnPrimaryText: { ...typography.buttonPrimary, color: '#fff', textAlign: 'center' },
   btnOutline: { borderWidth: 1.5, borderColor: PRIMARY },
-  btnOutlineText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(15), textAlign: 'center' },
+  btnOutlineText: { ...typography.buttonPrimary, color: PRIMARY, textAlign: 'center' },
   btnDisabled: { opacity: 0.5 },
   actionsCompact: { justifyContent: 'center' },
   btnSingle: { flex: 0, minWidth: 160, paddingHorizontal: 28 },

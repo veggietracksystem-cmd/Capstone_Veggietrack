@@ -1,6 +1,6 @@
 import { rf } from '../../lib/responsive';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, fonts, fontSize, radius } from '../../theme/appTheme';
+import { colors, fonts, fontSize, radius, typography } from '../../theme/appTheme';
 import { useTranslation } from '../../i18n/useTranslation';
 
 // Status colour system (display only; callers pass the status string):
@@ -76,8 +76,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   text: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: rf(fontSize.xs),
+    ...typography.badge,
     lineHeight: 16,
     textTransform: 'capitalize',
     textAlign: 'center',

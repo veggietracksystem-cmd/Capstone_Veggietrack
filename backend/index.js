@@ -11,13 +11,14 @@ const { isVegetable, VEGETABLE_VALIDATION_MESSAGE, canonicalVegetableName } = re
 const {
   COMPLETED_STATUSES, roundKg, hasStockPrecision, isActiveBatch, isReceivedBatch, isSellableBatch,
   compareFifo, sameVegetableAs, retailerProducts, distributorListings, batchStatus, batchDate, manilaToday,
-  daysInStock, needsStockAlert, isPastSpoilageLimit, stockSince, STOCK_ALERT_DAYS,
+  daysInStock, needsStockAlert, isPastSpoilageLimit, needsSpoilageReview, stockSince, STOCK_ALERT_DAYS,
 } = require('./lib/batches');
 const { OPEN_PICKUP_STATUSES, harvestAvailability, estimatedTotal, pickupInputError, requestedKg } = require('./lib/pickups');
 const { buildChainBatches, reportFilter, chainEvents, reportSummary, reportVegetables, manilaWeek } = require('./lib/chainTracking');
 const { coordinate, destinationFor, createRouteService, createTrackingHandler, missingColumn } = require('./lib/deliveryTracking');
 const { createPickupTrackingHandler } = require('./lib/pickupTracking');
 const { STALE_LOCATION_SECONDS } = require('./lib/locationPolicy');
+const { pickupCompletedAt, deliveryCompletedAt } = require('./lib/riderHistory');
 const { deliveryCompletionGuard, pickupCompletionGuard, pickupProximityRejection, oneAtATime } = require('./lib/proofGuards');
 const { sendDbError } = require('./lib/errors');
 const { isPositiveQuantity, isNonNegativeQuantity } = require('./lib/validation');
@@ -54,9 +55,9 @@ async function markOverdueOrdersUnsuccessful() {
   if (error) console.error('Could not update overdue orders:', error.message);
 }
 
-// Stock past the 7-day limit is no longer moved to Spoiled Products by the app
-// (sql/manual_spoilage.sql): it stays in its batch for the distributor to review,
-// and lib/batches.js and the checkout/approval functions keep it out of sale.
+// Stock past the 7-day limit is never spoiled or taken out of sale by the app
+// (sql/keep_past_limit_stock.sql): it stays in its batch and on sale, marked
+// "Needs Review" until the distributor keeps it for sale or discards it.
 
 // A missing database function or column means sql/pickup_pricing_and_spoilage.sql
 // has not been applied yet.
@@ -478,11 +479,15 @@ app.get('/api/pickup-requests', verifyToken, async (req, res) => {
     }));
   }
 
-  // Riders see only the requests assigned to them.
+  // Riders see every request assigned to them: open ones (Tasks) and finished ones
+  // (History). A completed pickup keeps its rider, so it stays in this list.
   if (role === 'delivery_personnel') {
     const { data, error } = await readPickups((q) => q.eq('delivery_personnel_id', req.user.userId));
     if (error) return sendDbError(res, error);
-    const farmersById = await usersById(data.map((r) => r.farmer_id), 'full_name, farm_location, latitude, longitude');
+    const [farmersById, distributorsById] = await Promise.all([
+      usersById(data.map((r) => r.farmer_id), 'full_name, farm_location, latitude, longitude'),
+      usersById(data.map((r) => r.received_by), 'full_name'),
+    ]);
     return res.json(data.map((r) => {
       const farmer = farmersById[r.farmer_id];
       return {
@@ -492,7 +497,12 @@ app.get('/api/pickup-requests', verifyToken, async (req, res) => {
         farmer_name: farmer?.full_name || null,
         farmer_coords: farmer ? { latitude: farmer.latitude, longitude: farmer.longitude } : null,
         farmer_address: farmer?.farm_location || null,
+        distributor_name: distributorsById[r.received_by]?.full_name || null,
         created_at: r.requested_at,
+        // Set by complete_pickup_with_proof when the rider finishes the pickup (History order).
+        completed_at: pickupCompletedAt(r),
+        proof_photo_url: r.proof_photo_url || null,
+        pod: r.pod || null,
       };
     }));
   }
@@ -825,9 +835,12 @@ app.get('/api/products', verifyToken, async (req, res) => {
     farmer_name: farmerNameById[p.farmer_id] || p.farmer_name || null,
     // Pickup batches use the rider's completion time; manual batches use the entered date.
     pickup_date: pickupDateById[p.pickup_request_id] || p.pickup_date || null,
-    // 7-day stock rule: day 7 is the last day the batch can be sold.
+    // 7-day stock rule: day 7 is the alert day; from day 8 the batch needs review
+    // until the distributor keeps it for sale or discards it.
     days_in_stock: daysInStock(p),
     past_limit: isPastSpoilageLimit(p),
+    needs_review: needsSpoilageReview(p),
+    kept_for_sale: p.kept_for_sale_at != null && !needsStockAlert(p),
   }));
   res.json(list);
 });
@@ -1054,6 +1067,29 @@ app.post('/api/products/:id/discard', verifyToken, async (req, res) => {
     ? 'This batch was past its spoilage limit. Its remaining stock is now in Spoiled Products.'
     : 'Stock discarded and moved to Spoiled Products.';
   res.json({ message, spoilage });
+});
+
+// Keep/Sell: the distributor's answer to a stock alert (day 7) or a Needs Review
+// batch (day 8+). The stock stays in the batch, on sale while listed, and the alert
+// clears. Repeating it is harmless.
+app.post('/api/products/:id/keep', verifyToken, async (req, res) => {
+  if (req.user.role !== 'distributor') {
+    return res.status(403).json({ error: 'Only distributors can keep stock for sale' });
+  }
+  const { data: batch, error: fetchError } = await supabaseAdmin.from('products').select('*')
+    .eq('id', req.params.id).eq('distributor_id', req.user.userId).maybeSingle();
+  if (fetchError) return sendDbError(res, fetchError);
+  if (!batch) return res.status(404).json({ error: 'Batch not found or not owned by you' });
+  if (!isActiveBatch(batch)) return res.status(409).json({ error: 'This batch has no stock left.' });
+  if (!needsStockAlert(batch)) return res.json({ message: 'Kept for sale', product: batch });
+  const { data, error } = await supabaseAdmin.from('products')
+    .update({ kept_for_sale_at: new Date().toISOString(), kept_for_sale_by: req.user.userId })
+    .eq('id', batch.id).eq('distributor_id', req.user.userId).in('status', ['received', 'listed']).gt('stock_kg', 0)
+    .select().maybeSingle();
+  if (needsMigration(error)) return sendMigrationRequired(res);
+  if (error) return sendDbError(res, error);
+  if (!data) return res.status(409).json({ error: 'This batch changed. Refresh and try again.' });
+  res.json({ message: 'Kept for sale', product: data });
 });
 
 // Removing a received batch archives it so provenance and order history remain intact.
@@ -1607,6 +1643,7 @@ app.get('/api/delivery/orders', verifyToken, async (req, res) => {
       order_items (vegetable_name, quantity_kg, price_at_order),
       deliveries (id, status, proof_photo_url, delivered_at, pod)
     `)
+    // Open and finished orders alike: a delivered order keeps its rider (History).
     .eq('delivery_personnel_id', req.user.userId)
     .order('created_at', { ascending: false });
 
@@ -1652,6 +1689,8 @@ app.get('/api/delivery/orders', verifyToken, async (req, res) => {
         distributor_name: dist.full_name || 'Distributor',
         distributor_address: dist.warehouse_location || 'Distributor warehouse',
         distributor_coords: coordinate(dist),
+        // Set by complete_delivery_with_proof when the rider finishes the delivery (History order).
+        completed_at: deliveryCompletedAt(o),
       };
     });
 
@@ -2220,7 +2259,7 @@ async function loadChainBatches(distributorId) {
       const result = await run(`${pickupBase}, ${PICKUP_PRICING_COLUMNS}`);
       return needsMigration(result.error) ? run(pickupBase) : result;
     })(),
-    batchIds.length ? supabaseAdmin.from('order_items').select('product_id, order_id, quantity_kg, price_at_order').in('product_id', batchIds) : { data: [] },
+    batchIds.length ? supabaseAdmin.from('order_items').select('id, product_id, order_id, quantity_kg, price_at_order').in('product_id', batchIds) : { data: [] },
     (async () => {
       if (!batchIds.length) return { data: [] };
       const result = await supabaseAdmin.from('stock_spoilage').select('id, product_id, quantity_kg, reason, recorded_at').in('product_id', batchIds);
@@ -2298,9 +2337,12 @@ app.get('/api/distributor/chain-report', verifyToken, async (req, res) => {
   if (error) return sendDbError(res, error);
   const { from, to, vegetable } = filters;
   const events = chainEvents(batches, filters);
+  // The Chain Tracking record of each batch in the report, for View Details. Read-only.
+  const shown = new Set(events.map((event) => event.batch_id));
   res.json({
     from: from || null, to: to || null, vegetable: vegetable && canonicalVegetableName(vegetable),
     vegetables: reportVegetables(batches), summary: reportSummary(events), events,
+    batches: batches.filter((batch) => shown.has(batch.batch_id)),
   });
 });
 
@@ -2335,8 +2377,9 @@ app.get('/api/distributor/spoilage', verifyToken, async (req, res) => {
   });
 });
 
-// Batches on their last sellable day (day 7 in stock) that still have stock. Each
-// batch is announced once in Notifications; the list itself is current state.
+// Batches with stock from day 7 in stock that wait for the distributor's decision:
+// day 7 is the last day before the limit, day 8+ is Needs Review. Each batch is
+// announced once in Notifications; the list itself is current state.
 app.get('/api/distributor/stock-alerts', verifyToken, async (req, res) => {
   if (req.user.role !== 'distributor') {
     return res.status(403).json({ error: 'Only distributors can view stock alerts' });
@@ -2350,8 +2393,9 @@ app.get('/api/distributor/stock-alerts', verifyToken, async (req, res) => {
       batch_id: batch.id, vegetable_name: batch.vegetable_name, remaining_kg: Number(batch.stock_kg),
       harvest_date: batch.harvest_date || null, in_stock_since: stockSince(batch), days_in_stock: days,
       status: batchStatus(batch), price_per_kg: batch.price_per_kg,
-      // Day 8 and later: past the spoilage limit, waiting for the distributor to discard it.
+      // Day 8 and later: past the spoilage limit. Still on sale; needs Keep/Sell or Discard.
       past_limit: isPastSpoilageLimit(batch),
+      needs_review: needsSpoilageReview(batch),
       message: `${batch.vegetable_name} has ${Number(batch.stock_kg)} kg remaining in stock.${harvested} been in stock for ${days} days.`,
     };
   });
@@ -2361,7 +2405,7 @@ app.get('/api/distributor/stock-alerts', verifyToken, async (req, res) => {
     const notified = new Set((sent || []).map((n) => n.item_id));
     for (const alert of alerts.filter((a) => !notified.has(a.batch_id))) {
       await createNotification(req.user.userId, 'Stock Alert',
-        `${alert.message} Sell it today, change its price or discard it.`, 'stock_alert', alert.batch_id);
+        `${alert.message} Keep it for sale or discard it.`, 'stock_alert', alert.batch_id);
     }
   }
   res.json(alerts);

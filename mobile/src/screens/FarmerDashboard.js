@@ -25,7 +25,7 @@ import FarmerProfileTab from './FarmerProfileTab';
 import { showAlert, confirmAction, peso } from '../lib/ui';
 import { availableKgOf, pickupFieldErrors, parseAmount, estimatedTotal } from '../lib/pickupForm';
 import { friendlyError } from '../lib/errorMessages';
-import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnText } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, actionBtnText, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { isVegetable, VEGETABLE_VALIDATION_MESSAGE } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
@@ -1165,13 +1165,13 @@ const styles = StyleSheet.create({
   cartItemHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cartFields: { flexDirection: 'row', gap: 10, marginTop: 12 },
   cartField: { flex: 1, minWidth: 0 },
-  cartFieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginBottom: 4 },
+  cartFieldLabel: { ...typography.label, color: colors.inkSoft, marginBottom: 4 },
   unitInput: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 10, minHeight: control.height, backgroundColor: colors.card },
   unitInputError: { borderColor: colors.danger },
   unitInputText: { flex: 1, minWidth: 0, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, paddingVertical: 8 },
   unitSuffix: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginLeft: 6 },
   unitPrefix: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.inkSoft, marginRight: 4 },
-  fieldError: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.xs), color: colors.danger, marginTop: 6 },
+  fieldError: { ...typography.error, color: colors.danger, marginTop: 6 },
   cartEstimate: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
   cartEstimateLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft },
   cartEstimateValue: { flexShrink: 1, fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), color: colors.leaf700, textAlign: 'right' },
@@ -1194,8 +1194,8 @@ const styles = StyleSheet.create({
   summaryGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   statCard: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: 14, ...shadowCard },
   statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft },
-  statValue: { fontFamily: fonts.heading, fontSize: rf(fontSize.h1), marginTop: 6, color: colors.ink },
+  statLabel: { ...typography.statLabel, color: colors.inkSoft },
+  statValue: { ...typography.statValue, marginTop: 6, color: colors.ink },
   statSub: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), marginTop: 2, color: colors.leaf700 },
   statSubGold: { color: colors.gold700 },
   weave: { marginTop: 10, height: 7, borderRadius: 6, backgroundColor: colors.leaf100, overflow: 'hidden' },
@@ -1209,7 +1209,7 @@ const styles = StyleSheet.create({
   addCtaText: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: '#fff' },
 
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 14 },
-  sectionHeadTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink },
+  sectionHeadTitle: { ...typography.sectionTitle, color: colors.ink },
   linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   linkBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.leaf700, textAlign: 'center' },
 
@@ -1222,7 +1222,7 @@ const styles = StyleSheet.create({
     padding: 14, gap: 4, marginBottom: 10, ...shadowCard,
   },
   pickupCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  pickupCardId: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink },
+  pickupCardId: { ...typography.cardTitle, color: colors.ink },
   pickupCardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, alignSelf: 'flex-start' },
   list: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, overflow: 'hidden' },
   listRow: {
@@ -1262,8 +1262,8 @@ const styles = StyleSheet.create({
   selectToggleTextOn: { color: '#fff' },
 
   emptyContainer: { alignItems: 'center', paddingVertical: 50, paddingHorizontal: 24, gap: 6 },
-  emptyTitle: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.inkSoft },
-  emptySubtitle: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, textAlign: 'center' },
+  emptyTitle: { ...typography.emptyTitle, color: colors.inkSoft },
+  emptySubtitle: { ...typography.emptyMessage, color: colors.inkFaint, textAlign: 'center' },
 
   cartBar: {
     position: 'absolute', left: 16, right: 16, backgroundColor: colors.leaf900 || colors.leaf700,
@@ -1274,30 +1274,31 @@ const styles = StyleSheet.create({
   cartBarBtn: { backgroundColor: colors.leaf100, borderRadius: 9, paddingVertical: 7, paddingHorizontal: 14, minHeight: control.heightSm, alignItems: 'center', justifyContent: 'center' },
   cartBarBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), color: colors.leaf900 || colors.leaf700, textAlign: 'center' },
 
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.labelInk, marginBottom: 6, marginTop: 8 },
+  fieldLabel: { ...typography.label, color: colors.labelInk, marginBottom: 6, marginTop: 8 },
   input: {
+    ...typography.input,
     backgroundColor: '#fff', borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: colors.border,
-    padding: 11, fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink,
+    padding: 11, color: colors.ink,
   },
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   statusRowCenter: { justifyContent: 'center', gap: 12 },
   chipEven: { minWidth: 108, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   chipActive: { backgroundColor: colors.leaf700, borderColor: colors.leaf700 },
-  chipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(fontSize.sm) },
+  chipText: { ...typography.chip, color: colors.inkSoft },
   chipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
 
   btnPrimaryBlock: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.leaf700, borderRadius: radius.ctrl, paddingVertical: 13, marginTop: 16,
   },
-  btnPrimaryBlockText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: '#fff' },
+  btnPrimaryBlockText: { ...typography.buttonPrimary, color: '#fff' },
   btnDisabled: { opacity: 0.6 },
   btnDangerBlock: {
     flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.ctrl,
     paddingVertical: 13, marginTop: 16, backgroundColor: '#fff', borderWidth: 1.4, borderColor: colors.danger,
   },
-  btnDangerBlockText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.danger },
+  btnDangerBlockText: { ...typography.buttonPrimary, color: colors.danger },
   formButtons: { flexDirection: 'row', gap: 10 },
   lockedNote: {
     fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkSoft, fontStyle: 'italic',
@@ -1307,7 +1308,7 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(20,17,16,0.42)', justifyContent: 'center', alignItems: 'center', padding: 24, zIndex: 9999, elevation: 9999 },
   modalCard: { width: '100%', maxWidth: 380, maxHeight: '90%', backgroundColor: colors.bgScreen, borderRadius: radius.card, padding: 22, ...shadowCard },
   modalHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 6 },
-  modalTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.xl), color: colors.ink, flex: 1 },
+  modalTitle: { ...typography.modalTitle, color: colors.ink, flex: 1 },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   stepperBtn: { width: 44, height: 44, borderRadius: radius.ctrl, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   stepperBtnText: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.title), color: colors.leaf700, textAlign: 'center' },
@@ -1339,6 +1340,6 @@ const styles = StyleSheet.create({
 
   confirmWrap: { alignItems: 'center', paddingVertical: 20 },
   confirmBadge: { width: 66, height: 66, borderRadius: 33, backgroundColor: colors.leaf100, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  confirmTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.title), color: colors.ink, marginBottom: 8 },
+  confirmTitle: { ...typography.modalTitle, color: colors.ink, marginBottom: 8 },
   confirmBody: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, textAlign: 'center', maxWidth: 280, lineHeight: 19, marginBottom: 22 },
 });

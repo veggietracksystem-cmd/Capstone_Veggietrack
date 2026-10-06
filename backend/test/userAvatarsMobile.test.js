@@ -28,7 +28,7 @@ function component(file, mocks = {}) {
     if (name in mocks) return mocks[name];
     if (name === 'react') return react;
     if (name === 'react-native') return { ...Object.fromEntries(['Image','Text','View','TouchableOpacity','ActivityIndicator','TextInput','ScrollView'].map(x=>[x,x])), StyleSheet: { create: value => value } };
-    if (name === '../theme/appTheme') return { colors: {}, fonts: {}, radius: {}, fontSize: {}, spacing: {}, control: {} };
+    if (name === '../theme/appTheme') return { colors: {}, fonts: {}, radius: {}, fontSize: {}, spacing: {}, control: {}, typography: new Proxy({}, { get: () => ({}) }) };
     if (name === '../i18n/useTranslation') return { useTranslation: () => ({ t: key => key }) };
     if (name === './UserAvatar') return () => null;
     if (name.endsWith('.json')) return JSON.parse(fs.readFileSync(path.resolve(path.dirname(filename), name), 'utf8'));

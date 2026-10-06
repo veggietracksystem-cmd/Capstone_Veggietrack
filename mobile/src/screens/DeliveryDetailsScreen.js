@@ -17,7 +17,7 @@ import StatusBadge from '../components/ui/StatusBadge';
 import { showAlert, peso, shortId } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import { isClosedOrderStatus } from '../lib/orderStatus';
-import { colors, control, fontSize, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { formatStatus, getDelivery, effectiveStatus, STATUS_RANK } from './DeliveryDashboard';
 import { rf } from '../lib/responsive';
@@ -396,8 +396,6 @@ export default function DeliveryDetailsScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgScreen },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  back: { color: PRIMARY, fontSize: rf(16), fontFamily: fonts.bodySemiBold, width: 50 },
-  title: { fontSize: rf(19), fontFamily: fonts.heading, color: colors.ink },
   content: { padding: 16, paddingBottom: 40, flexGrow: 1 },
 
   card: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...shadowCard },
@@ -410,12 +408,12 @@ const styles = StyleSheet.create({
 
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 14 },
 
-  sectionTitle: { fontFamily: fonts.heading, fontSize: rf(fontSize.lg), color: colors.ink, marginBottom: 8 },
+  sectionTitle: { ...typography.cardHeading, color: colors.ink, marginBottom: 8 },
   entityName: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, marginBottom: 2 },
   subLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkFaint, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 },
   rowMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.inkSoft, marginTop: 2 },
   routeBtnCentered: { marginTop: 4, marginBottom: 8, paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY, backgroundColor: colors.card },
-  routeBtnText: { fontFamily: fonts.bodySemiBold, color: PRIMARY, fontSize: rf(fontSize.md), textAlign: 'center' },
+  routeBtnText: { ...typography.buttonBlock, color: PRIMARY, textAlign: 'center' },
 
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
   itemName: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.md), color: colors.ink, textTransform: 'capitalize' },
@@ -427,20 +425,20 @@ const styles = StyleSheet.create({
   stepDoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   stepDoneText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: PRIMARY },
   stepActionBtn: { paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', borderWidth: 1.5, borderColor: PRIMARY, backgroundColor: colors.card, marginBottom: 8, justifyContent: 'center', minHeight: control.height },
-  stepActionBtnText: { fontFamily: fonts.bodyBold, color: PRIMARY, fontSize: rf(fontSize.md), textAlign: 'center' },
+  stepActionBtnText: { ...typography.buttonBlock, color: PRIMARY, textAlign: 'center' },
 
   button: { paddingVertical: 14, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 8 },
   buttonPrimary: { backgroundColor: PRIMARY },
-  buttonPrimaryText: { fontFamily: fonts.bodySemiBold, color: '#fff', fontSize: rf(fontSize.lg) },
+  buttonPrimaryText: { ...typography.buttonPrimary, color: '#fff' },
   buttonDisabled: { opacity: 0.6 },
 
   rejectBtn: { paddingVertical: 12, borderRadius: radius.ctrl, alignItems: 'center', marginTop: 8, borderWidth: 1.5, borderColor: colors.danger, justifyContent: 'center', minHeight: control.height },
-  rejectBtnText: { fontFamily: fonts.bodyBold, color: colors.danger, fontSize: rf(fontSize.md), textAlign: 'center' },
+  rejectBtnText: { ...typography.buttonBlock, color: colors.danger, textAlign: 'center' },
 
   reasonWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   reasonChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   reasonChipActive: { backgroundColor: colors.danger, borderColor: colors.danger },
-  reasonChipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(fontSize.sm) },
+  reasonChipText: { ...typography.chip, color: colors.inkSoft },
   reasonChipTextActive: { color: '#fff', fontFamily: fonts.bodySemiBold },
-  reasonInput: { marginTop: 10, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, padding: 10, fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink, minHeight: 70, textAlignVertical: 'top' },
+  reasonInput: { ...typography.input, marginTop: 10, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, padding: 10, color: colors.ink, minHeight: 70, textAlignVertical: 'top' },
 });

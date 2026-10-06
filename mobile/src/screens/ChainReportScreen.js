@@ -5,7 +5,10 @@ import { Text, View, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/client';
+import CustomModal from '../components/CustomModal';
 import EmptyState from '../components/EmptyState';
+import ImageViewerModal from '../components/ImageViewerModal';
+import RemoteImage from '../components/RemoteImage';
 import BatchDateField from '../components/BatchDateField';
 import ScreenHeader from '../components/ScreenHeader';
 import SelectField from '../components/ui/SelectField';
@@ -15,8 +18,10 @@ import { showAlert, peso } from '../lib/ui';
 import { friendlyError } from '../lib/errorMessages';
 import { localizeVegetableName } from '../lib/vegetableNames';
 import { REPORT_PERIODS, periodRange, customRangeError, rangeLabel } from '../lib/reportPeriods';
-import { colors, control, fontSize, fonts, radius, spacing } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, spacing, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
+import { statusLabel } from '../i18n/translate';
+import { DetailRow, formatDate } from './DistributorInventoryReportScreen';
 
 const PRIMARY = colors.leaf700;
 const TYPE_TONES = { received: 'received', sold: 'delivered', spoiled: 'spoiled' };
@@ -55,6 +60,9 @@ export default function ChainReportScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // View Details: the report row's own record id (event.id). Read-only; filters stay as they are.
+  const [detailId, setDetailId] = useState(null);
+  const [photo, setPhoto] = useState(null);
 
   const customError = period === 'custom' ? customRangeError(customFrom, customTo) : null;
   const range = period === 'custom' ? (customError ? null : { from: customFrom, to: customTo }) : periodRange(period);
@@ -83,6 +91,15 @@ export default function ChainReportScreen({ navigation }) {
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
   const events = report?.events || [];
+  // The selected row and the stored records behind it, from the same report response
+  // as the table: the batch (received), its order_items line (sold) or its
+  // stock_spoilage record (spoiled). Never matched by vegetable name.
+  const detail = detailId ? events.find((event) => event.id === detailId) || null : null;
+  const detailBatch = detail ? (report?.batches || []).find((batch) => batch.batch_id === detail.batch_id) || null : null;
+  const detailSale = detail?.type === 'sold' && detailBatch
+    ? detailBatch.sales.find((sale) => (detail.item_id ? sale.item_id === detail.item_id : sale.order_id === detail.order_id)) || null : null;
+  const detailSpoilage = detail?.type === 'spoiled' && detailBatch
+    ? detailBatch.spoilage.find((record) => record.id === detail.spoilage_id) || null : null;
   const summary = report?.summary;
   const typeLabel = (event) => t(`reports.type.${event.type}`);
   const vegetableLabel = (name) => (name ? localizeVegetableName(name, language) : t('reports.allVegetables'));
@@ -160,7 +177,8 @@ export default function ChainReportScreen({ navigation }) {
   );
 
   const renderItem = ({ item: event, index }) => (
-    <View style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}>
+    <TouchableOpacity style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]} onPress={() => setDetailId(event.id)} activeOpacity={0.75}
+      accessibilityRole="button" accessibilityLabel={t('chain.viewDetailsFor', { name: `${typeLabel(event)} ${localizeVegetableName(event.vegetable_name, language)}` })}>
       <Text style={[styles.cell, styles.colDate]}>{shortDate(event.date)}</Text>
       <View style={styles.colMain}>
         <View style={styles.mainTop}>
@@ -172,20 +190,110 @@ export default function ChainReportScreen({ navigation }) {
           {event.type === 'spoiled' ? ` · ${statusText(event)}` : ''}
         </Text>
         <Text style={styles.cellMeta} numberOfLines={1}>{t('chain.col.batch')}: {String(event.batch_id).slice(0, 8)}</Text>
+        <Text style={styles.viewLink}>{t('inventoryReport.viewDetails')}</Text>
       </View>
       <View style={styles.colQty}>
         <Text style={styles.cellNum}>{kg(event.quantity_kg)}</Text>
         {event.amount != null && event.type === 'sold' && <Text style={styles.cellMeta}>{peso(event.amount)}</Text>}
       </View>
-    </View>
+    </TouchableOpacity>
   );
+
+  const money = (value) => (value != null ? peso(value) : '—');
+  const perKg = (value) => (value != null ? `${peso(value)} / kg` : '—');
+  const proof = (url, pod, label) => !!url && (
+    <TouchableOpacity style={styles.proofRow} onPress={() => setPhoto({ proof_photo_url: url, pod })} accessibilityRole="button">
+      <RemoteImage uri={url} style={styles.proofThumb} />
+      <Text style={styles.proofText}>{label}</Text>
+    </TouchableOpacity>
+  );
+  // Fields that exist for this kind of transaction, from its stored record.
+  const renderDetail = () => {
+    const batch = detailBatch;
+    const source = (
+      <>
+        <DetailRow label={t('chain.col.batch')} value={detail.batch_id || '—'} />
+        <DetailRow label={t('chain.col.vegetable')} value={localizeVegetableName(detail.vegetable_name, language)} />
+        <DetailRow label={t('chain.col.farmer')} value={detail.farmer_name || '—'} />
+        <DetailRow label={t('chain.col.harvestDate')} value={formatDate(detail.harvest_date)} />
+      </>
+    );
+    if (detail.type === 'received') {
+      const pickup = batch?.pickup;
+      return (
+        <>
+          {source}
+          <DetailRow label={t('reports.detail.receivedOn')} value={formatDate(detail.date)} />
+          <DetailRow label={t('chain.col.qty')} value={kg(detail.quantity_kg)} />
+          <Text style={styles.sectionHeading}>{t('chain.pickupHeading')}</Text>
+          {pickup ? (
+            <View style={styles.block}>
+              <DetailRow label={t('chain.requestedQty')} value={kg(pickup.quantity_kg)} />
+              <DetailRow label={t('chain.col.farmerPrice')} value={perKg(pickup.farmer_price_per_kg)} />
+              <DetailRow label={t('pickupPanel.estimatedTotal')} value={money(pickup.estimated_total)} />
+              <DetailRow label={t('chain.requestDate')} value={formatDate(pickup.requested_at)} />
+              <DetailRow label={t('chain.col.pickupDate')} value={formatDate(pickup.picked_up_at)} />
+              <DetailRow label={t('inventoryReport.colPickupRider')} value={pickup.rider_name || '—'} />
+              {proof(pickup.proof_photo_url, pickup.pod, t('pickupPanel.pickupProof'))}
+            </View>
+          ) : <Text style={styles.noneText}>{t('chain.noPickup')}</Text>}
+        </>
+      );
+    }
+    if (detail.type === 'sold') {
+      const sale = detailSale;
+      return (
+        <>
+          <DetailRow label={t('reports.detail.orderId')} value={detail.order_id || '—'} />
+          <DetailRow label={t('inventoryReport.colRetailer')} value={detail.party || '—'} />
+          <DetailRow label={t('chain.col.qty')} value={kg(detail.quantity_kg)} />
+          <DetailRow label={t('chain.col.sellingPrice')} value={perKg(sale?.price_per_kg)} />
+          <DetailRow label={t('inventoryReport.colTotalAmount')} value={money(detail.amount)} />
+          <DetailRow label={t('chain.orderDate')} value={formatDate(sale?.ordered_at)} />
+          <DetailRow label={t('inventoryReport.colDeliveryDate')} value={formatDate(sale?.delivered_at || detail.date)} />
+          <DetailRow label={t('inventoryReport.colDeliveryRider')} value={sale?.rider_name || '—'} />
+          <DetailRow label={t('inventoryReport.colPayment')}>
+            {sale?.payment_status ? <StatusBadge status={sale.payment_status} label={statusLabel(sale.payment_status, t)} /> : <Text style={styles.detailValue}>—</Text>}
+          </DetailRow>
+          {proof(sale?.proof_photo_url, sale?.pod, t('dashboards.distributor.proofOfDelivery'))}
+          <Text style={styles.sectionHeading}>{t('reports.detail.sourceHeading')}</Text>
+          <View style={styles.block}>{source}</View>
+        </>
+      );
+    }
+    if (detail.type === 'spoiled') {
+      return (
+        <>
+          {source}
+          <DetailRow label={t('chain.col.qty')} value={kg(detailSpoilage?.quantity_kg ?? detail.quantity_kg)} />
+          <DetailRow label={t('spoilage.reasonLabel')}>
+            <StatusBadge status={detail.status} label={t(`spoilage.reason.${detail.status}`)} />
+          </DetailRow>
+          <DetailRow label={t('spoilage.dateLabel')} value={formatDate(detailSpoilage?.recorded_at || detail.date)} />
+          {!!batch?.status && (
+            <DetailRow label={t('reports.detail.batchStatus')}>
+              <StatusBadge status={batch.status} label={statusLabel(batch.status, t)} />
+            </DetailRow>
+          )}
+        </>
+      );
+    }
+    // A transaction type this screen does not know yet: its common fields only.
+    return (
+      <>
+        {source}
+        <DetailRow label={t('chain.col.qty')} value={kg(detail.quantity_kg)} />
+        <DetailRow label={t('reports.col.date')} value={formatDate(detail.date)} />
+      </>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScreenHeader title={t('reports.title')} onBack={() => navigation.goBack()} />
       <FlatList
         data={loading ? [] : events}
-        keyExtractor={(event, i) => `${event.type}-${event.batch_id}-${event.order_id || ''}-${i}`}
+        keyExtractor={(event, i) => event.id || `${event.type}-${event.batch_id}-${event.order_id || ''}-${i}`}
         renderItem={renderItem}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -208,6 +316,19 @@ export default function ChainReportScreen({ navigation }) {
           </View>
         ) : null}
       />
+
+      <CustomModal visible={!!detail} title={detail ? localizeVegetableName(detail.vegetable_name, language) : ''} onCancel={() => setDetailId(null)} compactActions>
+        {!!detail && (
+          <>
+            <View style={styles.detailStatusRow}>
+              <Text style={styles.detailLabel}>{t('reports.col.transaction')}</Text>
+              <StatusBadge status={TYPE_TONES[detail.type] || 'pending'} label={typeLabel(detail)} />
+            </View>
+            {renderDetail()}
+          </>
+        )}
+      </CustomModal>
+      <ImageViewerModal uri={photo?.proof_photo_url} proof={photo?.pod} visible={!!photo} onClose={() => setPhoto(null)} />
     </SafeAreaView>
   );
 }
@@ -220,12 +341,12 @@ const styles = StyleSheet.create({
   filter: { flexGrow: 1, flexBasis: 150 },
   customRow: { flexDirection: 'row', gap: 10, marginBottom: spacing.sm },
   customField: { flex: 1, minWidth: 0 },
-  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginBottom: 4 },
-  error: { fontFamily: fonts.bodyMedium, fontSize: rf(fontSize.sm), color: colors.danger, marginBottom: spacing.sm },
+  fieldLabel: { ...typography.label, color: colors.inkSoft, marginBottom: 4 },
+  error: { ...typography.error, color: colors.danger, marginBottom: spacing.sm },
   rangeText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginBottom: spacing.sm },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md },
   stat: { flexGrow: 1, flexBasis: '45%', paddingVertical: 10, paddingHorizontal: 12, borderRadius: radius.ctrl, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  statLabel: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkFaint },
+  statLabel: { ...typography.statLabel, color: colors.inkFaint },
   statValue: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.lg), color: colors.ink, marginTop: 2 },
   statStrong: { color: PRIMARY },
   tableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 10, paddingHorizontal: 10, backgroundColor: colors.surface, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: colors.border },
@@ -240,6 +361,17 @@ const styles = StyleSheet.create({
   cellTitle: { flexShrink: 1, fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink },
   cellMeta: { fontFamily: fonts.body, fontSize: rf(fontSize.xs), color: colors.inkSoft, marginTop: 3 },
   cellNum: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.sm), color: colors.ink, textAlign: 'right' },
+  // Same View Details link and modal layout as Vegetable Chain Tracking.
+  viewLink: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.xs), color: PRIMARY, marginTop: 4 },
+  detailStatusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+  detailLabel: { ...typography.smallLabel, color: colors.inkFaint },
+  detailValue: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 2 },
+  sectionHeading: { fontFamily: fonts.bodyBold, fontSize: rf(fontSize.md), color: colors.ink, marginTop: 18, marginBottom: 4 },
+  block: { marginTop: 8, paddingHorizontal: 12, borderRadius: radius.ctrl, backgroundColor: colors.bgScreen },
+  noneText: { fontFamily: fonts.body, fontSize: rf(fontSize.sm), color: colors.inkFaint, paddingVertical: 8 },
+  proofRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+  proofThumb: { width: 56, height: 56, borderRadius: radius.ctrl, backgroundColor: colors.leaf50 },
+  proofText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: PRIMARY },
   reportActionsRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   reportActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: radius.ctrl, borderWidth: 1.4, borderColor: PRIMARY, minHeight: control.height },
   reportActionBtnText: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.md), color: PRIMARY, textAlign: 'center' },

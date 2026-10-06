@@ -62,6 +62,9 @@ function harness() {
     post: async (route, body) => { calls.push({ route, body }); return { product: { id: 'new-batch', ...body, status: 'listed' } }; },
     put: async (route, body) => { calls.push({ route, body }); return {}; },
   };
+  api.api = api; // screens that import { api }
+  // The signed-in profile useAuth() returns; tests may replace auth.user.
+  const auth = { user: { id: 'retailer', account_status: 'pending_approval' } };
   const exact = {
     react,
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
@@ -77,7 +80,7 @@ function harness() {
     'expo-sharing': { isAvailableAsync: async () => false },
     '@react-native-async-storage/async-storage': { getItem: async key => storage.get(key) || null, setItem: async (key, value) => storage.set(key, value) },
   };
-  const real = /^(hooks\/useStockAlerts|screens\/(StocksScreen|DistributorDashboard|RetailerDashboard|DistributorInventoryReportScreen|ApplicationStatusScreen|ChainReportScreen|SpoiledProductsScreen|FarmerDashboard)|components\/(AuthForm|CustomModal|RiderNavigationView|ui\/SelectField|distributor\/)|i18n\/|lib\/(vegetableNames|vegetables|cartStore|orderStatus|reportPdf|pickupForm|pickupStatus|reportPeriods|trackingGeometry|turnGuidance|formatEta)|theme\/appTheme)/;
+  const real = /^(hooks\/useStockAlerts|screens\/(StocksScreen|DistributorDashboard|RetailerDashboard|DistributorInventoryReportScreen|ApplicationStatusScreen|ChainReportScreen|SpoiledProductsScreen|FarmerDashboard)|components\/(AuthForm|CustomModal|RiderNavigationView|ui\/SelectField|ui\/CountBadge|distributor\/)|i18n\/|lib\/(vegetableNames|vegetables|roles|cartStore|orderStatus|riderHistory|reportPdf|pickupForm|pickupStatus|reportPeriods|trackingGeometry|turnGuidance|formatEta)|theme\/appTheme)/;
   function load(relative) {
     const file = relative.endsWith('.js') || relative.endsWith('.json') ? relative : `${relative}.js`;
     if (modules.has(file)) return modules.get(file);
@@ -100,7 +103,7 @@ function harness() {
         if (target === 'lib/ui') return { showAlert: (...args) => alerts.push(args), confirmAction() {}, peso: value => `₱${Number(value).toFixed(2)}`, shortId: value => value?.slice(0, 8) };
         if (target === 'lib/vegetableIcons') return { getVegetableTile: () => ({ source: 'vegetable.png', bg: '#fff' }), getVegetableIcon: () => 'vegetable.png' };
         if (target === 'lib/motion') return { SharedScreenTransition: 'SharedScreenTransition', useSharedModalMotion: () => ({}) };
-        if (target === 'context/AuthContext') return { useAuth: () => ({ user: { id: 'retailer', account_status: 'pending_approval' }, signOut: args => calls.push({ signOut: args }), refreshProfile() {} }) };
+        if (target === 'context/AuthContext') return { useAuth: () => ({ user: auth.user, signOut: args => calls.push({ signOut: args }), refreshProfile() {} }) };
         if (target === 'offline/cache') return { readThrough: async (_, read) => ({ list: await read(), source: 'network' }) };
         if (target === 'sync/SyncProvider') return { useAutoSync: () => ({ syncState: 'online' }) };
         if (target === 'hooks/useLatestRequest') return () => () => () => true;
@@ -134,7 +137,7 @@ function harness() {
     provider.useLanguageContext().setLanguage(next);
     render(provider.LanguageProvider);
   }
-  return { load, render, data, calls, alerts, prints, storage, language, translation: () => provider.useLanguageContext() };
+  return { load, render, data, calls, alerts, prints, storage, auth, language, translation: () => provider.useLanguageContext() };
 }
 
 // One Vegetable Chain Tracking batch as returned by GET /api/distributor/chain-tracking.
@@ -192,7 +195,7 @@ test('Vegetable Chain Tracking lists batches in a compact table by status; View 
     }),
     chainBatch('b', 'Carrot', 'sold_out', { totals: { received: 10, remaining: 0, sold: 10, on_order: 0, not_delivered: 0, spoiled: 0, adjusted: 0 } }),
     chainBatch('c', 'Okra', 'archived', { totals: { received: 10, remaining: 0, sold: 10, on_order: 0, not_delivered: 0, spoiled: 0, adjusted: 0 } }),
-    chainBatch('d', 'Squash', 'received', { past_limit: true, days_in_stock: 9 }),
+    chainBatch('d', 'Squash', 'received', { past_limit: true, needs_review: true, days_in_stock: 9 }),
     chainBatch('e', 'Pechay', 'rejected'),
     chainBatch('f', 'Cabbage', 'spoiled', { totals: { received: 8, remaining: 0, sold: 0, on_order: 0, not_delivered: 0, spoiled: 8, adjusted: 0 },
       spoilage: [{ id: 's2', quantity_kg: 8, reason: 'past_limit', recorded_at: '2026-09-29T16:05:00Z' }] }),
@@ -526,7 +529,9 @@ test('Home Stock Alert shortcut: badge only with alerts, real count that follows
   const shortcuts = () => named(home().tree, 'QuickAction');
   const stockShortcut = () => shortcuts().find(node => node.props.label === 'Stock Alert');
   const rendered = () => h.render(stockShortcut().type, stockShortcut().props);
-  const badgeText = () => texts(rendered()).filter(text => /^(\d+|9\+)$/.test(text));
+  // The shared CountBadge renders the number; read what it would show.
+  const { formatCount } = h.load('components/ui/CountBadge');
+  const badgeText = () => named(rendered(), 'CountBadge').map(node => formatCount(node.props.count)).filter(Boolean);
   assert.equal(shortcuts().map(node => node.props.label).join(' | '), 'Pickup Requests | Stock Alert | Account Management | Payment');
   assert.ok(!texts(home().tree).some(text => text.startsWith('Stock alert') || text.includes('7-day limit')), 'no separate alert section on Home');
   same(badgeText(), [], 'no alert → no badge');
@@ -540,7 +545,8 @@ test('Home Stock Alert shortcut: badge only with alerts, real count that follows
   h.data['/api/distributor/stock-alerts'] = [stockAlert('b1', 'Tomato', 18), stockAlert('b2', 'Squash', 5), stockAlert('b3', 'Okra', 2)];
   await refresh();
   same(badgeText(), ['3']);
-  h.storage.set('stock_alerts_keep_selling', ['b3']);
+  // Keep/Sell is saved on the server, which then leaves the batch out of the list.
+  h.data['/api/distributor/stock-alerts'] = [stockAlert('b1', 'Tomato', 18), stockAlert('b2', 'Squash', 5)];
   await refresh();
   same(badgeText(), ['2'], 'batches kept on sale are not counted');
 
@@ -572,11 +578,13 @@ test('Stocks from Stock Alert shows only the alerted batches, marked, until each
   assert.ok(texts(render()).includes('2 batches need attention'));
   for (const id of ['b1', 'b2']) {
     assert.ok(texts(card(id)).includes('Stock alert'));
-    assert.ok(texts(card(id)).includes('Keep Selling'));
+    assert.ok(texts(card(id)).includes('Keep / Sell'));
   }
 
-  await named(card('b2'), 'TouchableOpacity').find(node => texts(node).includes('Keep Selling')).props.onPress();
+  await named(card('b2'), 'TouchableOpacity').find(node => texts(node).includes('Keep / Sell')).props.onPress();
   await flush();
+  assert.ok(h.calls.some(call => call.route === '/api/products/b2/keep'), 'saved on the server');
+  h.data['/api/distributor/stock-alerts'] = [stockAlert('b1', 'Tomato', 18)];
   assert.equal(listed(), 'b1');
   assert.ok(texts(render()).includes('1 batch needs attention'));
 
@@ -585,7 +593,7 @@ test('Stocks from Stock Alert shows only the alerted batches, marked, until each
   assert.equal(confirm.props.title, 'Discard this product?');
   assert.ok(texts(confirm).includes('Discard the remaining 18 kg of Tomato? It will be moved to Spoiled Products and can no longer be sold.'));
   h.data['/api/products'] = h.data['/api/products'].map(batch => batch.id === 'b1' ? { ...batch, stock_kg: 0, status: 'spoiled' } : batch);
-  h.data['/api/distributor/stock-alerts'] = [stockAlert('b2', 'Squash', 5)];
+  h.data['/api/distributor/stock-alerts'] = [];
   await confirm.props.onConfirm(); await flush();
   assert.equal(h.calls.at(-1).route, '/api/products/b1/discard');
   render();
@@ -672,28 +680,304 @@ test('View Reports: periods change the queried dates and totals; custom dates ar
   assert.equal(typeof to.props.onChange, 'function');
 });
 
-test('Stocks: a batch past the spoilage limit waits for review — only Discard, even if Keep Selling was chosen on day 7', async () => {
+test('Stocks: a batch past the spoilage limit is Needs Review with Keep / Sell and Discard; its stock stays and can be listed', async () => {
   const h = harness();
-  h.data['/api/products'] = [{ ...alertBatch('old', 'Tomato', 'listed', 9, 37), past_limit: true },
-    { ...alertBatch('new', 'Okra', 'received', 9, 6), past_limit: true }, alertBatch('fresh', 'Squash', 'listed', 2)];
-  h.data['/api/distributor/stock-alerts'] = [{ ...stockAlert('old', 'Tomato', 37), days_in_stock: 9, past_limit: true },
-    { ...stockAlert('new', 'Okra', 6), days_in_stock: 9, past_limit: true }];
-  h.storage.set('stock_alerts_keep_selling', ['old']);
+  const review = { past_limit: true, needs_review: true };
+  h.data['/api/products'] = [{ ...alertBatch('old', 'Tomato', 'listed', 9, 37), ...review },
+    { ...alertBatch('new', 'Okra', 'received', 9, 6), ...review }, alertBatch('fresh', 'Squash', 'listed', 2)];
+  h.data['/api/distributor/stock-alerts'] = [{ ...stockAlert('old', 'Tomato', 37), days_in_stock: 9, ...review },
+    { ...stockAlert('new', 'Okra', 6), days_in_stock: 9, ...review }];
   const screen = h.load('screens/StocksScreen').default;
   const render = () => h.render(screen, { navigation: { setParams() {} }, route: { params: { showStockAlerts: true } } });
   render(); await flush();
-  const list = named(render(), 'FlatList')[0];
-  same(list.props.data.map(b => b.id), ['old', 'new'], 'an earlier Keep Selling does not hide a batch past the limit');
-  for (const batch of list.props.data) {
-    const card = list.props.renderItem({ item: batch });
+  const list = () => named(render(), 'FlatList')[0];
+  same(list().props.data.map(b => b.id), ['old', 'new']);
+  for (const batch of list().props.data) {
+    const card = list().props.renderItem({ item: batch });
     const shown = texts(card);
     assert.ok(shown.includes('Past spoilage limit – needs review'), `${batch.id} is marked for review`);
     assert.equal(named(card, 'StatusBadge')[0].props.label, 'Needs Review');
-    assert.ok(shown.includes('Discard'));
-    assert.ok(!shown.includes('Keep Selling'), 'it can no longer be sold');
-    assert.ok(!shown.includes('Add to Product List'));
+    assert.ok(shown.includes('Discard') && shown.includes('Keep / Sell'), 'the distributor decides');
   }
-  assert.ok(texts(list.props.renderItem({ item: list.props.data[0] })).includes('37 kg'), 'stock is kept, not zeroed');
+  assert.ok(texts(list().props.renderItem({ item: list().props.data[0] })).includes('37 kg'), 'stock is kept, not zeroed');
+  assert.ok(texts(list().props.renderItem({ item: list().props.data[1] })).includes('Add to Product List'), 'a received batch can still be listed');
+
+  // Keep / Sell: saved on the server; the batch stays in Stocks, kept for sale.
+  const keepButton = named(list().props.renderItem({ item: list().props.data[0] }), 'TouchableOpacity').find(node => texts(node).includes('Keep / Sell'));
+  h.data['/api/products'] = h.data['/api/products'].map(b => b.id === 'old' ? { ...b, needs_review: false, kept_for_sale: true } : b);
+  h.data['/api/distributor/stock-alerts'] = h.data['/api/distributor/stock-alerts'].filter(a => a.batch_id !== 'old');
+  await keepButton.props.onPress(); await flush();
+  assert.equal(h.calls.at(-1).route, '/api/products/old/keep');
+  same(list().props.data.map(b => b.id), ['new'], 'only the batch still waiting is listed');
+
+  const plain = harness();
+  plain.data['/api/products'] = h.data['/api/products'];
+  plain.data['/api/distributor/stock-alerts'] = h.data['/api/distributor/stock-alerts'];
+  const plainScreen = plain.load('screens/StocksScreen').default;
+  const renderPlain = () => plain.render(plainScreen, { navigation: {}, route: { params: {} } });
+  renderPlain(); await flush();
+  named(renderPlain(), 'SegmentedTabs')[0].props.onChange('products');
+  const products = named(renderPlain(), 'FlatList')[0];
+  const kept = products.props.renderItem({ item: products.props.data.find(b => b.id === 'old') });
+  assert.equal(named(kept, 'StatusBadge')[0].props.label, 'Kept for Sale');
+  assert.ok(texts(kept).includes('Past spoilage limit – kept for sale') && !texts(kept).includes('Keep / Sell'));
+});
+
+test('Home and Product List: stock past the spoilage limit shows its kilograms with Needs Review; Out of Stock only at 0 kg', async () => {
+  const h = harness();
+  h.data['/api/distributor/stock-alerts'] = [];
+  h.data['/api/products/listings'] = [
+    { id: 'e1', vegetable_name: 'Eggplant', price_per_kg: 40, available_kg: 5, status: 'Listed', needs_review: true },
+    { id: 'c1', vegetable_name: 'Carrot', price_per_kg: 30, available_kg: 12, status: 'Listed', needs_review: false },
+    { id: 't1', vegetable_name: 'Tomato', price_per_kg: 50, available_kg: 0, status: 'Sold Out', needs_review: false },
+  ];
+  const navigation = { navigate() {}, addListener: () => () => {}, setParams() {} };
+  const dashboard = h.load('screens/DistributorDashboard').default;
+  const homeTab = () => named(h.render(dashboard, { navigation, route: { params: {} } }), 'HomeTab')[0];
+  const section = () => named(h.render(homeTab().type, homeTab().props), 'ProductListSection')[0];
+  h.render(section().type, section().props); await flush();
+  // One row per vegetable, each ending with its Edit button.
+  const rows = texts(h.render(section().type, section().props)).join('|').split('|Edit').filter(Boolean);
+  const row = name => rows.find(r => r.replace(/^\|/, '').startsWith(name));
+  assert.ok(row('Eggplant').includes('5 kg available') && row('Eggplant').includes(' · Needs Review'), row('Eggplant'));
+  assert.ok(!row('Eggplant').includes('Out of Stock'), 'past the limit is not Out of Stock');
+  assert.ok(row('Carrot').includes('12 kg available') && !row('Carrot').includes('Needs Review'));
+  assert.ok(row('Tomato').includes('Out of Stock'), 'only the 0 kg Tomato is Out of Stock');
+
+  const listScreen = h.load('screens/ProductListScreen').default;
+  const renderList = () => h.render(listScreen, { navigation, route: { params: {} } });
+  renderList(); await flush();
+  const list = named(renderList(), 'FlatList')[0];
+  const listRow = texts(list.props.renderItem({ item: list.props.data.find(l => l.id === 'e1') })).join('|');
+  assert.ok(listRow.includes('5 kg available') && listRow.includes(' · Needs Review') && !listRow.includes('Out of Stock'), listRow);
+});
+
+test('CountBadge: one red badge for every count; circular for one digit, wider for "9+" and larger counts', async () => {
+  const h = harness();
+  const { default: CountBadge, formatCount, floatingBadge, BADGE_OVERHANG, COUNT_BADGE_SIZE } = h.load('components/ui/CountBadge');
+  same([1, 5, 9, 10, 12, 100].map(n => formatCount(n)), ['1', '5', '9', '9+', '9+', '9+']);
+  same([5, 99, 100, 250].map(n => formatCount(n, 99)), ['5', '99', '99+', '99+'], 'the cart keeps its larger limit');
+  same([0, -2, null, undefined, 'x', NaN].map(n => formatCount(n)), [null, null, null, null, null, null], 'nothing to count, no badge');
+  assert.equal(CountBadge({ count: 0 }), null);
+  const one = CountBadge({ count: 1 });
+  const [base] = [].concat(one.props.style);
+  // Height equals the minimum width: a circle for one digit. No fixed width, so
+  // "9+" or "99+" widens it instead of squeezing or clipping the text.
+  assert.equal(base.minWidth, COUNT_BADGE_SIZE); assert.equal(base.height, COUNT_BADGE_SIZE);
+  assert.equal(base.borderRadius, COUNT_BADGE_SIZE / 2); assert.equal(base.width, undefined);
+  assert.ok(base.paddingHorizontal > 0);
+  assert.equal(base.backgroundColor, h.load('theme/appTheme').colors.danger);
+  const text = named(one, 'Text')[0];
+  assert.equal(text.props.style.color, '#fff'); assert.equal(text.props.numberOfLines, 1);
+  assert.equal(named(CountBadge({ count: 37, max: 99 }), 'Text')[0].props.children, '37');
+  // Floating placement: over the top-right corner, by the overhang rows reserve.
+  same([floatingBadge.position, floatingBadge.top, floatingBadge.right], ['absolute', -BADGE_OVERHANG.top, -BADGE_OVERHANG.right]);
+  assert.ok(BADGE_OVERHANG.top < COUNT_BADGE_SIZE && BADGE_OVERHANG.right < COUNT_BADGE_SIZE / 2, 'it overlaps the corner, not detached from it');
+});
+
+test('Rider History: finished pickups and deliveries, newest completion first, filtered by All / Pickups / Deliveries', async () => {
+  const h = harness();
+  const { buildRiderHistory, HISTORY_FILTERS } = h.load('lib/riderHistory');
+  same(HISTORY_FILTERS, ['all', 'pickups', 'deliveries']);
+  // As returned by GET /api/pickup-requests and GET /api/delivery/orders for a rider.
+  const pickups = [
+    { id: 'p-open', status: 'otw', requested_at: '2026-10-06T01:00:00Z', completed_at: null },
+    { id: 'p102', status: 'picked_up', requested_at: '2026-09-01T00:00:00Z', completed_at: '2026-10-04T03:00:00Z' },
+    // Requested long ago, completed most recently: it must come first.
+    { id: 'p103', status: 'picked_up', requested_at: '2026-09-30T08:54:00Z', completed_at: '2026-10-06T02:36:00Z' },
+    { id: 'p-assigned', status: 'assigned', requested_at: '2026-10-06T00:00:00Z', completed_at: null },
+  ];
+  const orders = [
+    { id: 'd208', status: 'delivered', created_at: '2026-10-05T00:00:00Z', deliveries: [{ status: 'delivered' }], completed_at: '2026-10-05T09:00:00Z' },
+    { id: 'd-open', status: 'in_transit', created_at: '2026-10-06T00:00:00Z', deliveries: [{ status: 'in_transit' }], completed_at: null },
+    { id: 'd207', status: 'approved', created_at: '2026-09-29T00:00:00Z', deliveries: [{ status: 'delivered' }], completed_at: '2026-10-03T09:00:00Z' },
+  ];
+  const ids = filter => buildRiderHistory({ orders, pickups, filter }).map(item => `${item.kind}:${item.record.id}`);
+  same(ids('all'), ['pickup:p103', 'delivery:d208', 'pickup:p102', 'delivery:d207'], 'All: 2 pickups + 2 deliveries, newest completion first');
+  same(ids('pickups'), ['pickup:p103', 'pickup:p102']);
+  same(ids('deliveries'), ['delivery:d208', 'delivery:d207']);
+  same(ids(undefined), ids('all'), 'All is the default');
+  assert.ok(!ids('all').some(id => /open|assigned/.test(id)), 'open tasks are never in History');
+  assert.equal(buildRiderHistory({ orders, pickups })[0].completedAt, '2026-10-06T02:36:00Z');
+  // Same completion time: a stable order, whatever the input order.
+  const tie = [{ id: 'b', status: 'picked_up', completed_at: '2026-10-01T00:00:00Z' }, { id: 'a', status: 'picked_up', completed_at: '2026-10-01T00:00:00Z' }];
+  same(buildRiderHistory({ pickups: tie }).map(i => i.record.id), ['a', 'b']);
+  same(buildRiderHistory({ pickups: [...tie].reverse() }).map(i => i.record.id), ['a', 'b']);
+  // An unsuccessful delivery has no completion time: it stays in History, by its schedule.
+  const failed = { id: 'dx', status: 'unsuccessful', preferred_schedule: '2026-10-04T12:00:00Z', created_at: '2026-10-01T00:00:00Z', completed_at: null };
+  same(buildRiderHistory({ orders: [...orders, failed], filter: 'deliveries' }).map(i => [i.record.id, i.completedAt]),
+    [['d208', '2026-10-05T09:00:00Z'], ['dx', null], ['d207', '2026-10-03T09:00:00Z']]);
+});
+
+test('Transaction Reports: every row has View Details for its own record (received, sold, spoiled); read-only; filters kept', async () => {
+  const h = harness(); await flush();
+  const { periodRange } = h.load('lib/reportPeriods');
+  const week = periodRange('week');
+  const route = (vegetable) => `/api/distributor/chain-report?from=${week.from}&to=${week.to}${vegetable ? `&vegetable=${vegetable}` : ''}`;
+  // Two batches of one vegetable; one order drew batch-a on two price lines.
+  const batchA = { batch_id: 'batch-a', vegetable_name: 'Tomato', status: 'listed', farmer_name: 'Ana', harvest_date: '2026-10-01T02:00:00Z',
+    pickup: { quantity_kg: 30, farmer_price_per_kg: 35, estimated_total: 1050, requested_at: '2026-10-01T02:00:00Z', picked_up_at: '2026-10-02T02:00:00Z', rider_name: 'Rider R', proof_photo_url: 'https://example.test/p.jpg' },
+    sales: [
+      { item_id: 'item-3', order_id: 'order-2', retailer_name: 'Store One', quantity_kg: 8, price_per_kg: 50, total_amount: 400, ordered_at: '2026-10-05T02:00:00Z', delivered_at: '2026-10-06T02:00:00Z', rider_name: 'Rider R', payment_status: 'unpaid', stage: 'sold' },
+      { item_id: 'item-4', order_id: 'order-2', retailer_name: 'Store One', quantity_kg: 3, price_per_kg: 48, total_amount: 144, ordered_at: '2026-10-05T02:00:00Z', delivered_at: '2026-10-06T02:00:00Z', rider_name: 'Rider R', payment_status: 'unpaid', stage: 'sold', proof_photo_url: 'https://example.test/d.jpg' },
+    ], spoilage: [], totals: { received: 30 } };
+  const batchB = { batch_id: 'batch-b', vegetable_name: 'Kamatis', status: 'spoiled', farmer_name: 'Ben', harvest_date: '2026-10-02T02:00:00Z', pickup: null, sales: [],
+    spoilage: [{ id: 'spoil-b', quantity_kg: 14, reason: 'past_limit', recorded_at: '2026-10-07T02:00:00Z' }], totals: { received: 20 } };
+  const base = (e) => ({ batch_id: e.batch_id, vegetable_name: e.vegetable_name, farmer_name: e.farmer_name, harvest_date: e.harvest_date });
+  const events = [
+    { ...base(batchB), id: 'spoiled:spoil-b', type: 'spoiled', date: '2026-10-07T02:00:00Z', quantity_kg: 14, party: 'Ben', status: 'past_limit', amount: null, spoilage_id: 'spoil-b' },
+    { ...base(batchA), id: 'sold:item-4', type: 'sold', date: '2026-10-06T02:00:00Z', quantity_kg: 3, party: 'Store One', status: 'delivered', amount: 144, order_id: 'order-2', item_id: 'item-4' },
+    { ...base(batchA), id: 'sold:item-3', type: 'sold', date: '2026-10-06T02:00:00Z', quantity_kg: 8, party: 'Store One', status: 'delivered', amount: 400, order_id: 'order-2', item_id: 'item-3' },
+    { ...base(batchB), id: 'received:batch-b', type: 'received', date: '2026-10-03T02:00:00Z', quantity_kg: 20, party: 'Ben', status: 'spoiled', amount: null },
+    { ...base(batchA), id: 'received:batch-a', type: 'received', date: '2026-10-02T02:00:00Z', quantity_kg: 30, party: 'Ana', status: 'listed', amount: 1050 },
+  ];
+  const summary = { received_kg: 50, sold_kg: 11, spoiled_kg: 14, sales_total: 544, completed_transactions: 1, batches: 2 };
+  h.data[route()] = { vegetables: ['Tomato'], summary, events, batches: [batchA, batchB] };
+  h.data[route('Tomato')] = { vegetables: ['Tomato'], summary, events: events.slice(0, 2), batches: [batchA, batchB] };
+  const screen = h.load('screens/ChainReportScreen').default;
+  const render = () => h.render(screen, { navigation: { goBack() {} } });
+  render(); await flush();
+  const list = () => named(render(), 'FlatList')[0];
+  const row = (id) => list().props.renderItem({ item: list().props.data.find(e => e.id === id), index: 0 });
+  const modal = () => named(render(), 'CustomModal').find(n => n.props.visible);
+  const details = () => { const out = {}; for (const n of named(modal(), 'DetailRow')) if (n.props.value !== undefined && !(n.props.label in out)) out[n.props.label] = n.props.value; return out; };
+  const writes = () => h.calls.filter(c => c.body !== undefined).length;
+
+  same(list().props.data.map(e => list().props.keyExtractor(e)), events.map(e => e.id), 'rows keyed by their own record');
+  for (const e of list().props.data) assert.ok(texts(row(e.id)).includes('View Details'), `${e.id} has View Details`);
+
+  // Sold: the second line of order-2 (3 kg at 48), not the first line from the same batch and order.
+  row('sold:item-4').props.onPress();
+  let d = details();
+  same([d['Order ID'], d.Retailer, d.Quantity, d['Selling Price'], d['Total Amount'], d['Delivery Rider'], d['Batch ID'], d.Farmer],
+    ['order-2', 'Store One', '3 kg', '₱48.00 / kg', '₱144.00', 'Rider R', 'batch-a', 'Ana']);
+  same(named(modal(), 'StatusBadge').map(n => n.props.label), ['Sold', 'Unpaid']);
+  same(named(modal(), 'RemoteImage').map(n => n.props.uri), ['https://example.test/d.jpg']);
+  assert.equal(modal().props.onConfirm, undefined, 'X only: no extra action button');
+  modal().props.onCancel();
+  assert.equal(modal(), undefined);
+  row('sold:item-3').props.onPress();
+  same([details().Quantity, details()['Selling Price'], details()['Total Amount']], ['8 kg', '₱50.00 / kg', '₱400.00']);
+  modal().props.onCancel();
+
+  // Spoiled: the discard record of batch-b only.
+  row('spoiled:spoil-b').props.onPress();
+  d = details();
+  same([d['Batch ID'], d.Farmer, d.Quantity], ['batch-b', 'Ben', '14 kg']);
+  same(named(modal(), 'StatusBadge').map(n => n.props.label).slice(0, 2), ['Spoiled', 'Past Spoilage Limit']);
+  modal().props.onCancel();
+
+  // Received: batch-a with its pickup; batch-b was added in Stocks.
+  row('received:batch-a').props.onPress();
+  d = details();
+  same([d['Batch ID'], d.Farmer, d.Quantity, d["Farmer's Price"], d['Pickup Rider']], ['batch-a', 'Ana', '30 kg', '₱35.00 / kg', 'Rider R']);
+  modal().props.onCancel();
+  row('received:batch-b').props.onPress();
+  assert.ok(texts(modal()).includes('Added in Stocks, not from a pickup request.'));
+  modal().props.onCancel();
+
+  // Filters: details open from the filtered rows, and the chosen filter stays.
+  const vegetableField = () => named(list().props.ListHeaderComponent, 'SelectField').find(n => n.props.label === 'Vegetable');
+  vegetableField().props.onChange('Tomato'); render(); await flush();
+  same(list().props.data.map(e => e.id), ['spoiled:spoil-b', 'sold:item-4']);
+  row('sold:item-4').props.onPress();
+  assert.equal(details().Quantity, '3 kg');
+  modal().props.onCancel();
+  assert.equal(vegetableField().props.value, 'Tomato', 'closing details keeps the filter');
+  assert.equal(writes(), 0, 'View Details only reads');
+});
+
+test('User Management: each action has its own input; decline/disable need a reason; the distributor sees the latest reason and date', async () => {
+  const h = harness(); await flush();
+  const amy = { id: 'amy', full_name: 'Amy Farmer', email: 'amy@example.test', role: 'farmer', account_status: 'pending_approval', status_version: 3, created_at: '2026-10-01T00:00:00Z', last_action: null };
+  const ben = { id: 'ben', full_name: 'Ben Rider', email: 'ben@example.test', role: 'delivery_personnel', account_status: 'disabled', status_version: 5, created_at: '2026-09-01T00:00:00Z',
+    status_reason: 'Account information needs verification', last_action: { action: 'DISABLED', reason: 'Account information needs verification', created_at: '2026-10-06T04:00:00Z' } };
+  h.data['/api/accounts?status=pending_approval'] = [amy];
+  h.data['/api/accounts?status=disabled'] = [ben];
+  const screen = h.load('screens/AccountManagementScreen').default;
+  const render = () => h.render(screen, { navigation: { goBack() {} } });
+  render(); await flush();
+  const button = (title) => named(render(), 'AuthButton').find((n) => n.props.title === title);
+  const modal = () => named(render(), 'CustomModal')[0];
+  const input = () => named(modal(), 'AuthInput')[0];
+
+  assert.equal(named(render(), 'AuthInput').length, 0, 'no shared reason box on the card');
+  assert.ok(!JSON.stringify(h.translation().t('acct')).includes('this user will see it'));
+
+  // Decline: reason required, confirm stays off until real text is typed.
+  button('Decline').props.onPress();
+  assert.equal(modal().props.visible, true);
+  assert.equal(modal().props.title, 'Decline this account?');
+  assert.ok(texts(modal()).includes('Reason for declining account'));
+  assert.equal(modal().props.confirmDisabled, true);
+  input().props.onChangeText('   ');
+  assert.equal(modal().props.confirmDisabled, true, 'spaces are not a reason');
+  input().props.onChangeText('  Store address could not be confirmed ');
+  assert.equal(modal().props.confirmDisabled, false);
+  assert.equal(modal().props.danger, true);
+  await modal().props.onConfirm(); await flush();
+  same(h.calls.at(-1), { route: '/api/accounts/amy/transition', body: { action: 'DECLINED', version: 3, reason: 'Store address could not be confirmed' } });
+  assert.equal(modal().props.visible, false, 'closed after the server accepted it');
+
+  // Approve: a plain confirmation, no message to type.
+  button('Approve').props.onPress();
+  assert.equal(modal().props.title, 'Approve this account?');
+  assert.equal(named(modal(), 'AuthInput').length, 0, 'no message box for approval');
+  assert.ok(!texts(modal()).includes('Message to user (optional)'));
+  assert.ok(texts(modal()).includes('They will get an Account Approved notification and can start using VeggieTrack.'));
+  assert.equal(modal().props.confirmDisabled, false);
+  await modal().props.onConfirm(); await flush();
+  same(h.calls.at(-1).body, { action: 'APPROVED', version: 3 });
+
+  // Disabled list: the reason with its action and date; turn back on takes an optional message.
+  named(render(), 'FilterChips')[0].props.onChange('disabled'); render(); await flush();
+  const shown = texts(render());
+  assert.ok(shown.includes('Reason: Account information needs verification'));
+  assert.ok(shown.some((t) => t.startsWith('Disabled · ')), shown.join(' | '));
+  button('Turn back on').props.onPress();
+  assert.ok(texts(modal()).includes('Message to user (optional)'));
+  await modal().props.onConfirm(); await flush();
+  same(h.calls.at(-1).body, { action: 'REACTIVATED', version: 5, reason: null });
+});
+
+test('Account status at sign-in: a declined or disabled user sees the status and the distributor reason', async () => {
+  const h = harness(); await flush();
+  const screen = h.load('screens/ApplicationStatusScreen').default;
+  h.auth.user = { id: 'ben', account_status: 'disabled', status_reason: 'Account information needs verification' };
+  let shown = texts(h.render(screen));
+  for (const line of ['Your account has been disabled.', 'Reason', 'Account information needs verification', 'Contact the distributor for assistance.']) assert.ok(shown.includes(line), line);
+  h.auth.user = { id: 'bob', account_status: 'declined', status_reason: 'Store address could not be confirmed' };
+  shown = texts(h.render(screen));
+  for (const line of ['Your account request was declined.', 'Reason', 'Store address could not be confirmed']) assert.ok(shown.includes(line), line);
+  h.auth.user = { id: 'amy', account_status: 'pending_approval', status_reason: null };
+  assert.ok(!texts(h.render(screen)).includes('Reason'), 'no reason box while waiting');
+});
+
+test('Contact Us & Support: contact information only, with an email link to support', async () => {
+  const h = harness(); await flush();
+  const contact = h.load('components/ContactUsModal');
+  const tree = h.render(contact.default, { visible: true, onClose() {} });
+  // The address may wrap after "@" (a zero-width break); compare the visible text.
+  const shown = texts(tree).map((text) => text.replace(/\u200B/g, ''));
+  for (const line of ['Contact Us & Support', 'Need help with VeggieTrack? You can contact us using the information below.', 'Contact Number',
+    '09452340031 / 09465606365', 'Email', 'veggietrack.system@gmail.com', 'Tap to write us an email.']) assert.ok(shown.includes(line), line);
+  assert.equal(named(tree, 'TextInput').length + named(tree, 'AppTextInput').length, 0, 'no inquiry form');
+  assert.ok(!shown.some((t) => /send|subject|message/i.test(t)), `no Send Message button or form labels: ${shown.join(' | ')}`);
+  const link = named(tree, 'TouchableOpacity').find((n) => texts(n).some((text) => text.replace(/\u200B/g, '') === 'veggietrack.system@gmail.com'));
+  assert.equal(link.props.accessibilityRole, 'link');
+  // Tapping opens a new email to support in the device's email app.
+  const opened = [];
+  const linking = { openURL: async (url) => { opened.push(url); } };
+  assert.equal(await contact.openSupportEmail(linking, 'android'), true);
+  assert.equal(await contact.openSupportEmail(linking, 'ios'), true);
+  // A computer browser opens Gmail's compose page instead of a blank mailto: tab.
+  assert.equal(await contact.openSupportEmail(linking, 'web'), true);
+  same(opened, ['mailto:veggietrack.system@gmail.com', 'mailto:veggietrack.system@gmail.com',
+    'https://mail.google.com/mail/?view=cm&fs=1&to=veggietrack.system%40gmail.com']);
+  // No email app: reported, not thrown.
+  assert.equal(await contact.openSupportEmail({ openURL: async () => { throw new Error('No Activity found'); } }, 'android'), false);
+  assert.equal(h.translation().t('contactUs.emailFailed', { email: contact.SUPPORT_EMAIL }),
+    'We could not open an email app on this device. Please send your email to veggietrack.system@gmail.com.');
 });
 
 test('Transaction Reports vegetable filter: All Vegetables by default, options from the report, totals and rows per vegetable with any period', async () => {

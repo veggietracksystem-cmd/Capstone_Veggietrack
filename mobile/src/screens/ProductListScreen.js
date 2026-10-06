@@ -19,7 +19,7 @@ import { CATEGORIES, getCategory } from '../lib/vegetables';
 import { getVegetableTile } from '../lib/vegetableIcons';
 import VegetableImage from '../components/VegetableImage';
 import { localizeVegetableName } from '../lib/vegetableNames';
-import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline } from '../theme/appTheme';
+import { colors, control, fontSize, fonts, radius, shadowCard, actionBtn, actionBtnOutline, typography } from '../theme/appTheme';
 import { useTranslation } from '../i18n/useTranslation';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ModalCloseButton from '../components/ui/ModalCloseButton';
@@ -172,6 +172,10 @@ export default function ProductListScreen({ navigation }) {
               <Text style={{ color: colors.danger, fontWeight: '700' }}>{t('productList.outOfStock')}</Text>
             ) : (
               t('productList.kgInStock', { qty: l.available_kg })
+            )}
+            {/* Stock past the 7-day limit is still on sale; it only waits for review in Stocks. */}
+            {!isSoldOut && l.needs_review && (
+              <Text style={{ color: colors.gold700, fontWeight: '700' }}>{` · ${t('stocks.statusNeedsReview')}`}</Text>
             )}
           </Text>
         </View>
@@ -335,9 +339,9 @@ const styles = StyleSheet.create({
   modalTileIcon: { width: 48, height: 48 },
   modalVegName: { fontFamily: fonts.headingBold, fontSize: rf(fontSize.xl), color: colors.ink, textTransform: 'capitalize', textAlign: 'center' },
 
-  modalLabel: { fontFamily: fonts.bodySemiBold, fontSize: rf(fontSize.sm), color: colors.inkSoft, marginTop: 12, marginBottom: 6 },
+  modalLabel: { ...typography.label, color: colors.inkSoft, marginTop: 12, marginBottom: 6 },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  modalInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, fontFamily: fonts.body, fontSize: rf(fontSize.md), color: colors.ink, backgroundColor: colors.card },
+  modalInput: { ...typography.input, flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.ctrl, paddingHorizontal: 12, paddingVertical: 10, color: colors.ink, backgroundColor: colors.card },
   modalInputDisabled: { opacity: 0.5 },
 
   removeBtn: { marginTop: 22, borderWidth: 1.4, borderColor: colors.danger, borderRadius: radius.ctrl, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', minHeight: control.height },

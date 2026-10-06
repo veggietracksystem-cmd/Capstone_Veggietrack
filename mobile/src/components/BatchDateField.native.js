@@ -1,7 +1,7 @@
 import { useTranslation } from '../i18n/useTranslation';
 import { manilaDate } from '../lib/deliverySchedule';
 import { Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { colors, fonts } from '../theme/appTheme';
+import { colors, fonts, typography } from '../theme/appTheme';
 import { rf } from '../lib/responsive';
 
 const PRIMARY = colors.leaf700;
@@ -47,6 +47,6 @@ const styles = StyleSheet.create({
   chipRow: { gap: 8, paddingRight: 8 },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   chipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  chipText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: rf(13.5) },
+  chipText: { ...typography.chip, color: colors.inkSoft },
   chipTextActive: { fontFamily: fonts.bodySemiBold, color: '#fff' },
 });

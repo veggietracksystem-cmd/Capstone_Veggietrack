@@ -4,7 +4,7 @@ import {
   KeyboardAvoidingView, Animated,
 } from 'react-native';
 import ModalCloseButton from './ui/ModalCloseButton';
-import { colors, fonts, radius, shadowCard } from '../theme/appTheme';
+import { colors, fonts, radius, shadowCard, typography } from '../theme/appTheme';
 import { useSharedModalMotion } from '../lib/motion';
 
 export default function BottomSheet({ visible, onClose, title, children, scroll = true }) {
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
-  title: { fontFamily: fonts.heading, fontSize: rf(18), color: colors.ink, flex: 1 },
+  title: { ...typography.modalTitle, color: colors.ink, flex: 1 },
   scrollBody: { flexGrow: 0 },
   scrollContent: { paddingBottom: 4 },
 });
