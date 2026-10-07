@@ -149,7 +149,7 @@ export default function DistributorDashboard({ navigation, route }) {
     setPickupRequests(list);
   }, []);
 
-  // Accounts waiting for approval — the Account Management badge. Same list the
+  // Accounts waiting for approval — the User Management badge. Same list the
   // Account Management screen shows; a failed read keeps the last count.
   const [pendingAccountCount, setPendingAccountCount] = useState(0);
   const loadPendingAccounts = useCallback(async () => {
@@ -458,7 +458,7 @@ function HomeTab({
   onViewPickups, onViewPayments, onManageAccounts,
 }) {
   const { t, tc } = useTranslation();
-  // Four shortcuts share one row when each tile fits "Account Management" (about 96 wide);
+  // Four shortcuts share one row when each tile fits "User Management" (about 96 wide);
   // phones get two rows of two.
   const { width } = useWindowDimensions();
   const quickActionBasis = { flexBasis: (width - 32 - 30) / 4 >= 96 ? '20%' : '40%' };
@@ -491,11 +491,11 @@ function HomeTab({
         <QuickAction icon="alert-circle-outline" label={t('dashboards.distributor.stockAlertAction')} badge={stockAlertCount}
           badgeLabel={tc('stockAlerts.needAttention', stockAlertCount)}
           onPress={() => navigation.navigate('Stocks', { showStockAlerts: stockAlertCount > 0 })} style={quickActionBasis} />
-        <QuickAction icon="people-outline" label={t('dashboards.distributor.accountManagement')} badge={pendingAccountCount}
+        <QuickAction icon="people-outline" label={t('dashboards.distributor.userManagement')} badge={pendingAccountCount}
           badgeLabel={t('dashboards.distributor.needsActionBadge', { count: pendingAccountCount })}
           onPress={onManageAccounts} style={quickActionBasis} />
         {/* Unpaid orders, the same list as the Unpaid tab on Payment. */}
-        <QuickAction icon="wallet-outline" label={t('dashboards.distributor.paymentAction')} badge={unpaidCount}
+        <QuickAction icon="wallet-outline" label={t('dashboards.distributor.paymentTrackerAction')} badge={unpaidCount}
           badgeLabel={t('dashboards.distributor.needsActionBadge', { count: unpaidCount })}
           onPress={onViewPayments} style={quickActionBasis} />
       </View>

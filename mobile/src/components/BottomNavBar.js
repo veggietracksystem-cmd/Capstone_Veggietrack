@@ -91,7 +91,7 @@ export default function BottomNavBar({ tabs, activeTab, onTabPress, onTabMeasure
               />
               {typeof tab.badge === 'number' && <TabBadge count={tab.badge} />}
             </View>
-            {/* A long label ("Chain Tracking") wraps to a second line at the same size
+            {/* A long label wraps to a second line at the same size
                 instead of being cut off on narrow phones. */}
             <Text
               style={[styles.label, isActive && styles.labelActive]}

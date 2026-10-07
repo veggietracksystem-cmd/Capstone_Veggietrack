@@ -166,7 +166,7 @@ test('Vegetable Chain Tracking English → Tagalog → English updates labels an
     assert.equal(formatted.remaining, '0 kg');
     assert.equal(formatted.retailers, 'Store One');
     assert.equal(t('chain.title'), 'Vegetable Chain Tracking');
-    assert.equal(t('dashboards.distributor.tabInventory'), 'Chain Tracking');
+    assert.equal(t('dashboards.distributor.tabInventory'), 'Chain');
     assert.equal(formatted.product, language === 'tl' ? 'Karot' : 'Carrot');
     assert.equal(formatted.status, language === 'tl' ? 'Ubos na' : 'Sold out');
     assert.equal(t('spoilage.reason.discarded'), language === 'tl' ? 'Itinapon ng Distributor' : 'Discarded by Distributor');
@@ -532,7 +532,7 @@ test('Home Stock Alert shortcut: badge only with alerts, real count that follows
   // The shared CountBadge renders the number; read what it would show.
   const { formatCount } = h.load('components/ui/CountBadge');
   const badgeText = () => named(rendered(), 'CountBadge').map(node => formatCount(node.props.count)).filter(Boolean);
-  assert.equal(shortcuts().map(node => node.props.label).join(' | '), 'Pickup Requests | Stock Alert | Account Management | Payment');
+  assert.equal(shortcuts().map(node => node.props.label).join(' | '), 'Pickup Requests | Stock Alert | User Management | Payment Tracker');
   assert.ok(!texts(home().tree).some(text => text.startsWith('Stock alert') || text.includes('7-day limit')), 'no separate alert section on Home');
   same(badgeText(), [], 'no alert → no badge');
 
